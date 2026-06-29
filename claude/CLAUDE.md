@@ -67,13 +67,12 @@ Every non-trivial **actionable** task flows through three roles. Hard rules in `
 
 ### Roles
 1. **Orchestrator (Claude main session)** — for large actionable tasks: plans, decomposes, delegates. Writes plans to `projects/<active>/plans/<name>.md` and tracks their steps in `projects/<active>/todo.md` (markdown checkboxes). **Handles quick items and short tasks directly** — no plan/todo — when delegating would be more overhead than the work. **Handles all research/exploration directly** — never spins up an executor or files plan/todo artifacts for read-only investigation.
-2. **Executor (primary): Codex via `codex-mem.sh --executor`.** One-liner that expands to `exec --sandbox workspace-write --skip-git-repo-check -c sandbox_workspace_write.network_access=true` (non-interactive, no approval prompts):
-   ```bash
-   ~/.claude-memory/scripts/codex-mem.sh --executor "<prompt>"
-   ```
-   Deny list in `~/.codex/rules/default.rules` blocks any apply/merge/destructive action regardless of prompt.
-3. **Executor (fallback): Claude `Agent` subagent** with `sonnet` (default) or `haiku` (lightweight) — invoked when Codex stalls, errors, or returns wrong output.
-4. **Validator: Claude `Agent` subagent (`sonnet`)** — independent check, invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, anything visible to GitOps, multi-step state. Checks executor output against the plan's `## Success criteria` (per identity.md → Task Contract) — each criterion verified pass/fail with evidence, nothing beyond them; if the plan has no criteria, draft them before validating rather than inventing a bar.
+2. **Executor: user-selectable via `AI_MEMORY_EXECUTOR`** (set in `config.local.sh`; default `claude-subagent`). To delegate, run `~/.claude-memory/scripts/executor.sh --which`:
+   - `subagent` → use the Claude `Agent` tool (`sonnet` default, `haiku` lightweight).
+   - `cli:<key>` → run `~/.claude-memory/scripts/executor.sh --run "<prompt>"`; on `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead.
+
+   Built-in executor types: `claude-subagent` (in-harness) and `codex` (CLI via `codex-mem.sh --executor`). Add other CLI tools with `AI_MEMORY_EXECUTOR_CMD_<key>`. A missing CLI binary auto-falls-back per `AI_MEMORY_EXECUTOR_FALLBACK`.
+3. **Validator: Claude `Agent` subagent (`sonnet`)** — independent check, invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, anything visible to GitOps, multi-step state. Checks executor output against the plan's `## Success criteria` (per identity.md → Task Contract) — each criterion verified pass/fail with evidence, nothing beyond them; if the plan has no criteria, draft them before validating rather than inventing a bar.
 
 ### File conventions
 
@@ -86,13 +85,13 @@ Every non-trivial **actionable** task flows through three roles. Hard rules in `
 
 - **Never use the harness `TaskCreate`/`TaskUpdate` tools.** `todo.md` is the single source of truth.
 - **Archive is never read unless the user explicitly asks.** Don't load it into context, don't grep it for ideas, don't quote from it.
-- **Executors never apply or merge to running infrastructure.** Blocked at the codex execpolicy layer (`~/.codex/rules/default.rules`) and reinforced in `identity.md`: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `bkt pr merge`, `az repos pr update` (Azure merge = `pr update --status completed`), `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits, on whichever git provider the project uses (GitHub/Bitbucket/Azure DevOps).
+- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes); for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed. Blocked: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `bkt pr merge`, `az repos pr update` (Azure merge = `pr update --status completed`), `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits, on whichever git provider the project uses (GitHub/Bitbucket/Azure DevOps).
 - **Lifecycle:** when a plan completes, move it to `archive/plans/`. When `todo.md` is fully ticked, snapshot to `archive/todos/YYYY-MM-DD-<slug>.md` and reset.
 
 ### Cross-project relationships
 
 Projects map one-to-one to repos, but some relate (a unit of work spans several, sometimes ordered). Relationships are **distributed** — they live in the project where the work starts, as an optional `## Related Projects` table in its `memory.md`. Full rules in `identity.md`; the essentials:
 
-- **Delegate, don't load.** When a task matches a `## Related Projects` row, do NOT pull the sibling's `memory.md` into the main thread. Delegate sibling-scoped work to an executor (Codex `--executor`, Claude subagent fallback) with a self-contained prompt (points at `identity.md` + the sibling `memory.md`); default deliverable = **plan only**. Keep only the returned summary.
+- **Delegate, don't load.** When a task matches a `## Related Projects` row, do NOT pull the sibling's `memory.md` into the main thread. Delegate sibling-scoped work to the configured executor (`executor.sh --which` → `--run` or Agent tool) with a self-contained prompt (points at `identity.md` + the sibling `memory.md`); default deliverable = **plan only**. Keep only the returned summary.
 - **Plan-set execution.** Execute persisted plans by walking them in order and delegating each; keep summaries; **pause at human/CI gates** (PR merges, `terraform`/`kubectl` applies).
 
