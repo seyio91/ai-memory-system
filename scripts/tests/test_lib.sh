@@ -79,6 +79,29 @@ EOF
 assert_eq "$ABS" "$(resolve_repo_path absproj)" "resolve_repo_path absolute repo_path"
 rm -rf "$ABS"
 
+# --- resolve_repo_path: $MEMORY_DIR sentinel (self-referential meta-project) ---
+mkdir -p "$MEM/projects/metaproj"
+cat > "$MEM/projects/metaproj/memory.md" <<'EOF'
+---
+topic: metaproj
+scope: project
+summary: s
+repo_path: $MEMORY_DIR
+---
+EOF
+assert_eq "$MEM" "$(resolve_repo_path metaproj)" "resolve_repo_path \$MEMORY_DIR -> memory tree"
+
+mkdir -p "$MEM/projects/metasub"
+cat > "$MEM/projects/metasub/memory.md" <<'EOF'
+---
+topic: metasub
+scope: project
+summary: s
+repo_path: $MEMORY_DIR/projects
+---
+EOF
+assert_eq "$MEM/projects" "$(resolve_repo_path metasub)" "resolve_repo_path \$MEMORY_DIR/subpath"
+
 # --- resolve_repo_path: git-remote fallback when repo_path dir is gone ---
 URL="git@github.com:org/sibling.git"
 SIB="$ROOT/sibling-checkout"

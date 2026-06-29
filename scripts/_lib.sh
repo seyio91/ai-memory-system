@@ -33,8 +33,11 @@ projects_root() {
 }
 
 # resolve_repo_path — print a project's local checkout dir and return 0, else
-# print nothing and return 1. Path-first (repo_path under projects_root, or an
-# absolute repo_path), with the git remote (repo) as a portable fallback id.
+# print nothing and return 1. Path-first: a literal `$MEMORY_DIR`(/subpath)
+# repo_path resolves against the memory tree itself (used by the self-
+# referential ai-memory meta-project so the value is machine-independent), an
+# absolute repo_path is used as-is, otherwise repo_path is taken relative to
+# projects_root. The git remote (repo) is a portable fallback id.
 #   resolve_repo_path <project>
 resolve_repo_path() {
     local project="$1"
@@ -45,6 +48,8 @@ resolve_repo_path() {
     rp=$(extract_fm_field "$mf" repo_path)
     if [ -n "$rp" ]; then
         case "$rp" in
+            '$MEMORY_DIR')    cand="$MEMORY_DIR" ;;
+            '$MEMORY_DIR/'*)  cand="$MEMORY_DIR/${rp#\$MEMORY_DIR/}" ;;
             /*) cand="$rp" ;;
             *)  cand="$(projects_root)/$rp" ;;
         esac

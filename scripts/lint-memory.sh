@@ -114,6 +114,8 @@ for f in "$MEMORY_DIR"/projects/*/memory.md; do
     [ -n "$rp" ] || continue
     project=$(basename "$(dirname "$f")")
     case "$rp" in
+        '$MEMORY_DIR')    cand="$MEMORY_DIR" ;;
+        '$MEMORY_DIR/'*)  cand="$MEMORY_DIR/${rp#\$MEMORY_DIR/}" ;;
         /*) cand="$rp" ;;
         *)  cand="$(projects_root)/$rp" ;;
     esac
