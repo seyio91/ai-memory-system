@@ -9,12 +9,13 @@
 # Source of truth (per-project, path == scope):
 #   <memory>/projects/<project>/skills/<skill>/SKILL.md
 #
-# Each project's repo is resolved from its memory.md `repo_path:` (must be
-# absolute — run the repo_path normalization first). Skills are fanned per
-# harness; both Claude Code and Codex consume the SAME SKILL.md, so no
-# translation is needed:
-#   Claude Code -> <repo_path>/.claude/skills/<skill>
-#   Codex       -> <repo_path>/.agents/skills/<skill>
+# Each project's repo is resolved from its memory.md `repo_path:` via the shared
+# resolve_repo_path (in _lib.sh): repo_path is relative to AI_MEMORY_PROJECTS_ROOT,
+# or the `$MEMORY_DIR` sentinel for the self-referential meta-project, with the
+# git remote as a fallback. Skills are fanned per harness; both Claude Code and
+# Codex consume the SAME SKILL.md, so no translation is needed:
+#   Claude Code -> <repo>/.claude/skills/<skill>
+#   Codex       -> <repo>/.agents/skills/<skill>
 #
 # Usage:
 #   sync-project-skills.sh [--harness claude|codex|all] [--mode link|copy]
@@ -37,6 +38,11 @@ set -euo pipefail
 
 MEM="${MEMORY_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 PROJECTS_DIR="$MEM/projects"
+
+# Shared helpers (projects_root, resolve_repo_path, extract_fm_field). Pin
+# MEMORY_DIR to MEM so the resolver reads from the same tree we're syncing.
+MEMORY_DIR="$MEM"
+. "$(dirname "$0")/_lib.sh"
 
 HARNESS="all"
 MODE="link"
@@ -71,12 +77,6 @@ harness_subdirs() {
   esac
 }
 
-resolve_repo_path() {
-  local proj="$1"
-  grep -m1 -E '^repo_path:' "$PROJECTS_DIR/$proj/memory.md" 2>/dev/null \
-    | sed -E 's/^repo_path:[[:space:]]*//'
-}
-
 in_filter() {
   [ ${#FILTER[@]} -eq 0 ] && return 0
   local p="$1" f
@@ -97,13 +97,11 @@ for skilldir in "$PROJECTS_DIR"/*/skills/*/; do
   in_filter "$project" || continue
   [ -f "$src/SKILL.md" ] || { echo "skip (no SKILL.md): $project/$skill"; continue; }
 
-  rp="$(resolve_repo_path "$project")"
-  if [ -z "$rp" ]; then echo "WARN: $project has no repo_path — skipping $skill" >&2; warned=$((warned+1)); continue; fi
-  case "$rp" in
-    /*) ;;
-    *) echo "WARN: $project repo_path is relative ('$rp') — normalize first; skipping $skill" >&2; warned=$((warned+1)); continue ;;
-  esac
-  if [ ! -d "$rp" ]; then echo "WARN: $project repo dir missing ($rp) — skipping $skill" >&2; warned=$((warned+1)); continue; fi
+  # Shared resolver: returns the absolute checkout dir (repo_path relative to
+  # projects_root, the $MEMORY_DIR sentinel, or an absolute path; git-remote
+  # fallback) only when it exists on disk, else empty.
+  rp="$(resolve_repo_path "$project" 2>/dev/null || true)"
+  if [ -z "$rp" ]; then echo "WARN: $project — cannot resolve repo checkout (repo_path/repo missing or dir absent) — skipping $skill" >&2; warned=$((warned+1)); continue; fi
 
   while IFS= read -r sub; do
     target="$rp/$sub"
