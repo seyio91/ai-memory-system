@@ -6,9 +6,10 @@
 #      defaults resolve.
 #   2. Symlinks the hook scripts into ~/.claude/hooks/.
 #   3. Symlinks the slash commands into ~/.claude/commands/.
-#   4. Links the bundled skills and agents into ~/.claude/ via the repo scripts.
-#   5. Seeds identity.md / index.md from their templates if missing.
-#   6. Prints the manual steps it will not do for you (settings.json merge,
+#   4. Symlinks statusline.sh into ~/.claude/.
+#   5. Links the bundled skills and agents into ~/.claude/ via the repo scripts.
+#   6. Seeds identity.md / index.md from their templates if missing.
+#   7. Prints the manual steps it will not do for you (settings.json merge,
 #      CLAUDE.md placement).
 set -euo pipefail
 
@@ -57,6 +58,14 @@ for c in "$REPO_ROOT"/claude/commands/*.md; do
     link "$c" "$CLAUDE_DIR/commands/$(basename "$c")"
 done
 
+step "Status line -> $CLAUDE_DIR/statusline.sh"
+if [ -f "$REPO_ROOT/claude/statusline.sh" ]; then
+    chmod +x "$REPO_ROOT/claude/statusline.sh"
+    link "$REPO_ROOT/claude/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+else
+    info "no claude/statusline.sh in repo — skipping"
+fi
+
 step "Skills & agents"
 if [ -d "$REPO_ROOT/skills" ]; then bash "$REPO_ROOT/scripts/link-skills.sh" || info "link-skills.sh skipped/failed"; fi
 if [ -d "$REPO_ROOT/agents" ]; then bash "$REPO_ROOT/scripts/link-agents.sh" || info "link-agents.sh skipped/failed"; fi
@@ -70,8 +79,8 @@ cat <<EOF
 
 ==> Done. Two manual steps remain:
 
-  1. Hooks must be registered in $CLAUDE_DIR/settings.json. Merge the three
-     entries from claude/settings.hooks.json into your settings file.
+  1. Settings must be registered in $CLAUDE_DIR/settings.json. Merge the hook
+     entries and the statusLine from claude/settings.hooks.json into your settings file.
 
   2. Workflow rules: review claude/CLAUDE.md, then either symlink or merge it:
        ln -s "$REPO_ROOT/claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"   # if you have none

@@ -31,12 +31,13 @@ cd ~/.claude-memory
 - links the clone to `$MEMORY_DIR` (default `~/.claude-memory`),
 - symlinks `claude/hooks/*.sh` → `~/.claude/hooks/`,
 - symlinks `claude/commands/*.md` → `~/.claude/commands/`,
+- symlinks `claude/statusline.sh` → `~/.claude/statusline.sh` (the context-bar status line, showing the active memory project),
 - links the bundled `skills/` and `agents/` into `~/.claude/` (via `scripts/link-skills.sh` / `link-agents.sh`),
 - seeds `identity.md` and `index.md` from their `*.template.md` if missing.
 
 Two steps it leaves to you:
 
-1. **Register the hooks** — merge the three entries in `claude/settings.hooks.json` into `~/.claude/settings.json`.
+1. **Register settings** — merge the hook entries and the `statusLine` from `claude/settings.hooks.json` into `~/.claude/settings.json`.
 2. **Global rules** — symlink `claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (or merge into your existing one).
 
 Then edit `identity.md` (start from `identity.template.md`), onboard a repo with
@@ -84,7 +85,8 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 │   ├── hooks/                         #   inject_memory.sh, session_start_memory.sh,
 │   │                                  #   block_task_tools.sh, memory_common.sh (sourced)
 │   ├── commands/                      #   the slash commands (/pin, /checkpoint, /new-project, …)
-│   ├── settings.hooks.json            #   hook entries to merge into ~/.claude/settings.json
+│   ├── statusline.sh                  #   context-bar status line (shows active memory project) → ~/.claude/statusline.sh
+│   ├── settings.hooks.json            #   hook + statusLine entries to merge into ~/.claude/settings.json
 │   └── CLAUDE.md                      #   global workflow rules → ~/.claude/CLAUDE.md
 ├── agents/                            # Bundled subagent definitions → ~/.claude/agents (link-agents.sh)
 ├── skills/                            # Bundled skills → ~/.claude/skills (link-skills.sh)

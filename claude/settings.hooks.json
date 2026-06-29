@@ -1,5 +1,5 @@
 {
-  "_comment": "Merge these three hook entries into ~/.claude/settings.json. install.sh symlinks the hook scripts into ~/.claude/hooks/. Paths assume the default install location ~/.claude-memory; adjust if you set MEMORY_DIR elsewhere.",
+  "_comment": "Merge the hook entries and the statusLine below into ~/.claude/settings.json. install.sh symlinks the hook scripts into ~/.claude/hooks/ and statusline.sh into ~/.claude/. Paths assume the default install location ~/.claude-memory; adjust if you set MEMORY_DIR elsewhere.",
   "hooks": {
     "SessionStart": [
       {
@@ -23,5 +23,10 @@
         ]
       }
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "$HOME/.claude/statusline.sh",
+    "padding": 0
   }
 }
