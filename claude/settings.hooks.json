@@ -1,0 +1,27 @@
+{
+  "_comment": "Merge these three hook entries into ~/.claude/settings.json. install.sh symlinks the hook scripts into ~/.claude/hooks/. Paths assume the default install location ~/.claude-memory; adjust if you set MEMORY_DIR elsewhere.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "$HOME/.claude/hooks/session_start_memory.sh" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "$HOME/.claude/hooks/inject_memory.sh" }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "TaskCreate|TaskUpdate",
+        "hooks": [
+          { "type": "command", "command": "$HOME/.claude/hooks/block_task_tools.sh" }
+        ]
+      }
+    ]
+  }
+}

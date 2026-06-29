@@ -1,0 +1,33 @@
+# OS cruft
+.DS_Store
+
+# Claude Code runtime state (per-repo marker dir, session sentinels)
+.claude/
+.sessions/
+
+# Python bytecode / virtualenvs
+__pycache__/
+*.pyc
+.venv/
+
+# ── Personal memory content: ship templates, ignore the real data ──
+
+# Real index is regenerated from frontmatter; ship index.template.md only
+/index.md
+
+# Real cross-project knowledge; ship domain/_template.md only
+/domain/*
+!/domain/_template.md
+
+# Real engagement memory; ship projects/_template/ only
+/projects/*
+!/projects/_template
+
+# Task backlog and archived artifacts are personal
+/tasks/
+/archive/
+
+# Client-specific skill — not for publication (generic skills only)
+/skills/fiter-infrastructure-analyzer/
+
+# identity.md IS committed (preferences, no client data) — see identity.template.md
