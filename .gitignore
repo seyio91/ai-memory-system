@@ -27,6 +27,9 @@ __pycache__/
 /tasks/
 /archive/
 
+# Per-environment overrides (secrets/paths) — ship config.local.sh.example only
+/config.local.sh
+
 # Client-specific skill — not for publication (generic skills only)
 /skills/fiter-infrastructure-analyzer/
 

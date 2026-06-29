@@ -4,6 +4,11 @@
 
 MEMORY_DIR="${MEMORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
+# Per-environment overrides (gitignored). Lives next to the memory tree; set
+# AI_MEMORY_PROJECTS_ROOT, MEMORY_TASK_PROVIDER, etc. here so they reach scripts,
+# hooks, and subagents that don't inherit your shell rc. See config.local.sh.example.
+[ -f "$MEMORY_DIR/config.local.sh" ] && . "$MEMORY_DIR/config.local.sh"
+
 # detect_active_project — print active project name to stdout, or empty.
 # Walks up from $1 (defaults to cwd) looking for .claude/memory-project. No
 # marker -> empty: no global fallback, the project is whichever repo you are in.
@@ -24,7 +29,7 @@ detect_active_project() {
 # per-environment via AI_MEMORY_PROJECTS_ROOT (default below is this install's
 # layout; e.g. /workspace in a sandbox container).
 projects_root() {
-    printf '%s\n' "${AI_MEMORY_PROJECTS_ROOT:-$HOME/Downloads/personal}"
+    printf '%s\n' "${AI_MEMORY_PROJECTS_ROOT:-$HOME/Projects}"
 }
 
 # resolve_repo_path — print a project's local checkout dir and return 0, else

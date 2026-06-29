@@ -43,7 +43,7 @@ rm -rf "$EMPTY"
 
 # --- projects_root: default + env override ---
 unset AI_MEMORY_PROJECTS_ROOT
-assert_eq "$HOME/Downloads/personal" "$(projects_root)" "projects_root default"
+assert_eq "$HOME/Projects" "$(projects_root)" "projects_root default"
 export AI_MEMORY_PROJECTS_ROOT="/tmp/some-root"
 assert_eq "/tmp/some-root" "$(projects_root)" "projects_root env override"
 

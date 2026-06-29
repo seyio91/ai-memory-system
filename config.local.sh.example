@@ -1,0 +1,22 @@
+# config.local.sh — per-environment overrides for the memory system.
+#
+# Copy to config.local.sh (gitignored) and edit. Sourced by scripts/_lib.sh and
+# scripts/taskctl when present, so these values reach scripts, hooks, and
+# subagents that do NOT inherit your shell's rc files. Plain shell — use `export`
+# so child processes (e.g. the Python task-provider) see them too.
+
+# Root under which your code checkouts live. resolve_repo_path joins this with a
+# project's `repo_path` frontmatter; the git-remote fallback scans repos here.
+# export AI_MEMORY_PROJECTS_ROOT="$HOME/Projects"
+
+# Task-provider backend: local (default) or notion. Notion also needs
+# NOTION_TOKEN + NOTION_DATA_SOURCE_ID (and NOTION_STATUS_KIND=select if the
+# Notion Status property is a select rather than a status type).
+# export MEMORY_TASK_PROVIDER="local"
+
+# Other tunables (uncomment to override their defaults):
+# export MEMORY_STALE_DAYS=30            # lint-memory.sh working-memory age warning
+# export MEMORY_ARCHIVE_RETAIN_DAYS=30   # archive-cleanup.sh retention threshold
+
+# NOTE: MEMORY_DIR cannot be set here — it must be known before this file is
+# found. Relocate the memory tree via the MEMORY_DIR env var in your shell/env.

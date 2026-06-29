@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
-# taskctl — thin wrapper around the Python task-provider CLI so callers (slash
+# taskctl â thin wrapper around the Python task-provider CLI so callers (slash
 # commands, the shell) don't repeat the PYTHONPATH / -m boilerplate.
 #
 #   taskctl <capture|list|get|update|set-status|ping> ...
 #
 # Honors MEMORY_DIR (the single location knob) and MEMORY_TASK_PROVIDER
 # (default local, set in the Python factory). Prints JSON to stdout; errors via
-# exit code. Backend selection and all logic live in the Python layer — this is
+# exit code. Backend selection and all logic live in the Python layer â this is
 # only glue.
 set -uo pipefail
 
 # PYTHONPATH = the dir THIS script lives in (where the taskprovider package is),
 # independent of MEMORY_DIR. MEMORY_DIR is the DATA root and is read by the
-# provider itself — keep the two concerns separate so a temp data root (tests,
+# provider itself â keep the two concerns separate so a temp data root (tests,
 # or a synced location) still imports the real package.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 export MEMORY_DIR="${MEMORY_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+# Per-environment overrides (gitignored) — e.g. MEMORY_TASK_PROVIDER. See config.local.sh.example.
+[ -f "$MEMORY_DIR/config.local.sh" ] && . "$MEMORY_DIR/config.local.sh"
 
 exec env PYTHONPATH="$SCRIPT_DIR" python3 -m taskprovider "$@"

@@ -183,12 +183,14 @@ This is the **forward** map (checkout → project). The **reverse** map (project
 
 The forward map lets a checkout name its project. The reverse map lets a project's `memory.md` record *where its code lives on disk* — so cross-project work can not only read a sibling's memory but also inspect the sibling's actual code. The path is resolved **per environment**, so the same `memory.md` works on a laptop and inside a container/sandbox.
 
-**Identifier — path-first, git remote as fallback.** `AI_MEMORY_PROJECTS_ROOT` (this install's default `$HOME/Downloads/personal`) is the root under which checkouts live. Frontmatter stores `repo_path` *relative to that root*; the resolved path is `$AI_MEMORY_PROJECTS_ROOT/$repo_path`. If that directory is gone, the resolver falls back to locating a checkout under the root whose `origin` remote matches the stored `repo`. Override the env var per environment:
+**Identifier — path-first, git remote as fallback.** `AI_MEMORY_PROJECTS_ROOT` (default `$HOME/Projects`) is the root under which checkouts live. Frontmatter stores `repo_path` *relative to that root*; the resolved path is `$AI_MEMORY_PROJECTS_ROOT/$repo_path`. If that directory is gone, the resolver falls back to locating a checkout under the root whose `origin` remote matches the stored `repo`. Override it per environment in `config.local.sh` (preferred) or via the env var:
 
 | Environment | `AI_MEMORY_PROJECTS_ROOT` |
 |-------------|---------------------------|
-| Host (laptop) | `$HOME/Downloads/personal` (default) |
+| Host (laptop) | `$HOME/Projects` (default) |
 | Sandbox / container | `/workspace` |
+
+**Per-environment config — `config.local.sh`.** `scripts/_lib.sh` and `taskctl` source a gitignored `config.local.sh` (next to the memory tree) if present, so per-machine values reach scripts, hooks, and subagents that don't inherit your shell rc. Copy `config.local.sh.example` and set `AI_MEMORY_PROJECTS_ROOT`, `MEMORY_TASK_PROVIDER`, etc. there. (`MEMORY_DIR` itself must come from the env, since it's needed to *find* the config file.)
 
 **Populate it with `memory-pin` (or `/pin`).** Run from *inside* a checkout:
 
@@ -618,8 +620,9 @@ Environment overrides:
 
 | Var | Default | Used by |
 |-----|---------|---------|
-| `MEMORY_DIR` | `~/.claude-memory` | All scripts |
-| `AI_MEMORY_PROJECTS_ROOT` | `$HOME/Downloads/personal` | `memory-pin.sh`, `resolve_repo_path`, `lint-memory.sh` |
+| `MEMORY_DIR` | repo root (self-locating); `~/.claude-memory` when installed | All scripts |
+| `AI_MEMORY_PROJECTS_ROOT` | `$HOME/Projects` | `memory-pin.sh`, `resolve_repo_path`, `lint-memory.sh` |
+| `config.local.sh` (file, not a var) | unset — copy from `.example` | Sourced by `_lib.sh` + `taskctl` for per-env overrides |
 | `CODEX_INSTRUCTIONS_FILE` | `~/.codex/AGENTS.md` | `codex-mem.sh` |
 | `CODEX_OVERLAY_FILE` | `~/.codex/AGENTS.local.md` | `codex-mem.sh` |
 | `CODEX_HISTORY_FILE` | `~/.codex/history.jsonl` | `codex-mem-checkpoint.sh` |
