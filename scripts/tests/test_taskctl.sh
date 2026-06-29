@@ -4,6 +4,12 @@
 # MEMORY_DIR through to the Python CLI.
 . "$(dirname "$0")/_assert.sh"
 
+# Hermetic: force the default local file provider. Without this, a developer
+# shell that exports MEMORY_TASK_PROVIDER=notion (e.g. from ~/.zshenv) would
+# route capture to the REAL Notion backend — failing the local-file assertions
+# AND leaking test tasks into production. Tests must never touch a live backend.
+unset MEMORY_TASK_PROVIDER NOTION_STATUS_KIND NOTION_TOKEN NOTION_DATA_SOURCE_ID
+
 MEM="$(new_sandbox)"
 trap 'rm -rf "$MEM"' EXIT
 export MEMORY_DIR="$MEM"

@@ -10,6 +10,19 @@ trap 'rm -rf "$MEM" "$BIN"' EXIT
 export MEMORY_DIR="$MEM"
 seed_min_tree "$MEM"
 
+# Build a PATH with every codex-containing dir stripped, so the "codex absent"
+# cases are genuinely absent even on hosts where codex IS installed (e.g. via
+# nvm). Restoring the raw $PATH is NOT enough there — it still finds codex.
+codex_free_path() {
+    local d out="" IFS=:
+    for d in $1; do
+        [ -n "$d" ] || continue
+        [ -x "$d/codex" ] && continue
+        out="${out:+$out:}$d"
+    done
+    printf '%s' "$out"
+}
+
 run() { # run <args...> ; sets OUT (stdout), ERR (stderr), CODE
     local tmp_out tmp_err
     tmp_out="$BIN/.o"; tmp_err="$BIN/.e"
@@ -46,7 +59,7 @@ assert_eq "cli:codex" "$OUT" "codex present -> cli:codex"
 assert_exit 0 "$CODE" "codex present --which exits 0"
 
 # --- 3. codex selected + codex ABSENT + default fallback -> subagent ---
-export PATH="$OLDPATH"   # codex no longer reachable
+export PATH="$(codex_free_path "$OLDPATH")"   # codex genuinely unreachable
 run --which
 assert_eq "subagent" "$OUT" "codex absent -> falls back to subagent"
 assert_exit 0 "$CODE" "codex absent w/ fallback exits 0"
