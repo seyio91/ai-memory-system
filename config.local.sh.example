@@ -18,5 +18,21 @@
 # export MEMORY_STALE_DAYS=30            # lint-memory.sh working-memory age warning
 # export MEMORY_ARCHIVE_RETAIN_DAYS=30   # archive-cleanup.sh retention threshold
 
+# ── Orchestrator executor selection ──
+# Which executor the orchestrator delegates actionable work to.
+#   claude-subagent  — in-harness Claude Agent tool (default; always available)
+#   codex            — CLI via scripts/codex-mem.sh --executor
+#   <other>          — generic CLI; define its command with AI_MEMORY_EXECUTOR_CMD_<key>
+#                      (<key> must match [A-Za-z0-9_]+; the template must contain {prompt})
+# export AI_MEMORY_EXECUTOR="claude-subagent"
+
+# Generic CLI executor example ({prompt} is substituted, already shell-quoted):
+# export AI_MEMORY_EXECUTOR="aider"
+# export AI_MEMORY_EXECUTOR_CMD_aider='aider --yes --message {prompt}'
+
+# Fallback used when the preferred CLI executor's binary is missing.
+# Empty string = hard-fail instead of falling back.
+# export AI_MEMORY_EXECUTOR_FALLBACK="claude-subagent"
+
 # NOTE: MEMORY_DIR cannot be set here — it must be known before this file is
 # found. Relocate the memory tree via the MEMORY_DIR env var in your shell/env.
