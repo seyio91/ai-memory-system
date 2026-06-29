@@ -29,6 +29,21 @@ cmd_template() {
     printf '%s' "$tmpl"
 }
 
+# Single-quote a string for safe eval.
+shq() { local s="${1:-}" sq="'" esc="'\\''"; s="${s//$sq/$esc}"; printf "'%s'" "$s"; }
+
+# Exec the resolved CLI executor for <key> with <prompt>. Does not return.
+run_cli() {
+    local key="$1" prompt="$2" tmpl q cmd
+    if [ "$key" = "codex" ]; then
+        exec "$SCRIPT_DIR/codex-mem.sh" --executor "$prompt" </dev/null
+    fi
+    tmpl="$(cmd_template "$key")"
+    q="$(shq "$prompt")"
+    cmd="${tmpl//\{prompt\}/$q}"
+    eval "exec ${cmd} </dev/null"
+}
+
 # Resolve a single executor key with NO fallback.
 # Prints 'subagent' or 'cli:<key>' on success (0).
 # Returns 1 = CLI binary unavailable, 2 = unknown key / bad template.
@@ -77,6 +92,32 @@ resolve() {
 
 MODE="${1:-}"
 case "$MODE" in
-    --which) resolve; exit $? ;;
-    *) printf 'usage: executor.sh --which | --run "<prompt>" | --show\n' >&2; exit 2 ;;
+    --which)
+        resolve; exit $?
+        ;;
+    --run)
+        PROMPT="${2:-}"
+        if [ -z "$PROMPT" ]; then
+            printf 'executor --run: missing prompt argument\n' >&2; exit 2
+        fi
+        PLANE="$(resolve)"; rc=$?
+        [ "$rc" -eq 0 ] || exit "$rc"
+        case "$PLANE" in
+            subagent) printf 'EXECUTOR_USE_SUBAGENT\n'; exit 3 ;;
+            cli:*)    run_cli "${PLANE#cli:}" "$PROMPT" ;;
+        esac
+        ;;
+    --show)
+        printf 'AI_MEMORY_EXECUTOR          = %s\n' "$EXECUTOR"
+        printf 'AI_MEMORY_EXECUTOR_FALLBACK = %s\n' "${FALLBACK:-<empty>}"
+        if PLANE="$(resolve 2>/dev/null)"; then
+            printf 'resolved plane              = %s\n' "$PLANE"
+        else
+            printf 'resolved plane              = <unresolved, rc=%s>\n' "$?"
+        fi
+        ;;
+    *)
+        printf 'usage: executor.sh --which | --run "<prompt>" | --show\n' >&2
+        exit 2
+        ;;
 esac

@@ -84,4 +84,46 @@ assert_eq "cli:aider" "$OUT" "generic CLI present -> cli:aider"
 assert_exit 0 "$CODE" "generic CLI --which exits 0"
 export PATH="$OLDPATH"
 
+# --- 7. --run with generic CLI substitutes {prompt} and executes ---
+MARK="$BIN/ran.txt"
+cat > "$BIN/echoexec" <<EOF
+#!/usr/bin/env bash
+printf '%s' "\$*" > "$MARK"
+exit 0
+EOF
+chmod +x "$BIN/echoexec"
+export PATH="$BIN:$PATH"
+export AI_MEMORY_EXECUTOR="echoexec"
+export AI_MEMORY_EXECUTOR_CMD_echoexec="echoexec ARG {prompt} END"
+run --run "do the thing"
+assert_exit 0 "$CODE" "--run generic CLI exits 0 via stub"
+assert_eq "ARG do the thing END" "$(cat "$MARK")" "--run substitutes {prompt} (quoted)"
+export PATH="$OLDPATH"
+
+# --- 8. --run resolving to subagent -> sentinel + exit 3 ---
+export AI_MEMORY_EXECUTOR="claude-subagent"
+run --run "anything"
+assert_eq "EXECUTOR_USE_SUBAGENT" "$OUT" "--run subagent prints sentinel"
+assert_exit 3 "$CODE" "--run subagent exits 3"
+
+# --- 8b. --run with missing prompt -> exit 2 ---
+run --run
+assert_exit 2 "$CODE" "--run without prompt exits 2"
+
+# --- 9. --run prompt with an apostrophe survives quoting ---
+MARK2="$BIN/ran2.txt"
+cat > "$BIN/echoexec2" <<EOF
+#!/usr/bin/env bash
+printf '%s' "\$*" > "$MARK2"
+exit 0
+EOF
+chmod +x "$BIN/echoexec2"
+export PATH="$BIN:$PATH"
+export AI_MEMORY_EXECUTOR="echoexec2"
+export AI_MEMORY_EXECUTOR_CMD_echoexec2="echoexec2 {prompt}"
+run --run "it's a test"
+assert_exit 0 "$CODE" "--run apostrophe prompt exits 0"
+assert_eq "it's a test" "$(cat "$MARK2")" "--run preserves apostrophe in prompt"
+export PATH="$OLDPATH"
+
 finish
