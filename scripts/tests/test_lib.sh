@@ -112,4 +112,13 @@ assert_exit 1 "$code" "resolve_repo_path miss returns 1"
 assert_eq "" "$out" "resolve_repo_path miss -> empty"
 rm -rf "$ROOT"
 
+# --- MEMORY_DIR self-locating default (no MEMORY_DIR set) ---
+# With MEMORY_DIR unset, sourcing scripts/_lib.sh must resolve MEMORY_DIR to the
+# memory root (parent of scripts/) via BASH_SOURCE. Computed from SCRIPTS_DIR so
+# the test is independent of the install's absolute path. Runs under bash, where
+# BASH_SOURCE is populated (it is empty under zsh).
+EXPECTED_ROOT="$(cd "$SCRIPTS_DIR/.." && pwd)"
+got=$( unset MEMORY_DIR; . "$SCRIPTS_DIR/_lib.sh"; printf '%s' "$MEMORY_DIR" )
+assert_eq "$EXPECTED_ROOT" "$got" "MEMORY_DIR default self-locates to memory root"
+
 finish
