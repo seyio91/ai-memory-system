@@ -10,6 +10,7 @@ description: >-
   Use when the user passes a Renovate PR URL or says "review renovate PR",
   "renovate upgrade", "helm chart update PR", or "terraform module/provider update".
 metadata:
+  tier: target-read-only
   domain: platform
   lifecycle: run
 ---

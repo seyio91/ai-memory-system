@@ -1,6 +1,8 @@
 ---
 name: excalidraw-diagram
 description: Create Excalidraw diagram JSON files that make visual arguments. Use when the user wants to visualize workflows, architectures, or concepts.
+metadata:
+  tier: target-write
 ---
 
 # Excalidraw Diagram Creator

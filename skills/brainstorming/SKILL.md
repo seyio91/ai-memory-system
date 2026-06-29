@@ -1,6 +1,8 @@
 ---
 name: brainstorming
 description: Use before starting a large, non-trivial feature task (a Tier-3 task in this system) that still has open design questions — new functionality, a new subsystem, a new integration, or a real architecture decision. Refines the idea through collaborative dialogue, settles on an approach, and produces an approved design that is folded directly into a plan file via /new-plan. Invoke this whenever a feature is big enough to warrant a plan AND its shape is not already obvious — including when a /start command begins a captured feature task. Do NOT use for research/explore/Q&A (Tier 1), quick one-off edits or fixes (Tier 2), or Tier-3 work whose design is already settled (mechanical refactors, renames, migrations with a known target). When in doubt on a feature-sized task, invoke it — a short design is cheap; an unexamined assumption is not.
+metadata:
+  tier: target-read-only
 ---
 
 # Brainstorming Features Into Designs

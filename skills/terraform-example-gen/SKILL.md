@@ -1,6 +1,8 @@
 ---
 name: terraform-example-gen
 description: Generates or updates examples/main.tf for Terraform modules in this repository. Use this skill whenever the user asks to generate, create, update, or fix a Terraform module example, or when a module's variables change and the example needs updating. Also triggers when the user says things like "write an example for this module", "update the example", "the example is outdated", or "add an example to [module]". Always invoke this skill for any work touching examples/main.tf in a Terraform module directory.
+metadata:
+  tier: target-write
 ---
 
 # Terraform Example Generator

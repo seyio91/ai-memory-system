@@ -5,6 +5,8 @@ description: >
   Prometheus and Grafana Cloud Metrics overview including PromQL query language, Metrics Drilldown,
   alerting, recording rules, and integration patterns. Use when working with Prometheus, writing PromQL
   queries, configuring alerting, or discussing metrics architecture and best practices.
+metadata:
+  tier: target-read-only
 ---
 
 # Metrics with Prometheus and Grafana

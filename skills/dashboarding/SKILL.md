@@ -9,6 +9,8 @@ description:
   phrases like "create dashboard", "add panel", "time series panel", "Grafana dashboard JSON",
   "template variables", "dashboard variable", "panel transformation", "threshold", "stat panel",
   "table panel", "Grafana annotations", or "dashboard folder".
+metadata:
+  tier: target-write
 ---
 
 # Grafana Dashboard Authoring

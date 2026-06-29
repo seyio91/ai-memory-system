@@ -295,6 +295,28 @@ Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked f
 
 The gate lives in two places that must agree: the skill's `description` (what Claude Code matches on) and the routing rule in `identity.md` → Orchestration (the injected-every-session anchor). The skill is **orchestrator-only** (Claude main session — Codex never brainstorms) and **seed-agnostic**: it accepts either a fresh user request or a pulled task summary, so a future `/start` can delegate to it without changing the skill.
 
+#### Skill write boundary (`metadata.tier`)
+
+Every skill declares one neutral frontmatter field under `metadata:`:
+
+```yaml
+metadata:
+  tier: target-read-only   # or: target-write
+```
+
+`tier` is a **coarse label, not a tool list** — deliberately *not* Claude's `allowed-tools` (that's Claude-only; Codex ignores it). Enforcement stays harness-agnostic: the label is what *we* check, identically for Claude and Codex.
+
+- **`target-read-only`** — the skill must not modify the thing it operates on (the project/repo under review). Review, analysis, planning, and reference skills: `renovate-manager`, `observability-check`, `prometheus`, `tempo`, `teach`, `brainstorming`.
+- **`target-write`** — the skill may modify the target. Generators and action skills: `terraform-example-gen`, `dashboarding`, `excalidraw-diagram`, `fiter-infrastructure-analyzer`, `grafana-oss`, `bkt`.
+
+The label resolves **three write zones**:
+
+1. **Target tree** — the project/repo being worked on. Gated by `tier` (read-only ⇒ hands off).
+2. **The skill's own folder** (`skills/<name>/`) — **always writable, at any time, regardless of tier**, with no declaration needed. This is where a read-only skill puts its output (e.g. `renovate-manager` writes review memory under `skills/renovate-manager/renovate-reviews/`). No `memory_store` field — the rule is universal, so there's nothing to declare.
+3. **Everything else** (`projects/*/memory.md`, `working.md`, `index.md`, and *other* skills' folders) — **off-limits by default**, even though it's in the memory repo.
+
+Enforcement is harness-agnostic and *detective* (a post-run check, layered under the codex execpolicy which prevents the destructive class) — see `projects/ai-memory/plans/skill-subsystem.md` for the `tier` schema (#10), the `validate-skills.sh` static check (#4), and the post-run git-diff boundary check (#11).
+
 ---
 
 ## Codex CLI

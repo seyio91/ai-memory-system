@@ -2,6 +2,7 @@
 name: observability-check
 description: Use when verifying monitoring, alerting, and logging coverage — checks the four pillars (metrics, logs, traces, alerts), produces a coverage matrix with gaps, severity ratings, and recommended actions, and applies the 3 AM test to every component. SLOs/SLIs are noted where present but not required.
 metadata:
+  tier: target-read-only
   domain: platform
   lifecycle: run
 ---
