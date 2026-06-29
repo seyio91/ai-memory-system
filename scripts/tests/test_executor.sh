@@ -58,4 +58,30 @@ run --which
 assert_exit 1 "$CODE" "codex absent + no fallback exits 1"
 unset AI_MEMORY_EXECUTOR_FALLBACK
 
+# --- 5. unknown key (no template) -> exit 2 ---
+export AI_MEMORY_EXECUTOR="bogus"
+run --which
+assert_exit 2 "$CODE" "unknown executor key exits 2"
+assert_contains "$ERR" "unknown executor" "unknown key message"
+
+# --- 5b. template without {prompt} -> exit 2 ---
+export AI_MEMORY_EXECUTOR="aider"
+export AI_MEMORY_EXECUTOR_CMD_aider="aider --yes"
+run --which
+assert_exit 2 "$CODE" "template missing {prompt} exits 2"
+assert_contains "$ERR" "must contain {prompt}" "missing-token message"
+
+# --- 6. generic CLI present on PATH -> cli:aider ---
+cat > "$BIN/aider" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$BIN/aider"
+export PATH="$BIN:$PATH"
+export AI_MEMORY_EXECUTOR_CMD_aider="aider --yes --message {prompt}"
+run --which
+assert_eq "cli:aider" "$OUT" "generic CLI present -> cli:aider"
+assert_exit 0 "$CODE" "generic CLI --which exits 0"
+export PATH="$OLDPATH"
+
 finish
