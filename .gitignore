@@ -27,6 +27,9 @@ __pycache__/
 /tasks/
 /archive/
 
+# Superpowers brainstorm specs / plans are personal working docs (not published)
+/docs/superpowers/
+
 # Per-environment overrides (secrets/paths) — ship config.local.sh.example only
 /config.local.sh
 

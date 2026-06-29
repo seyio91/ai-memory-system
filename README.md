@@ -387,15 +387,14 @@ Opens `$EDITOR` on `working.md` with a checkpoint scaffold appended. Fill in don
 | Quick actionable item | one edit, a one-off command, a short fix | Just do it. No plan, no `todo.md` entry. |
 | Large / non-trivial actionable task | multi-step, multiple files, real blast radius | Plan file + `todo.md` step tracking; flows through the role pipeline below. |
 
-`todo.md` tracks **plan execution** — no plan means no `todo.md` entry. Only the third tier flows through the orchestrator/executor/validator roles. The orchestrator is Claude (main session); the executor is Codex (or a Claude subagent fallback); the validator is a Claude subagent invoked on judgment.
+`todo.md` tracks **plan execution** — no plan means no `todo.md` entry. Only the third tier flows through the orchestrator/executor/validator roles. The orchestrator is Claude (main session); the executor is selectable (`claude-subagent` by default, or a configured CLI like `codex`); the validator is a Claude subagent invoked on judgment.
 
 ### Roles
 
 | Role | Tool | Model | Responsibility |
 |------|------|-------|----------------|
 | Orchestrator | Claude main session | Opus | Plans, decomposes into `todo.md` items, delegates non-trivial work. **Handles short tasks directly when delegating would be more overhead than the work. Handles all research/exploration directly — no plan/todo/executor for read-only investigation.** |
-| Executor (primary) | `codex-mem.sh exec` | gpt-5.5 | Writes code/config inside workspace; runs read-only commands; never applies/merges to infra. |
-| Executor (fallback) | Claude `Agent` subagent | `sonnet` (default), `haiku` (lightweight) | Invoked when Codex stalls or returns wrong output. |
+| Executor | selectable via `AI_MEMORY_EXECUTOR` (see [Executor selection](#executor-selection)) | per executor | Writes code/config in the workspace; runs read-only commands; never applies/merges to infra. `claude-subagent` (in-harness Agent tool, `sonnet`/`haiku`) by default; `codex` or another CLI when configured. |
 | Validator | Claude `Agent` subagent | `sonnet` | Independent check on executor output. Invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, GitOps-visible ops, multi-step state. Verifies output against the plan's `## Success criteria` (see [Task Contract](#task-contract)) — each criterion pass/fail with evidence, scope capped to exactly those. |
 
 ### Task Contract
@@ -416,19 +415,28 @@ Enforcement is **template-only** — `/new-plan` scaffolds the section; no hook 
 - `projects/<active>/archive/plans/<name>.md` — completed plans, moved when their referencing todo items all close.
 - `projects/<active>/archive/todos/YYYY-MM-DD-<slug>.md` — snapshots of fully-ticked `todo.md`, taken when the file is rolled.
 
-### Executor invocation
+### Executor selection
 
-```bash
-~/.claude-memory/scripts/codex-mem.sh --executor "<prompt>"
-```
+The orchestrator delegates actionable work to a **selectable executor**, configured in `config.local.sh`:
 
-The `--executor` shorthand expands to `exec --sandbox workspace-write --skip-git-repo-check -c sandbox_workspace_write.network_access=true`. `codex exec` is non-interactive so no approval prompts surface. Codex picks up `identity.md` and project memory via the regenerated `~/.codex/AGENTS.md`, so the workflow rules and hard limits are in-band on every invocation. The `decision="forbidden"` rules in `~/.codex/rules/default.rules` block apply/merge/destructive commands regardless of prompt.
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `AI_MEMORY_EXECUTOR` | `claude-subagent` | Preferred executor. Built-ins: `claude-subagent` (in-harness Agent tool), `codex` (CLI via `codex-mem.sh --executor`). Any other value names a generic CLI executor. |
+| `AI_MEMORY_EXECUTOR_CMD_<key>` | — | Command template for generic CLI executor `<key>` (`{prompt}` substituted, already shell-quoted; `<key>` is `[A-Za-z0-9_]+`). |
+| `AI_MEMORY_EXECUTOR_FALLBACK` | `claude-subagent` | Used when the preferred CLI binary is absent. Empty = hard-fail. |
+
+To delegate, the orchestrator runs `scripts/executor.sh --which`, which resolves config + availability and prints `subagent` or `cli:<key>`:
+
+- `subagent` → use the Claude `Agent` tool.
+- `cli:<key>` → run `scripts/executor.sh --run "<prompt>"`, which execs the CLI executor (for `codex`, `codex-mem.sh --executor "<prompt>"`); if it prints `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead.
+
+`--show` prints the resolved selection for debugging. A missing CLI binary auto-falls-back to `AI_MEMORY_EXECUTOR_FALLBACK` (default `claude-subagent`), so an unconfigured machine always has a working executor.
 
 ### Hard rules
 
 - **No `TaskCreate`.** `todo.md` is the single source of truth for executable work.
 - **Archive is never read unless the user explicitly asks.** Don't load it, grep it, or quote from it.
-- **Executors never apply or merge to running infrastructure.** Blocked at the codex execpolicy layer (`~/.codex/rules/default.rules`) and in `identity.md`: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
+- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes) and in `identity.md`; for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
 
 ---
 
@@ -446,7 +454,7 @@ Because `memory.md` is injected wholesale on the first prompt (Claude) and built
 
 The table deliberately carries **no on-disk path**. A delegate that needs to inspect the sibling's *code* resolves the checkout with `resolve_repo_path <sibling>`, which reads `repo_path`/`repo` from the sibling's own frontmatter (see [Reverse map](#reverse-map-project--checkout)). The path lives in one place — the sibling's `memory.md` — and is resolved per environment, so it is never duplicated into (and never goes stale in) the relationship table.
 
-**The hop — delegate, don't load.** When a task matches a row, the orchestrator (Claude main session) does **not** load the sibling's `memory.md` into its own thread (that would bloat context, especially across several siblings). Instead it delegates the sibling-scoped work to an **executor** — Codex (`codex-mem.sh`) as primary, a Claude `Agent` subagent as fallback. The `identity.md` rule makes this dependable.
+**The hop — delegate, don't load.** When a task matches a row, the orchestrator (Claude main session) does **not** load the sibling's `memory.md` into its own thread (that would bloat context, especially across several siblings). Instead it delegates the sibling-scoped work to an **executor** (selected via `AI_MEMORY_EXECUTOR` — `claude-subagent` by default, or a CLI like `codex`). The `identity.md` rule makes this dependable.
 
 **Delegation contract:**
 - *Dispatch* — the prompt is self-contained, because the delegate does not inherit the orchestrator's context: it points at `identity.md` (hard rules / executor deny-list) and `projects/<sibling>/memory.md`, states the task, and sets the default deliverable to **plan only** (no edits to the sibling repo).
