@@ -6,8 +6,8 @@
 
 ## Active
 
-### GitHub-core migration → [plan](plans/github-core-migration.md)
-Migration + follow-ups are done; remaining = verify in a fresh session, then clean up.
+### GitHub-core migration → [plan](plans/github-core-migration.md) — ✅ CLOSED 2026-06-29
+Migration, follow-ups, validation, and cleanup all done. Plan `status: done`.
 
 - [x] **Restart Claude Code** and accept the one-time external-import approval for `~/.claude/CLAUDE.md` — CLAUDE.md imports (`@RTK.md` + canonical) are live in this fresh session
 - [x] **Validation B** — first-prompt injection confirmed live this session; compaction reload proven end-to-end via hook I/O simulation (sentinel write on `source=compact` → next prompt re-injects full 21.7 KB payload incl. `<memory:identity>` + clears sentinel → subsequent prompts revert to 492 B breadcrumb)
@@ -19,7 +19,7 @@ Migration + follow-ups are done; remaining = verify in a fresh session, then cle
 Supersedes the old "confirm or revert Codex-primary" item. Codex validated as non-functional here (no binary, no deny-rules file); making the executor user-selectable (`claude-subagent` + generic CLI types) via `config.local.sh`. Spec: `docs/superpowers/specs/2026-06-29-selectable-executor-design.md`. Item 4 (3 identical files → repo symlinks) folded in as Task 9.
 
 - [x] Execute `plans/selectable-executor.md` — DONE 2026-06-29 on branch `feat/selectable-executor`. `scripts/executor.sh` (`--which`/`--run`/`--show`) + 23-assertion test; `config.local.sh` keys; identity.md/CLAUDE.md/README reconciled; item-4 files now repo symlinks. 12/12 test files green, lint clean, two-stage + final review passed. **PR open: https://github.com/seyio91/ai-memory-system/pull/1** (awaiting merge).
-- [ ] Cleanup after a few days' confidence: `rm -rf ~/Projects/ai-memory-old`; prune `~/.claude/**/*.bak-*`; keep the `~/backups/` tarball
+- [x] Cleanup done 2026-06-29: removed `~/Projects/ai-memory-old` (840K rollback tree) + all 14 `~/.claude/**/*.bak-*` files (command/hook backups obsolete — those paths are now repo symlinks). `~/backups/` already empty.
 
 ## Done
 _(checked items stay above until the file is rolled)_

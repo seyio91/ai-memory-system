@@ -1,7 +1,8 @@
 ---
 plan: github-core-migration
-status: in-progress
+status: done
 created: 2026-06-29
+completed: 2026-06-29
 owner: claude (orchestrator)
 ---
 
