@@ -18,18 +18,62 @@ EXECUTOR="${AI_MEMORY_EXECUTOR:-claude-subagent}"
 # Unset -> default claude-subagent; set-but-empty -> no fallback (hard-fail).
 FALLBACK="${AI_MEMORY_EXECUTOR_FALLBACK-claude-subagent}"
 
+first_word() { set -f; set -- $1; set +f; printf '%s' "${1:-}"; }
+
+# Look up the command template for a generic CLI key (empty if unset/invalid name).
+cmd_template() {
+    local key="$1" var tmpl
+    case "$key" in *[!A-Za-z0-9_]*) printf ''; return 0 ;; esac
+    var="AI_MEMORY_EXECUTOR_CMD_${key}"
+    eval "tmpl=\${${var}:-}"
+    printf '%s' "$tmpl"
+}
+
 # Resolve a single executor key with NO fallback.
 # Prints 'subagent' or 'cli:<key>' on success (0).
+# Returns 1 = CLI binary unavailable, 2 = unknown key / bad template.
 resolve_one() {
-    local key="$1"
+    local key="$1" tmpl bin
     if [ "$key" = "claude-subagent" ]; then
         printf 'subagent\n'; return 0
     fi
-    printf 'executor: unknown executor %s\n' "$key" >&2
-    return 2
+    if [ "$key" = "codex" ]; then
+        bin=codex
+    else
+        tmpl="$(cmd_template "$key")"
+        if [ -z "$tmpl" ]; then
+            printf 'executor: unknown executor %s (set AI_MEMORY_EXECUTOR_CMD_%s or use a built-in)\n' "$key" "$key" >&2
+            return 2
+        fi
+        case "$tmpl" in
+            *'{prompt}'*) : ;;
+            *) printf 'executor: AI_MEMORY_EXECUTOR_CMD_%s must contain {prompt}\n' "$key" >&2; return 2 ;;
+        esac
+        bin="$(first_word "$tmpl")"
+    fi
+    if command -v "$bin" >/dev/null 2>&1; then
+        printf 'cli:%s\n' "$key"; return 0
+    fi
+    printf 'executor: %s unavailable (%s not in PATH)\n' "$key" "$bin" >&2
+    return 1
 }
 
-resolve() { resolve_one "$EXECUTOR"; }
+# Resolve with fallback. Prints plane; returns 0/1/2.
+resolve() {
+    local out rc
+    out="$(resolve_one "$EXECUTOR")"; rc=$?
+    if [ "$rc" -eq 0 ]; then printf '%s\n' "$out"; return 0; fi
+    if [ "$rc" -eq 2 ]; then return 2; fi
+    # rc=1 unavailable -> try fallback if set
+    if [ -n "$FALLBACK" ]; then
+        printf 'executor: %s unavailable; falling back to %s\n' "$EXECUTOR" "$FALLBACK" >&2
+        out="$(resolve_one "$FALLBACK")"; rc=$?
+        [ "$rc" -eq 0 ] && { printf '%s\n' "$out"; return 0; }
+        return "$rc"
+    fi
+    printf 'executor: %s unavailable and no fallback set\n' "$EXECUTOR" >&2
+    return 1
+}
 
 MODE="${1:-}"
 case "$MODE" in

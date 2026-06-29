@@ -33,4 +33,29 @@ run --which
 assert_eq "subagent" "$OUT" "explicit claude-subagent -> subagent"
 assert_exit 0 "$CODE" "claude-subagent --which exits 0"
 
+# --- 2. codex selected + codex present on PATH -> cli:codex ---
+cat > "$BIN/codex" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$BIN/codex"
+OLDPATH="$PATH"; export PATH="$BIN:$PATH"
+export AI_MEMORY_EXECUTOR="codex"
+run --which
+assert_eq "cli:codex" "$OUT" "codex present -> cli:codex"
+assert_exit 0 "$CODE" "codex present --which exits 0"
+
+# --- 3. codex selected + codex ABSENT + default fallback -> subagent ---
+export PATH="$OLDPATH"   # codex no longer reachable
+run --which
+assert_eq "subagent" "$OUT" "codex absent -> falls back to subagent"
+assert_exit 0 "$CODE" "codex absent w/ fallback exits 0"
+assert_contains "$ERR" "falling back" "fallback note on stderr"
+
+# --- 4. codex absent + empty fallback -> hard-fail exit 1 ---
+export AI_MEMORY_EXECUTOR_FALLBACK=""
+run --which
+assert_exit 1 "$CODE" "codex absent + no fallback exits 1"
+unset AI_MEMORY_EXECUTOR_FALLBACK
+
 finish
