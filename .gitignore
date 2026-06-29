@@ -23,6 +23,12 @@ __pycache__/
 /projects/*
 !/projects/_template
 
+# The ai-memory meta-project documents THIS repo (no client data) — track its
+# durable artifacts; keep volatile scratch and audit trail local/per-machine.
+!/projects/ai-memory
+/projects/ai-memory/working.md
+/projects/ai-memory/archive/
+
 # Task backlog and archived artifacts are personal
 /tasks/
 /archive/
