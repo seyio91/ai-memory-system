@@ -81,9 +81,29 @@ if [ "$DO_LINT" = 1 ]; then
     fi
 fi
 
+vs_status="skipped"
+vs_rc=0
+if [ "$DO_LINT" = 1 ]; then
+    printf '\n== validate-skills ==\n'
+    # Exits 0 clean, 1 on ERROR, 2 on setup error. Gate on the exit code so an
+    # exit-2 (no skills dir) can't masquerade as clean (it emits no ERROR: line).
+    hermetic bash "$HERE/validate-skills.sh" >"$LOGDIR/vs.log" 2>&1; vs_rc=$?
+    vs_warns=$(grep -c '^WARN' "$LOGDIR/vs.log" 2>/dev/null); vs_warns=${vs_warns:-0}
+    if [ "$vs_rc" -eq 0 ]; then
+        vs_status="clean ($vs_warns warning(s))"
+    elif [ "$vs_rc" -eq 1 ]; then
+        vs_errors=$(grep -c '^ERROR' "$LOGDIR/vs.log" 2>/dev/null); vs_errors=${vs_errors:-0}
+        vs_status="$vs_errors error(s)"
+    else
+        vs_status="setup error (exit $vs_rc)"
+    fi
+    grep -E '^(WARN|ERROR)' "$LOGDIR/vs.log" | sed 's/^/  /' || true
+fi
+
 printf '\n== summary ==\n'
 printf '  tests: %d passed, %d failed%s\n' "$pass" "$fail" \
     "$( [ -n "$failed_names" ] && printf ' —%s' "$failed_names" )"
 [ "$DO_LINT" = 1 ] && printf '  lint:  %s\n' "$lint_status"
+[ "$DO_LINT" = 1 ] && printf '  skills: %s\n' "$vs_status"
 
-[ "$fail" -eq 0 ] && [ "$lint_errors" -eq 0 ]
+[ "$fail" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ]
