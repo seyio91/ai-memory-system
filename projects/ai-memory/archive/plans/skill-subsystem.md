@@ -1,7 +1,9 @@
 ---
 plan: skill-subsystem
-status: draft
+status: done
 created: 2026-06-30
+completed: 2026-06-30
+merged: PR #8 (aab1575)
 owner: claude (orchestrator)
 ---
 
