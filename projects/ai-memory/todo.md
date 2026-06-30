@@ -11,7 +11,7 @@ POS adoption — triage + rationale in `wikis/pos-adoption-backlog.md` (all 13 i
 ### Skill subsystem → [plan](plans/skill-subsystem.md)
 - [x] Phase 1 — `metadata.tier` schema across all skills + docs (#10) — 12/12 classified, validator PASS
 - [x] Phase 2 — `scripts/validate-skills.sh` + tests (#4) — 19-assertion test, wired into run-tests, validator PASS
-- [ ] Phase 3 — post-run boundary check + violation fixture (#11)
+- [x] Phase 3 — boundary check (#11): engine + Claude PostToolUse/Stop hooks; 2 validators (FAIL→fixed→PASS); 35 assertions. Codex trigger deferred (decision); live-wiring is user's step.
 - [ ] Phase 4 — skill creator + installer/intake (#12, #13)
 - [ ] Phase 5 — self-rating block + minimal partials, first-party workflow skills only (#6, #5)
 

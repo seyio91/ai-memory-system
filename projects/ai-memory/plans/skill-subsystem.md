@@ -54,11 +54,11 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - Write `scripts/validate-skills.sh` (checks above) + bash-3.2 tests. Wire into the test suite.
 
 ### Phase 3 — Boundary check (#11) — seam settled (Approach A)
-- Build the shared `scripts/skill-boundary-check.sh` (two git diffs; split enforcement: target-tree universal, memory-confinement full on executor / other-skills'-dirs in-session) + bash-3.2 tests.
-- Executor trigger: wire baseline-capture + post-run check into `codex-mem.sh`.
-- In-session trigger: `PostToolUse`-on-Skill marker (baseline + tier) + `Stop` hook that runs the check and clears the marker.
-- Violation fixture proving it fails closed on both paths.
-- (MVP fallback B: land the executor trigger first; in-session Stop trigger second.)
+- [x] **Core engine** `scripts/skill-boundary-check.sh` — `snapshot`/`check` subcommands; target-tree + memory-confinement halves; `full`/`others-only` scope; 14-assertion test.
+- [x] **Claude in-session trigger** (the priority path — read-only skills run in-session): `claude/hooks/skill_boundary_marker.sh` (PostToolUse:Skill, arms read-only skills + captures memory baseline) + `claude/hooks/skill_boundary_check.sh` (Stop, checks `others-only` memory + registered target, exit 2 on violation, clears markers). Wired in `claude/settings.hooks.json`. 11-assertion hook test.
+- [x] **Target-registration convention:** a read-only skill that resolves a target drops `skills/<skill>/.boundary-target` = "<repo-path>\n<baseline-file>" (writing its own folder, which it may). Stop hook checks it if present. (renovate-manager to adopt.)
+- [ ] **Codex executor trigger — DEFERRED** (decision: Codex mostly runs target-write work, where the check is moot; read-only enforcement matters on the in-session path). Revisit if read-only skills get delegated to Codex; needs `codex-mem.sh` exec→run+check + a `--tier` delegation flag.
+- [ ] **Live verification** (can't be unit-tested): confirm PostToolUse:Skill + Stop fire as expected in a real session.
 
 ### Phase 4 — Creator + Installer (#12, #13)
 - Creator: scaffold-to-schema, runs validate at the end.
@@ -69,8 +69,9 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - Apply to the four first-party workflow skills; aggregation script over `skills/*/`.
 
 ## Risks / open questions
-- ~~Boundary-check seam (#11)~~ — **settled** (brainstorm, Approach A): one shared `skill-boundary-check.sh` + two harness-native triggers. See `## Design`.
-- **Multi-turn skills + Stop-hook granularity:** a read-only skill that spans turns (user answers a mid-skill question) leaves the marker active; the Stop hook re-checks each turn until the marker clears. Errs toward over-checking (safe) but the marker-clear condition needs a concrete rule (skill completion signal vs. session end).
-- **Subagent path:** `renovate-manager` fans out to read-only *subagents* (Agent tool); `SubagentStop` is a cleaner per-subagent seam than `Stop`. Decide in Phase 3 whether to also wire `SubagentStop` or let the parent `Stop` check cover them.
+- ~~Boundary-check seam (#11)~~ — **settled + built** (Approach A): shared `skill-boundary-check.sh` + Claude PostToolUse/Stop triggers. Codex trigger deferred. See `## Design` + Phase 3.
+- ~~Multi-turn marker-clear rule~~ — **v1 decided:** marker armed at invocation, checked + cleared at the next Stop = **single-turn coverage**. A read-only skill spanning a user question is only checked for its first turn — accepted limitation; v2 can move to per-turn baselines (UserPromptSubmit) + persistent markers. Documented in the Stop hook header.
+- ~~SubagentStop~~ — **v1 decided:** `renovate-manager`'s read-only subagent fan-out is covered by the parent `Stop` check (memory writes land in the shared tree regardless of which subagent made them). Per-subagent `SubagentStop` wiring deferred unless subagents need independent target checks.
+- **Live verification pending:** PostToolUse:Skill + Stop hook behavior (and exit-2 surfacing) can't be unit-tested — verify in a real session.
 - **Self-rating signal thinness:** only four skills qualify; the aggregate may be low-volume. Acceptable — it's additive, not a quality gate.
 - Phase ordering assumes #10 lands first (everything keys off the label). #5 is intentionally last and minimal.

@@ -37,13 +37,20 @@ usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 # A non-repo or missing path yields HEAD NONE and no porcelain (treated as "no
 # tracked changes possible" — the caller's --target/--memory must be real repos).
 repo_snapshot() {
-    local repo="$1" head
+    local repo="$1" head line p h
     if [ -d "$repo" ] && git -C "$repo" rev-parse --git-dir >/dev/null 2>&1; then
         head="$(git -C "$repo" rev-parse HEAD 2>/dev/null || printf 'NONE')"
         printf 'HEAD %s\n' "$head"
-        # -uall: list untracked files individually (git otherwise collapses an
-        # entirely-untracked dir to "?? dir/", which defeats path-prefix checks).
-        git -C "$repo" status --porcelain -uall
+        # Per dirty/untracked path emit "<content-hash>\t<path>" so the check can
+        # detect *further* modification of a file that was already dirty at
+        # baseline (a bare porcelain status line wouldn't change). -uall lists
+        # untracked files individually (git otherwise collapses "?? dir/").
+        git -C "$repo" status --porcelain -uall | while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            p="$(porcelain_path "$line")"
+            h="$(git -C "$repo" hash-object -- "$p" 2>/dev/null || printf -- '-')"
+            printf '%s\t%s\n' "$h" "$p"
+        done
     else
         printf 'HEAD NONE\n'
     fi
@@ -71,19 +78,18 @@ changed_paths() {
         git -C "$repo" diff --name-only "$base_head" "$cur_head" 2>/dev/null
     fi
 
-    # 2. Working-tree changes new since baseline (porcelain line absent before).
-    #    Compare full porcelain lines so a status transition counts as new.
-    local baseline_pc; baseline_pc="$(awk 'NR>1' "$base")"
+    # 2. Working-tree paths new-or-changed since baseline: a path absent from the
+    #    baseline, or whose content hash differs — the latter catches a further
+    #    edit to a file that was already dirty when the baseline was taken.
+    local h bh
     git -C "$repo" status --porcelain -uall 2>/dev/null | while IFS= read -r line; do
         [ -n "$line" ] || continue
-        case "
-$baseline_pc
-" in
-            *"
-$line
-"*) : ;;                       # unchanged since baseline — skip
-            *) porcelain_path "$line" ;;
-        esac
+        p="$(porcelain_path "$line")"
+        h="$(git -C "$repo" hash-object -- "$p" 2>/dev/null || printf -- '-')"
+        bh="$(awk -F '\t' -v path="$p" 'NR>1 && $2==path {print $1; exit}' "$base")"
+        if [ -z "$bh" ] || [ "$bh" != "$h" ]; then
+            printf '%s\n' "$p"
+        fi
     done
 }
 
@@ -124,6 +130,12 @@ cmd_check() {
     # --- memory repo: writes must stay inside skills/<skill>/ -------------------
     if [ -n "$memory" ] && [ -n "$mem_base" ]; then
         [ -f "$mem_base" ] || { printf 'check: memory baseline not found: %s\n' "$mem_base" >&2; exit 2; }
+        [ -s "$mem_base" ] || { printf 'check: empty memory baseline (snapshot failed?): %s\n' "$mem_base" >&2; exit 2; }
+        head -1 "$mem_base" | grep -q '^HEAD ' || { printf 'check: malformed memory baseline (no HEAD line): %s\n' "$mem_base" >&2; exit 2; }
+        # A baseline inside the inspected repo at a non-gitignored path would
+        # hash itself and self-flag — warn the caller (the hook uses gitignored
+        # .sessions, so this never fires in production).
+        case "$mem_base" in "$memory"/*) git -C "$memory" check-ignore -q "$mem_base" 2>/dev/null || printf 'check: warning: --memory-baseline is inside --memory and not gitignored; keep baselines outside the repo\n' >&2 ;; esac
         local own="skills/$skill/" p
         while IFS= read -r p; do
             [ -n "$p" ] || continue
@@ -140,20 +152,23 @@ cmd_check() {
                 esac
             fi
         done <<EOF
-$(changed_paths "$memory" "$mem_base")
+$(changed_paths "$memory" "$mem_base" | sort -u)
 EOF
     fi
 
     # --- target repo: a read-only skill must not touch it ----------------------
     if [ "$tier" = target-read-only ] && [ -n "$target" ] && [ -n "$tgt_base" ]; then
         [ -f "$tgt_base" ] || { printf 'check: target baseline not found: %s\n' "$tgt_base" >&2; exit 2; }
+        [ -s "$tgt_base" ] || { printf 'check: empty target baseline (snapshot failed?): %s\n' "$tgt_base" >&2; exit 2; }
+        head -1 "$tgt_base" | grep -q '^HEAD ' || { printf 'check: malformed target baseline (no HEAD line): %s\n' "$tgt_base" >&2; exit 2; }
+        case "$tgt_base" in "$target"/*) git -C "$target" check-ignore -q "$tgt_base" 2>/dev/null || printf 'check: warning: --target-baseline is inside --target and not gitignored; keep baselines outside the repo\n' >&2 ;; esac
         local tp
         while IFS= read -r tp; do
             [ -n "$tp" ] || continue
             printf 'VIOLATION: %s (target-read-only) modified the target repo: %s\n' "$skill" "$tp"
             violations=$((violations + 1))
         done <<EOF
-$(changed_paths "$target" "$tgt_base")
+$(changed_paths "$target" "$tgt_base" | sort -u)
 EOF
     fi
 

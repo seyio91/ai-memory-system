@@ -317,6 +317,12 @@ The label resolves **three write zones**:
 
 Enforcement is harness-agnostic and *detective* (a post-run check, layered under the codex execpolicy which prevents the destructive class) — see `projects/ai-memory/plans/skill-subsystem.md` for the `tier` schema (#10), the `validate-skills.sh` static check (#4), and the post-run git-diff boundary check (#11).
 
+**Boundary enforcement (in-session).** `scripts/skill-boundary-check.sh` is the engine: `snapshot` a repo's git state before a skill runs, `check` after. The Claude trigger is two hooks (in `claude/settings.hooks.json`):
+- `skill_boundary_marker.sh` (PostToolUse:Skill) — when a `target-read-only` skill is invoked, captures a memory-repo baseline.
+- `skill_boundary_check.sh` (Stop) — at turn end, verifies the skill didn't write outside its own folder in the memory repo (scope `others-only`, so the orchestrator's own `memory.md`/`todo.md` edits don't count) and, if a target was registered, that the target repo is untouched. Exits 2 to surface a violation.
+
+A read-only skill that resolves a **target** repo registers it for the target-half check by writing `skills/<skill>/.boundary-target` (= `<repo-path>` on line 1, a `snapshot` baseline file on line 2) — a write into its *own* folder, which is always allowed. (Codex executor enforcement is deferred — Codex mostly runs target-write work; read-only skills run in-session.)
+
 ---
 
 ## Codex CLI
