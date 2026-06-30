@@ -60,9 +60,9 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - [ ] **Codex executor trigger — DEFERRED** (decision: Codex mostly runs target-write work, where the check is moot; read-only enforcement matters on the in-session path). Revisit if read-only skills get delegated to Codex; needs `codex-mem.sh` exec→run+check + a `--tier` delegation flag.
 - [ ] **Live verification** (can't be unit-tested): confirm PostToolUse:Skill + Stop fire as expected in a real session.
 
-### Phase 4 — Creator + Installer (#12, #13)
-- Creator: scaffold-to-schema, runs validate at the end.
-- Installer: intake/normalize an existing/remote skill → validate → place → link (no self-rating injection by default).
+### Phase 4 — Creator + Installer (#12, #13) — DONE
+- [x] **Creator** `scripts/new-skill.sh` — scaffolds `skills/<name>/SKILL.md` to schema (name, description, `metadata.tier`, optional `kind`, compatibility); read-only vs write body guidance; validates the new skill; `--link`. 
+- [x] **Installer** `scripts/install-skill.sh` — intakes a dir/SKILL.md → copies under `skills/<name>/` (preserves `references/`) → normalizes frontmatter to set `metadata.tier` (python3 line-rewrite; `--tier` required, never guessed) → validates → `--link`. **No self-rating injection** (imported skills left as-is). 27-assertion test.
 
 ### Phase 5 — Self-rating + partials (#6, #5)
 - Minimal partial mechanism for the self-rating block.

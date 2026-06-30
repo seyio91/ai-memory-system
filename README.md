@@ -287,7 +287,7 @@ All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips
 
 ### Skills
 
-Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from this repo's `skills/` by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Several ship in `skills/` (e.g. `renovate-manager`, `grafana-oss`, `prometheus`, `tempo`, `dashboarding`, `observability-check`, `terraform-example-gen`, `bkt`, `teach`, `excalidraw-diagram`). The one wired into the workflow is `brainstorming`:
+Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from this repo's `skills/` by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Scaffold a new one with `scripts/new-skill.sh --name <n> --tier <t>` (writes the schema, validates, optional `--link`); bring an external skill into the store with `scripts/install-skill.sh --from <dir> --tier <t>` (normalizes frontmatter, preserves `references/`, validates — does not inject self-rating into imported skills). Several ship in `skills/` (e.g. `renovate-manager`, `grafana-oss`, `prometheus`, `tempo`, `dashboarding`, `observability-check`, `terraform-example-gen`, `bkt`, `teach`, `excalidraw-diagram`). The one wired into the workflow is `brainstorming`:
 
 | Skill | Gate | Effect |
 |-------|------|--------|
