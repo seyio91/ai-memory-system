@@ -15,6 +15,10 @@ __pycache__/
 # Real index is regenerated from frontmatter; ship index.template.md only
 /index.md
 
+# Derived on-demand "In Flight" snapshot (scripts/regenerate-state.sh) — a
+# projection of every project's goals; regenerated, never authored, personal.
+/state.md
+
 # Real cross-project knowledge; ship domain/_template.md only.
 # Exceptions: tooling domains carry no client data and apply to every instance
 # of this memory system, so they are tracked.

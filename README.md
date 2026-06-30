@@ -283,9 +283,12 @@ All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips
 | `/promote-memory` | Agent extracts candidate learnings from `working.md`, labels each with inferred destination (`[domain:<topic>]` or `[project]`); user multi-selects which to keep; archive `working.md`; regenerate `index.md` |
 | `/archive-cleanup [--all-projects] [--days N]` | Dry-run first, then on confirmation delete `archive/{plans,todos,working}/` files older than retention threshold (default 30 days; override via `MEMORY_ARCHIVE_RETAIN_DAYS`). `.gitkeep` preserved. |
 | `/reindex` | Run `regenerate-index.sh`, show diff |
+| `/state` | Show the derived cross-project **In Flight** snapshot — one row per project (`last touched \| current goal \| open todos`), newest first. On-demand projection (`regenerate-state.sh`), never auto-injected. |
 | `/lint-memory` | Mechanical checks + LLM-judgment (contradictions, stale paths, broken refs) |
 | `/task [verb] [@project] ...` | Capture/manage [task-provider](#task-provider-layer) backlog tasks (`add`/`list`/`done`/`archive`/`show`). Project defaults to the active marker; `@project` overrides. Capturing does **not** create a plan — that's `/start`. Thin wrapper over `scripts/taskctl`. |
 | `/start [<ref>]` | Begin a captured task: pull it (project-agnostic by `ref`), run the [brainstorm gate](#skills) (feature-with-open-design → `brainstorming` skill; settled/quick → straight to plan), scaffold the linked plan in the task's project (`task_provider`/`task_ref` frontmatter), push the clarified Goal back via `update`, flip status to `started`. Bare `/start` lists the active backlog to pick. |
+
+**Derived state snapshot (`/state`).** `regenerate-state.sh` projects a single **In Flight** table across every project — `project | last touched | current goal | open todos`, newest first — each column derived (last-touched from newest file mtime; current goal from `memory.md`'s `## Current Goal`; open todos from `todo.md`'s unchecked boxes). Like `index.md` it's a projection that can't drift from its sources, but unlike `index.md` it is **on-demand only — never added to the SessionStart injection payload**: it surfaces *that* sibling work exists without pulling any sibling `memory.md` into context (depth-first / delegate-don't-load). Output `state.md` is gitignored (it lists every project's goals; regenerated, never authored). `last touched` uses mtime, not `git log`, because most project trees are gitignored.
 
 ### Skills
 
