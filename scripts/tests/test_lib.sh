@@ -137,11 +137,17 @@ rm -rf "$ROOT"
 
 # --- MEMORY_DIR self-locating default (no MEMORY_DIR set) ---
 # With MEMORY_DIR unset, sourcing scripts/_lib.sh must resolve MEMORY_DIR to the
-# memory root (parent of scripts/) via BASH_SOURCE. Computed from SCRIPTS_DIR so
-# the test is independent of the install's absolute path. Runs under bash, where
-# BASH_SOURCE is populated (it is empty under zsh).
-EXPECTED_ROOT="$(cd "$SCRIPTS_DIR/.." && pwd)"
-got=$( unset MEMORY_DIR; . "$SCRIPTS_DIR/_lib.sh"; printf '%s' "$MEMORY_DIR" )
+# memory root (parent of scripts/) via BASH_SOURCE. Copy _lib.sh into a sandbox
+# scripts/ dir with no config.local.sh, so the test exercises the bare
+# ${MEMORY_DIR:-$(...)} default and is NOT overridden by the installed tree's
+# stamped MEMORY_DIR (install.sh writes one to the real config.local.sh).
+# Runs under bash, where BASH_SOURCE is populated (it is empty under zsh).
+SBLIB="$(new_sandbox)"
+mkdir -p "$SBLIB/scripts"
+cp "$SCRIPTS_DIR/_lib.sh" "$SBLIB/scripts/_lib.sh"
+EXPECTED_ROOT="$(cd "$SBLIB" && pwd)"
+got=$( unset MEMORY_DIR; . "$SBLIB/scripts/_lib.sh"; printf '%s' "$MEMORY_DIR" )
 assert_eq "$EXPECTED_ROOT" "$got" "MEMORY_DIR default self-locates to memory root"
+rm -rf "$SBLIB"
 
 finish
