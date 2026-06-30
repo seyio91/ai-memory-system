@@ -10,6 +10,8 @@ description: >
   performance tuning, caching, and HTTP API. Use when working with distributed traces, writing
   TraceQL queries, deploying Tempo, configuring trace pipelines, or setting up Grafana-Tempo
   integrations (traces-to-logs, traces-to-metrics, traces-to-profiles).
+metadata:
+  tier: target-read-only
 ---
 
 # Grafana Tempo - Distributed Tracing Backend

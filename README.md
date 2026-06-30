@@ -12,6 +12,8 @@ Three layers, mirroring Karpathy's LLM Wiki pattern:
 
 The wiki compounds: every non-trivial synthesis gets offered for filing. The index is auto-generated from frontmatter.
 
+**Two-Path principle (authoring rule).** The store is plain markdown first; scripts are conveniences, never the only way in. Every script action must have a hand-editable equivalent that produces the same on-disk result — `/checkpoint` writes `working.md`, but you can also just edit it; `apply-partial.sh` splices a block, but you can paste it between the markers yourself; `new-skill.sh` scaffolds a `SKILL.md` you could have written by hand. So when you add a script that mutates the tree, keep its output something a human could reproduce in an editor, and document the manual path — never invent a format only a tool can produce or read.
+
 ---
 
 ## Install
@@ -287,13 +289,50 @@ All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips
 
 ### Skills
 
-Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from this repo's `skills/` by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Several ship in `skills/` (e.g. `renovate-manager`, `grafana-oss`, `prometheus`, `tempo`, `dashboarding`, `observability-check`, `terraform-example-gen`, `bkt`, `teach`, `excalidraw-diagram`). The one wired into the workflow is `brainstorming`:
+Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from this repo's `skills/` by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Scaffold a new one with `scripts/new-skill.sh --name <n> --tier <t>` (writes the schema, validates, optional `--link`; `--kind workflow` also injects the self-rating block — see below); bring an external skill into the store with `scripts/install-skill.sh --from <dir> --tier <t>` (normalizes frontmatter, preserves `references/`, validates — does not inject self-rating into imported skills). Several ship in `skills/` (e.g. `renovate-manager`, `grafana-oss`, `prometheus`, `tempo`, `dashboarding`, `observability-check`, `terraform-example-gen`, `bkt`, `teach`, `excalidraw-diagram`). The one wired into the workflow is `brainstorming`:
 
 | Skill | Gate | Effect |
 |-------|------|--------|
 | `brainstorming` | **Tier-3 feature tasks with open design questions only** — silent on Tier 1 (research/Q&A), Tier 2 (quick edits), and settled Tier-3 work (mechanical refactors, renames, migrations) | Runs the collaborative design pass (clarify → 2-3 approaches → sectioned design), then hands off to `/new-plan`, folding the approved design into the plan's `## Goal` / `## Success criteria` / `## Design` / `## Risks`. Never writes code or scaffolds the plan itself. |
 
 The gate lives in two places that must agree: the skill's `description` (what Claude Code matches on) and the routing rule in `identity.md` → Orchestration (the injected-every-session anchor). The skill is **orchestrator-only** (Claude main session — Codex never brainstorms) and **seed-agnostic**: it accepts either a fresh user request or a pulled task summary, so a future `/start` can delegate to it without changing the skill.
+
+#### Skill write boundary (`metadata.tier`)
+
+Every skill declares one neutral frontmatter field under `metadata:`:
+
+```yaml
+metadata:
+  tier: target-read-only   # or: target-write
+```
+
+`tier` is a **coarse label, not a tool list** — deliberately *not* Claude's `allowed-tools` (that's Claude-only; Codex ignores it). Enforcement stays harness-agnostic: the label is what *we* check, identically for Claude and Codex.
+
+- **`target-read-only`** — the skill must not modify the thing it operates on (the project/repo under review). Review, analysis, planning, and reference skills: `renovate-manager`, `observability-check`, `prometheus`, `tempo`, `teach`, `brainstorming`.
+- **`target-write`** — the skill may modify the target. Generators and action skills: `terraform-example-gen`, `dashboarding`, `excalidraw-diagram`, `fiter-infrastructure-analyzer`, `grafana-oss`, `bkt`.
+
+The label resolves **three write zones**:
+
+1. **Target tree** — the project/repo being worked on. Gated by `tier` (read-only ⇒ hands off).
+2. **The skill's own folder** (`skills/<name>/`) — **always writable, at any time, regardless of tier**, with no declaration needed. This is where a read-only skill puts its output (e.g. `renovate-manager` writes review memory under `skills/renovate-manager/renovate-reviews/`). No `memory_store` field — the rule is universal, so there's nothing to declare.
+3. **Everything else** (`projects/*/memory.md`, `working.md`, `index.md`, and *other* skills' folders) — **off-limits by default**, even though it's in the memory repo.
+
+Enforcement is harness-agnostic and *detective* (a post-run check, layered under the codex execpolicy which prevents the destructive class) — see `projects/ai-memory/plans/skill-subsystem.md` for the `tier` schema (#10), the `validate-skills.sh` static check (#4), and the post-run git-diff boundary check (#11).
+
+**Boundary enforcement (in-session).** `scripts/skill-boundary-check.sh` is the engine: `snapshot` a repo's git state before a skill runs, `check` after. The Claude trigger is two hooks (in `claude/settings.hooks.json`):
+- `skill_boundary_marker.sh` (PostToolUse:Skill) — when a `target-read-only` skill is invoked, captures a memory-repo baseline.
+- `skill_boundary_check.sh` (Stop) — at turn end, verifies the skill didn't write outside its own folder in the memory repo (scope `others-only`, so the orchestrator's own `memory.md`/`todo.md` edits don't count) and, if a target was registered, that the target repo is untouched. Exits 2 to surface a violation.
+
+A read-only skill that resolves a **target** repo registers it for the target-half check by writing `skills/<skill>/.boundary-target` (= `<repo-path>` on line 1, a `snapshot` baseline file on line 2) — a write into its *own* folder, which is always allowed. (Codex executor enforcement is deferred — Codex mostly runs target-write work; read-only skills run in-session.)
+
+#### Self-rating loop (`apply-partial.sh` · `skill-ratings.sh`)
+
+First-party **workflow** skills carry a managed *self-rating* block — a signal about the skill's own friction (where its instructions were unclear or slow), distinct from the Validator (which judges output correctness). The block is a **partial**: its canonical text lives once at `scripts/partials/self-rating.md` and is spliced into a skill between `<!-- partial:self-rating START/END -->` markers, so editing the source and re-running re-syncs every copy.
+
+- **Inject / re-sync:** `scripts/apply-partial.sh --skill <name>` (re-sync; idempotent) or `--all` (re-sync every carrier). The **first** injection into a skill requires `--force` — a deliberate act — which `new-skill.sh --kind workflow` passes automatically. Imported/remote skills get the block only on explicit `--force`, as a clearly machine-managed (fork-safe) section; `install-skill.sh` never injects it.
+- **Membership is marker-derived, not a hand-list.** A skill is "in the loop" exactly when its `SKILL.md` carries the block — so the set never drifts (`scripts/_lib.sh:skills_with_partial`).
+- **On-request only.** The block tells the skill to append a dated rating (`score 1-5` + friction + improve) to its *own* `skills/<name>/self-rating.md` **only when the user asks** — never automatically. An empty log is healthy.
+- **Aggregate:** `scripts/skill-ratings.sh` (per-skill latest/avg/count; `--all` also lists in-loop skills with no ratings yet).
 
 ---
 

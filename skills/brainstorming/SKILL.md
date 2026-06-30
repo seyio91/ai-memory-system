@@ -1,6 +1,8 @@
 ---
 name: brainstorming
 description: Use before starting a large, non-trivial feature task (a Tier-3 task in this system) that still has open design questions — new functionality, a new subsystem, a new integration, or a real architecture decision. Refines the idea through collaborative dialogue, settles on an approach, and produces an approved design that is folded directly into a plan file via /new-plan. Invoke this whenever a feature is big enough to warrant a plan AND its shape is not already obvious — including when a /start command begins a captured feature task. Do NOT use for research/explore/Q&A (Tier 1), quick one-off edits or fixes (Tier 2), or Tier-3 work whose design is already settled (mechanical refactors, renames, migrations with a known target). When in doubt on a feature-sized task, invoke it — a short design is cheap; an unexamined assumption is not.
+metadata:
+  tier: target-read-only
 ---
 
 # Brainstorming Features Into Designs
@@ -73,3 +75,29 @@ Do **not** create a separate spec document and do **not** commit anything to the
 - It does not write code or invoke any implementation skill. Its only handoff is `/new-plan`.
 - It does not own the task-provider bookkeeping. When reached from `/start`, linking the `task_ref`, pushing the summary, and flipping status are `/start`'s job — this skill only produces the design.
 - It does not produce or commit a repo-side spec file. The design lives in the plan.
+
+<!-- partial:self-rating START (managed by scripts/apply-partial.sh — edit scripts/partials/self-rating.md) -->
+## Self-rating (first-party)
+
+This skill participates in the self-rating loop. The rating is a signal about
+**this skill's own friction** — where its instructions were unclear, slow, or
+made you guess — not about the correctness of the work product (that is the
+Validator's job).
+
+**Do not rate automatically.** Append a rating **only when the user asks** for
+one (e.g. "rate this run", "how did the skill do") or when you hit real friction
+worth recording. Silence is the default; an empty log is a healthy log.
+
+When you do rate, append one dated entry to this skill's own folder —
+`skills/<this-skill>/self-rating.md` (the always-writable own-folder zone; never
+the target repo or the system memory tree). Use this shape:
+
+```
+## YYYY-MM-DD — <one-line context>
+- score: <1-5>   (1 = fought the skill, 5 = frictionless)
+- friction: <what was unclear / slow / had to be guessed, or "none">
+- improve: <the smallest concrete change that would raise the score, or "none">
+```
+
+Aggregate across skills with `scripts/skill-ratings.sh`.
+<!-- partial:self-rating END -->

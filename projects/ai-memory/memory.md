@@ -61,3 +61,5 @@ Functional and in daily use across the real engagements indexed in `index.md`. T
 
 ## Current Goal
 Iterate and improve the tooling itself — keep scripts, README, and `identity.md` in sync as conventions evolve. Open thread: agent-agnostic + `@`-sign on-demand/section-level context loading (backlog task `38ef6850`).
+
+Active workstream: porting selected ideas from the POS system. The triaged decision log (what we adopt/reject and why) is the wiki `wikis/pos-comparison.md` + `wikis/pos-adoption-backlog.md`; approved work is broken into `plans/skill-subsystem.md` (skill `tier` schema + validation + boundary check + creator/installer + self-rating) and `plans/state-snapshot.md` (derived cross-project "In Flight" view).

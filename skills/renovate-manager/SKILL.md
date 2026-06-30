@@ -10,6 +10,7 @@ description: >-
   Use when the user passes a Renovate PR URL or says "review renovate PR",
   "renovate upgrade", "helm chart update PR", or "terraform module/provider update".
 metadata:
+  tier: target-read-only
   domain: platform
   lifecycle: run
 ---
@@ -305,3 +306,29 @@ See **`references/memory.md`** for the full layout, the per-tier templates, the
 project-key resolution, and the update discipline. **Never** write review memory
 to injected memory files (`projects/*/memory.md`, `working.md`) or the system
 `index.md` — this data is skill-private.
+
+<!-- partial:self-rating START (managed by scripts/apply-partial.sh — edit scripts/partials/self-rating.md) -->
+## Self-rating (first-party)
+
+This skill participates in the self-rating loop. The rating is a signal about
+**this skill's own friction** — where its instructions were unclear, slow, or
+made you guess — not about the correctness of the work product (that is the
+Validator's job).
+
+**Do not rate automatically.** Append a rating **only when the user asks** for
+one (e.g. "rate this run", "how did the skill do") or when you hit real friction
+worth recording. Silence is the default; an empty log is a healthy log.
+
+When you do rate, append one dated entry to this skill's own folder —
+`skills/<this-skill>/self-rating.md` (the always-writable own-folder zone; never
+the target repo or the system memory tree). Use this shape:
+
+```
+## YYYY-MM-DD — <one-line context>
+- score: <1-5>   (1 = fought the skill, 5 = frictionless)
+- friction: <what was unclear / slow / had to be guessed, or "none">
+- improve: <the smallest concrete change that would raise the score, or "none">
+```
+
+Aggregate across skills with `scripts/skill-ratings.sh`.
+<!-- partial:self-rating END -->
