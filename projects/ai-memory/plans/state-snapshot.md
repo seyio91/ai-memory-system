@@ -28,21 +28,29 @@ Give a single on-demand view of what's active across all projects — "what's on
 - Derived only; no hand-maintained status file.
 - On-demand; never added to auto-injection.
 - Columns: project, last touched, current goal, open-todo count.
+- Standalone `scripts/regenerate-state.sh` → `state.md` (kept off the injection path; not a flag on the index regenerator).
+- `last touched` = newest mtime of project files; `git log` rejected (13/14 projects gitignored). `working.md` counts toward recency but adds no column.
 
 ## Phases
-### Phase 1 — Derivation sources
-- Confirm each column's source + extraction (`_lib.sh` helpers, mtime/`git log`, todo unchecked-count).
-- Decide standalone script vs. flag on the index regenerator, and the output path/format.
+### Phase 1 — Derivation sources — DONE
+Locked decisions (grounded by inspecting the real tree — 14 projects):
+- **Standalone script** `scripts/regenerate-state.sh` → writes `$MEMORY_DIR/state.md`. NOT a flag on `regenerate-index.sh`: `index.md` is on the SessionStart injection path, and this view must stay **off** it. Reuses `_lib.sh`.
+- **`last touched` = newest file mtime** among each project's key files (`memory.md`, `todo.md`, `working.md`, `plans/*`), formatted `YYYY-MM-DD`. **`git log` rejected:** 13/14 real projects are gitignored (only `ai-memory`/`_template` tracked), so `git log` returns nothing for the projects that matter. mtime works for all; caveat (resets on clone/rsync) accepted for a personal awareness view. `working.md`'s mtime is included — it's the best recency signal — but its *content* is not (no blocker column; resists creep, resolves the risk note).
+- **`current goal`** = first non-empty line under `## Current Goal`, truncated (~70 chars) for the table; `—` if absent.
+- **`open todos`** = count of `- [ ]` lines in `todo.md` (0 if no file).
+- **Sort:** last-touched descending (most recent on top — "what's on my plate").
+- **Output:** whole-file generation (not a fenced block), with a "generated / on-demand / not injected — do not edit" header. Idempotent.
+- **Exclude** `_template`; tolerate missing goal/`todo.md` gracefully.
 
-### Phase 2 — Generator + tests
-- Implement the generator (bash-3.2); exclude `_template`; handle missing fields.
-- Add a dependency-free test fixture under `scripts/tests/`.
+### Phase 2 — Generator + tests — DONE
+- [x] `scripts/regenerate-state.sh` (bash-3.2): derives the table, excludes `_template`, tolerates missing goal/`todo.md`, sorts last-touched desc, escapes table-breaking pipes, truncates long goals, `--stdout` mode. Idempotent.
+- [x] `scripts/tests/test_regenerate_state.sh` — 20 assertions (open-box count, mtime-follows-newest-file, em-dash for missing goal, pipe-escape, truncation, `_template` exclusion, sort order, idempotency, file mode, empty-projects tolerance).
 
-### Phase 3 — Wire-up + docs
-- Expose it (script or `/state`-style command), explicitly on-demand.
-- Document in README that it's a derived, on-demand awareness view (not injected).
+### Phase 3 — Wire-up + docs — DONE
+- [x] `/state` command (`claude/commands/state.md`) — regenerates + prints, explicitly on-demand and delegate-don't-load.
+- [x] README: `/state` row + a "Derived state snapshot" note (derived, on-demand, never injected, mtime rationale). `.gitignore`: `/state.md` (derived personal artifact).
 
-## Risks / open questions
-- **"In flight / blocked" fidelity:** `current goal` + open-todo count may under-capture true blockers. The latest `working.md` checkpoint is richer but `working.md` is gitignored/per-machine — decide whether to read it when present or stay purely on tracked sources.
-- **`last touched` source:** file mtime is simplest but unreliable across clones/rsync; `git log` is portable but misses uncommitted work. Likely prefer `git log` with an mtime fallback.
-- Keep the row lean — this is a ~20-line awareness view, not a dashboard; resist column creep.
+## Risks / open questions — resolved
+- ~~"In flight / blocked" fidelity~~ — **resolved:** stay on the locked columns; `working.md`'s mtime feeds `last touched` (best recency signal) but its content adds no blocker column (resists creep).
+- ~~`last touched` source~~ — **resolved to mtime, not `git log`:** 13/14 real projects are gitignored, so `git log` is blank for the projects that matter. mtime works for all; clone/rsync reset caveat accepted for a personal awareness view.
+- Row kept lean (4 columns) — no dashboard creep.
