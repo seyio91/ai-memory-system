@@ -13,7 +13,10 @@
 #      CLAUDE.md placement).
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
+# Physical path (pwd -P resolves symlinks) so MEMORY_DIR is the real tree, not the
+# ~/.claude-memory symlink — deterministic whether install.sh is run from the clone
+# or re-invoked through that symlink by sync-system.sh.
+REPO_ROOT="$(cd "$(dirname "$0")" && pwd -P)"
 MEMORY_DIR="${MEMORY_DIR:-$HOME/.claude-memory}"
 CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
 TS="$(date +%Y%m%d-%H%M%S)"
