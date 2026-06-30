@@ -3,7 +3,29 @@
 # and inject_memory.sh (UserPromptSubmit). Not executed directly.
 set -euo pipefail
 
-MEMORY_DIR="${MEMORY_DIR:-$HOME/.claude-memory}"
+# Resolve MEMORY_DIR. This file is symlinked into ~/.claude/hooks, so the repo
+# root is two levels up from its *real* location — resolving the symlink lets the
+# hook find the tree wherever it was installed, with no ~/.claude-memory needed.
+# config.local.sh (stamped by install.sh with the install dir) is then the
+# authoritative override, matching scripts/_lib.sh. A pre-set MEMORY_DIR env is
+# honored as the bootstrap default.
+_mc_resolve() {
+    local p="$1" t
+    while [ -L "$p" ]; do
+        t="$(readlink "$p")"
+        case "$t" in
+            /*) p="$t" ;;
+            *)  p="$(dirname "$p")/$t" ;;
+        esac
+    done
+    ( cd "$(dirname "$p")" && printf '%s/%s\n' "$(pwd)" "$(basename "$p")" )
+}
+if [ -z "${MEMORY_DIR:-}" ]; then
+    _mc_self="$(_mc_resolve "${BASH_SOURCE[0]}")"
+    MEMORY_DIR="$(cd "$(dirname "$_mc_self")/../.." && pwd)"
+fi
+[ -f "$MEMORY_DIR/config.local.sh" ] && . "$MEMORY_DIR/config.local.sh"
+
 # Per-session signal files (e.g. post-compaction reload). Not git-managed.
 STATE_DIR="${MEMORY_STATE_DIR:-$MEMORY_DIR/.sessions}"
 

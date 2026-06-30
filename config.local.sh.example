@@ -1,9 +1,15 @@
 # config.local.sh — per-environment overrides for the memory system.
 #
 # Copy to config.local.sh (gitignored) and edit. Sourced by scripts/_lib.sh and
-# scripts/taskctl when present, so these values reach scripts, hooks, and
-# subagents that do NOT inherit your shell's rc files. Plain shell — use `export`
-# so child processes (e.g. the Python task-provider) see them too.
+# the memory hooks (claude/hooks/memory_common.sh), so these values reach scripts,
+# hooks, and subagents that do NOT inherit your shell's rc files. Plain shell —
+# use `export` so child processes (e.g. the Python task-provider) see them too.
+
+# Absolute path to this memory tree. install.sh writes this automatically to the
+# directory it was run from, and rewrites it on every re-run — so moving the repo
+# and re-running install.sh repoints it. The hook/scripts bootstrap a default by
+# resolving their own location, then this value (if present) takes precedence.
+# export MEMORY_DIR="$HOME/Downloads/personal/claude/memory"
 
 # Root under which your code checkouts live. resolve_repo_path joins this with a
 # project's `repo_path` frontmatter; the git-remote fallback scans repos here.
@@ -33,6 +39,3 @@
 # Fallback used when the preferred CLI executor's binary is missing.
 # Empty string = hard-fail instead of falling back.
 # export AI_MEMORY_EXECUTOR_FALLBACK="claude-subagent"
-
-# NOTE: MEMORY_DIR cannot be set here — it must be known before this file is
-# found. Relocate the memory tree via the MEMORY_DIR env var in your shell/env.

@@ -2,8 +2,8 @@
 # install.sh — wire this memory tree into Claude Code on a fresh machine.
 #
 # What it does (idempotent, backs up anything it would overwrite):
-#   1. Links the repo to $MEMORY_DIR (default ~/.claude-memory) so the hook
-#      defaults resolve.
+#   1. Records this repo's path as MEMORY_DIR in config.local.sh, and links the
+#      repo to ~/.claude-memory (a stable path slash commands call by name).
 #   2. Symlinks the hook scripts into ~/.claude/hooks/.
 #   3. Symlinks the slash commands into ~/.claude/commands/.
 #   4. Symlinks statusline.sh into ~/.claude/.
@@ -66,6 +66,20 @@ fi
 step "Skills & agents"
 if [ -d "$REPO_ROOT/skills" ]; then bash "$REPO_ROOT/scripts/link-skills.sh" || info "link-skills.sh skipped/failed"; fi
 if [ -d "$REPO_ROOT/agents" ]; then bash "$REPO_ROOT/scripts/link-agents.sh" || info "link-agents.sh skipped/failed"; fi
+
+step "Recording install location -> config.local.sh"
+CONFIG_LOCAL="$REPO_ROOT/config.local.sh"
+if [ ! -f "$CONFIG_LOCAL" ]; then
+    printf '#!/usr/bin/env bash\n# Per-environment overrides (gitignored). See config.local.sh.example.\n' > "$CONFIG_LOCAL"
+    info "created config.local.sh"
+fi
+# Replace any prior MEMORY_DIR line, then record the current install location.
+# This is what makes the variable track the repo when you move it and re-run.
+TMP_CL="$(mktemp)"
+grep -v '^export MEMORY_DIR=' "$CONFIG_LOCAL" > "$TMP_CL" || true
+printf 'export MEMORY_DIR=%q\n' "$REPO_ROOT" >> "$TMP_CL"
+mv "$TMP_CL" "$CONFIG_LOCAL"
+info "set MEMORY_DIR=$REPO_ROOT"
 
 step "Seed personal files from templates (only if missing)"
 [ -f "$REPO_ROOT/identity.md" ] || { cp "$REPO_ROOT/identity.template.md" "$REPO_ROOT/identity.md"; info "created identity.md from template"; }
