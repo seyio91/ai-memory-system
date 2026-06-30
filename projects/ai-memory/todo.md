@@ -13,7 +13,7 @@ POS adoption — triage + rationale in `wikis/pos-adoption-backlog.md` (all 13 i
 - [x] Phase 2 — `scripts/validate-skills.sh` + tests (#4) — 19-assertion test, wired into run-tests, validator PASS
 - [x] Phase 3 — boundary check (#11): engine + Claude PostToolUse/Stop hooks; 2 validators (FAIL→fixed→PASS); 35 assertions. Codex trigger deferred (decision); live-wiring is user's step.
 - [x] Phase 4 — skill creator (`new-skill.sh`) + installer/intake (`install-skill.sh`) (#12, #13); 47-assertion test; validator FAIL→fixed→PASS
-- [ ] Phase 5 — self-rating block + minimal partials, first-party workflow skills only (#6, #5)
+- [x] Phase 5 — self-rating block + minimal partials (#6, #5): `apply-partial.sh` (marker-derived membership) + `skill-ratings.sh` + `partials/self-rating.md`; creator integration; applied to the four; 32-assertion test
 
 ### Derived state snapshot → [plan](plans/state-snapshot.md)
 - [ ] Phase 1 — derivation sources + script-vs-flag decision (#8)
@@ -21,8 +21,8 @@ POS adoption — triage + rationale in `wikis/pos-adoption-backlog.md` (all 13 i
 - [ ] Phase 3 — on-demand wire-up + README note
 
 ### Quick wins (inline, no plan)
-- [ ] #1 — add a `resume:` line to the `/checkpoint` template (`claude/commands/checkpoint.md`): prose "open file X, Y is stubbed, start at Z"
-- [ ] #7 — record the Two-Path principle as an authoring rule (script action ⇔ hand-editable equivalent) in README/`identity.md`
+- [x] #1 — added a `Resume:` field to the `/checkpoint` template (`claude/commands/checkpoint.md`): cold-start pointer (file to open, what's stubbed, line/function to start at)
+- [x] #7 — recorded the Two-Path principle as an authoring rule (script action ⇔ hand-editable equivalent) in README "Mental model" + `identity.md` Orchestration
 
 ## Done
 _(checked items stay above until the file is rolled)_

@@ -9,6 +9,21 @@ MEMORY_DIR="${MEMORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # hooks, and subagents that don't inherit your shell rc. See config.local.sh.example.
 [ -f "$MEMORY_DIR/config.local.sh" ] && . "$MEMORY_DIR/config.local.sh"
 
+# skills_with_partial — print the names of skills whose SKILL.md carries a
+# managed partial block, one per line. Membership in a partial's loop (e.g.
+# self-rating) is DERIVED from marker presence, not a static list — so a skill
+# enters the loop exactly when the block is injected (new-skill --kind workflow,
+# or apply-partial --force) and never drifts out of sync.
+#   skills_with_partial <partial> [skills_dir]
+skills_with_partial() {
+    local partial="$1" dir="${2:-$MEMORY_DIR/skills}" d
+    [ -d "$dir" ] || return 0
+    for d in "$dir"/*/; do
+        [ -f "$d/SKILL.md" ] || continue
+        grep -Fq "<!-- partial:$partial START" "$d/SKILL.md" && basename "$d"
+    done
+}
+
 # detect_active_project — print active project name to stdout, or empty.
 # Walks up from $1 (defaults to cwd) looking for .claude/memory-project. No
 # marker -> empty: no global fallback, the project is whichever repo you are in.

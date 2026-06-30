@@ -75,6 +75,15 @@ if [ -n "$verr" ]; then
 fi
 echo "validated: $NAME OK"
 
+# First-party workflow skills participate in the self-rating loop — inject the
+# managed block now (--force: a freshly authored skill is first-party by
+# construction, even though it isn't on the existing first-party list yet).
+# Reference packs don't get it.
+if [ "$KIND" = workflow ]; then
+    bash "$SCRIPT_DIR/apply-partial.sh" --skill "$NAME" --partial self-rating --force >/dev/null \
+        && echo "self-rating: block injected (workflow skill)"
+fi
+
 if [ "$LINK" = 1 ]; then
     bash "$SCRIPT_DIR/link-skills.sh" >/dev/null && echo "linked: $NAME -> ~/.claude/skills"
 fi

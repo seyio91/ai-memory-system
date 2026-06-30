@@ -12,6 +12,7 @@ Step 3 — synthesize the four fields from this session's context:
 - **Done** — what's been completed *in this session* (files changed, decisions locked in, work that produced an artifact). Bulleted if multiple items. Reference file paths where useful.
 - **Next** — the immediate next step(s). Bulleted if multiple. Should be specific enough that the next session can pick it up cold.
 - **Blockers** — open decisions, unanswered questions, external dependencies. Use "None" if there genuinely are none.
+- **Resume** — one prose line that drops a cold session straight into the work: which file to open, what's stubbed/half-done, and the exact line or function to start at (e.g. "open `scripts/foo.sh`; `parse()` is stubbed at L40 — wire it to `_lib.sh:bar` next"). This is the orienting pointer, not a restatement of Next.
 
 Be honest. If nothing material happened in this session, say so in Done (e.g. "Discussion only — no artifacts produced") rather than padding. If Next is unclear, write "Awaiting user direction on …".
 
@@ -32,6 +33,8 @@ Step 4 — append the new checkpoint to the end of the `## Checkpoints` section 
 
 **Blockers:**
 - <bullet or "None">
+
+**Resume:** <one prose line — file to open, what's stubbed, exact line/function to start at>
 ```
 
 If the day already has a checkpoint and the work is a continuation, you may append a fresh `### YYYY-MM-DD — <new framing>` entry rather than mutating the existing one. Never delete or overwrite a prior checkpoint — they form a chronological record.

@@ -29,6 +29,7 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - **`renovate-manager` is the reference implementation** — the subsystem lifts its hand-rolled convention into the default.
 - **Self-rating is first-party only.** Imported/remote skills get the block only on explicit request, and then as a demarcated appended section (fork-safe across re-install). Different axis from the Validator (skill friction, not output correctness).
 - **Partials (#5) are minimal** — a mechanism for the one injectable block (self-rating), not a general template engine. Don't build full templating (POS's own lesson: not before real duplication hurts).
+- **Self-rating loop membership is marker-derived, not a static list.** A skill is in the loop iff its `SKILL.md` carries the block; first injection is a deliberate `--force` act (auto for `new-skill --kind workflow`). This was a hardcoded `FIRST_PARTY_SKILLS` list in v1 — replaced because the list drifted (a new workflow skill got the block but never joined the list). (Rejected: hand-maintained roster.)
 - **#11 enforcement seam (settled via brainstorm, Approach A).** There is **no process boundary around an in-session Claude skill-run** (a skill is the model following markdown + calling Edit/Bash; the Skill-tool call loads instructions, it doesn't bound the effects). The executor path **is** bounded (`codex-mem.sh --executor` is a subprocess). So the seam is **a git checkpoint + a trigger**, not a wrapper — split into **one shared check + two harness-native triggers**:
   - **Shared check:** `scripts/skill-boundary-check.sh` (bash-3.2) — the *single* enforcement implementation. Inputs: target-repo path, memory-repo path, baseline refs, skill name → two git diffs → non-zero + report on violation.
   - **Executor trigger (Codex):** `codex-mem.sh` records the baseline around `codex exec` and runs the check after. Bounded, automatic.
@@ -42,7 +43,7 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - Own-folder write rule; no `memory_store` declaration.
 - Boundary check automatic per-run for read-only skills; layered under execpolicy.
 - #11 seam = Approach A: one shared `skill-boundary-check.sh` + two triggers (Codex via `codex-mem.sh`; Claude via Skill-tool `PostToolUse` baseline marker + `Stop` hook). Target-tree check universal; memory-confinement full on executor, narrowed to other-skills'-dirs in-session. B = MVP fallback ordering.
-- Self-rating: first-party workflow skills only; remote on request, demarcated block.
+- Self-rating: first-party workflow skills only; remote on request, demarcated block. **Membership marker-derived** (`skills_with_partial`), not a static list.
 - Skill memory per-skill, co-located; aggregation is a `skills/*/` glob (not central).
 
 ## Phases
@@ -64,9 +65,12 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - [x] **Creator** `scripts/new-skill.sh` — scaffolds `skills/<name>/SKILL.md` to schema (name, description, `metadata.tier`, optional `kind`, compatibility); read-only vs write body guidance; validates the new skill; `--link`. 
 - [x] **Installer** `scripts/install-skill.sh` — intakes a dir/SKILL.md → copies under `skills/<name>/` (preserves `references/`) → normalizes frontmatter to set `metadata.tier` (python3 line-rewrite; `--tier` required, never guessed) → validates → `--link`. **No self-rating injection** (imported skills left as-is). 27-assertion test.
 
-### Phase 5 — Self-rating + partials (#6, #5)
-- Minimal partial mechanism for the self-rating block.
-- Apply to the four first-party workflow skills; aggregation script over `skills/*/`.
+### Phase 5 — Self-rating + partials (#6, #5) — DONE
+- [x] **Partial source + injector** — `scripts/partials/self-rating.md` (canonical block, stored once, outside the skills tree so `validate-skills` is untouched) + `scripts/apply-partial.sh` (marker-delimited splice/re-sync; idempotent; first injection needs `--force`, re-sync doesn't; `--all` re-syncs carriers).
+- [x] **Marker-derived membership** — `_lib.sh:skills_with_partial` derives the loop set from block presence (no static first-party list → no drift). Both `apply-partial --all` and `skill-ratings --all` read it.
+- [x] **Aggregator** — `scripts/skill-ratings.sh` (per-skill latest/avg/count from `skills/*/self-rating.md`; `LC_ALL=C` pins the decimal point; `--all` lists in-loop skills with no ratings yet).
+- [x] **Creator integration** — `new-skill.sh --kind workflow` injects the block via `apply-partial --force`. `install-skill.sh` still does NOT inject (imported skills clean).
+- [x] **Applied to the four** first-party workflow skills (renovate-manager, observability-check, fiter-infrastructure-analyzer, brainstorming); block is on-request-only. Docs in README + identity.md. 32-assertion test + creator-test additions; full suite green.
 
 ## Risks / open questions
 - ~~Boundary-check seam (#11)~~ — **settled + built** (Approach A): shared `skill-boundary-check.sh` + Claude PostToolUse/Stop triggers. Codex trigger deferred. See `## Design` + Phase 3.

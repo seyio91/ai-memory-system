@@ -29,6 +29,9 @@ run "$NEW" --name mygen --tier target-write --kind workflow
 assert_exit 0 "$code" "new-skill creates a write skill"
 assert_contains "$(cat "$MEM/skills/mygen/SKILL.md")" "tier: target-write" "write tier"
 assert_contains "$(cat "$MEM/skills/mygen/SKILL.md")" "kind: workflow" "optional kind written"
+assert_contains "$(cat "$MEM/skills/mygen/SKILL.md")" "partial:self-rating START" "workflow skill gets self-rating block"
+# a non-workflow (reference/default) skill does NOT get the self-rating block
+assert_not_contains "$(cat "$MEM/skills/myrev/SKILL.md")" "partial:self-rating START" "non-workflow skill has no self-rating block"
 
 # guards
 run "$NEW" --name myrev --tier target-read-only
