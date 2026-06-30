@@ -76,7 +76,14 @@ fi
 # Replace any prior MEMORY_DIR line, then record the current install location.
 # This is what makes the variable track the repo when you move it and re-run.
 TMP_CL="$(mktemp)"
-grep -v '^export MEMORY_DIR=' "$CONFIG_LOCAL" > "$TMP_CL" || true
+# Drop any prior MEMORY_DIR line. grep exit 1 = "none yet" (expected, fine);
+# exit >=2 is a real read error — bail rather than truncate the user's config.
+grep -v '^export MEMORY_DIR=' "$CONFIG_LOCAL" > "$TMP_CL" && grep_st=0 || grep_st=$?
+if [ "$grep_st" -gt 1 ]; then
+    rm -f "$TMP_CL"
+    echo "install: cannot read $CONFIG_LOCAL (grep exit $grep_st) — not stamping" >&2
+    exit 1
+fi
 printf 'export MEMORY_DIR=%q\n' "$REPO_ROOT" >> "$TMP_CL"
 mv "$TMP_CL" "$CONFIG_LOCAL"
 info "set MEMORY_DIR=$REPO_ROOT"
