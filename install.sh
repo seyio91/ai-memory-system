@@ -53,10 +53,7 @@ for h in "$REPO_ROOT"/claude/hooks/*.sh; do
 done
 
 step "Slash commands -> $CLAUDE_DIR/commands"
-mkdir -p "$CLAUDE_DIR/commands"
-for c in "$REPO_ROOT"/claude/commands/*.md; do
-    link "$c" "$CLAUDE_DIR/commands/$(basename "$c")"
-done
+if [ -d "$REPO_ROOT/claude/commands" ]; then bash "$REPO_ROOT/scripts/link-commands.sh" "$CLAUDE_DIR/commands" || info "link-commands.sh skipped/failed"; fi
 
 step "Status line -> $CLAUDE_DIR/statusline.sh"
 if [ -f "$REPO_ROOT/claude/statusline.sh" ]; then
