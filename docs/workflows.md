@@ -2,44 +2,38 @@
 
 ## Start a new engagement
 
-The common path is two slash commands in Claude:
+One slash command in Claude does the whole thing:
 
 ```
-/new-project acme-migration      # scaffold projects/acme-migration/ from _template
-/pin acme-migration              # run from inside the repo checkout — writes the
-                                 #   forward .claude/memory-project marker AND the
-                                 #   reverse repo/repo_path frontmatter in one step
+/new-project acme-migration
 ```
 
-Then edit `projects/acme-migration/memory.md`, replacing the template placeholders.
+`/new-project` scaffolds `projects/acme-migration/` from `_template`, **asks for the repo's absolute path and places the `.claude/memory-project` marker there itself** (so the project is pinned — no separate `/pin` step), then interviews you section-by-section to fill `memory.md`. Leave the path blank to skip pinning and scaffold only.
 
-**Manual equivalent (Two-Path).** Every slash command has a hand path that produces the same on-disk result:
+**Manual equivalent (Two-Path).** The raw script is scaffold-only; do the marker by hand:
 
 ```bash
-~/.claude-memory/scripts/new-project.sh acme-migration        # == /new-project
-cd ~/code/acme-migration
-~/.claude-memory/scripts/memory-pin.sh acme-migration         # == /pin (both directions)
-# or, forward marker only, no reverse frontmatter:
-mkdir -p .claude && echo acme-migration > .claude/memory-project
+~/.claude-memory/scripts/new-project.sh acme-migration
+cd ~/code/acme-migration && mkdir -p .claude && echo acme-migration > .claude/memory-project
 ```
 
-## Switch / activate a project
+## Re-pin when the checkout moves
 
-Pin-first is the model — pin a repo once and any session (Claude or Codex) opened anywhere in it auto-loads the project. From inside the checkout:
+`/new-project` already pins the project at creation, so you rarely touch `/pin`. Use it **when the project's location changes** — the checkout moved to a new path, or you're pinning an already-scaffolded project to its repo. Run from inside the checkout:
 
 ```
-/pin fiter-charts
+/pin acme-migration
 ```
+
+`/pin` (`memory-pin.sh`) writes **both directions**: the forward `.claude/memory-project` marker *and* the reverse `repo`/`repo_path` frontmatter in `memory.md` (which powers cross-project code resolution — see [Reverse map](install.md#reverse-map-project--checkout)). That reverse half is why `/pin` — not just the plain marker — is the right tool when a location changes.
 
 Manual equivalent:
 
 ```bash
-cd /path/to/repo && ~/.claude-memory/scripts/memory-pin.sh fiter-charts
-# forward marker only:
-cd /path/to/repo && mkdir -p .claude && echo fiter-charts > .claude/memory-project
+cd /new/path/to/repo && ~/.claude-memory/scripts/memory-pin.sh acme-migration
 ```
 
-There is no global active-project fallback. An unpinned cwd loads no project, so multiple sessions in different repos run concurrently without colliding on a shared default. Pin each repo you want memory in.
+There is no global active-project fallback. An unpinned cwd loads no project, so multiple sessions in different repos run concurrently without colliding on a shared default.
 
 ## Capture a learning mid-session
 
