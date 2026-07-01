@@ -72,7 +72,7 @@ Every non-trivial **actionable** task flows through three roles. Hard rules in `
    - `cli:<key>` → run `~/.claude-memory/scripts/executor.sh --run "<prompt>"`; on `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead.
 
    Built-in executor types: `claude-subagent` (in-harness) and `codex` (CLI via `codex-mem.sh --executor`). Add other CLI tools with `AI_MEMORY_EXECUTOR_CMD_<key>`. A missing CLI binary auto-falls-back per `AI_MEMORY_EXECUTOR_FALLBACK`.
-3. **Validator: Claude `Agent` subagent (`sonnet`)** — independent check, invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, anything visible to GitOps, multi-step state. Checks executor output against the plan's `## Success criteria` (per identity.md → Task Contract) — each criterion verified pass/fail with evidence, nothing beyond them; if the plan has no criteria, draft them before validating rather than inventing a bar.
+3. **Validator: the same configured executor, re-invoked** — resolve it exactly like the Executor above (`~/.claude-memory/scripts/executor.sh --which` → `subagent` uses the Claude `Agent` tool, `cli:<key>` uses `executor.sh --run`), so whatever runs execution also runs validation. Independence comes from it being a **separate, fresh invocation** with a validation prompt, not from a different tool. Invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, anything visible to GitOps, multi-step state. Checks executor output against the plan's `## Success criteria` (per identity.md → Task Contract) — each criterion verified pass/fail with evidence, nothing beyond them; if the plan has no criteria, draft them before validating rather than inventing a bar.
 
 ### File conventions
 
