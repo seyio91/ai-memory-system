@@ -2,18 +2,40 @@
 
 ## Start a new engagement
 
-```bash
-~/.claude-memory/scripts/new-project.sh acme-migration
-# Pin a repo to it:
-cd ~/code/acme-migration && mkdir -p .claude && echo acme-migration > .claude/memory-project
-# Edit projects/acme-migration/memory.md — replace template placeholders.
+The common path is two slash commands in Claude:
+
+```
+/new-project acme-migration      # scaffold projects/acme-migration/ from _template
+/pin acme-migration              # run from inside the repo checkout — writes the
+                                 #   forward .claude/memory-project marker AND the
+                                 #   reverse repo/repo_path frontmatter in one step
 ```
 
-## Switch / set the global fallback explicitly
+Then edit `projects/acme-migration/memory.md`, replacing the template placeholders.
 
-Pin-first is the recommended model — pin a repo once and any session opened anywhere in it auto-loads the project:
+**Manual equivalent (Two-Path).** Every slash command has a hand path that produces the same on-disk result:
 
 ```bash
+~/.claude-memory/scripts/new-project.sh acme-migration        # == /new-project
+cd ~/code/acme-migration
+~/.claude-memory/scripts/memory-pin.sh acme-migration         # == /pin (both directions)
+# or, forward marker only, no reverse frontmatter:
+mkdir -p .claude && echo acme-migration > .claude/memory-project
+```
+
+## Switch / activate a project
+
+Pin-first is the model — pin a repo once and any session (Claude or Codex) opened anywhere in it auto-loads the project. From inside the checkout:
+
+```
+/pin fiter-charts
+```
+
+Manual equivalent:
+
+```bash
+cd /path/to/repo && ~/.claude-memory/scripts/memory-pin.sh fiter-charts
+# forward marker only:
 cd /path/to/repo && mkdir -p .claude && echo fiter-charts > .claude/memory-project
 ```
 
