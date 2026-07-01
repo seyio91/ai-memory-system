@@ -6,7 +6,9 @@
 
 ## Active
 
-_(none — POS-adoption thread closed 2026-06-30; snapshot at `archive/todos/2026-06-30-pos-adoption.md`)_
+### Make memory engine harness-agnostic → [plan](plans/make-memory-engine-harness-agnostic.md)
+_Design brainstorm paused (~80% settled); resume before execution. Phases TBD after design approval._
+- [ ] Finish design pass — confirm 3 opens (parent dir name, commands-doc, --harness flag), fill Phases
 
 ## Done
 _(checked items stay above until the file is rolled)_
