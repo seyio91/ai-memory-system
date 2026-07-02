@@ -6,8 +6,8 @@
 
 ## Active
 
-### Project categories (client grouping) for state + activity → [plan](plans/project-categories-activity.md)
-_Design approved 2026-07-02 (task 391f6850, started). Category = frontmatter (gitignored values); activity report = plans created in window. Each phase gates on `run-tests.sh` green._
+### ✅ Project categories (client grouping) for state + activity → [plan](archive/plans/project-categories-activity.md)
+_**Shipped 2026-07-02** — PRs #12–#15; task 391f6850 done; plan archived. Category = frontmatter (gitignored values); activity report = plans created in window._
 - [x] Phase 1 — category field, setter (`/pin --category`, `/new-project` prompt, hand-edit) + lint _(suite 20/20 green)_
 - [x] Phase 2 — category-aware /state (category column + grouping + `/state <category>` filter) _(state test 36/36, suite 20/20)_
 - [x] Phase 3 — /activity (regenerate-activity.sh + command; plans/+archive/ created-in-window; gitignore output; tests) _(activity test 30/30, suite 21/21)_

@@ -63,6 +63,6 @@ Functional and in daily use across the real engagements indexed in `index.md`. T
 - **`domain/terraform-module-cache/` convention** — a path-addressed cache keyed on module short name (one file per module). Not in the `index.md` catalog (regenerate-index only globs top-level `domain/*.md`), and `domain/*` is gitignored — local, untracked, looked up by direct path. No reindex when writing them.
 
 ## Current Goal
-Iterate and improve the tooling itself — keep scripts, README, and `identity.md` in sync as conventions evolve. Open thread: agent-agnostic + `@`-sign on-demand/section-level context loading (backlog task `38ef6850`).
+Iterate and improve the tooling itself — keep scripts, README/docs, and `identity.md` in sync as conventions evolve. Open threads: **harness-agnostic engine** (task `38ef6850`, design approved, execution pending — plan `plans/make-memory-engine-harness-agnostic.md`) and `@`-sign on-demand/section-level context loading (backlog task `38ff6850`). Project categories + `/activity` shipped (task `391f6850`; plan archived).
 
 **POS-adoption thread — DONE.** Both deliverables shipped: skill subsystem (PR #8, `archive/plans/skill-subsystem.md`) and derived state snapshot (PR #9, `archive/plans/state-snapshot.md`). The triage docs that drove it (`pos-comparison.md`, `pos-adoption-backlog.md`) were plan references, not system-component wiki, so they were archived to `archive/wikis/` on completion. No remaining POS items.

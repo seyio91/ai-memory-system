@@ -1,7 +1,8 @@
 ---
 plan: project-categories-activity
-status: active
+status: done
 created: 2026-07-02
+completed: 2026-07-02
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 391f6850-c619-811d-a312-c30ecc123d5f
