@@ -131,11 +131,11 @@ Ordered foundation-first (data model + setter → read surfaces → guarantees).
 - **Gate:** lint green with/without `category`; `--category` round-trips; suite green.
 
 ### Phase 2 — Category-aware `/state`
-- [ ] `regenerate-state.sh`: add a `category` column (from frontmatter) to the In-Flight table and
+- [x] `regenerate-state.sh`: add a `category` column (from frontmatter) to the In-Flight table and
       **group rows by category**, uncategorized last.
-- [ ] Support `/state <category>` = filter to that category's projects; bare `/state` = system-wide,
+- [x] Support `/state <category>` = filter to that category's projects; bare `/state` = system-wide,
       grouped. Update the `/state` command definition accordingly.
-- [ ] Extend `test_regenerate_state.sh`: grouping order, `<category>` filter, uncategorized bucket.
+- [x] Extend `test_regenerate_state.sh`: grouping order, `<category>` filter, uncategorized bucket.
 - **Gate:** grouped + filtered output correct on fixtures; suite green.
 
 ### Phase 3 — Activity report (`/activity`)

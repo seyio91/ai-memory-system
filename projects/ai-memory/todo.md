@@ -9,7 +9,7 @@
 ### Project categories (client grouping) for state + activity → [plan](plans/project-categories-activity.md)
 _Design approved 2026-07-02 (task 391f6850, started). Category = frontmatter (gitignored values); activity report = plans created in window. Each phase gates on `run-tests.sh` green._
 - [x] Phase 1 — category field, setter (`/pin --category`, `/new-project` prompt, hand-edit) + lint _(suite 20/20 green)_
-- [ ] Phase 2 — category-aware /state (category column + grouping + `/state <category>` filter)
+- [x] Phase 2 — category-aware /state (category column + grouping + `/state <category>` filter) _(state test 36/36, suite 20/20)_
 - [ ] Phase 3 — /activity (regenerate-activity.sh + command; plans/+archive/ created-in-window; gitignore output; tests)
 - [ ] Phase 4 — personal-data audit (no client name in tracked files) + docs
 
