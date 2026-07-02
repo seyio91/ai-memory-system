@@ -152,4 +152,25 @@ assert_contains "$OUT" "WRONG" "reports the wrong back-pin value"
 rm -rf "$M6" "$R6"
 unset AI_MEMORY_PROJECTS_ROOT
 
+# --- canonical plan status: in_progress clean, in-progress warns ---
+M7="$(new_sandbox)"; export MEMORY_DIR="$M7"; build_clean "$M7"
+cat > "$M7/projects/good/plans/ok.md" <<'EOF'
+---
+plan: ok
+status: in_progress
+created: 2026-07-02
+owner: seyi
+---
+# ok
+EOF
+run_lint
+assert_exit 0 "$CODE" "in_progress plan status keeps lint clean"
+# flip to the hyphenated spelling
+sed 's/^status: in_progress$/status: in-progress/' "$M7/projects/good/plans/ok.md" > "$M7/projects/good/plans/ok.md.t"
+mv "$M7/projects/good/plans/ok.md.t" "$M7/projects/good/plans/ok.md"
+run_lint
+assert_exit 1 "$CODE" "hyphenated plan status exits 1"
+assert_contains "$OUT" "in_progress" "warning recommends the underscore form"
+rm -rf "$M7"
+
 finish

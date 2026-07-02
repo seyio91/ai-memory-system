@@ -166,6 +166,18 @@ for f in "$MEMORY_DIR"/projects/*/memory.md "$MEMORY_DIR"/domain/*.md; do
     done < <(grep -nE "$CHANGELOG_RE" "$f" 2>/dev/null)
 done
 
+# 8. Plan status spelling — the canonical in-flight status is `in_progress`
+#    (underscore). Flag the hyphenated `in-progress` so status stays uniform
+#    (the /activity + /state reports pass `status:` through verbatim). Live
+#    plans only; archive is not scanned.
+for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
+    [ -e "$f" ] || continue
+    case "$f" in *"/_template/"*) continue;; esac
+    if [ "$(extract_fm_field "$f" status)" = "in-progress" ]; then
+        emit "WARN:  $f status 'in-progress' — use 'in_progress' (underscore) for uniformity"
+    fi
+done
+
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
     exit 0
