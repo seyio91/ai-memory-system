@@ -118,15 +118,15 @@ Ordered foundation-first (data model + setter → read surfaces → guarantees).
 `scripts/run-tests.sh` staying green.
 
 ### Phase 1 — Category field, setter, and lint (data model)
-- [ ] Add an empty `category:` placeholder to `projects/_template/memory.md` frontmatter (tracked,
+- [x] Add an empty `category:` placeholder to `projects/_template/memory.md` frontmatter (tracked,
       valueless); document the field in `docs/file-formats.md`.
-- [ ] `lint-memory.sh`: accept `category` when present, never require it (mirror `repo`/`tags`).
-- [ ] Confirm `extract_fm_field` (in `_lib.sh`) reads `category` — reuse, no new parser.
-- [ ] `memory-pin.sh`: add a `--category <client>` flag that writes/updates the `category:`
+- [x] `lint-memory.sh`: accept `category` when present, never require it (mirror `repo`/`tags`).
+- [x] Confirm `extract_fm_field` (in `_lib.sh`) reads `category` — reuse, no new parser.
+- [x] `memory-pin.sh`: add a `--category <client>` flag that writes/updates the `category:`
       frontmatter field (body preserved byte-for-byte); surface it as `/pin ... --category`.
-- [ ] `/new-project` (`claude/commands/new-project.md`): add a `category?` question to the interview;
+- [x] `/new-project` (`claude/commands/new-project.md`): add a `category?` question to the interview;
       write the answer into the scaffolded `memory.md` (blank = skip).
-- [ ] Tests: extend `test_lint_memory.sh` (present/absent category both pass); extend
+- [x] Tests: extend `test_lint_memory.sh` (present/absent category both pass); extend
       `test_memory_pin.sh` (`--category` writes the field, preserves body).
 - **Gate:** lint green with/without `category`; `--category` round-trips; suite green.
 

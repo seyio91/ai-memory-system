@@ -22,10 +22,13 @@ summary: One-line description for the index
 repo: git@github.com:org/repo.git    # optional — git remote (portable fallback id)
 repo_path: repo                      # optional — checkout path relative to AI_MEMORY_PROJECTS_ROOT (may be absolute)
 tags: [terraform, aws, eks]          # optional — recall hints; live in memory.md, not the index
+category: acme-corp                  # optional — client/group this project belongs to (PERSONAL, gitignored)
 ---
 ```
 
-`topic`/`scope`/`summary` are required; `lint-memory.sh` flags files missing any of them. `repo`/`repo_path`/`tags` are optional — validated only when present (absence is never an error), and normally written by `memory-pin.sh`, not by hand. `summary` stays the index description; there is no separate `description` field.
+`topic`/`scope`/`summary` are required; `lint-memory.sh` flags files missing any of them. `repo`/`repo_path`/`tags`/`category` are optional — validated only when present (absence is never an error). `summary` stays the index description; there is no separate `description` field.
+
+**`category`** groups a project under a client/group for `/state` (grouped view + `/state <category>` filter) and `/activity` (plans created per category over a window). It is **per-instance personal data** — the field is supported by the engine, but its value lives only in the gitignored project `memory.md` and never enters git history. Set it with `/pin <project> --category <client>` (from inside the checkout), during `/new-project`, or by hand. One flat category per project.
 
 ## Project memory sections (required)
 

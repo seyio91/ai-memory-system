@@ -69,4 +69,35 @@ assert_eq "1" "$(grep -c '^repo_path:' "$MF")" "single repo_path: line after re-
 # --- resolves via resolve_repo_path after pin ---
 assert_eq "$ROOT/mycode" "$(resolve_repo_path proj)" "pinned project resolves to checkout"
 
+# --- --category writes the category frontmatter, preserves body, single line ---
+set +e
+out=$(cd "$CO" && bash "$PIN" proj --category acme-corp 2>&1); code=$?
+set -e
+assert_exit 0 "$code" "pin --category exits 0"
+assert_eq "acme-corp" "$(extract_fm_field "$MF" category)" "frontmatter category set"
+assert_eq "1" "$(grep -c '^category:' "$MF")" "single category: line"
+assert_contains "$(cat "$MF")" "BODY-SENTINEL-LINE" "body preserved after --category"
+assert_eq "mycode" "$(extract_fm_field "$MF" repo_path)" "repo_path still intact after --category"
+
+# --- --category=<v> form + update-in-place (no duplicate) ---
+set +e
+out=$(cd "$CO" && bash "$PIN" proj --category=beta-inc 2>&1); code=$?
+set -e
+assert_exit 0 "$code" "pin --category=<v> exits 0"
+assert_eq "beta-inc" "$(extract_fm_field "$MF" category)" "category updated in place"
+assert_eq "1" "$(grep -c '^category:' "$MF")" "still single category: line after update"
+
+# --- omitting --category leaves an existing category untouched ---
+set +e
+out=$(cd "$CO" && bash "$PIN" proj 2>&1); code=$?
+set -e
+assert_exit 0 "$code" "re-pin without --category exits 0"
+assert_eq "beta-inc" "$(extract_fm_field "$MF" category)" "category preserved when --category omitted"
+
+# --- --category with no value -> exit 2 ---
+set +e
+out=$(cd "$CO" && bash "$PIN" proj --category 2>&1); code=$?
+set -e
+assert_exit 2 "$code" "--category without value exits 2"
+
 finish
