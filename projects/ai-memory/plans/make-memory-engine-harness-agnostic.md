@@ -17,13 +17,13 @@ degrading gracefully where a harness lacks a surface. Today the system silently 
 Claude Code as the default (root-level `claude/` dir, Claude-only hooks/commands, Codex
 bolted on via `scripts/codex-mem.sh`); the goal removes that privilege.
 
-> **Status: brainstorm in progress — design ~80% settled, NOT yet approved.** Saved to
-> resume the design pass. Three opens pending confirmation (see Open Questions). Do not
-> begin execution until the design is approved and Phases are filled in.
+> **Status: design approved (2026-07-02) — ready to execute.** All three opens resolved
+> (`harnesses/` parent dir · materialized "Memory Commands" doc · `--harness` flag +
+> auto-detect). Phases decomposed below. Behavior-preserving refactors (Phase 1–2) land
+> before new capability (Phase 3–5); each phase gates on the full test suite staying green.
 
 ## Success criteria
 
-_(draft — finalize with user before execution)_
 - [ ] From inside a non-Claude harness (Codex as the proof case), an agent can run one
       documented command (`install.sh` / `install.sh --harness <name>`) and end up with a
       working memory system for that harness: context injected in the harness's idiom,
@@ -134,13 +134,14 @@ Per-harness `commands` capability:
 - No root-level default harness; all under `harnesses/<name>/`.
 - Scope: **full multi-harness**, surface = **everything** the harness supports
   (context + skills + commands), designed to a **generic file-materialize** archetype.
+- Parent dir is **`harnesses/`** (mirrors `docs/harnesses/<name>.md`).
+- Commands on no-slash-command harnesses → a **materialized "Memory Commands" reference doc**
+  folded into the injected context (reuses the command `.md` bodies, already agent prompts).
+- Harness selection → **`install.sh --harness <name>` explicit, with environment auto-detect
+  fallback** when the flag is omitted (probe `~/.codex`, `$CURSOR_*`, `~/.gemini`, `~/.claude`).
 
 ## Risks / open questions
-**Opens pending user confirmation (resume here):**
-1. Parent dir name — proposed `harnesses/` (vs `adapters/`).
-2. Commands on no-slash-command harnesses — proposed **materialized reference doc** (vs
-   rely on agent knowing CLIs exist).
-3. Harness selection — proposed **`--harness` flag + auto-detect fallback** (vs auto only).
+_All three design opens resolved 2026-07-02 — see Decisions (locked)._
 
 **Risks / to resolve during design or phasing:**
 - Auto-detection reliability across harnesses (env signals differ; may need per-harness probe).
@@ -151,4 +152,59 @@ Per-harness `commands` capability:
 - `MEMORY_DIR` resolution depth change must not break existing installs mid-migration.
 
 ## Phases
-_(deferred — fill in after design approval, per /new-plan decomposition.)_
+
+Ordered so **behavior-preserving refactors (1–2) land before new capability (3–5)**. Every
+phase gates on `scripts/run-tests.sh` staying green; phases 1–2 additionally require the
+Claude hook output to be **byte-identical** to today (they touch the live injection path).
+
+### Phase 1 — Content core extraction (pure refactor, no behavior change)
+- [ ] Add `scripts/content-core.sh`: single source of content selection → a format-neutral
+      ordered section list (`identity, project, index, domain, working`) + mode (`full` | `breadcrumb`).
+- [ ] Add formatters `scripts/formatters/xml.sh` (`<memory:*>` tags) and `scripts/formatters/md.sh`
+      (`# === X ===` headers + domain table).
+- [ ] Rewire `memory_common.sh` (Claude) → content-core + xml; rewire `codex-mem.sh` → content-core + md.
+      Delete the duplicated selection walks.
+- [ ] Golden tests: `test_inject_memory.sh` unchanged/green; **new** `test_codex_agents_golden.sh`
+      pins the AGENTS.md build byte-for-byte.
+- **Gate:** both existing outputs byte-reproducible from the core; full suite green.
+
+### Phase 2 — Layout restructure (move, no logic change)
+- [ ] Create `harnesses/`; move `claude/` → `harnesses/claude/` (hooks, commands, CLAUDE.md,
+      statusline.sh, settings.hooks.json) and the Codex assets (`codex-mem.sh` + AGENTS handling)
+      → `harnesses/codex/`.
+- [ ] Fix `memory_common.sh` `MEMORY_DIR` self-location (symlink parent is now **three** levels up,
+      not two) + its test.
+- [ ] Update `.gitignore` tracked-path carve-outs (`claude/` → `harnesses/`), `install.sh` symlink
+      sources, `link-skills.sh`/`link-agents.sh`, and the docs paths (`docs/install.md`, `docs/harnesses/*`).
+- **Gate:** full suite green after the move; a clean `install.sh` still wires Claude + Codex identically.
+
+### Phase 3 — Manifest + archetype drivers + installer engine
+- [ ] Define the manifest schema; author `harnesses/claude/manifest` (`archetype=hook, format=xml,
+      commands=native, skills_dir=~/.claude/skills`) and `harnesses/codex/manifest`
+      (`archetype=file, format=md, context_target=~/.codex/AGENTS.md, commands=doc, skills_dir=none`).
+- [ ] Implement `scripts/drivers/hook.sh` and `scripts/drivers/file.sh` (the two archetypes).
+- [ ] Rewrite `install.sh` as the generic engine: resolve harness (`--harness` flag → else
+      auto-detect) → read manifest → run archetype driver → skills fan-out → commands surface.
+      Optional per-harness `harnesses/<name>/<name>.sh` override, called only when present.
+- [ ] `validate-manifest.sh` static check + `test_install_harness.sh` (claude & codex reproduce
+      today's wiring from their manifests; auto-detect resolves correctly).
+- **Gate:** `install.sh --harness claude` and `--harness codex` reproduce the pre-Phase-3 wiring.
+
+### Phase 4 — Skills & commands generalization
+- [ ] Generalize `link-skills.sh` to fan into each harness's manifest `skills_dir`; **skip + report**
+      when `none` (Codex).
+- [ ] Implement the commands surface per manifest: `native` (symlink), `doc` (materialize the
+      "Memory Commands" reference via content-core into the injected context), `none`.
+- **Gate:** skills fan-out works on a skills-capable harness; Codex install emits the commands doc;
+      capability gaps are reported, never silent failures.
+
+### Phase 5 — Prove multi-harness + agent-runnable install; docs & non-goal reversal
+- [ ] Add a new file-materialize harness by config alone where possible — **Gemini CLI**
+      (`harnesses/gemini/manifest` → `GEMINI.md`) and/or **Cursor** (`.cursor/rules/*.mdc`, using the
+      override script for its multi-file model) — proving the archetype generalizes past Codex.
+- [ ] Validate the headline path: from **inside Codex**, an agent runs `install.sh` and gets a working
+      setup (context + the commands doc; skills skipped-and-reported).
+- [ ] Docs: rewrite `docs/install.md` + `docs/harnesses/*` to the manifest model; add an
+      "adding a harness" guide; **reverse the `no bootstrap script` non-goal** in `memory.md`
+      (the installer is now the agent-runnable bootstrap).
+- **Gate:** the top success criterion (install from a non-Claude harness) demonstrably works end-to-end.

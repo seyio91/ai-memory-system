@@ -7,8 +7,12 @@
 ## Active
 
 ### Make memory engine harness-agnostic → [plan](plans/make-memory-engine-harness-agnostic.md)
-_Design brainstorm paused (~80% settled); resume before execution. Phases TBD after design approval._
-- [ ] Finish design pass — confirm 3 opens (parent dir name, commands-doc, --harness flag), fill Phases
+_Design approved 2026-07-02. Behavior-preserving refactors (P1–2) before new capability (P3–5); each phase gates on `run-tests.sh` green._
+- [ ] Phase 1 — content core extraction (content-core.sh + xml/md formatters; rewire Claude+Codex; golden tests)
+- [ ] Phase 2 — layout restructure (`claude/`→`harnesses/claude/`, Codex→`harnesses/codex/`; fix MEMORY_DIR depth; .gitignore/install paths)
+- [ ] Phase 3 — manifest + archetype drivers (hook/file) + `install.sh` engine (`--harness` + auto-detect)
+- [ ] Phase 4 — skills fan-out (manifest `skills_dir`) + commands surface (native/doc/none)
+- [ ] Phase 5 — prove new harness (Gemini/Cursor) + agent-runnable install from Codex; docs + reverse no-bootstrap non-goal
 
 ## Done
 _(checked items stay above until the file is rolled)_
