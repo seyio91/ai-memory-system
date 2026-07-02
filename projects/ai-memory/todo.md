@@ -6,6 +6,13 @@
 
 ## Active
 
+### Project categories (client grouping) for state + billing → [plan](plans/project-categories-billing.md)
+_Design approved 2026-07-02 (task 391f6850, started). Category = frontmatter (gitignored values); billing = plans created in window. Each phase gates on `run-tests.sh` green._
+- [ ] Phase 1 — category field + lint (template placeholder, lint accepts-when-present, test)
+- [ ] Phase 2 — category-aware /state (category column + grouping + `/state <category>` filter)
+- [ ] Phase 3 — /billing (regenerate-billing.sh + command; plans/+archive/ created-in-window; gitignore output; tests)
+- [ ] Phase 4 — personal-data audit (no client name in tracked files) + docs
+
 ### Make memory engine harness-agnostic → [plan](plans/make-memory-engine-harness-agnostic.md)
 _Design approved 2026-07-02. Behavior-preserving refactors (P1–2) before new capability (P3–5); each phase gates on `run-tests.sh` green._
 - [ ] Phase 1 — content core extraction (content-core.sh + xml/md formatters; rewire Claude+Codex; golden tests)
