@@ -139,13 +139,13 @@ Ordered foundation-first (data model + setter → read surfaces → guarantees).
 - **Gate:** grouped + filtered output correct on fixtures; suite green.
 
 ### Phase 3 — Activity report (`/activity`)
-- [ ] New `scripts/regenerate-activity.sh`: `<category>` or `--all`, `--since <N>d` (default 30).
+- [x] New `scripts/regenerate-activity.sh`: `<category>` or `--all`, `--since <N>d` (default 30).
       Enumerate `projects/*` → read `category` → scan `plans/*.md` **and `archive/plans/*.md`**,
       read `created:`, keep in-window → group by category → emit `project · plan title · created ·
       status`. Window via `date -v-Nd +%F`, compared on `YYYY-MM-DD` string form.
-- [ ] `claude/commands/activity.md` (`/activity`) wraps the script.
-- [ ] Gitignore the activity output artifact (personal data); write stdout + optional gitignored file.
-- [ ] New `test_activity.sh`: window boundary (inclusive cutoff), archive-plans inclusion, `--all`
+- [x] `claude/commands/activity.md` (`/activity`) wraps the script.
+- [x] Gitignore the activity output artifact (personal data); write stdout + optional gitignored file.
+- [x] New `test_activity.sh`: window boundary (inclusive cutoff), archive-plans inclusion, `--all`
       vs single category, uncategorized excluded from a named-category run, empty-window result.
 - **Gate:** report correct incl. boundary + archive; output path gitignored; suite green.
 

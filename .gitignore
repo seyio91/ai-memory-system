@@ -18,6 +18,7 @@ __pycache__/
 # Derived on-demand "In Flight" snapshot (scripts/regenerate-state.sh) — a
 # projection of every project's goals; regenerated, never authored, personal.
 /state.md
+/activity.md
 
 # Real cross-project knowledge; ship domain/_template.md only.
 # Exceptions: tooling domains carry no client data and apply to every instance
