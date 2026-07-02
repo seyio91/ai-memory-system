@@ -35,6 +35,26 @@ cd /new/path/to/repo && ~/.claude-memory/scripts/memory-pin.sh acme-migration
 
 There is no global active-project fallback. An unpinned cwd loads no project, so multiple sessions in different repos run concurrently without colliding on a shared default.
 
+## Group projects by client, and report a client's work
+
+Tag each project with a **category** (a client/group), then view or report work per client. Category is **personal** — it lives only in the gitignored project `memory.md`.
+
+```
+# tag an existing project's checkout with its client:
+/pin acme-eks --category acme-corp
+# (new projects: /new-project asks for a category; or hand-edit the `category:` frontmatter)
+
+# see live work grouped by client, or one client's in-flight work:
+/state                     # every project, grouped by category
+/state acme-corp           # just this client's live work
+
+# report the plans created for a client in the last month (reviewing / invoicing):
+/activity acme-corp --since 30d
+/activity --all --since 30d   # every category
+```
+
+`/activity` counts **plans by their `created` date** within the window (scanning live and archived plans), grouped by category — a plan is one unit of work. It's independent of the task backend, and its output (`activity.md`) is gitignored/personal.
+
 ## Capture a learning mid-session
 
 - **Claude**: just say "remember that X" — maintenance rules route it.

@@ -150,11 +150,11 @@ Ordered foundation-first (data model + setter → read surfaces → guarantees).
 - **Gate:** report correct incl. boundary + archive; output path gitignored; suite green.
 
 ### Phase 4 — Personal-data audit + docs
-- [ ] Verify `.gitignore` keeps all category values + activity output out of git; add the artifact
+- [x] Verify `.gitignore` keeps all category values + activity output out of git; add the artifact
       path if not already covered by an existing glob.
-- [ ] Audit: no client name in any tracked file — `_template`, `ai-memory/memory.md`, plan/decisions,
+- [x] Audit: no client name in any tracked file — `_template`, `ai-memory/memory.md`, plan/decisions,
       and test fixtures use fake client names only.
-- [ ] Docs: `docs/file-formats.md` (the `category` field + how to set it), `docs/scripts.md`
+- [x] Docs: `docs/file-formats.md` (the `category` field + how to set it), `docs/scripts.md`
       (`regenerate-activity.sh` + `/activity`, `/state` category flags, `/pin --category`, new
       env/artifact rows), `docs/workflows.md` (a "review a client's work for the month" workflow),
       `docs/harnesses/claude.md` command table.
