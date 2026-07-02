@@ -5,10 +5,12 @@
 | `codex-mem.sh` | Build AGENTS.md + run codex | `codex-mem.sh`, `codex-mem.sh exec --sandbox read-only "..."` |
 | `codex-mem-checkpoint.sh` | Emit checkpoint scaffold | TTY → opens `$EDITOR`; `--for-codex` → stdout for Codex to consume |
 | `regenerate-index.sh` | Rebuild `index.md` AUTOGEN block | `regenerate-index.sh` (idempotent) |
+| `regenerate-state.sh` | Derive the on-demand **In Flight** snapshot (`/state`), grouped by category | `regenerate-state.sh [--stdout]`, `regenerate-state.sh <category> --stdout` → `state.md` (gitignored) |
+| `regenerate-activity.sh` | **Activity report** (`/activity`) — plans created in a window, grouped by category | `regenerate-activity.sh (<category>\|--all) [--since <N>[d]] [--stdout]` → `activity.md` (gitignored) |
 | `lint-memory.sh` | Mechanical lint | exit 0 if clean, 1 if any WARN/ERROR |
 | `archive-cleanup.sh` | Prune old `archive/` files | `archive-cleanup.sh [--all-projects] [--days N]` (dry-run, then confirm) |
 | `new-project.sh` | Scaffold a new project (pin a repo with `.claude/memory-project` to activate) | `new-project.sh <name>` |
-| `memory-pin.sh` | Pin a checkout ↔ project (forward marker + reverse `repo`/`repo_path`) | `memory-pin.sh <name>` (run from inside the checkout) |
+| `memory-pin.sh` | Pin a checkout ↔ project (forward marker + reverse `repo`/`repo_path`); `--category` sets the project's category | `memory-pin.sh <name> [--category <client>]` (run from inside the checkout) |
 | `_lib.sh` | Shared helpers (sourced) | `detect_active_project`, `extract_fm_field`, `projects_root`, `resolve_repo_path` |
 | `taskctl` | Bash wrapper for the task-provider CLI (used by `/task`, `/start`) | `taskctl <capture\|list\|get\|update\|set-status\|ping> ...` |
 | `taskprovider/` | Python (stdlib-only) task-provider CLI — see [Task-provider layer](task-provider.md) | `PYTHONPATH=$MEMORY_DIR/scripts python3 -m taskprovider <verb>`; tests: `cd scripts && python3 -m unittest discover -s taskprovider/tests -t .` |

@@ -11,7 +11,7 @@ _Design approved 2026-07-02 (task 391f6850, started). Category = frontmatter (gi
 - [x] Phase 1 — category field, setter (`/pin --category`, `/new-project` prompt, hand-edit) + lint _(suite 20/20 green)_
 - [x] Phase 2 — category-aware /state (category column + grouping + `/state <category>` filter) _(state test 36/36, suite 20/20)_
 - [x] Phase 3 — /activity (regenerate-activity.sh + command; plans/+archive/ created-in-window; gitignore output; tests) _(activity test 30/30, suite 21/21)_
-- [ ] Phase 4 — personal-data audit (no client name in tracked files) + docs
+- [x] Phase 4 — personal-data audit (no client name in tracked files) + docs _(audit clean; suite 21/21)_
 
 ### Make memory engine harness-agnostic → [plan](plans/make-memory-engine-harness-agnostic.md)
 _Design approved 2026-07-02. Behavior-preserving refactors (P1–2) before new capability (P3–5); each phase gates on `run-tests.sh` green._
