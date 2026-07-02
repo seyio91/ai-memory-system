@@ -6,11 +6,11 @@
 
 ## Active
 
-### Project categories (client grouping) for state + billing → [plan](plans/project-categories-billing.md)
-_Design approved 2026-07-02 (task 391f6850, started). Category = frontmatter (gitignored values); billing = plans created in window. Each phase gates on `run-tests.sh` green._
-- [ ] Phase 1 — category field + lint (template placeholder, lint accepts-when-present, test)
+### Project categories (client grouping) for state + activity → [plan](plans/project-categories-activity.md)
+_Design approved 2026-07-02 (task 391f6850, started). Category = frontmatter (gitignored values); activity report = plans created in window. Each phase gates on `run-tests.sh` green._
+- [ ] Phase 1 — category field, setter (`/pin --category`, `/new-project` prompt, hand-edit) + lint
 - [ ] Phase 2 — category-aware /state (category column + grouping + `/state <category>` filter)
-- [ ] Phase 3 — /billing (regenerate-billing.sh + command; plans/+archive/ created-in-window; gitignore output; tests)
+- [ ] Phase 3 — /activity (regenerate-activity.sh + command; plans/+archive/ created-in-window; gitignore output; tests)
 - [ ] Phase 4 — personal-data audit (no client name in tracked files) + docs
 
 ### Make memory engine harness-agnostic → [plan](plans/make-memory-engine-harness-agnostic.md)
