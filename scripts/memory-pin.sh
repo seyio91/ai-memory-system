@@ -8,9 +8,29 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-PROJECT="${1:-}"
+PROJECT=""
+CATEGORY=""
+HAVE_CATEGORY=0
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --category)
+            shift
+            [ $# -gt 0 ] || { echo "memory-pin: --category requires a value" >&2; exit 2; }
+            CATEGORY="$1"; HAVE_CATEGORY=1 ;;
+        --category=*)
+            CATEGORY="${1#--category=}"; HAVE_CATEGORY=1 ;;
+        --) shift; break ;;
+        -*) echo "memory-pin: unknown option: $1" >&2; exit 2 ;;
+        *)
+            if [ -z "$PROJECT" ]; then PROJECT="$1"
+            else echo "memory-pin: unexpected argument: $1" >&2; exit 2; fi ;;
+    esac
+    shift
+done
+# Any trailing args after `--` fill the project slot if still empty.
+if [ -z "$PROJECT" ] && [ $# -gt 0 ]; then PROJECT="$1"; fi
 if [ -z "$PROJECT" ]; then
-    echo "usage: memory-pin.sh <project>   (run from inside a git checkout)" >&2
+    echo "usage: memory-pin.sh <project> [--category <client>]   (run from inside a git checkout)" >&2
     exit 2
 fi
 
@@ -75,7 +95,14 @@ upsert_fm() {
 
 [ -n "$REPO" ] && upsert_fm "$MF" repo "$REPO"
 upsert_fm "$MF" repo_path "$REPO_PATH"
+# Category is optional, personal, per-instance — set only when --category was given.
+if [ "$HAVE_CATEGORY" -eq 1 ]; then
+    upsert_fm "$MF" category "$CATEGORY"
+fi
 
 echo "Pinned $TOP -> $PROJECT"
 echo "  repo:      ${REPO:-<none>}"
 echo "  repo_path: $REPO_PATH"
+if [ "$HAVE_CATEGORY" -eq 1 ]; then
+    echo "  category:  $CATEGORY"
+fi

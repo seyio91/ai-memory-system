@@ -4,6 +4,10 @@ Ask: "What is the absolute path to the project repo? I'll place a `.claude/memor
 
 If a path is provided, run `mkdir -p <path>/.claude && echo "$ARGUMENTS" > <path>/.claude/memory-project` and confirm the marker was created.
 
+Ask: "What client/category does this project belong to? This groups it under a client for `/state` and `/activity`. It is **personal** (stays gitignored). Leave blank for none."
+
+If a category is provided, set the `category:` frontmatter field in `~/.claude-memory/projects/$ARGUMENTS/memory.md` (uncomment/replace the template's `# category:` line with `category: <value>`). If a repo path was also given, the equivalent one-shot is `~/.claude-memory/scripts/memory-pin.sh $ARGUMENTS --category "<value>"` run from that path (writes the marker, reverse map, and category together).
+
 Then fill in `~/.claude-memory/projects/$ARGUMENTS/memory.md` by asking the user one question at a time in this order — wait for each answer before moving to the next:
 
 1. **What It Is** — one line: what does this project do, what's the stack, who owns it

@@ -6,6 +6,8 @@ summary: <one-line description for the index — replace before use>
 # repo: git@github.com:org/repo.git   # git remote (portable fallback id)
 # repo_path: repo                     # checkout path relative to AI_MEMORY_PROJECTS_ROOT (may be absolute)
 # tags: [terraform, aws, eks]         # surfaced in the index to aid recall
+# category: acme-corp                 # client/group this project belongs to — PERSONAL (gitignored);
+#                                     #   set via `/pin <project> --category <client>` or by hand
 ---
 
 # Project: <name>

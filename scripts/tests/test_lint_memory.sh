@@ -115,6 +115,14 @@ assert_exit 1 "$CODE" "project absent from index warns (orphan-by-name)"
 assert_contains "$OUT" "ghost" "orphan warning names the project"
 rm -rf "$MO"
 
+# --- optional category is accepted when present, never required (absent case is
+#     the clean-tree run above) ---
+MC="$(new_sandbox)"; export MEMORY_DIR="$MC"; build_clean "$MC"
+set_fm "$MC/projects/good/memory.md" category acme-corp
+run_lint
+assert_exit 0 "$CODE" "present category keeps lint clean (exit 0)"
+rm -rf "$MC"
+
 # --- valid repo_path + matching back-pin -> exit 0 ---
 M4="$(new_sandbox)"; export MEMORY_DIR="$M4"; build_clean "$M4"
 R4="$(new_sandbox)"; export AI_MEMORY_PROJECTS_ROOT="$R4"
