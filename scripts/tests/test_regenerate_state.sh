@@ -100,4 +100,60 @@ assert_exit 0 "$code" "tolerates a projects dir with no projects"
 assert_contains "$out" "| Project | Last touched |" "still emits the table header when empty"
 rm -rf "$EMPTY"
 
+# === category column, grouping, and filter (Phase 2) ========================
+CM="$(new_sandbox)"; mkdir -p "$CM/projects"
+# categorized project: frontmatter category + goal
+mkc() {
+    mkdir -p "$CM/projects/$1"
+    printf -- '---\ntopic: %s\nscope: project\nsummary: s\ncategory: %s\n---\n## Current Goal\n%s\n' \
+        "$1" "$2" "$3" > "$CM/projects/$1/memory.md"
+}
+# uncategorized project: frontmatter without category
+mku() {
+    mkdir -p "$CM/projects/$1"
+    printf -- '---\ntopic: %s\nscope: project\nsummary: s\n---\n## Current Goal\n%s\n' \
+        "$1" "$2" > "$CM/projects/$1/memory.md"
+}
+mkc acme-web acme-corp "Acme web goal"
+mkc acme-api acme-corp "Acme api goal"
+mkc beta-svc beta-inc  "Beta service goal"
+mku loose              "Loose uncategorized goal"
+# mtimes: 'loose' is the NEWEST overall, but must still sort LAST (uncategorized).
+# within acme-corp, acme-web is newer than acme-api.
+touch -t 202606100900 "$CM/projects/acme-api/memory.md"
+touch -t 202606200900 "$CM/projects/acme-web/memory.md"
+touch -t 202606050900 "$CM/projects/beta-svc/memory.md"
+touch -t 202606250900 "$CM/projects/loose/memory.md"
+
+# --- unfiltered: grouped by category, uncategorized last ---
+MEMORY_DIR="$CM" run "$GEN" --stdout
+assert_exit 0 "$code" "category view runs"
+assert_contains "$out" "| Category | Project | Last touched | Current goal | Open todos |" "5-col header includes Category"
+assert_contains "$out" "| acme-corp | acme-web " "category value shown in the row"
+assert_contains "$out" "| — | loose " "uncategorized project shows em dash in category column"
+aw="$(printf '%s\n' "$out" | grep -n '| acme-web ' | head -1 | cut -d: -f1)"
+aa="$(printf '%s\n' "$out" | grep -n '| acme-api ' | head -1 | cut -d: -f1)"
+bs="$(printf '%s\n' "$out" | grep -n '| beta-svc ' | head -1 | cut -d: -f1)"
+lo="$(printf '%s\n' "$out" | grep -n '| loose ' | head -1 | cut -d: -f1)"
+[ "$aw" -lt "$aa" ] && _ok "within a category, newer project sorts first" \
+    || { _bad "within a category, newer project sorts first"; printf '       acme-web=%s acme-api=%s\n' "$aw" "$aa"; }
+{ [ "$aa" -lt "$bs" ] && [ "$bs" -lt "$lo" ]; } && _ok "categories grouped (acme<beta), uncategorized last despite newest mtime" \
+    || { _bad "categories grouped, uncategorized last"; printf '       acme-api=%s beta=%s loose=%s\n' "$aa" "$bs" "$lo"; }
+
+# --- filtered: /state <category> ---
+MEMORY_DIR="$CM" run "$GEN" acme-corp --stdout
+assert_exit 0 "$code" "filtered view runs"
+assert_contains "$out" "In Flight — acme-corp" "filtered title names the category"
+assert_contains "$out" "| acme-web " "filter includes a matching project"
+assert_contains "$out" "| acme-api " "filter includes the other matching project"
+assert_not_contains "$out" "| beta-svc " "filter excludes other categories"
+assert_not_contains "$out" "| loose " "filter excludes uncategorized projects"
+
+# --- filter + --stdout order independence ---
+MEMORY_DIR="$CM" run "$GEN" --stdout beta-inc
+assert_exit 0 "$code" "filter works with flags in either order"
+assert_contains "$out" "| beta-svc " "beta-inc filter includes beta-svc"
+assert_not_contains "$out" "| acme-web " "beta-inc filter excludes acme projects"
+rm -rf "$CM"
+
 finish
