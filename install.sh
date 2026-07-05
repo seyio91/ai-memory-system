@@ -119,41 +119,61 @@ fi
 . "$REPO_ROOT/scripts/drivers/$ARCHETYPE.sh"
 driver_install
 
+# ---- skills + agents fan-out (any harness that declares a target) ---------
+# Phase 4 lifts the Phase-3 archetype gate: skills fan out into whatever
+# skills_dir the manifest names (Claude ~/.claude/skills, Codex ~/.agents/skills).
+SKILLS_DIR="$(manifest_get "$MANIFEST" skills_dir)"
+AGENTS_DIR="$(manifest_get "$MANIFEST" agents_dir)"
+if [ -n "$SKILLS_DIR" ] && [ -d "$REPO_ROOT/skills" ]; then
+    step "Skills -> $SKILLS_DIR"
+    bash "$REPO_ROOT/scripts/link-skills.sh" "$SKILLS_DIR" || info "link-skills.sh skipped/failed"
+else
+    info "no skills_dir in manifest (or no skills/ store) — skills fan-out skipped"
+fi
+if [ -n "$AGENTS_DIR" ] && [ -d "$REPO_ROOT/agents" ]; then
+    step "Agents -> $AGENTS_DIR"
+    bash "$REPO_ROOT/scripts/link-agents.sh" "$AGENTS_DIR" || info "link-agents.sh skipped/failed"
+fi
+
 # ---- commands surface ------------------------------------------------------
+# Canonical command bodies are authored under the Claude harness dir and shared
+# across harnesses: symlinked natively (Claude), wrapped AS skills into skills_dir
+# (Codex — its command mechanism IS skills), or rendered as a reference doc
+# (fallback for a harness with neither surface).
+COMMANDS_STORE="$REPO_ROOT/harnesses/claude/commands"
 CMDS="$(manifest_get "$MANIFEST" commands)"
 CMDS_DIR="$(manifest_get "$MANIFEST" commands_dir)"
 case "$CMDS" in
     native)
-        step "Slash commands (native) -> $CMDS_DIR"
+        step "Commands (native) -> $CMDS_DIR"
         bash "$REPO_ROOT/scripts/link-commands.sh" "$CMDS_DIR" || info "link-commands.sh skipped/failed"
         ;;
-    skill|doc)
-        step "Commands surface: $CMDS"
-        info "the '$CMDS' commands surface is delivered in Phase 4 — skipped for now (reported, not failed)."
+    skill)
+        if [ -n "$SKILLS_DIR" ]; then
+            step "Commands (as skills) -> $SKILLS_DIR"
+            bash "$REPO_ROOT/scripts/link-command-skills.sh" "$COMMANDS_STORE" "$SKILLS_DIR" \
+                || info "link-command-skills.sh skipped/failed"
+        else
+            info "commands=skill but no skills_dir — commands surface skipped (reported)"
+        fi
+        ;;
+    doc)
+        CMDS_DOC="$(manifest_get "$MANIFEST" commands_doc)"
+        if [ -z "$CMDS_DOC" ]; then
+            CTX="$(manifest_get "$MANIFEST" context_target)"
+            [ -n "$CTX" ] && CMDS_DOC="$(dirname "$CTX")/MEMORY-COMMANDS.md"
+        fi
+        if [ -n "$CMDS_DOC" ]; then
+            step "Commands (reference doc) -> $CMDS_DOC"
+            bash "$REPO_ROOT/scripts/gen-commands-doc.sh" "$COMMANDS_STORE" "$CMDS_DOC" \
+                || info "gen-commands-doc.sh skipped/failed"
+        else
+            info "commands=doc but no commands_doc/context_target to place it — skipped (reported)"
+        fi
         ;;
     ""|none) : ;;
+    *) info "unknown commands surface '$CMDS' — skipped (reported)" ;;
 esac
-
-# ---- skills + agents fan-out ----------------------------------------------
-# Phase 3 wires delivery for the hook archetype only (reproducing today's Claude
-# install). Generic per-manifest fan-out for file harnesses (skills into
-# ~/.agents/skills, command bodies as skills) lands in Phase 4; here it is
-# reported as deferred, never silently done.
-SKILLS_DIR="$(manifest_get "$MANIFEST" skills_dir)"
-AGENTS_DIR="$(manifest_get "$MANIFEST" agents_dir)"
-if [ "$ARCHETYPE" = hook ]; then
-    if [ -n "$SKILLS_DIR" ] && [ -d "$REPO_ROOT/skills" ]; then
-        step "Skills -> $SKILLS_DIR"
-        bash "$REPO_ROOT/scripts/link-skills.sh" "$SKILLS_DIR" || info "link-skills.sh skipped/failed"
-    fi
-    if [ -n "$AGENTS_DIR" ] && [ -d "$REPO_ROOT/agents" ]; then
-        step "Agents -> $AGENTS_DIR"
-        bash "$REPO_ROOT/scripts/link-agents.sh" "$AGENTS_DIR" || info "link-agents.sh skipped/failed"
-    fi
-elif [ -n "$SKILLS_DIR" ]; then
-    step "Skills fan-out -> $SKILLS_DIR"
-    info "generic file-harness skills fan-out lands in Phase 4 — skipped for now (reported)."
-fi
 
 # ---- optional per-harness override ----------------------------------------
 OVERRIDE="$HARNESS_DIR/$HARNESS.sh"

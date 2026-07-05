@@ -422,15 +422,32 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
       **P3→P4 seam:** codex manifest forward-declares `skills_dir`/`commands=skill`; the engine gates
       generic skills/commands fan-out behind `archetype=hook` — Phase 4 lifts that gate.
 
-### Phase 4 — Skills & commands generalization
-- [ ] Generalize `link-skills.sh` to fan into each harness's manifest `skills_dir` (Claude
-      `~/.claude/skills` **and** Codex `~/.agents/skills`); **skip + report** only when a harness
-      declares no skills dir.
-- [ ] Implement the commands surface per manifest: `native` (symlink), `skill` (wrap each command
-      `.md` in a thin `SKILL.md` and fan into `skills_dir` — Codex), `doc` (materialize the "Memory
-      Commands" reference via content-core into the injected context), `none`.
-- **Gate:** skills fan-out works on a skills-capable harness; Codex install emits the commands doc;
-      capability gaps are reported, never silent failures.
+### Phase 4 — Skills & commands generalization — ✅ DONE 2026-07-05
+- [x] Lifted the Phase-3 archetype gate in `install.sh`: skills fan out into **any** harness's
+      manifest `skills_dir` (Claude `~/.claude/skills` **and** Codex `~/.agents/skills`) via the
+      already-generic `link-skills.sh`; **skip + report** when no `skills_dir` (or no `skills/` store).
+      (`link-skills.sh` itself needed no change — it always accepted a target dir; the generalization
+      was removing the `archetype=hook` gate in the engine.)
+- [x] Commands surface per manifest, all four capabilities:
+      - `native` → `link-commands.sh` symlinks into `commands_dir` (Claude).
+      - `skill` → **new `link-command-skills.sh`** wraps each canonical command `<name>.md` (a bare
+        prompt body) into `<skills_dir>/<name>/SKILL.md` (synthesized `name`/`description`-from-first-line/
+        `tier: target-write` + body), marked `.from-command`; collision-safe (skips canonical symlinks
+        + foreign dirs). Codex → 12 canonical skills + 17 command-skills unify in `~/.agents/skills`.
+      - `doc` → **new `gen-commands-doc.sh`** renders a "Memory Commands" reference; the engine places it
+        at `commands_doc` (or `dirname(context_target)/MEMORY-COMMANDS.md`). **Scope note:** materialized
+        as a standalone reference file, *not yet* injected via content-core (no `doc`-harness consumer
+        exists — content-core injection is deferred to when one lands, e.g. Aider in Phase 5).
+      - `none`/unknown → nothing / reported.
+- **Gate:** ✅ met — skills fan-out works on codex (`~/.agents/skills`); commands=skill + commands=doc
+      both wired and tested (synthetic `doch` harness); capability gaps reported, never silent; Claude
+      install still **byte-identical** to golden. Suite **25/25 green** (+`test_command_surface.sh`,
+      `test_install_harness.sh` now 28 assertions).
+- **Caveat (surfaced, not blocking):** the 17 command-skills are the Claude slash-command bodies verbatim
+      — some reference `$ARGUMENTS` / injected `<memory:*>` context (Claude-isms), so on Codex they're
+      *mostly* portable (they invoke harness-neutral `scripts/*.sh` via the `~/.claude-memory` stable
+      path) but not perfectly. Curation of which commands suit non-Claude harnesses is a **future**
+      content task, not a mechanism blocker.
 
 ### Phase 5 — Prove multi-harness + agent-runnable install; docs & non-goal reversal
 - [ ] **Register Antigravity** (`agy` v1.0.16) as the headline third-party proof harness —

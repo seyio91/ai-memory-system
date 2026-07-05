@@ -48,13 +48,29 @@ run_install --harness claude >"$SBROOT/log.claude2" 2>&1; rc=$?
 assert_exit 0 "$rc" "claude re-run exits 0"
 assert_contains "$(cat "$SBROOT/log.claude2")" "ok (already linked)" "re-run: already-linked (no churn)"
 
-# --- codex (file archetype) ---
+# --- codex (file archetype): context prep + skills + commands-as-skills ---
 run_install --harness codex >"$SBROOT/log.codex" 2>&1; rc=$?
 assert_exit 0 "$rc" "codex install exits 0"
 assert_file "$FHOME/.codex" "codex context dir prepared"
 if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then _ok "codex: no AGENTS.md symlink (built at launch)"; else _bad "codex: unexpected AGENTS.md symlink"; fi
-assert_not_contains "$(ls "$FHOME/.agents/skills" 2>/dev/null || echo '')" "demo-skill" "codex: skills NOT fanned out in P3"
-assert_contains "$(cat "$SBROOT/log.codex")" "Phase 4" "codex: deferred surfaces reported"
+# Phase 4: canonical skills fan into the manifest skills_dir (~/.agents/skills)...
+assert_file "$FHOME/.agents/skills/demo-skill" "codex: canonical skill fanned to ~/.agents/skills"
+# ...and command bodies are delivered AS skills (commands=skill).
+assert_file "$FHOME/.agents/skills/pin/SKILL.md"      "codex: command delivered as skill (pin)"
+assert_file "$FHOME/.agents/skills/pin/.from-command" "codex: command-skill marked generated"
+assert_contains "$(cat "$FHOME/.agents/skills/pin/SKILL.md")" "name: pin" "codex: command-skill wrapper frontmatter"
+
+# --- doc surface (synthetic file harness with commands=doc, no skills_dir) ---
+mkdir -p "$FAKE/harnesses/doch"
+printf '%s\n' \
+    'name = doch' 'archetype = file' 'format = md' \
+    'context_target = ~/.doch/CONTEXT.md' 'refresh = launch' 'commands = doc' \
+    > "$FAKE/harnesses/doch/manifest"
+run_install --harness doch >"$SBROOT/log.doch" 2>&1; rc=$?
+assert_exit 0 "$rc" "doc harness install exits 0"
+assert_file "$FHOME/.doch/MEMORY-COMMANDS.md" "doc harness: commands reference generated next to context_target"
+assert_contains "$(cat "$FHOME/.doch/MEMORY-COMMANDS.md")" "/pin" "doc: reference lists a command"
+assert_contains "$(cat "$SBROOT/log.doch")" "skills fan-out skipped" "doc harness: no skills_dir reported, not failed"
 
 # --- unknown harness errors ---
 run_install --harness bogus >"$SBROOT/log.bogus" 2>&1; rc=$?
