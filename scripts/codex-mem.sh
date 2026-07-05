@@ -3,6 +3,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
+# Shared content selection + markdown serialization (single source of what/order).
+. "$SCRIPT_DIR/content-core.sh"
+. "$SCRIPT_DIR/formatters/md.sh"
 
 CODEX_INSTRUCTIONS="${CODEX_INSTRUCTIONS_FILE:-$HOME/.codex/AGENTS.md}"
 CODEX_OVERLAY="${CODEX_OVERLAY_FILE:-$HOME/.codex/AGENTS.local.md}"
@@ -55,63 +58,9 @@ PROJECT=$(detect_active_project)
     echo "     it is concatenated below the generated sections and never touched. -->"
     echo
 
-    if [ -f "$MEMORY_DIR/identity.md" ]; then
-        echo "# === IDENTITY ==="
-        echo
-        cat "$MEMORY_DIR/identity.md"
-        echo
-    fi
-
-    if [ -n "$PROJECT" ] && [ -f "$MEMORY_DIR/projects/$PROJECT/memory.md" ]; then
-        echo "# === PROJECT: $PROJECT ==="
-        echo
-        cat "$MEMORY_DIR/projects/$PROJECT/memory.md"
-        echo
-    fi
-
-    if [ -f "$MEMORY_DIR/index.md" ]; then
-        echo "# === MEMORY INDEX ==="
-        echo
-        cat "$MEMORY_DIR/index.md"
-        echo
-    fi
-
-    # Frontmatter-driven Domain Index. Codex reads the file on demand.
-    if [ -d "$MEMORY_DIR/domain" ]; then
-        echo "# === DOMAIN INDEX ==="
-        echo
-        echo "Domain knowledge files live under \`$MEMORY_DIR/domain/\`. When the user's"
-        echo "request matches a topic's triggers below, read the absolute path with your"
-        echo "file-read tool BEFORE answering. Treat the file as authoritative over"
-        echo "training defaults."
-        echo
-        echo "| File | Triggers | Summary |"
-        echo "|------|----------|---------|"
-        # Stable ordering so the generated file is reproducible.
-        for f in $(find "$MEMORY_DIR/domain" -maxdepth 1 -type f -name '*.md' | sort); do
-            topic=$(extract_fm_field "$f" "topic")
-            triggers=$(extract_fm_field "$f" "triggers")
-            summary=$(extract_fm_field "$f" "summary")
-            # Normalize triggers for display: strip [ ] if present.
-            triggers="${triggers#[}"
-            triggers="${triggers%]}"
-            # If a file lacks frontmatter, fall back to its basename + empty fields.
-            [ -z "$topic" ] && topic=$(basename "$f" .md)
-            [ -z "$summary" ] && summary="(no summary; add frontmatter)"
-            echo "| $f | ${triggers:-—} | $summary |"
-        done
-        echo
-    fi
-
-    if [ -n "$PROJECT" ]; then
-        WORKING="$MEMORY_DIR/projects/$PROJECT/working.md"
-        if [ -f "$WORKING" ] && [ -s "$WORKING" ]; then
-            echo "# === WORKING MEMORY ==="
-            echo
-            cat "$WORKING"
-            echo
-        fi
-    fi
+    # Section selection + order come from content-core; md formatter serializes.
+    # (The Domain Index table is rendered by md.sh via extract_fm_field.)
+    content_sections "$PROJECT" identity project index domain working | md_render
 
     if [ -f "$CODEX_OVERLAY" ] && [ -s "$CODEX_OVERLAY" ]; then
         echo "# === LOCAL OVERLAY ==="
