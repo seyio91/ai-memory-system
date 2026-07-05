@@ -5,6 +5,9 @@
 .claude/
 .sessions/
 
+# Harness-neutral per-checkout project marker (local pin; never committed)
+.agents/memory-project
+
 # Python bytecode / virtualenvs
 __pycache__/
 *.pyc

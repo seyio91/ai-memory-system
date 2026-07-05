@@ -19,7 +19,7 @@ printf 'new\n' > "$new"
 touch -t "$(date -v-40d +%Y%m%d%H%M 2>/dev/null || date -d '40 days ago' +%Y%m%d%H%M)" "$old"
 
 # Project resolves only from a cwd marker now (no .active_project fallback).
-WORK="$MEM/work"; mkdir -p "$WORK/.claude"; printf 'proj\n' > "$WORK/.claude/memory-project"
+WORK="$MEM/work"; mkdir -p "$WORK/.agents"; printf 'proj\n' > "$WORK/.agents/memory-project"
 
 # --- dry-run lists old, not new, not gitkeep ---
 set +e

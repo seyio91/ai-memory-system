@@ -86,7 +86,7 @@ The table deliberately carries **no on-disk path**. A delegate that needs to ins
 
 **Delegation contract:**
 - *Dispatch* — the prompt is self-contained, because the delegate does not inherit the orchestrator's context: it points at `identity.md` (hard rules / executor deny-list) and `projects/<sibling>/memory.md`, states the task, and sets the default deliverable to **plan only** (no edits to the sibling repo).
-  - *Codex caveat:* a `codex-mem.sh` launch builds `AGENTS.md` from the **active** project, not the sibling. So when the executor is Codex, either (a) pin the sibling repo (`.claude/memory-project`) and launch Codex there so its `AGENTS.md` resolves to the sibling, or (b) pass the sibling's `memory.md` path explicitly in the prompt for Codex to read with its shell tool. A Claude `Agent` subagent has no such caveat — it just reads the files named in the prompt.
+  - *Codex caveat:* a `codex-mem.sh` launch builds `AGENTS.md` from the **active** project, not the sibling. So when the executor is Codex, either (a) pin the sibling repo (`.agents/memory-project`) and launch Codex there so its `AGENTS.md` resolves to the sibling, or (b) pass the sibling's `memory.md` path explicitly in the prompt for Codex to read with its shell tool. A Claude `Agent` subagent has no such caveat — it just reads the files named in the prompt.
 - *Work* — the delegate produces the core plan and persists it to `projects/<sibling>/plans/<name>.md` (frontmatter `plan`, `status: active`, `created`, `owner`).
 - *Return* — a compact, structured summary: `project`, `goal` (one line), `plan` (ordered core steps), `entry points`, `depends on / ordering`, `plan file` (path), `blockers`.
 

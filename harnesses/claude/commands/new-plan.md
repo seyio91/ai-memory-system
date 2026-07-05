@@ -2,7 +2,7 @@ Scaffold a new plan file in the active project's `plans/` directory.
 
 Argument: `$ARGUMENTS` — the plan name (kebab-case slug, no `.md` extension).
 
-Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.claude/memory-project`).
+Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`).
 
 Step 2 — guard against overwrite. If `~/.claude-memory/projects/<active>/plans/$ARGUMENTS.md` already exists, abort and tell the user the path exists — they should pick a different slug or edit the existing file.
 

@@ -19,4 +19,4 @@ fi
 cp -r "$MEMORY_DIR/projects/_template" "$TARGET"
 echo "created: $TARGET"
 echo "activate by pinning a repo:"
-echo "  cd <repo> && mkdir -p .claude && echo $NAME > .claude/memory-project"
+echo "  cd <repo> && memory-pin.sh $NAME    # writes .agents/memory-project + reverse map"

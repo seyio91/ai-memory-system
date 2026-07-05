@@ -67,16 +67,21 @@ json_field() {
     printf '%s' "$1" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('$2',''))" 2>/dev/null || echo ""
 }
 
-# Resolve the active project by walking up from cwd to the nearest
-# .claude/memory-project marker. No marker -> empty (generic Claude, no memory
-# system) until the repo is onboarded via /pin. There is intentionally no global
-# fallback: the project is whichever repo you are actually in.
+# Resolve the active project by walking up from cwd to the nearest marker: the
+# harness-neutral .agents/memory-project, falling back to the legacy
+# .claude/memory-project (pre-Phase-6 pins) at the same level. No marker -> empty
+# (generic Claude, no memory system) until the repo is onboarded via /pin. There
+# is intentionally no global fallback: the project is whichever repo you are in.
 # $1 = cwd
 detect_project() {
     local cwd="$1" dir proj=""
     dir="$cwd"
     while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-        if [ -f "$dir/.claude/memory-project" ]; then
+        if [ -f "$dir/.agents/memory-project" ]; then
+            proj=$(tr -d '[:space:]' < "$dir/.agents/memory-project")
+            break
+        fi
+        if [ -f "$dir/.claude/memory-project" ]; then   # legacy fallback
             proj=$(tr -d '[:space:]' < "$dir/.claude/memory-project")
             break
         fi

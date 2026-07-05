@@ -168,14 +168,16 @@ After `install.sh`, these `~/.claude/` paths are **symlinks into this repo** (`h
 
 Both Claude's hook and the Codex wrapper resolve the project the same way:
 
-1. Walk up from `$PWD` looking for `.claude/memory-project` (a one-line file naming the active project).
+1. Walk up from `$PWD` looking for `.agents/memory-project` (a one-line file naming the active project); the legacy `.claude/memory-project` is still read as a fallback when the neutral marker is absent. Readers check `.agents/memory-project` first, then fall back to `.claude/memory-project` — migrate old markers with `scripts/migrate-marker.sh`.
 2. If no marker is found → no project context (generic Claude, memory system dormant). There is no global fallback, so concurrent sessions in different repos never collide.
 
 Pin a repo to a project once:
 
 ```bash
 cd /path/to/repo
-mkdir -p .claude && echo my-project > .claude/memory-project
+~/.claude-memory/scripts/memory-pin.sh my-project   # preferred — writes forward marker + reverse map
+# or, to hand-create just the forward marker:
+mkdir -p .agents && echo my-project > .agents/memory-project
 ```
 
 Any session — Claude or Codex — opened anywhere in that repo auto-loads `projects/my-project/`.
@@ -202,6 +204,6 @@ cd /path/to/repo
 ~/.claude-memory/scripts/memory-pin.sh my-project
 ```
 
-It writes both directions in one action: the forward `.claude/memory-project` marker, and the reverse `repo` + `repo_path` fields into `projects/my-project/memory.md` frontmatter (body left byte-for-byte intact). The projects root is canonicalized before stripping (so a symlinked root like macOS `/var` → `/private/var` still matches git's physical toplevel); a checkout outside the root is stored as an absolute `repo_path` with a warning. In Claude, `/pin my-project` does the same. **Drift** (moved/missing checkout, mismatched back-pin) is caught by `lint-memory.sh`, not auto-repaired.
+It writes both directions in one action: the forward `.agents/memory-project` marker, and the reverse `repo` + `repo_path` fields into `projects/my-project/memory.md` frontmatter (body left byte-for-byte intact). The projects root is canonicalized before stripping (so a symlinked root like macOS `/var` → `/private/var` still matches git's physical toplevel); a checkout outside the root is stored as an absolute `repo_path` with a warning. In Claude, `/pin my-project` does the same. **Drift** (moved/missing checkout, mismatched back-pin) is caught by `lint-memory.sh`, not auto-repaired.
 
 **Resolving in code.** `resolve_repo_path <project>` (in `_lib.sh`) prints the checkout dir and returns 0, else returns 1 — path-first, then the git-remote fallback. This is the single resolver used everywhere; the local path is **never** duplicated into a cross-project relationship table — a delegate reads it from the sibling's own frontmatter via the resolver.

@@ -126,11 +126,20 @@ rm -rf "$MC"
 # --- valid repo_path + matching back-pin -> exit 0 ---
 M4="$(new_sandbox)"; export MEMORY_DIR="$M4"; build_clean "$M4"
 R4="$(new_sandbox)"; export AI_MEMORY_PROJECTS_ROOT="$R4"
-mkdir -p "$R4/good-co/.claude"; printf 'good\n' > "$R4/good-co/.claude/memory-project"
+mkdir -p "$R4/good-co/.agents"; printf 'good\n' > "$R4/good-co/.agents/memory-project"
 set_fm "$M4/projects/good/memory.md" repo_path good-co
 run_lint
 assert_exit 0 "$CODE" "valid repo_path + matching back-pin -> 0"
 rm -rf "$M4" "$R4"
+
+# --- legacy .claude back-pin still resolves but earns a migration WARN ---
+ML="$(new_sandbox)"; export MEMORY_DIR="$ML"; build_clean "$ML"
+RL="$(new_sandbox)"; export AI_MEMORY_PROJECTS_ROOT="$RL"
+mkdir -p "$RL/good-co/.claude"; printf 'good\n' > "$RL/good-co/.claude/memory-project"
+set_fm "$ML/projects/good/memory.md" repo_path good-co
+run_lint
+assert_contains "$OUT" "legacy .claude/memory-project" "legacy marker flagged for migration"
+rm -rf "$ML" "$RL"
 
 # --- repo_path target dir missing -> exit 1 ---
 M5="$(new_sandbox)"; export MEMORY_DIR="$M5"; build_clean "$M5"
@@ -144,7 +153,7 @@ rm -rf "$M5" "$R5"
 # --- back-pin names a different project -> exit 1 ---
 M6="$(new_sandbox)"; export MEMORY_DIR="$M6"; build_clean "$M6"
 R6="$(new_sandbox)"; export AI_MEMORY_PROJECTS_ROOT="$R6"
-mkdir -p "$R6/good-co/.claude"; printf 'WRONG\n' > "$R6/good-co/.claude/memory-project"
+mkdir -p "$R6/good-co/.agents"; printf 'WRONG\n' > "$R6/good-co/.agents/memory-project"
 set_fm "$M6/projects/good/memory.md" repo_path good-co
 run_lint
 assert_exit 1 "$CODE" "wrong back-pin exits 1"

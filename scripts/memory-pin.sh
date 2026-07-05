@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pin the current git checkout to a memory project, writing BOTH directions:
-#   forward — <repo-root>/.claude/memory-project names the project
+#   forward — <repo-root>/.agents/memory-project names the project (harness-neutral)
 #   reverse — the project memory.md frontmatter records repo + repo_path
 # Run from inside the checkout:  memory-pin.sh <project>
 set -euo pipefail
@@ -46,9 +46,13 @@ TOP=$(git rev-parse --show-toplevel 2>/dev/null) || {
     exit 1
 }
 
-# --- forward map ---
-mkdir -p "$TOP/.claude"
-printf '%s\n' "$PROJECT" > "$TOP/.claude/memory-project"
+# --- forward map (harness-neutral marker; migrate a legacy .claude one if present) ---
+mkdir -p "$TOP/.agents"
+printf '%s\n' "$PROJECT" > "$TOP/.agents/memory-project"
+if [ -f "$TOP/.claude/memory-project" ]; then
+    rm -f "$TOP/.claude/memory-project"
+    echo "memory-pin: migrated legacy .claude/memory-project -> .agents/memory-project" >&2
+fi
 
 # --- reverse map values ---
 REPO=$(git -C "$TOP" remote get-url origin 2>/dev/null || git -C "$TOP" config --get remote.origin.url 2>/dev/null || true)

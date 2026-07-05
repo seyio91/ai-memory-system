@@ -16,8 +16,9 @@
 | `regenerate-activity.sh` | **Activity report** (`/activity`) — plans created in a window, grouped by category | `regenerate-activity.sh (<category>\|--all) [--since <N>[d]] [--stdout]` → `activity.md` (gitignored) |
 | `lint-memory.sh` | Mechanical lint | exit 0 if clean, 1 if any WARN/ERROR |
 | `archive-cleanup.sh` | Prune old `archive/` files | `archive-cleanup.sh [--all-projects] [--days N]` (dry-run, then confirm) |
-| `new-project.sh` | Scaffold a new project (pin a repo with `.claude/memory-project` to activate) | `new-project.sh <name>` |
-| `memory-pin.sh` | Pin a checkout ↔ project (forward marker + reverse `repo`/`repo_path`); `--category` sets the project's category | `memory-pin.sh <name> [--category <client>]` (run from inside the checkout) |
+| `new-project.sh` | Scaffold a new project (pin a repo with `memory-pin.sh` → `.agents/memory-project` to activate) | `new-project.sh <name>` |
+| `memory-pin.sh` | Pin a checkout ↔ project (forward `.agents/memory-project` marker + reverse `repo`/`repo_path`); `--category` sets the project's category; migrates a legacy `.claude` marker | `memory-pin.sh <name> [--category <client>]` (run from inside the checkout) |
+| `migrate-marker.sh` | Migrate pinned checkouts `.claude/memory-project` → `.agents/memory-project` (walks each project's reverse map) | `migrate-marker.sh` (dry-run), `migrate-marker.sh --apply` |
 | `_lib.sh` | Shared helpers (sourced) | `detect_active_project`, `extract_fm_field`, `projects_root`, `resolve_repo_path` |
 | `taskctl` | Bash wrapper for the task-provider CLI (used by `/task`, `/start`) | `taskctl <capture\|list\|get\|update\|set-status\|ping> ...` |
 | `taskprovider/` | Python (stdlib-only) task-provider CLI — see [Task-provider layer](task-provider.md) | `PYTHONPATH=$MEMORY_DIR/scripts python3 -m taskprovider <verb>`; tests: `cd scripts && python3 -m unittest discover -s taskprovider/tests -t .` |

@@ -481,18 +481,28 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
 - **Gate:** ✅ met — install from a non-Claude harness works end-to-end (Antigravity + Codex deliver faces),
       claude byte-identical, suite 26/26 green.
 
-### Phase 6 — Harness-agnostic project marker (`.claude/memory-project` → `.agents/memory-project`)
-- [ ] Move the marker path in every reader/writer: the Claude hook detection (`memory_common.sh` /
-      `inject_memory.sh` walk-up), `memory-pin.sh` (writes the marker), `lint-memory.sh` (back-pin
-      check), and the Codex adapter (`codex-mem.sh`) so it resolves the project from the same file.
-- [ ] Add transitional back-compat: read `.agents/memory-project` first, fall back to legacy
-      `.claude/memory-project` with a deprecation warning.
-- [ ] Migrate existing pins: one-off sweep of pinned checkouts (`.claude/memory-project` →
-      `.agents/memory-project`); update `/pin` docs and any `.gitignore`/marker references.
-- [ ] Tests: `test_memory_pin.sh`, `test_inject_memory.sh`, marker back-pin lint case updated to the
-      neutral path (+ a fallback-read case).
-- **Gate:** same folder resolves to the same project slug from **both** Claude and Codex; full suite
-      green. (Multi-session/worktree + branch-overlay `working.md` remain out of scope — task `385f6850`.)
+### Phase 6 — Harness-agnostic project marker (`.claude/memory-project` → `.agents/memory-project`) — ✅ DONE 2026-07-06
+- [x] Moved the marker path in **both readers** (`_lib.sh:detect_active_project`, hook
+      `memory_common.sh:detect_project`), the **writer** (`memory-pin.sh` — writes `.agents/memory-project`
+      and removes a legacy `.claude` one on pin), `lint-memory.sh` back-pin check, and the Codex adapter
+      (`codex-mem-checkpoint.sh` error string). `codex-mem.sh` resolves via `detect_active_project` → covered.
+- [x] **Back-compat:** readers check `.agents/memory-project` first, fall back to legacy
+      `.claude/memory-project` at the same level (nearest-marker wins). The **deprecation nudge lives in
+      `lint-memory.sh`** (WARN on a legacy marker) — deliberately NOT in the per-prompt hook readers, to
+      avoid spamming a warning every prompt.
+- [x] **Migration:** new **`scripts/migrate-marker.sh`** (dry-run default, `--apply`) walks each project's
+      reverse map, moves the marker in each resolved checkout. `.gitignore` now ignores `.agents/memory-project`;
+      this repo's own marker migrated (legacy kept during the branch-transition window for main-side safety).
+      Real-tree dry-run resolves **14 checkouts** pending migration (they keep working via fallback meanwhile).
+- [x] Tests: `test_memory_pin.sh` (neutral write + legacy removal), `test_lib.sh` (+ legacy-fallback +
+      neutral-wins cases), `test_inject_memory.sh` (neutral marker + hook fallback case), `test_lint_memory.sh`
+      (neutral back-pin + legacy-migration-WARN case), **new** `test_migrate_marker.sh`. Docs swept (`/pin`,
+      install, harness docs). Suite **27/27 green**.
+- **Gate:** ✅ met — same folder resolves to the same slug from both readers (Claude hook + shared `_lib`,
+      the latter used by the Codex adapter); legacy markers still resolve; suite green.
+      **Post-merge follow-up:** run `migrate-marker.sh --apply` once P6 is on `main` (before that, applying
+      would make legacy-only checkouts dormant on the main-side readers). (Multi-session/worktree + branch
+      `working.md` overlay remain out of scope — task `385f6850`.)
 
 ### Phase 7 — Executor roles (task / exploration) + harness:model config
 - [ ] Extend `executor.sh` with `--role task|explore`; resolve each from `AI_MEMORY_EXECUTOR_TASK` /

@@ -30,7 +30,7 @@ fi
 PROJECT=$(detect_active_project)
 
 if [ -z "$PROJECT" ]; then
-    echo "codex-mem-checkpoint: no active project (no .claude/memory-project marker found walking up from $PWD)" >&2
+    echo "codex-mem-checkpoint: no active project (no .agents/memory-project marker found walking up from $PWD)" >&2
     exit 1
 fi
 
