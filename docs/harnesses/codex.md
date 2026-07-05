@@ -1,15 +1,15 @@
 # Codex CLI
 
-Codex has no native memory hook. The bridge is `scripts/codex-mem.sh`, a wrapper that rebuilds `~/.codex/AGENTS.md` from the memory tree and then `exec codex "$@"`.
+Codex has no native memory hook. The bridge is `harnesses/codex/scripts/codex-mem.sh`, a wrapper that rebuilds `~/.codex/AGENTS.md` from the memory tree and then `exec codex "$@"`.
 
 ## Daily use
 
 ```bash
 # Instead of `codex`:
-~/.claude-memory/scripts/codex-mem.sh
+~/.claude-memory/harnesses/codex/scripts/codex-mem.sh
 
 # Or alias it:
-alias codex='~/.claude-memory/scripts/codex-mem.sh'
+alias codex='~/.claude-memory/harnesses/codex/scripts/codex-mem.sh'
 
 # Subcommands pass through:
 codex-mem.sh exec --sandbox read-only "what does our terraform domain file say?"
@@ -44,7 +44,7 @@ Captures the session into `projects/<active>/working.md`. Two trigger surfaces, 
 
 Either path runs:
 
-1. `scripts/codex-mem-checkpoint.sh --for-codex` (prints active project, `working.md` path, recent-history snippet, scaffold).
+1. `harnesses/codex/scripts/codex-mem-checkpoint.sh --for-codex` (prints active project, `working.md` path, recent-history snippet, scaffold).
 2. Synthesizes Task/Done/Next/Blockers from this session's context (no questions asked).
 3. Appends a `### YYYY-MM-DD — <task>` block at the end of `## Checkpoints` in `working.md` (newest last; prior entries preserved).
 4. If applicable, appends a bullet to `## Cross-project learnings (pending promotion)`.
@@ -71,7 +71,7 @@ Net effect: typing `/checkpoint` or simply ending a session with "let's save sta
 Outside a Codex session — useful after exiting Codex while a session insight is still fresh:
 
 ```bash
-~/.claude-memory/scripts/codex-mem-checkpoint.sh
+~/.claude-memory/harnesses/codex/scripts/codex-mem-checkpoint.sh
 ```
 
 Opens `$EDITOR` on `working.md` with a checkpoint scaffold appended. Fill in done/next/blockers, save, done.

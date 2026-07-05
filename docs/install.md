@@ -23,22 +23,22 @@ cd ~/.claude-memory
 `install.sh` is idempotent and backs up anything it would overwrite. It:
 
 - links the clone to `$MEMORY_DIR` (default `~/.claude-memory`),
-- symlinks `claude/hooks/*.sh` → `~/.claude/hooks/`,
-- symlinks `claude/commands/*.md` → `~/.claude/commands/`,
-- symlinks `claude/statusline.sh` → `~/.claude/statusline.sh` (the context-bar status line, showing the active memory project),
+- symlinks `harnesses/claude/hooks/*.sh` → `~/.claude/hooks/`,
+- symlinks `harnesses/claude/commands/*.md` → `~/.claude/commands/`,
+- symlinks `harnesses/claude/statusline.sh` → `~/.claude/statusline.sh` (the context-bar status line, showing the active memory project),
 - links the bundled `skills/` and `agents/` into `~/.claude/` (via `scripts/link-skills.sh` / `link-agents.sh`),
 - seeds `identity.md` and `index.md` from their `*.template.md` if missing.
 
 Two steps it leaves to you:
 
-1. **Register settings** — merge the hook entries and the `statusLine` from `claude/settings.hooks.json` into `~/.claude/settings.json`.
-2. **Global rules** — symlink `claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (or merge into your existing one).
+1. **Register settings** — merge the hook entries and the `statusLine` from `harnesses/claude/settings.hooks.json` into `~/.claude/settings.json`.
+2. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (or merge into your existing one).
 
 Then edit `identity.md` (start from `identity.template.md`), onboard a repo with
 `/pin <project>`, and start a session. To install from a different clone path,
 set `MEMORY_DIR` to that path before running `install.sh`.
 
-> **Committed vs ignored.** The engine ships — `scripts/`, the `claude/` wiring,
+> **Committed vs ignored.** The engine ships — `scripts/`, the `harnesses/claude/` wiring,
 > `skills/`, `agents/`, and the `*.template.md` files. Your data does not: the real
 > `index.md`, `domain/*.md`, `projects/*` (except `_template/`), `tasks/`, and
 > `archive/` are git-ignored. `identity.md` is committed (preferences, not client
@@ -50,11 +50,11 @@ Prefer not to run the installer? The components, in build order — each has a d
 
 1. **Memory tree** — create `~/.claude-memory/` with `identity.md`, `index.md` (with the AUTOGEN fence), and the `domain/`, `projects/`, `scripts/` directories. See [Directory layout](#directory-layout).
 2. **Project scaffold** — create `projects/_template/` (`memory.md` with the 5 required sections + frontmatter, empty `working.md`, `todo.md`, `plans/.gitkeep`, `archive/{plans,todos,working}/.gitkeep`). See [File formats](file-formats.md).
-3. **Scripts** — populate `scripts/` (`_lib.sh`, `codex-mem.sh`, `codex-mem-checkpoint.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`) plus the `scripts/tests/` suite; `chmod +x` all executables. Also create the `scripts/taskprovider/` Python package (stdlib-only task-provider layer — see [Task-provider layer](task-provider.md)). See [Scripts reference](scripts.md).
-4. **Claude hooks** — symlink the four scripts in `claude/hooks/` (`inject_memory.sh`, `session_start_memory.sh`, `block_task_tools.sh`, and the sourced `memory_common.sh`) into `~/.claude/hooks/` (`chmod +x`), then register the three entries from `claude/settings.hooks.json` in `~/.claude/settings.json`. See [Claude Code › Hooks](harnesses/claude.md#hooks).
-5. **Claude slash commands & skills** — symlink the command files in `claude/commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the `brainstorming` gate is anchored by the `identity.md` Orchestration routing rule.
-6. **Global rules** — symlink `claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (maintenance rules, workflow tiers, file-as-page nudge).
-7. **Codex bridge** — create `~/.codex/AGENTS.local.md` (can be empty), `~/.codex/prompts/checkpoint.md`, `~/.codex/skills/checkpoint/{SKILL.md,agents/openai.yaml}`, and `~/.codex/rules/default.rules` (the executor deny list). `AGENTS.md` is generated — do not author it. See [Codex CLI](harnesses/codex.md).
+3. **Scripts** — populate `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`) plus the `scripts/tests/` suite; `chmod +x` all executables. Also create the `scripts/taskprovider/` Python package (stdlib-only task-provider layer — see [Task-provider layer](task-provider.md)). See [Scripts reference](scripts.md).
+4. **Claude hooks** — symlink the four scripts in `harnesses/claude/hooks/` (`inject_memory.sh`, `session_start_memory.sh`, `block_task_tools.sh`, and the sourced `memory_common.sh`) into `~/.claude/hooks/` (`chmod +x`), then register the three entries from `harnesses/claude/settings.hooks.json` in `~/.claude/settings.json`. See [Claude Code › Hooks](harnesses/claude.md#hooks).
+5. **Claude slash commands & skills** — symlink the command files in `harnesses/claude/commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the `brainstorming` gate is anchored by the `identity.md` Orchestration routing rule.
+6. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (maintenance rules, workflow tiers, file-as-page nudge).
+7. **Codex bridge** — populate `harnesses/codex/scripts/` (`codex-mem.sh`, `codex-mem-checkpoint.sh`), then create `~/.codex/AGENTS.local.md` (can be empty), `~/.codex/prompts/checkpoint.md`, `~/.codex/skills/checkpoint/{SKILL.md,agents/openai.yaml}`, and `~/.codex/rules/default.rules` (the executor deny list). `AGENTS.md` is generated — do not author it. See [Codex CLI](harnesses/codex.md).
 8. **Verify** — run `scripts/lint-memory.sh` (expect exit 0), `scripts/regenerate-index.sh` (index matches frontmatter), launch a Claude session and confirm `<memory:*>` blocks inject, and confirm a `TaskCreate` call is blocked.
 
 The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the `~/.claude-memory` link; do them by hand only if you skip the installer. Per-engagement content (`projects/*`, `domain/*`) is user data and git-ignored — a clone gives you the scaffold (`projects/_template/`, the `*.template.md` files), not someone else's contents.
@@ -63,7 +63,7 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 
 ```
 ~/.claude-memory/                      # the clone (default location; override with MEMORY_DIR)
-├── install.sh                         # Links the claude/ wiring into ~/.claude (see Install)
+├── install.sh                         # Links the harnesses/claude/ wiring into ~/.claude (see Install)
 ├── LICENSE
 ├── .gitignore                         # Ships templates + engine; ignores your real memory data
 ├── identity.md                        # Hard rules, injected once per Claude session (git-tracked)
@@ -73,13 +73,16 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── domain/                            # Cross-project knowledge (one file per topic)
 │   ├── _template.md                   #   committed; real domain/<topic>.md files are git-ignored
 │   └── <topic>.md                     #   your knowledge files (loaded on demand via index match)
-├── claude/                            # Claude Code wiring — symlinked into ~/.claude by install.sh
-│   ├── hooks/                         #   inject_memory.sh, session_start_memory.sh,
-│   │                                  #   block_task_tools.sh, memory_common.sh (sourced)
-│   ├── commands/                      #   the slash commands (/pin, /checkpoint, /new-project, …)
-│   ├── statusline.sh                  #   context-bar status line (shows active memory project) → ~/.claude/statusline.sh
-│   ├── settings.hooks.json            #   hook + statusLine entries to merge into ~/.claude/settings.json
-│   └── CLAUDE.md                      #   global workflow rules → ~/.claude/CLAUDE.md
+├── harnesses/                         # Per-harness wiring (Claude Code, Codex CLI)
+│   ├── claude/                        #   Claude Code wiring — symlinked into ~/.claude by install.sh
+│   │   ├── hooks/                     #     inject_memory.sh, session_start_memory.sh,
+│   │   │                              #     block_task_tools.sh, memory_common.sh (sourced)
+│   │   ├── commands/                  #     the slash commands (/pin, /checkpoint, /new-project, …)
+│   │   ├── statusline.sh              #     context-bar status line (shows active memory project) → ~/.claude/statusline.sh
+│   │   ├── settings.hooks.json        #     hook + statusLine entries to merge into ~/.claude/settings.json
+│   │   └── CLAUDE.md                  #     global workflow rules → ~/.claude/CLAUDE.md
+│   └── codex/
+│       └── scripts/                   #   codex-mem.sh (Codex wrapper), codex-mem-checkpoint.sh
 ├── agents/                            # Bundled subagent definitions → ~/.claude/agents (link-agents.sh)
 ├── skills/                            # Bundled skills → ~/.claude/skills (link-skills.sh)
 ├── projects/
@@ -99,8 +102,6 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 │   └── tasks/                        # Archived tasks (moved here on `set-status archived`)
 └── scripts/
     ├── _lib.sh                        # Shared bash helpers (sourced)
-    ├── codex-mem.sh                   # Codex wrapper — builds AGENTS.md, exec codex
-    ├── codex-mem-checkpoint.sh        # Companion for the /checkpoint Codex skill
     ├── regenerate-index.sh            # Rebuild index.md AUTOGEN block from frontmatter
     ├── lint-memory.sh                 # Mechanical content-quality checks
     ├── archive-cleanup.sh             # Prune archive/ files past retention threshold
@@ -112,18 +113,18 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
         └── tests/                     #   unittest suite (offline; Notion live smoke gated)
 ```
 
-After `install.sh`, these `~/.claude/` paths are **symlinks into this repo** (`claude/`, `skills/`, `agents/`) — so editing them edits the repo, and `git pull` updates them:
+After `install.sh`, these `~/.claude/` paths are **symlinks into this repo** (`harnesses/claude/`, `skills/`, `agents/`) — so editing them edits the repo, and `git pull` updates them:
 
 ```
 ~/.claude/
 ├── settings.json                      # Registers the three hooks (see below); NOT a symlink — you merge it
-├── CLAUDE.md                          # → claude/CLAUDE.md  (global maintenance rules + file-as-page nudge)
-├── hooks/                             # → claude/hooks/  (symlinks)
+├── CLAUDE.md                          # → harnesses/claude/CLAUDE.md  (global maintenance rules + file-as-page nudge)
+├── hooks/                             # → harnesses/claude/hooks/  (symlinks)
 │   ├── inject_memory.sh               # UserPromptSubmit — injects <memory:*> blocks
 │   ├── session_start_memory.sh        # SessionStart — full inject; arms post-compaction reload
 │   ├── block_task_tools.sh            # PreToolUse — blocks TaskCreate/TaskUpdate
 │   └── memory_common.sh               # Shared helpers, sourced by the hooks above
-├── commands/                          # → claude/commands/  (slash commands, symlinked)
+├── commands/                          # → harnesses/claude/commands/  (slash commands, symlinked)
 │   ├── new-project.md
 │   ├── pin.md
 │   ├── checkpoint.md

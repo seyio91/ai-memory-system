@@ -2,7 +2,7 @@
 # skill boundary hooks: PostToolUse marker (arms read-only skills) + Stop check.
 . "$(dirname "$0")/_assert.sh"
 
-REPO_HOOKS="$(cd "$SCRIPTS_DIR/../claude/hooks" && pwd)"
+REPO_HOOKS="$(cd "$SCRIPTS_DIR/../harnesses/claude/hooks" && pwd)"
 MARKER="$REPO_HOOKS/skill_boundary_marker.sh"
 STOP="$REPO_HOOKS/skill_boundary_check.sh"
 

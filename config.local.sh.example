@@ -1,7 +1,7 @@
 # config.local.sh — per-environment overrides for the memory system.
 #
 # Copy to config.local.sh (gitignored) and edit. Sourced by scripts/_lib.sh and
-# the memory hooks (claude/hooks/memory_common.sh), so these values reach scripts,
+# the memory hooks (harnesses/claude/hooks/memory_common.sh), so these values reach scripts,
 # hooks, and subagents that do NOT inherit your shell's rc files. Plain shell —
 # use `export` so child processes (e.g. the Python task-provider) see them too.
 
@@ -27,7 +27,7 @@
 # ── Orchestrator executor selection ──
 # Which executor the orchestrator delegates actionable work to.
 #   claude-subagent  — in-harness Claude Agent tool (default; always available)
-#   codex            — CLI via scripts/codex-mem.sh --executor
+#   codex            — CLI via harnesses/codex/scripts/codex-mem.sh --executor
 #   <other>          — generic CLI; define its command with AI_MEMORY_EXECUTOR_CMD_<key>
 #                      (<key> must match [A-Za-z0-9_]+; the template must contain {prompt})
 # export AI_MEMORY_EXECUTOR="claude-subagent"

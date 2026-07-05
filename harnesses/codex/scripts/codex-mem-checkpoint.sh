@@ -11,7 +11,10 @@ set -euo pipefail
 #      itself using its file-edit tool.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-. "$SCRIPT_DIR/_lib.sh"
+# Shared engine lives in the repo-level scripts/ dir (this harness script is at
+# harnesses/codex/scripts/, so scripts/ is three levels up).
+MEM_SCRIPTS="$(cd "$SCRIPT_DIR/../../../scripts" && pwd)"
+. "$MEM_SCRIPTS/_lib.sh"
 
 CODEX_HISTORY="${CODEX_HISTORY_FILE:-$HOME/.codex/history.jsonl}"
 HISTORY_LINES="${CODEX_HISTORY_LINES:-20}"

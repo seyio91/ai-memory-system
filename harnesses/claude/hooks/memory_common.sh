@@ -24,9 +24,10 @@ _mc_resolve() {
 # the source of the shared engine (scripts/content-core.sh + formatters), which
 # must load from the real install even when MEMORY_DIR is overridden to a
 # content-only tree (as the test suite does). MEMORY_DIR — the content root —
-# defaults to the same repo but is honored if pre-set.
+# defaults to the same repo but is honored if pre-set. The hook lives at
+# harnesses/claude/hooks/, so the repo root is THREE levels up from its real path.
 _mc_self="$(_mc_resolve "${BASH_SOURCE[0]}")"
-_MC_REPO="$(cd "$(dirname "$_mc_self")/../.." && pwd)"
+_MC_REPO="$(cd "$(dirname "$_mc_self")/../../.." && pwd)"
 if [ -z "${MEMORY_DIR:-}" ]; then
     MEMORY_DIR="$_MC_REPO"
 fi

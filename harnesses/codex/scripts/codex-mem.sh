@@ -2,10 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-. "$SCRIPT_DIR/_lib.sh"
+# Shared engine lives in the repo-level scripts/ dir (this harness script is at
+# harnesses/codex/scripts/, so scripts/ is three levels up).
+MEM_SCRIPTS="$(cd "$SCRIPT_DIR/../../../scripts" && pwd)"
+. "$MEM_SCRIPTS/_lib.sh"
 # Shared content selection + markdown serialization (single source of what/order).
-. "$SCRIPT_DIR/content-core.sh"
-. "$SCRIPT_DIR/formatters/md.sh"
+. "$MEM_SCRIPTS/content-core.sh"
+. "$MEM_SCRIPTS/formatters/md.sh"
 
 CODEX_INSTRUCTIONS="${CODEX_INSTRUCTIONS_FILE:-$HOME/.codex/AGENTS.md}"
 CODEX_OVERLAY="${CODEX_OVERLAY_FILE:-$HOME/.codex/AGENTS.local.md}"

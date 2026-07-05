@@ -37,7 +37,7 @@ AGENTS="$BIN/AGENTS.md"; export CODEX_INSTRUCTIONS_FILE="$AGENTS"
 OVERLAY="$BIN/AGENTS.local.md"; printf 'my permanent overlay line\n' > "$OVERLAY"
 export CODEX_OVERLAY_FILE="$OVERLAY"
 
-(cd "$WORK" && bash "$SCRIPTS_DIR/codex-mem.sh") >/dev/null 2>&1
+(cd "$WORK" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh") >/dev/null 2>&1
 assert_file "$AGENTS" "AGENTS.md generated"
 
 got="$(sed "s|$MEM|__MEM__|g; s|$BIN|__BIN__|g" "$AGENTS")"

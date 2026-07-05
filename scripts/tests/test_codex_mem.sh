@@ -41,7 +41,7 @@ export CODEX_OVERLAY_FILE="$OVERLAY"
 
 # --- interactive (no executor): builds AGENTS.md ---
 set +e
-(cd "$WORK" && bash "$SCRIPTS_DIR/codex-mem.sh") >/dev/null 2>&1; CODE=$?
+(cd "$WORK" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh") >/dev/null 2>&1; CODE=$?
 set -e
 assert_exit 0 "$CODE" "codex-mem (interactive) exits 0 via stub"
 assert_file "$AGENTS" "AGENTS.md generated"
@@ -59,7 +59,7 @@ assert_contains "$body" "terraform"                 "domain index row present"
 # --- executor mode: flag expansion captured by stub ---
 : > "$CAPTURE"
 set +e
-(cd "$WORK" && bash "$SCRIPTS_DIR/codex-mem.sh" --executor "do the thing") >/dev/null 2>&1; CODE=$?
+(cd "$WORK" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --executor "do the thing") >/dev/null 2>&1; CODE=$?
 set -e
 assert_exit 0 "$CODE" "executor mode exits 0 via stub"
 args="$(cat "$CAPTURE")"
