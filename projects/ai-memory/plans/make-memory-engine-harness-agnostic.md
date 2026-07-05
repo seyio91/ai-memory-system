@@ -1,7 +1,8 @@
 ---
 plan: make-memory-engine-harness-agnostic
-status: active
+status: done
 created: 2026-07-01
+completed: 2026-07-06
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 38ef6850-c619-8103-8fa8-ec66b0cb9115
@@ -17,10 +18,14 @@ degrading gracefully where a harness lacks a surface. Today the system silently 
 Claude Code as the default (root-level `claude/` dir, Claude-only hooks/commands, Codex
 bolted on via `scripts/codex-mem.sh`); the goal removes that privilege.
 
-> **Status: design approved (2026-07-02) — ready to execute.** All three opens resolved
-> (`harnesses/` parent dir · materialized "Memory Commands" doc · `--harness` flag +
-> auto-detect). Phases decomposed below. Behavior-preserving refactors (Phase 1–2) land
-> before new capability (Phase 3–5); each phase gates on the full test suite staying green.
+> **Status: ✅ COMPLETE (2026-07-06) — all 7 phases shipped (PRs #16–#22).** `install.sh` is a
+> generic, manifest-driven, agent-runnable engine; Claude / Codex / Antigravity are registered
+> harnesses (Antigravity the independent third-party proof); the project marker is harness-neutral
+> (`.agents/memory-project`, migrated); the executor resolves task/exploration roles from the manifest
+> `exec_*` block with no per-harness code. Claude behavior stayed byte-identical throughout. Deferred
+> (noted, not blocking): Cursor `.mdc` override example; Antigravity `hooks.json` upgrades (enforced
+> read-only / live refresh / deny-list guard — see Risks + working.md); `doc` command surface's
+> content-core injection.
 
 ## Success criteria
 
@@ -504,26 +509,25 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
       would make legacy-only checkouts dormant on the main-side readers). (Multi-session/worktree + branch
       `working.md` overlay remain out of scope — task `385f6850`.)
 
-### Phase 7 — Executor roles (task / exploration) + harness:model config
-- [ ] Extend `executor.sh` with `--role task|explore`; resolve each from `AI_MEMORY_EXECUTOR_TASK` /
-      `AI_MEMORY_EXECUTOR_EXPLORE` (`harness[:model]`), falling back to the legacy `AI_MEMORY_EXECUTOR`.
-      Parse `harness[:model]`; thread `model` into the invocation via the harness's `exec_model_flag`.
-- [ ] **Resolve the invocation from the manifest `exec_*` block**, not per-harness code: the env-var
-      value names a harness; look it up in the registry and read its `exec_*` (`exec_cmd` for `task`,
-      `exec_readonly` for `explore`). Replace the codex special-case (`executor.sh:38,55`) — `codex`
-      resolves only because `harnesses/codex/manifest` registered it. `claude-subagent` stays the
-      in-harness plane (Agent tool). An env value naming an **unregistered** harness (or one with no
-      execute face) → reported resolution error, then fallback (`AI_MEMORY_EXECUTOR_FALLBACK`, then a
-      legacy `AI_MEMORY_EXECUTOR_CMD_<key>` template if set).
-- [ ] `exploration` role is **read-only** — a harness with a non-empty `exec_readonly` (claude `Explore`
-      / `codex-mem.sh --executor-bare`); a harness without one (e.g. Antigravity) is **skipped for
-      `explore` + reported**, degrading to Claude `Explore`. `task` role stays write-capable within the
-      deny-list.
-- [ ] Validator resolves through the `task` role (fresh invocation) — update the workflow docs
-      (`identity.md` / `CLAUDE.md` O/E/V section) to name the two roles.
-- [ ] `config.local.sh.example` documents both vars; `test_executor.sh` covers role resolution,
-      `harness[:model]` parsing, **manifest `exec_*` resolution** (registered name resolves; the
-      read-only-absent skip; an **unregistered / execute-less name errors then falls back**),
-      read-only exploration posture, and fallback to the legacy var / `AI_MEMORY_EXECUTOR_CMD_*`.
-- **Gate:** both roles resolve and run with the configured harness+model; legacy single-var configs
-      still work unchanged; full suite green.
+### Phase 7 — Executor roles (task / exploration) + harness:model config — ✅ DONE 2026-07-06
+- [x] `executor.sh` rewritten with `--role task|explore` (default `task`); each resolves from
+      `AI_MEMORY_EXECUTOR_TASK` / `AI_MEMORY_EXECUTOR_EXPLORE` (`harness[:model]`), falling back to the
+      legacy `AI_MEMORY_EXECUTOR` then `claude-subagent`. Parses `harness[:model]`; threads `model` via the
+      manifest `exec_model_flag`; subagent plane surfaces the model as `subagent:<model>`.
+- [x] **Invocation resolves from the manifest `exec_*` block** — the codex special-case is **deleted**;
+      `codex`/`antigravity` resolve only because their manifests registered them. `exec=subagent` sentinel →
+      subagent plane; `exec_cmd` (task) / `exec_readonly` (explore); availability gated on `exec_probe`
+      (new key). New `AI_MEMORY_HARNESSES_DIR` override makes it hermetically testable. Unregistered / no
+      execute-face name → reported error → fallback (`AI_MEMORY_EXECUTOR_FALLBACK`, then legacy
+      `AI_MEMORY_EXECUTOR_CMD_<key>` template). Codex/antigravity `exec_cmd` route through their launch
+      wrappers so a delegated run sees fresh memory (codex keeps its `--executor` sandbox behavior).
+- [x] `explore` is **read-only** — a harness with a non-empty `exec_readonly` (codex `exec --sandbox
+      read-only`) runs; one without (Antigravity) is **skipped + reported**, degrading to the subagent
+      Explore plane, never run write-capable.
+- [x] Validator resolves through the `task` role; workflow docs updated (`identity.md` delegation +
+      Validator bullets, shipped `harnesses/claude/CLAUDE.md` O/E/V section) to name the two roles.
+- [x] `config.local.sh.example` documents both role vars; `test_executor.sh` (37, was 23) covers role
+      resolution, `harness[:model]` parsing, manifest `exec_*` resolution, read-only-absent degradation,
+      `$MEMORY_DIR` expansion, model threading, precedence/fallback, and legacy `_CMD_*` templates.
+- **Gate:** ✅ met — both roles resolve and run with the configured harness+model; **legacy single-var
+      configs unchanged** (23 pre-existing executor tests still green); suite **27/27 green**.

@@ -15,7 +15,7 @@ ERRORS=0
 err()  { printf 'ERROR: %s\n' "$1"; ERRORS=$((ERRORS + 1)); }
 warn() { printf 'WARN:  %s\n' "$1"; }
 
-KNOWN_KEYS=" name archetype format hooks_dir statusline commands commands_dir commands_doc skills_dir agents_dir context_target refresh exec exec_cmd exec_model_flag exec_readonly "
+KNOWN_KEYS=" name archetype format hooks_dir statusline commands commands_dir commands_doc skills_dir agents_dir context_target refresh exec exec_cmd exec_model_flag exec_readonly exec_probe "
 
 in_set() { case "$2" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 

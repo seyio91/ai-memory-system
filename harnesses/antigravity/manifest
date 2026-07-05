@@ -20,9 +20,12 @@ refresh        = launch
 skills_dir     = ~/.agents/skills
 commands       = skill
 
-# execute face — headless `agy -p`. {prompt}/{model} substituted by executor.sh (Phase 7).
+# execute face — headless `agy -p` via the launch wrapper (rebuilds AGENTS.md first,
+# so a delegated run sees fresh memory). {prompt}/{model} substituted by executor.sh;
+# $MEMORY_DIR expanded; exec_probe gates availability on the agy bin.
 # No read-only flag exists (agy -p is write-capable), so exec_readonly is intentionally
 # omitted: Antigravity is a task-role executor only; the exploration role degrades to
 # the Claude Explore agent. A future PreToolUse hooks.json guard could add read-only.
-exec_cmd        = agy -p {prompt} --dangerously-skip-permissions
+exec_cmd        = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} --dangerously-skip-permissions
 exec_model_flag = --model {model}
+exec_probe      = agy
