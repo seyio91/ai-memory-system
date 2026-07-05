@@ -19,7 +19,7 @@ _Design approved 2026-07-02. Behavior-preserving refactors (P1–2) before new c
 - [ ] Phase 2 — layout restructure (`claude/`→`harnesses/claude/`, Codex→`harnesses/codex/`; fix MEMORY_DIR depth; .gitignore/install paths)
 - [ ] Phase 3 — manifest + archetype drivers (hook/file) + `install.sh` engine (`--harness` + auto-detect)
 - [ ] Phase 4 — skills fan-out (manifest `skills_dir`) + commands surface (native/doc/none)
-- [ ] Phase 5 — prove new harness (Gemini/Cursor) + agent-runnable install from Codex; docs + reverse no-bootstrap non-goal
+- [ ] Phase 5 — prove new harness: **Antigravity** (both faces — AGENTS.md install + `agy -p` executor; Cursor `.mdc` as override example) + agent-runnable install from Codex; docs + reverse no-bootstrap non-goal
 
 ## Done
 _(checked items stay above until the file is rolled)_

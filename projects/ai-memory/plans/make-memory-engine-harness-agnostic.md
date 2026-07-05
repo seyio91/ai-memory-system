@@ -43,6 +43,12 @@ bolted on via `scripts/codex-mem.sh`); the goal removes that privilege.
       no `.claude/`-branded dependency, so "where we stopped" (working.md/checkpoints) carries across.
 - [ ] Executor exposes two roles — `task` (write-capable) and `exploration` (read-only) — each
       selecting a harness and model from `config.local.sh`, with the legacy single var as fallback.
+      The selected harness is resolved through its **manifest `exec_*` block** (one registry for
+      install *and* execute), not per-harness code in `executor.sh`; a harness without a read-only
+      mode is skipped for `exploration`, not silently run write-capable.
+- [ ] A single third-party harness (**Antigravity**) is registered once and works as **both** an
+      install target (AGENTS.md + skills fanned into `~/.agents/skills`) and a `task`-role executor
+      (`agy -p`), with no Claude/Codex-specific code paths — proving the two-face registry.
 - [ ] Full test suite green; new golden test pins the Codex/file-materialize output.
 
 ## Design
@@ -88,13 +94,26 @@ Formatters serialize (`xml` / `md`). Pure refactor — existing outputs must be 
 Reads a per-harness declarative **manifest**:
 ```
 harnesses/codex/manifest:
+  # deliver face (install target)
   archetype      = file        # hook | file
   format         = md          # xml | md
   context_target = ~/.codex/AGENTS.md
   skills_dir     = ~/.agents/skills  # Codex DOES have a skills dir (.agents/skills std) — fan out like Claude
   commands       = skill       # native | skill | doc | none  (Codex: prompts deprecated → commands are skills)
   refresh        = launch
+  # execute face (executor runtime) — see Section 8
+  exec_cmd       = <headless invocation, {prompt} placeholder>   # e.g. codex exec / agy -p {prompt}
+  exec_model_flag = <model flag template>                        # e.g. --model {model}
+  exec_readonly  = <read-only headless invocation, optional>     # empty → not an exploration-role executor
 ```
+**A harness manifest declares two capability faces, either or both** (see Section 8):
+a **deliver** face (install surfaces — archetype/format/context_target/skills_dir/commands)
+and an **execute** face (headless-invocation contract — `exec_*`). Aider is deliver-only;
+a bare scriptable CLI could be execute-only; Codex and Antigravity fill both. This is what
+makes "register a harness once, use it for install *and* as an executor" true — the executor
+selection (Section 8) reads the `exec_*` block from the same manifest instead of `executor.sh`
+carrying per-harness knowledge.
+
 Installer = generic engine: manifest → archetype driver (place hook / register
 file-materialize) → skills fan-out (if `skills_dir`) → commands surface (per `commands`).
 **Per-harness override (`harnesses/<name>/<name>.sh`), two legitimate roles** — the driver
@@ -198,11 +217,31 @@ Split it into **two independently-configurable roles**, each selecting a **harne
 
 - **Config (gitignored `config.local.sh`, per "instance config never in tracked memory"):**
   `AI_MEMORY_EXECUTOR_TASK` and `AI_MEMORY_EXECUTOR_EXPLORE`, each a `harness[:model]` value
-  (`claude:sonnet`, `claude:haiku`, `codex:<model>`, `cli:<key>`). Documented in
-  `config.local.sh.example`.
+  (`claude:sonnet`, `claude:haiku`, `codex:<model>`, `antigravity:<model>`, `cli:<key>`). Documented
+  in `config.local.sh.example`.
+- **The env var stays the control surface; the manifest registry is what makes a value resolvable.**
+  Setting `AI_MEMORY_EXECUTOR_TASK=codex` (or `antigravity`, `claude`, …) still selects the executor
+  exactly as today — but the named `harness` must be a **registered harness**: `harnesses/<name>/manifest`
+  exists and declares an **execute face** (`exec_cmd`). Resolution = look the name up in the registry and
+  read its `exec_*` block. `codex` works as an executor *because* `harnesses/codex/manifest` registered it,
+  not because `executor.sh` hardcodes it (the `executor.sh:38,55` special-case is deleted). An env value
+  naming an **unregistered** harness — or one whose manifest has no execute face — is a resolution error:
+  reported, then the configured fallback (`AI_MEMORY_EXECUTOR_FALLBACK`, then the legacy
+  `AI_MEMORY_EXECUTOR_CMD_<key>` template) applies. So "register the harness" is the precondition for
+  "name it in the env var."
 - **Harness** = which runtime runs it (claude-subagent / codex / generic CLI) — and once the
-  manifest registry (Section 2–3) exists, `harness` can name **any installed harness**. **Model**
-  = explicit per role (new; today implicit).
+  manifest registry (Section 2–3) exists, `harness` can name **any registered harness**, resolved
+  through that harness's **`exec_*` manifest block** (not per-harness code in `executor.sh`).
+  `executor.sh`'s current codex special-case (`executor.sh:38,55`) and the ad-hoc
+  `AI_MEMORY_EXECUTOR_CMD_<key>` templates collapse into reading `exec_cmd` / `exec_model_flag`
+  from the manifest — the same registry that drives install. **Model** = explicit per role (new;
+  today implicit), threaded via `exec_model_flag`.
+- **Read-only is an optional capability, not a guarantee.** The `exploration` role needs a
+  read-only headless mode (`exec_readonly`). A harness that lacks one (e.g. **Antigravity** —
+  `agy -p` is write-capable with `--dangerously-skip-permissions`, no clean `--read-only`) is
+  simply **not offered for the `exploration` role**; it stays a valid `task`-role executor, and
+  exploration degrades to the Claude `Explore` agent. Missing `exec_readonly` → skipped +
+  reported, never a silent write-capable stand-in for a read-only role.
 - **Backward compatible:** existing single `AI_MEMORY_EXECUTOR` remains the fallback for any role
   left unset — no breakage for current configs.
 - **`executor.sh` grows `--role task|explore`**; `--which`/`--run` resolve per role. The
@@ -242,6 +281,25 @@ Split it into **two independently-configurable roles**, each selecting a **harne
   write-capable) and `exploration` (read-only scouting) resolve from separate `config.local.sh` vars
   (`AI_MEMORY_EXECUTOR_TASK`/`_EXPLORE`, `harness[:model]`); single `AI_MEMORY_EXECUTOR` is the
   fallback. Validator stays on the `task` role as a fresh invocation.
+- **One registry, two faces.** A harness manifest declares a **deliver** face (install surfaces)
+  and/or an **execute** face (`exec_cmd`/`exec_model_flag`/`exec_readonly`). Executor selection
+  (Section 8) resolves the chosen harness through its manifest `exec_*` block — `executor.sh` stops
+  carrying per-harness knowledge (codex special-case + `AI_MEMORY_EXECUTOR_CMD_*` collapse into
+  manifest reads). **The env var (`AI_MEMORY_EXECUTOR*`) remains the control surface; its value must
+  name a *registered* harness (manifest with an execute face).** `codex`/`antigravity` are selectable
+  as executors *because they are registered*, not built in. An unregistered/execute-less name → reported
+  resolution error, then fallback. Registration is the precondition for naming a harness in the env var. Faces are independent: deliver-only (Aider), execute-only (bare CLI), or both
+  (Codex, Antigravity). **Read-only (`exec_readonly`) is optional** — a harness lacking it is not
+  offered for the `exploration` role (degrade to Claude `Explore`), never silently run write-capable.
+- **Antigravity is the Phase 5 proof harness** (replaces the tentative Gemini/Cursor headline).
+  Facts (CLI v1.0.16, `agy` at `~/.local/bin/agy`): headless `agy -p {prompt}` (+ `--model`,
+  `--dangerously-skip-permissions`); context via `AGENTS.md`/`GEMINI.md` at launch (`file` archetype,
+  `agy.sh` launch-wrapper mirrors `codex-mem.sh`); skills as `skills/<name>/SKILL.md` (byte-identical
+  to our store, zero-transform); `commands=skill`. **Natively discovers `.agents/` walking up to the
+  repo root** — so it picks up the Phase 6 neutral marker (`.agents/memory-project`) and `.agents/skills`
+  with no adapter, validating the `.agents/` namespace bet against a real third-party harness. Chosen
+  over Cursor as headline because it exercises **both** faces at once; Cursor stays the `.mdc` override
+  example.
 
 ## Risks / open questions
 _All three design opens resolved 2026-07-02 — see Decisions (locked)._
@@ -266,6 +324,32 @@ _All three design opens resolved 2026-07-02 — see Decisions (locked)._
 - Executor/Validator roles lean on the Claude `Agent` tool — on other harnesses these degrade
   to "codex-as-executor" / no in-harness subagent; clarify what "the system" guarantees per harness.
 - `MEMORY_DIR` resolution depth change must not break existing installs mid-migration.
+- **Antigravity read-only is deferred, not absent.** `agy -p` has no read-only *flag*
+  (`--dangerously-skip-permissions` auto-approves; `--sandbox` restricts the terminal, not file writes) —
+  **but its `hooks.json` `PreToolUse` gate can enforce read-only** by returning `{"decision":"deny"}` on
+  write tools before they run (stronger than prompt-level; on par with codex execpolicy). The gate reads
+  `toolCall.name` + `args.CommandLine` from stdin, so it can allow reads and deny writes incl. mutating
+  `run_command`s via a denylist. **Baseline (Phase 5): `exec_readonly` empty → exploration degrades to
+  Claude `Explore`.** **Upgrade (deferred): an env-gated `PreToolUse` read-only guard** (one `hooks.json`,
+  enforce iff `AI_MEMORY_ROLE=explore`; inert for `task`). **Dependency risk:** the guard needs
+  Antigravity's full write-tool catalog (only `run_command`/`view_file`/`browser_*` known from docs) +
+  the command-mutation denylist — probe `agy`'s tool set before writing it. See "Deny-list enforcement" below.
+- **Antigravity supports a `hook` archetype (live refresh), not only `file`.** `hooks.json` `PreInvocation`
+  fires before each model call and returns `injectSteps` (`ephemeralMessage`/`userMessage`) — genuine
+  in-band injection like Claude. Nuance: it fires **every** invocation, so gate on `invocationNum == 1`
+  (in the payload) for session-start semantics. AGENTS.md (persistent rules) + `PreInvocation` (live
+  working.md/checkpoint refresh) can combine. **Baseline (Phase 5): `file` archetype (AGENTS.md +
+  `agy.sh` launch wrapper, mirrors codex) — simplest proof.** **Upgrade (deferred): `hook` via
+  `PreInvocation`** — the Phase 3 `hook` driver later covers Antigravity too (differs from Claude only in
+  I/O shape: JSON stdin → `injectSteps` vs stdout text). Do not block the proof on it.
+- **Deny-list enforcement via `PreToolUse` (bigger than one harness).** The same gate that yields read-only
+  can enforce the **entire O/E/V deny-list** (`terraform apply`, `kubectl apply`, `gh pr merge`, …) at the
+  tool boundary for the `task` role — today that list is only *restated in prompts* and only truly enforced
+  for codex (execpolicy). Antigravity would be the **second executor with enforced guardrails**, and more
+  flexible (arbitrary shell guard + command-line inspection). Reframes "read-only exploration" as one case
+  of a general **tool-gating capability** the manifest could expose (e.g. a `guard` field). Captured as a
+  cross-project insight in `working.md`; a manifest `guard` capability is a candidate follow-up, out of
+  scope for this plan's core.
 
 ## Phases
 
@@ -299,9 +383,13 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
 - **Gate:** full suite green after the move; a clean `install.sh` still wires Claude + Codex identically.
 
 ### Phase 3 — Manifest + archetype drivers + installer engine
-- [ ] Define the manifest schema; author `harnesses/claude/manifest` (`archetype=hook, format=xml,
-      commands=native, skills_dir=~/.claude/skills`) and `harnesses/codex/manifest`
-      (`archetype=file, format=md, context_target=~/.codex/AGENTS.md, commands=skill, skills_dir=~/.agents/skills`).
+- [ ] Define the manifest schema with **two capability faces**: **deliver** (`archetype`, `format`,
+      `context_target`, `skills_dir`, `commands`, `refresh`) and **execute** (`exec_cmd`,
+      `exec_model_flag`, `exec_readonly` — all optional; absent execute block = deliver-only harness).
+- [ ] Author `harnesses/claude/manifest` (`archetype=hook, format=xml, commands=native,
+      skills_dir=~/.claude/skills`; execute face = subagent, resolved in-harness) and
+      `harnesses/codex/manifest` (`archetype=file, format=md, context_target=~/.codex/AGENTS.md,
+      commands=skill, skills_dir=~/.agents/skills`; `exec_cmd=codex exec …`).
 - [ ] Implement `scripts/drivers/hook.sh` and `scripts/drivers/file.sh` (the two archetypes).
 - [ ] Rewrite `install.sh` as the generic engine: resolve harness (`--harness` flag → else
       auto-detect) → read manifest → run archetype driver → skills fan-out → commands surface.
@@ -321,10 +409,24 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
       capability gaps are reported, never silent failures.
 
 ### Phase 5 — Prove multi-harness + agent-runnable install; docs & non-goal reversal
-- [ ] Add a new file-materialize harness by config alone where possible — **Gemini CLI**
-      (`harnesses/gemini/manifest` → `GEMINI.md`) and/or **Cursor** (`.cursor/rules/*.mdc`, using the
-      override script for its multi-file model) — proving the archetype generalizes past Codex.
-- [ ] Validate the headline path: from **inside Codex**, an agent runs `install.sh` and gets a working
+- [ ] **Register Antigravity** (`agy` v1.0.16) as the headline third-party proof harness —
+      `harnesses/antigravity/manifest` with **both faces**: deliver (`archetype=file, format=md,
+      context_target` → `AGENTS.md`, `skills_dir=~/.agents/skills`, `commands=skill`, `refresh=launch`
+      via a `harnesses/antigravity/agy.sh` wrapper mirroring `codex-mem.sh`) and execute
+      (`exec_cmd=agy -p {prompt} --dangerously-skip-permissions`, `exec_model_flag=--model {model}`,
+      `exec_readonly=` empty → task-role only). Its skills are `skills/<name>/SKILL.md` (zero-transform).
+- [ ] Prove **the executor face**: set `AI_MEMORY_EXECUTOR_TASK=antigravity[:model]` and confirm a
+      delegated `task` step runs through `agy -p` resolved **from the manifest** (no `executor.sh`
+      special-case); confirm `exploration` correctly refuses Antigravity and degrades to Claude `Explore`.
+- [ ] Confirm the **`.agents/` native-discovery** payoff: with Antigravity, the Phase 6 marker
+      (`.agents/memory-project`) and `.agents/skills` are picked up with no adapter.
+- [ ] **Baseline only for the proof** (`file` archetype + `agy.sh` wrapper; `exec_readonly` empty →
+      Explore). Record — but do **not** build here — the `hooks.json` upgrades: env-gated `PreToolUse`
+      read-only guard, `PreInvocation` live refresh (`hook` archetype), and `PreToolUse` deny-list
+      enforcement (see Risks + `working.md`). Building any requires probing `agy`'s full tool catalog first.
+- [ ] (Optional, config-only) add **Cursor** (`.cursor/rules/*.mdc`) as the override-script example,
+      proving the escape hatch — not the headline.
+- [ ] Validate the agent-runnable path: from **inside Codex**, an agent runs `install.sh` and gets a working
       setup (context injected via AGENTS.md + skills and commands-as-skills fanned into `~/.agents/skills`).
 - [ ] Docs: rewrite `docs/install.md` + `docs/harnesses/*` to the manifest model; add an
       "adding a harness" guide; **reverse the `no bootstrap script` non-goal** in `memory.md`
@@ -347,12 +449,23 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
 ### Phase 7 — Executor roles (task / exploration) + harness:model config
 - [ ] Extend `executor.sh` with `--role task|explore`; resolve each from `AI_MEMORY_EXECUTOR_TASK` /
       `AI_MEMORY_EXECUTOR_EXPLORE` (`harness[:model]`), falling back to the legacy `AI_MEMORY_EXECUTOR`.
-      Parse `harness[:model]`; thread `model` into subagent/codex/CLI invocation.
-- [ ] `exploration` role is **read-only** — claude `Explore` agent type (or `codex-mem.sh
-      --executor-bare`); `task` role stays write-capable within the deny-list.
+      Parse `harness[:model]`; thread `model` into the invocation via the harness's `exec_model_flag`.
+- [ ] **Resolve the invocation from the manifest `exec_*` block**, not per-harness code: the env-var
+      value names a harness; look it up in the registry and read its `exec_*` (`exec_cmd` for `task`,
+      `exec_readonly` for `explore`). Replace the codex special-case (`executor.sh:38,55`) — `codex`
+      resolves only because `harnesses/codex/manifest` registered it. `claude-subagent` stays the
+      in-harness plane (Agent tool). An env value naming an **unregistered** harness (or one with no
+      execute face) → reported resolution error, then fallback (`AI_MEMORY_EXECUTOR_FALLBACK`, then a
+      legacy `AI_MEMORY_EXECUTOR_CMD_<key>` template if set).
+- [ ] `exploration` role is **read-only** — a harness with a non-empty `exec_readonly` (claude `Explore`
+      / `codex-mem.sh --executor-bare`); a harness without one (e.g. Antigravity) is **skipped for
+      `explore` + reported**, degrading to Claude `Explore`. `task` role stays write-capable within the
+      deny-list.
 - [ ] Validator resolves through the `task` role (fresh invocation) — update the workflow docs
       (`identity.md` / `CLAUDE.md` O/E/V section) to name the two roles.
 - [ ] `config.local.sh.example` documents both vars; `test_executor.sh` covers role resolution,
-      `harness[:model]` parsing, read-only exploration posture, and fallback to the legacy var.
+      `harness[:model]` parsing, **manifest `exec_*` resolution** (registered name resolves; the
+      read-only-absent skip; an **unregistered / execute-less name errors then falls back**),
+      read-only exploration posture, and fallback to the legacy var / `AI_MEMORY_EXECUTOR_CMD_*`.
 - **Gate:** both roles resolve and run with the configured harness+model; legacy single-var configs
       still work unchanged; full suite green.
