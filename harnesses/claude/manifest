@@ -1,0 +1,20 @@
+# Claude Code — delivery manifest.
+# hook archetype: live per-prompt injection via ~/.claude hooks; xml format.
+name         = claude
+archetype    = hook
+format       = xml
+
+# hook archetype wiring (symlink targets under the harness runtime dir)
+hooks_dir    = ~/.claude/hooks
+statusline   = ~/.claude/statusline.sh
+
+# commands surface: native = symlink command .md bodies into the harness command dir
+commands     = native
+commands_dir = ~/.claude/commands
+
+# skills + agents fan-out targets (canonical stores are repo-level skills/ and agents/)
+skills_dir   = ~/.claude/skills
+agents_dir   = ~/.claude/agents
+
+# execute face: in-harness Agent tool — no external headless command
+exec         = subagent

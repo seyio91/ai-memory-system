@@ -396,21 +396,31 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
       statusline from the new layout (targets resolve); live `~/.claude` repointed + hook and
       `codex-mem.sh` verified working.
 
-### Phase 3 — Manifest + archetype drivers + installer engine
-- [ ] Define the manifest schema with **two capability faces**: **deliver** (`archetype`, `format`,
-      `context_target`, `skills_dir`, `commands`, `refresh`) and **execute** (`exec_cmd`,
-      `exec_model_flag`, `exec_readonly` — all optional; absent execute block = deliver-only harness).
-- [ ] Author `harnesses/claude/manifest` (`archetype=hook, format=xml, commands=native,
-      skills_dir=~/.claude/skills`; execute face = subagent, resolved in-harness) and
-      `harnesses/codex/manifest` (`archetype=file, format=md, context_target=~/.codex/AGENTS.md,
-      commands=skill, skills_dir=~/.agents/skills`; `exec_cmd=codex exec …`).
-- [ ] Implement `scripts/drivers/hook.sh` and `scripts/drivers/file.sh` (the two archetypes).
-- [ ] Rewrite `install.sh` as the generic engine: resolve harness (`--harness` flag → else
-      auto-detect) → read manifest → run archetype driver → skills fan-out → commands surface.
-      Optional per-harness `harnesses/<name>/<name>.sh` override, called only when present.
-- [ ] `validate-manifest.sh` static check + `test_install_harness.sh` (claude & codex reproduce
-      today's wiring from their manifests; auto-detect resolves correctly).
-- **Gate:** `install.sh --harness claude` and `--harness codex` reproduce the pre-Phase-3 wiring.
+### Phase 3 — Manifest + archetype drivers + installer engine — ✅ DONE 2026-07-05
+- [x] Manifest = declarative `key = value` (comments/blanks ignored, `~`/`$HOME` expanded, **never
+      sourced** — data not code). Parser `scripts/manifest.sh` (`manifest_get`/`manifest_keys`). Two
+      faces: **deliver** (`archetype`, `format`, `hooks_dir`/`statusline`/`commands`/`commands_dir`/
+      `skills_dir`/`agents_dir` | `context_target`/`refresh`) and **execute** (`exec`=subagent sentinel,
+      or `exec_cmd`/`exec_model_flag`/`exec_readonly`).
+- [x] Authored `harnesses/claude/manifest` (hook/xml, native commands, skills+agents dirs, `exec=subagent`)
+      and `harnesses/codex/manifest` (file/md, `context_target=~/.codex/AGENTS.md`, `refresh=launch`,
+      forward-declared `skills_dir=~/.agents/skills`+`commands=skill`, `exec_cmd=codex exec {prompt}`).
+- [x] `scripts/drivers/hook.sh` (symlinks hooks+statusline; `driver_notes` = settings/CLAUDE.md steps)
+      and `scripts/drivers/file.sh` (preps `context_target` dir, reports launch-refresh; no symlink).
+- [x] Rewrote `install.sh` as the generic engine: resolve harness (`--harness` | auto-detect prefers
+      `~/.claude` | `--list`) → validate-manifest (fail fast) → archetype driver → commands (native wired;
+      `skill`/`doc` **reported deferred to Phase 4**) → skills+agents fan-out (**hook archetype only** in
+      P3; file-harness fan-out deferred) → optional `harnesses/<name>/<name>.sh --install` override →
+      shared config-stamp + template-seed → harness-specific `driver_notes`.
+- [x] `scripts/validate-manifest.sh` (required keys, enum values, archetype rules, name/dir match,
+      unknown-key WARN) + `test_validate_manifest.sh` (17 cases) + `test_install_harness.sh` (hermetic
+      fake-repo+fake-HOME: claude reproduces hook wiring, codex file archetype, idempotent re-run,
+      unknown-harness error, `--list`).
+- **Gate:** ✅ met — `install.sh --harness claude` reproduces today's wiring **byte-identical** (golden
+      diff on hooks/commands/statusline; skills+agents linked); `--harness codex` preps context with no
+      new wiring (deferred surfaces reported); suite **24/24 green**; live hook unaffected.
+      **P3→P4 seam:** codex manifest forward-declares `skills_dir`/`commands=skill`; the engine gates
+      generic skills/commands fan-out behind `archetype=hook` — Phase 4 lifts that gate.
 
 ### Phase 4 — Skills & commands generalization
 - [ ] Generalize `link-skills.sh` to fan into each harness's manifest `skills_dir` (Claude
