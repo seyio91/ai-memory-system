@@ -1,0 +1,28 @@
+# Antigravity CLI (`agy`) — delivery + execute manifest. The headline third-party
+# proof harness: registered once, works as BOTH an install target and an executor,
+# with no Antigravity-specific engine code.
+#
+# file archetype: materialize an AGENTS.md-style context, rebuilt on each launch by
+# the wrapper (harnesses/antigravity/scripts/agy.sh); md format (same as Codex).
+name           = antigravity
+archetype      = file
+format         = md
+
+# Global context file. Antigravity reads GEMINI.md/AGENTS.md by walking up from cwd
+# and honors a machine-local ~/.gemini/config/. This is the best-guess GLOBAL target;
+# if a live `agy` session shows it reads a different global path, it's a one-line fix.
+context_target = ~/.gemini/config/AGENTS.md
+refresh        = launch
+
+# Skills: Antigravity honors the cross-agent ~/.agents/skills standard (it is listed
+# in ~/.agents/.skill-lock.json), and its skill layout is skills/<name>/SKILL.md —
+# byte-identical to our canonical store, so fan-out is a zero-transform symlink.
+skills_dir     = ~/.agents/skills
+commands       = skill
+
+# execute face — headless `agy -p`. {prompt}/{model} substituted by executor.sh (Phase 7).
+# No read-only flag exists (agy -p is write-capable), so exec_readonly is intentionally
+# omitted: Antigravity is a task-role executor only; the exploration role degrades to
+# the Claude Explore agent. A future PreToolUse hooks.json guard could add read-only.
+exec_cmd        = agy -p {prompt} --dangerously-skip-permissions
+exec_model_flag = --model {model}

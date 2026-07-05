@@ -1,6 +1,6 @@
 # Memory System
 
-A markdown-only memory tree shared by **Claude Code** and **OpenAI Codex CLI** — no vector DB, no daemons, no MCP servers, just files, hooks, and short shell scripts. Insight captured in one agent is visible to the other on the next session, and it compounds: every non-trivial synthesis gets offered for filing.
+A markdown-only memory tree shared by **Claude Code**, **OpenAI Codex CLI**, and **Antigravity** — no vector DB, no daemons, no MCP servers, just files, hooks, and short shell scripts. Insight captured in one agent is visible to the other on the next session, and it compounds: every non-trivial synthesis gets offered for filing.
 
 ## Mental model
 
@@ -16,7 +16,7 @@ Claude reads memory in-band (a `UserPromptSubmit` hook injects `<memory:*>` bloc
 
 ## Install
 
-This repo **is** the memory tree. Clone it and run the installer — it links the Claude Code wiring (hooks, slash commands, skills, agents) into `~/.claude/` and points `~/.claude-memory` at the clone.
+This repo **is** the memory tree. Clone it and run the installer — a generic, **manifest-driven** engine that wires whichever harness you name (`--harness claude | codex | antigravity`) or auto-detects one, and points `~/.claude-memory` at the clone. It's agent-runnable: an agent inside any harness can run it to wire that harness up.
 
 ```bash
 git clone https://github.com/seyio91/ai-memory-system.git ~/.claude-memory
@@ -41,6 +41,8 @@ cd ~/.claude-memory
 | [docs/install.md](docs/install.md) | Install, rebuilding the wiring by hand, directory layout, project detection & the reverse (project→checkout) map |
 | [docs/harnesses/claude.md](docs/harnesses/claude.md) | Claude Code: auto-injection, hooks, slash commands, skills, the skill write-boundary & self-rating loop |
 | [docs/harnesses/codex.md](docs/harnesses/codex.md) | Codex CLI: the `codex-mem.sh` bridge, what lands in `AGENTS.md`, the local overlay, `/checkpoint` in Codex |
+| [docs/harnesses/antigravity.md](docs/harnesses/antigravity.md) | Antigravity (`agy`): the `agy.sh` bridge, skills/commands via `~/.agents/skills`, the task-role executor face |
+| [docs/harnesses/adding-a-harness.md](docs/harnesses/adding-a-harness.md) | Register a new harness by manifest — archetype, surfaces, launch wrapper, detection |
 | [docs/workflow.md](docs/workflow.md) | Orchestrator / Executor / Validator roles, the Task Contract, executor selection, cross-project relationships |
 | [docs/task-provider.md](docs/task-provider.md) | The pluggable task backend (local + Notion), the contract, `/start`, adding a provider |
 | [docs/file-formats.md](docs/file-formats.md) | Frontmatter, the required project-memory sections, `working.md` shape, domain-file body |

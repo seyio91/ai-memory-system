@@ -1,6 +1,6 @@
 # Codex CLI
 
-Codex has no native memory hook. The bridge is `harnesses/codex/scripts/codex-mem.sh`, a wrapper that rebuilds `~/.codex/AGENTS.md` from the memory tree and then `exec codex "$@"`.
+Codex has no native memory hook. The bridge is `harnesses/codex/scripts/codex-mem.sh`, a wrapper that rebuilds `~/.codex/AGENTS.md` from the memory tree (via the shared `scripts/build-context-md.sh`) and then `exec codex "$@"`. At install (`install.sh --harness codex`) the bundled skills **and** the slash-commands-as-skills fan into the cross-agent `~/.agents/skills` (Codex's command mechanism is skills).
 
 ## Daily use
 

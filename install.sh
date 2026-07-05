@@ -49,17 +49,17 @@ list_harnesses() {
 # detect_harness — pick a harness whose manifest exists AND whose runtime dir is
 # present. Claude first, preserving the historical no-arg behavior.
 detect_harness() {
-    local h sig
-    for h in claude codex gemini cursor; do
+    local h
+    for h in claude codex antigravity gemini cursor; do
         [ -f "$REPO_ROOT/harnesses/$h/manifest" ] || continue
         case "$h" in
-            claude) sig="$HOME/.claude" ;;
-            codex)  sig="$HOME/.codex" ;;
-            gemini) sig="$HOME/.gemini" ;;
-            cursor) sig="$HOME/.cursor" ;;
-            *)      sig="" ;;
+            claude)      [ -d "$HOME/.claude" ] && { printf claude; return 0; } ;;
+            codex)       [ -d "$HOME/.codex" ]  && { printf codex; return 0; } ;;
+            antigravity) { command -v agy >/dev/null 2>&1 || [ -d "$HOME/.gemini/antigravity-cli" ]; } \
+                             && { printf antigravity; return 0; } ;;
+            gemini)      [ -d "$HOME/.gemini" ] && { printf gemini; return 0; } ;;
+            cursor)      [ -d "$HOME/.cursor" ] && { printf cursor; return 0; } ;;
         esac
-        [ -n "$sig" ] && [ -d "$sig" ] && { printf '%s' "$h"; return 0; }
     done
     return 1
 }

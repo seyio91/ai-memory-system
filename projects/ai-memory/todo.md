@@ -19,7 +19,7 @@ _Design approved 2026-07-02. Behavior-preserving refactors (P1–2) before new c
 - [x] Phase 2 — layout restructure (`claude/`→`harnesses/claude/`, Codex→`harnesses/codex/scripts/`; MEMORY_DIR depth `../../..`; install/link/executor/test paths) _(suite 22/22; live install repointed + verified)_
 - [x] Phase 3 — manifest + archetype drivers (hook/file) + `install.sh` engine (`--harness` + auto-detect) _(byte-identical claude repro; suite 24/24)_
 - [x] Phase 4 — skills fan-out (manifest `skills_dir`, gate lifted) + commands surface (native/skill/doc/none; command-skills for Codex) _(suite 25/25; claude byte-identical)_
-- [ ] Phase 5 — prove new harness: **Antigravity** (both faces — AGENTS.md install + `agy -p` executor; Cursor `.mdc` as override example) + agent-runnable install from Codex; docs + reverse no-bootstrap non-goal
+- [x] Phase 5 — registered **Antigravity** (deliver face proven; execute face declared → runtime in P7); shared `build-context-md.sh` (codex golden intact); docs + non-goal reversal _(suite 26/26; Cursor deferred)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
