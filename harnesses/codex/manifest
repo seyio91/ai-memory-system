@@ -13,7 +13,10 @@ refresh        = launch
 skills_dir     = ~/.agents/skills
 commands       = skill
 
-# execute face: headless Codex. {prompt}/{model} are substituted by executor.sh.
-exec_cmd        = codex exec {prompt}
+# execute face: headless Codex via the memory wrapper (builds AGENTS.md + sandbox
+# flags), so a delegated run sees fresh memory. {prompt}/{model} substituted by
+# executor.sh; $MEMORY_DIR expanded. exec_probe gates availability on the codex bin.
+exec_cmd        = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh --executor {prompt}
+exec_readonly   = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh exec --sandbox read-only {prompt}
 exec_model_flag = --model {model}
-exec_readonly   = codex exec --sandbox read-only {prompt}
+exec_probe      = codex

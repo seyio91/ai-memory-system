@@ -25,7 +25,18 @@
 # export MEMORY_ARCHIVE_RETAIN_DAYS=30   # archive-cleanup.sh retention threshold
 
 # ── Orchestrator executor selection ──
-# Which executor the orchestrator delegates actionable work to.
+# Two roles, each a `harness[:model]` value (harness resolves through its
+# harnesses/<name>/manifest exec_* block; model is optional):
+#   task     — execute a plan step (write-capable)
+#   explore  — read-only scouting (a harness with no read-only mode degrades to the
+#              Claude Explore agent, never runs write-capable)
+# Registered harness values: claude-subagent | claude[:sonnet|:haiku] | codex[:model]
+#   | antigravity[:model] | <generic-cli-key>. Each role falls back to the legacy
+# single AI_MEMORY_EXECUTOR below, then to claude-subagent.
+# export AI_MEMORY_EXECUTOR_TASK="codex"
+# export AI_MEMORY_EXECUTOR_EXPLORE="claude:haiku"
+#
+# Legacy single-var (still honored as the fallback for any unset role):
 #   claude-subagent  — in-harness Claude Agent tool (default; always available)
 #   codex            — CLI via harnesses/codex/scripts/codex-mem.sh --executor
 #   <other>          — generic CLI; define its command with AI_MEMORY_EXECUTOR_CMD_<key>

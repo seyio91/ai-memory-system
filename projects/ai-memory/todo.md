@@ -21,7 +21,7 @@ _Design approved 2026-07-02. Behavior-preserving refactors (P1–2) before new c
 - [x] Phase 4 — skills fan-out (manifest `skills_dir`, gate lifted) + commands surface (native/skill/doc/none; command-skills for Codex) _(suite 25/25; claude byte-identical)_
 - [x] Phase 5 — registered **Antigravity** (deliver face proven; execute face declared → runtime in P7); shared `build-context-md.sh` (codex golden intact); docs + non-goal reversal _(suite 26/26; Cursor deferred)_
 - [x] Phase 6 — de-brand project marker `.claude/memory-project` → `.agents/memory-project` (readers+writer+lint back-compat; `migrate-marker.sh`) _(suite 27/27; run `--apply` post-merge on 14 checkouts)_
-- [ ] Phase 7 — executor roles (`task`/`exploration`) + `harness[:model]` config via manifest `exec_*` (Codex + Antigravity executor faces go live)
+- [x] Phase 7 — executor roles (`task`/`exploration`) + `harness[:model]` config via manifest `exec_*`; codex special-case deleted; Codex + Antigravity executor faces live _(executor 37; suite 27/27)_
 
 ## Done
 _(checked items stay above until the file is rolled)_

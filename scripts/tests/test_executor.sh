@@ -139,4 +139,90 @@ assert_exit 0 "$CODE" "--run apostrophe prompt exits 0"
 assert_eq "it's a test" "$(cat "$MARK2")" "--run preserves apostrophe in prompt"
 export PATH="$OLDPATH"
 
+# ============ Phase 7: roles + manifest exec_* resolution ============
+unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_EXPLORE AI_MEMORY_EXECUTOR_FALLBACK
+
+HARN="$(new_sandbox)"; export AI_MEMORY_HARNESSES_DIR="$HARN"
+mk_manifest() { local n="$1"; shift; mkdir -p "$HARN/$n"; printf '%s\n' "$@" > "$HARN/$n/manifest"; }
+
+mk_manifest sub1 'name = sub1' 'archetype = hook' 'format = xml' 'exec = subagent'
+mk_manifest ww   'name = ww' 'archetype = file' 'format = md' \
+    'exec_cmd = wwbin --do {prompt}' 'exec_readonly = wwbin --ro {prompt}' \
+    'exec_model_flag = --model {model}' 'exec_probe = wwbin'
+mk_manifest tt   'name = tt' 'archetype = file' 'format = md' \
+    'exec_cmd = ttbin {prompt}' 'exec_probe = ttbin'
+mk_manifest gone 'name = gone' 'archetype = file' 'format = md' \
+    'exec_cmd = nope {prompt}' 'exec_probe = nope-xyz-bin'
+mk_manifest md1  'name = md1' 'archetype = file' 'format = md' \
+    'exec_cmd = $MEMORY_DIR/x {prompt}' 'exec_probe = wwbin'
+
+WMARK="$BIN/ww-ran.txt"
+cat > "$BIN/wwbin" <<EOF
+#!/usr/bin/env bash
+printf '%s' "\$*" > "$WMARK"
+exit 0
+EOF
+printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/ttbin"
+chmod +x "$BIN/wwbin" "$BIN/ttbin"
+export PATH="$BIN:$PATH"
+
+# task role resolves a registered harness via its manifest exec_cmd
+export AI_MEMORY_EXECUTOR_TASK=ww
+run --which
+assert_eq "cli:ww" "$OUT" "task role: manifest harness -> cli:<name>"
+
+# explore role with a read-only-capable harness -> cli (uses exec_readonly)
+export AI_MEMORY_EXECUTOR_EXPLORE=ww
+run --role explore --which
+assert_eq "cli:ww" "$OUT" "explore role: harness with exec_readonly -> cli"
+
+# explore role with a task-only harness -> degrade to subagent (never write-capable)
+export AI_MEMORY_EXECUTOR_EXPLORE=tt
+run --role explore --which
+assert_eq "subagent" "$OUT" "explore: task-only harness degrades to subagent"
+assert_contains "$ERR" "no read-only mode" "explore degrade reported"
+
+# manifest exec=subagent sentinel -> subagent plane
+export AI_MEMORY_EXECUTOR_TASK=sub1
+run --which
+assert_eq "subagent" "$OUT" "manifest exec=subagent -> subagent plane"
+
+# model surfaces on the subagent plane token
+export AI_MEMORY_EXECUTOR_TASK="sub1:fast"
+run --which
+assert_eq "subagent:fast" "$OUT" "subagent plane carries the model"
+
+# role var overrides the legacy single var
+export AI_MEMORY_EXECUTOR=sub1
+export AI_MEMORY_EXECUTOR_TASK=ww
+run --which
+assert_eq "cli:ww" "$OUT" "role var overrides legacy AI_MEMORY_EXECUTOR"
+
+# explore falls back to the legacy var when its role var is unset
+unset AI_MEMORY_EXECUTOR_EXPLORE
+export AI_MEMORY_EXECUTOR=ww
+run --role explore --which
+assert_eq "cli:ww" "$OUT" "explore falls back to legacy var"
+
+# unavailable harness bin -> fallback to subagent (default fallback)
+unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_EXPLORE
+export AI_MEMORY_EXECUTOR_TASK=gone
+run --which
+assert_eq "subagent" "$OUT" "unavailable harness bin -> fallback subagent"
+assert_contains "$ERR" "falling back" "unavailable harness: fallback note"
+
+# $MEMORY_DIR expands in the resolved command
+export AI_MEMORY_EXECUTOR_TASK=md1
+run --show
+assert_contains "$OUT" "$MEM/x {prompt}" "\$MEMORY_DIR expands in resolved command"
+
+# --run through a manifest harness execs the command with the prompt (+ model)
+export AI_MEMORY_EXECUTOR_TASK="ww:m9"
+run --run "hello world"
+assert_exit 0 "$CODE" "--run manifest harness exits 0 via stub"
+args="$(cat "$WMARK")"
+assert_contains "$args" "hello world" "--run passes the prompt to the harness command"
+assert_contains "$args" "--model m9"  "--run threads the model flag"
+export PATH="$OLDPATH"
+
 finish
