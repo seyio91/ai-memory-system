@@ -3,31 +3,43 @@
 How to install the wiring, rebuild it by hand, the on-disk layout, and how a repo is
 mapped to a project (both directions).
 
-> **Multi-harness note.** The installer today wires **Claude Code**; the Codex bridge is a
-> separate wrapper ([Codex CLI](harnesses/codex.md)). Making install itself
-> harness-agnostic (run it from inside any harness) is in-flight — see
-> `projects/ai-memory/plans/make-memory-engine-harness-agnostic.md`.
+> **Multi-harness.** `install.sh` is a generic, **manifest-driven** engine: it wires whichever
+> harness you name (or auto-detects one), reading that harness's `harnesses/<name>/manifest`.
+> Registered today: **Claude Code**, **Codex CLI**, **Antigravity**. To add another, see
+> [Adding a harness](harnesses/adding-a-harness.md).
 
 ## Install
 
-This repo **is** the memory tree. Clone it, then run the installer — it links the
-Claude Code wiring (hooks, slash commands, skills, agents) into `~/.claude/` and
-points `~/.claude-memory` at the clone so the hook defaults resolve.
+This repo **is** the memory tree. Clone it, then run the installer — it wires the
+target harness (context injection, skills, commands, agents) in that harness's own
+idiom and points `~/.claude-memory` at the clone so paths resolve.
 
 ```bash
 git clone https://github.com/seyio91/ai-memory-system.git ~/.claude-memory
 cd ~/.claude-memory
-./install.sh
+./install.sh                      # auto-detect the harness (prefers ~/.claude)
+./install.sh --harness codex      # or wire a specific one: claude | codex | antigravity
+./install.sh --list               # list registered harnesses
 ```
 
-`install.sh` is idempotent and backs up anything it would overwrite. It:
+`install.sh` is idempotent, backs up anything it would overwrite, and is **agent-runnable**
+— an agent inside any harness can run it to wire *that* harness up. It:
 
-- links the clone to `$MEMORY_DIR` (default `~/.claude-memory`),
-- symlinks `harnesses/claude/hooks/*.sh` → `~/.claude/hooks/`,
-- symlinks `harnesses/claude/commands/*.md` → `~/.claude/commands/`,
-- symlinks `harnesses/claude/statusline.sh` → `~/.claude/statusline.sh` (the context-bar status line, showing the active memory project),
-- links the bundled `skills/` and `agents/` into `~/.claude/` (via `scripts/link-skills.sh` / `link-agents.sh`),
-- seeds `identity.md` and `index.md` from their `*.template.md` if missing.
+- resolves the harness (`--harness` flag, else auto-detect) and reads its **manifest**,
+- validates the manifest (`scripts/validate-manifest.sh`), then runs the archetype driver:
+  **hook** (Claude) symlinks `harnesses/claude/hooks/*.sh` + `statusline.sh` into `~/.claude/`;
+  **file** (Codex, Antigravity) prepares the `context_target` dir — the context is rebuilt on
+  each launch by the harness wrapper (`codex-mem.sh` / `agy.sh`), not symlinked,
+- delivers **commands** per the manifest — `native` symlinks into the command dir (Claude
+  `~/.claude/commands`), `skill` wraps each command as a `SKILL.md` into `skills_dir`
+  (Codex/Antigravity `~/.agents/skills`), `doc` renders a reference, `none`,
+- fans the bundled `skills/` (and Claude-shaped `agents/`) into each manifest's `skills_dir`
+  via `scripts/link-skills.sh` / `link-agents.sh`,
+- links the clone to `$MEMORY_DIR`, stamps `config.local.sh`, and seeds `identity.md` /
+  `index.md` from their `*.template.md` if missing.
+
+The manual steps it prints depend on the harness (e.g. Claude: register `settings.hooks.json`
++ place `CLAUDE.md`; a file harness: alias its launch wrapper).
 
 Two steps it leaves to you:
 

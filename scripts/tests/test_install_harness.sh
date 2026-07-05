@@ -60,6 +60,16 @@ assert_file "$FHOME/.agents/skills/pin/SKILL.md"      "codex: command delivered 
 assert_file "$FHOME/.agents/skills/pin/.from-command" "codex: command-skill marked generated"
 assert_contains "$(cat "$FHOME/.agents/skills/pin/SKILL.md")" "name: pin" "codex: command-skill wrapper frontmatter"
 
+# --- antigravity (file archetype, both faces): install = deliver face ---
+run_install --harness antigravity >"$SBROOT/log.agy" 2>&1; rc=$?
+assert_exit 0 "$rc" "antigravity install exits 0"
+assert_file "$FHOME/.gemini/config" "antigravity: context dir prepared"
+if [ ! -e "$FHOME/.gemini/config/AGENTS.md" ]; then _ok "antigravity: no AGENTS.md symlink (built at launch)"; else _bad "antigravity: unexpected AGENTS.md symlink"; fi
+assert_file "$FHOME/.agents/skills/demo-skill"   "antigravity: canonical skill in shared ~/.agents/skills"
+assert_file "$FHOME/.agents/skills/pin/SKILL.md" "antigravity: command delivered as skill"
+# execute face is declared in the manifest (consumed by executor.sh in Phase 7)
+assert_contains "$(cat "$FAKE/harnesses/antigravity/manifest")" "exec_cmd" "antigravity: manifest declares an execute face"
+
 # --- doc surface (synthetic file harness with commands=doc, no skills_dir) ---
 mkdir -p "$FAKE/harnesses/doch"
 printf '%s\n' \
@@ -78,7 +88,8 @@ assert_exit 1 "$rc" "unknown harness: exit 1"
 
 # --- --list ---
 out="$(HOME="$FHOME" bash "$FAKE/install.sh" --list 2>&1)"
-assert_contains "$out" "claude" "--list shows claude"
-assert_contains "$out" "codex"  "--list shows codex"
+assert_contains "$out" "claude"      "--list shows claude"
+assert_contains "$out" "codex"       "--list shows codex"
+assert_contains "$out" "antigravity" "--list shows antigravity"
 
 finish
