@@ -357,16 +357,22 @@ Ordered so **behavior-preserving refactors (1–2) land before new capability (3
 phase gates on `scripts/run-tests.sh` staying green; phases 1–2 additionally require the
 Claude hook output to be **byte-identical** to today (they touch the live injection path).
 
-### Phase 1 — Content core extraction (pure refactor, no behavior change)
-- [ ] Add `scripts/content-core.sh`: single source of content selection → a format-neutral
-      ordered section list (`identity, project, index, domain, working`) + mode (`full` | `breadcrumb`).
-- [ ] Add formatters `scripts/formatters/xml.sh` (`<memory:*>` tags) and `scripts/formatters/md.sh`
-      (`# === X ===` headers + domain table).
-- [ ] Rewire `memory_common.sh` (Claude) → content-core + xml; rewire `codex-mem.sh` → content-core + md.
-      Delete the duplicated selection walks.
-- [ ] Golden tests: `test_inject_memory.sh` unchanged/green; **new** `test_codex_agents_golden.sh`
-      pins the AGENTS.md build byte-for-byte.
-- **Gate:** both existing outputs byte-reproducible from the core; full suite green.
+### Phase 1 — Content core extraction (pure refactor, no behavior change) — ✅ DONE 2026-07-05
+- [x] Add `scripts/content-core.sh`: single source of content selection → a format-neutral
+      ordered section list (`identity, project, index, domain, working`). `content_sections <project>
+      [kind...]` emits tab-separated `kind\tpath\tname` records, presence-gated, in canonical order;
+      the kind filter is how each consumer selects its subset (mode = the consumer's kind set +
+      full-vs-breadcrumb renderer, not a core param).
+- [x] Add formatters `scripts/formatters/xml.sh` (`xml_render_full` / `xml_render_breadcrumb`) and
+      `scripts/formatters/md.sh` (`md_render` + `_md_render_domain` table).
+- [x] Rewire `memory_common.sh` (Claude → content-core + xml; sources the engine from the resolved
+      **repo root**, not `MEMORY_DIR`, so the test-overridden content tree still finds the code) and
+      `codex-mem.sh` (→ content-core + md; overlay/header framing stays codex-specific). Duplicated
+      selection walks deleted.
+- [x] Golden tests: `test_inject_memory.sh` unchanged/green; **new** `test_codex_agents_golden.sh`
+      pins the AGENTS.md build byte-for-byte against `tests/fixtures/codex_agents.golden`.
+- **Gate:** ✅ met — pre/post-refactor outputs diffed **byte-identical** (codex AGENTS.md, Claude
+      full, Claude breadcrumb); suite **22/22 green**; live symlinked hook verified.
 
 ### Phase 2 — Layout restructure (move, no logic change)
 - [ ] Create `harnesses/`; move `claude/` → `harnesses/claude/` (hooks, commands, CLAUDE.md,

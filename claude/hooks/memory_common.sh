@@ -20,11 +20,21 @@ _mc_resolve() {
     done
     ( cd "$(dirname "$p")" && printf '%s/%s\n' "$(pwd)" "$(basename "$p")" )
 }
+# Always resolve the hook's REAL repo root from its symlinked location. This is
+# the source of the shared engine (scripts/content-core.sh + formatters), which
+# must load from the real install even when MEMORY_DIR is overridden to a
+# content-only tree (as the test suite does). MEMORY_DIR — the content root —
+# defaults to the same repo but is honored if pre-set.
+_mc_self="$(_mc_resolve "${BASH_SOURCE[0]}")"
+_MC_REPO="$(cd "$(dirname "$_mc_self")/../.." && pwd)"
 if [ -z "${MEMORY_DIR:-}" ]; then
-    _mc_self="$(_mc_resolve "${BASH_SOURCE[0]}")"
-    MEMORY_DIR="$(cd "$(dirname "$_mc_self")/../.." && pwd)"
+    MEMORY_DIR="$_MC_REPO"
 fi
 [ -f "$MEMORY_DIR/config.local.sh" ] && . "$MEMORY_DIR/config.local.sh"
+
+# Shared content selection + XML serialization (single source of what/order).
+. "$_MC_REPO/scripts/content-core.sh"
+. "$_MC_REPO/scripts/formatters/xml.sh"
 
 # Per-session signal files (e.g. post-compaction reload). Not git-managed.
 STATE_DIR="${MEMORY_STATE_DIR:-$MEMORY_DIR/.sessions}"
@@ -76,41 +86,13 @@ detect_project() {
 
 # Assemble the full memory payload (identity + project + index + working) into stdout.
 # No project -> empty output: outside an onboarded repo the memory system stays
-# dormant and Claude runs generic.
+# dormant and Claude runs generic. Selection comes from content-core; the xml
+# formatter serializes it.
 # $1 = project name (may be empty).
 assemble_full_memory() {
-    local project="$1" out=""
-
+    local project="$1"
     [ -z "$project" ] && return 0
-
-    if [ -f "$MEMORY_DIR/identity.md" ]; then
-        out+="<memory:identity>"$'\n'
-        out+=$(cat "$MEMORY_DIR/identity.md")
-        out+=$'\n'"</memory:identity>"$'\n'
-    fi
-
-    if [ -n "$project" ] && [ -f "$MEMORY_DIR/projects/$project/memory.md" ]; then
-        out+="<memory:project name=\"$project\">"$'\n'
-        out+=$(cat "$MEMORY_DIR/projects/$project/memory.md")
-        out+=$'\n'"</memory:project>"$'\n'
-    fi
-
-    if [ -f "$MEMORY_DIR/index.md" ]; then
-        out+="<memory:index>"$'\n'
-        out+=$(cat "$MEMORY_DIR/index.md")
-        out+=$'\n'"</memory:index>"$'\n'
-    fi
-
-    if [ -n "$project" ]; then
-        local working="$MEMORY_DIR/projects/$project/working.md"
-        if [ -f "$working" ] && [ -s "$working" ]; then
-            out+="<memory:working>"$'\n'
-            out+=$(cat "$working")
-            out+=$'\n'"</memory:working>"$'\n'
-        fi
-    fi
-
-    printf '%s' "$out"
+    content_sections "$project" identity project index working | xml_render_full
 }
 
 # Assemble the lightweight per-prompt breadcrumb: the active-project pointer plus
@@ -118,16 +100,7 @@ assemble_full_memory() {
 # fallen out of context (compaction recovery). Empty if no project.
 # $1 = project name, $2 = cwd.
 assemble_breadcrumb() {
-    local project="$1" cwd="$2" out=""
+    local project="$1" cwd="$2"
     [ -z "$project" ] && return 0
-
-    out+="<memory:active project=\"$project\" cwd=\"$cwd\">"$'\n'
-    [ -f "$MEMORY_DIR/identity.md" ] && out+="identity: $MEMORY_DIR/identity.md"$'\n'
-    [ -f "$MEMORY_DIR/projects/$project/memory.md" ] && out+="project: $MEMORY_DIR/projects/$project/memory.md"$'\n'
-    [ -f "$MEMORY_DIR/index.md" ] && out+="index: $MEMORY_DIR/index.md"$'\n'
-    local working="$MEMORY_DIR/projects/$project/working.md"
-    [ -f "$working" ] && [ -s "$working" ] && out+="working: $working"$'\n'
-    out+="If these are not already in context (e.g. after compaction), read them before proceeding."
-
-    printf '%s' "$out"
+    content_sections "$project" identity project index working | xml_render_breadcrumb "$project" "$cwd"
 }

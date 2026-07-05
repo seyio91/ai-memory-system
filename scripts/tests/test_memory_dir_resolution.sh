@@ -13,10 +13,14 @@ COMMON="$REPO/claude/hooks/memory_common.sh"
 
 stage_tree() {
     # stage_tree <root> — real hook copy at <root>/claude/hooks + a symlink to it
-    # under <root>/link. Prints the symlink path to source.
+    # under <root>/link, plus the shared engine the hook sources (content-core +
+    # xml formatter) under <root>/scripts, mirroring a real install. Prints the
+    # symlink path to source.
     local root="$1"
-    mkdir -p "$root/claude/hooks" "$root/link"
+    mkdir -p "$root/claude/hooks" "$root/link" "$root/scripts/formatters"
     cp "$COMMON" "$root/claude/hooks/memory_common.sh"
+    cp "$REPO/scripts/content-core.sh" "$root/scripts/content-core.sh"
+    cp "$REPO/scripts/formatters/xml.sh" "$root/scripts/formatters/xml.sh"
     ln -s "$root/claude/hooks/memory_common.sh" "$root/link/memory_common.sh"
     printf '%s/link/memory_common.sh' "$root"
 }
