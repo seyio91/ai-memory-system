@@ -26,7 +26,7 @@ Claude never has to "remember to read" memory — it arrives in-band. Domain fil
 
 ## Hooks
 
-Three hooks, registered in `~/.claude/settings.json`. The scripts are symlinked from `claude/hooks/` by `install.sh`; `memory_common.sh` is sourced by the others, not registered.
+Three hooks, registered in `~/.claude/settings.json`. The scripts are symlinked from `harnesses/claude/hooks/` by `install.sh`; `memory_common.sh` is sourced by the others, not registered.
 
 | Hook | Event | Script | Effect |
 |------|-------|--------|--------|
@@ -34,7 +34,7 @@ Three hooks, registered in `~/.claude/settings.json`. The scripts are symlinked 
 | Session start | `SessionStart` | `hooks/session_start_memory.sh` | Full injection once on session load; on `source=compact` arms a sentinel so the next prompt re-injects (compaction recovery). |
 | Task-tool block | `PreToolUse` (matcher `TaskCreate\|TaskUpdate`) | `hooks/block_task_tools.sh` | Consumes stdin, writes the tier-classification reminder to stderr, `exit 2` — blocking the call. Forces all executable-work tracking into `projects/<active>/todo.md`. |
 
-The three entries to merge into `settings.json` ship in `claude/settings.hooks.json`:
+The three entries to merge into `settings.json` ship in `harnesses/claude/settings.hooks.json`:
 
 ```json
 {
@@ -117,7 +117,7 @@ The label resolves **three write zones**:
 
 Enforcement is harness-agnostic and *detective* (a post-run check, layered under the codex execpolicy which prevents the destructive class) — see `projects/ai-memory/plans/skill-subsystem.md` for the `tier` schema (#10), the `validate-skills.sh` static check (#4), and the post-run git-diff boundary check (#11).
 
-**Boundary enforcement (in-session).** `scripts/skill-boundary-check.sh` is the engine: `snapshot` a repo's git state before a skill runs, `check` after. The Claude trigger is two hooks (in `claude/settings.hooks.json`):
+**Boundary enforcement (in-session).** `scripts/skill-boundary-check.sh` is the engine: `snapshot` a repo's git state before a skill runs, `check` after. The Claude trigger is two hooks (in `harnesses/claude/settings.hooks.json`):
 - `skill_boundary_marker.sh` (PostToolUse:Skill) — when a `target-read-only` skill is invoked, captures a memory-repo baseline.
 - `skill_boundary_check.sh` (Stop) — at turn end, verifies the skill didn't write outside its own folder in the memory repo (scope `others-only`, so the orchestrator's own `memory.md`/`todo.md` edits don't count) and, if a target was registered, that the target repo is untouched. Exits 2 to surface a violation.
 

@@ -3,25 +3,26 @@
 # lets config.local.sh override it — the mechanism that makes the install dir the
 # memory dir, and a re-run after a move repoint it.
 #
-# Each case stages a fake tree <root>/claude/hooks/memory_common.sh (a real copy
-# of the hook) and sources it through a symlink in a *separate* dir, mimicking the
-# ~/.claude/hooks symlink install.sh creates. Resolution must land on <root>.
+# Each case stages a fake tree <root>/harnesses/claude/hooks/memory_common.sh (a
+# real copy of the hook) and sources it through a symlink in a *separate* dir,
+# mimicking the ~/.claude/hooks symlink install.sh creates. Resolution must land
+# on <root> — the hook self-locates its repo root three levels up.
 . "$(dirname "$0")/_assert.sh"
 
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
-COMMON="$REPO/claude/hooks/memory_common.sh"
+COMMON="$REPO/harnesses/claude/hooks/memory_common.sh"
 
 stage_tree() {
-    # stage_tree <root> — real hook copy at <root>/claude/hooks + a symlink to it
-    # under <root>/link, plus the shared engine the hook sources (content-core +
-    # xml formatter) under <root>/scripts, mirroring a real install. Prints the
-    # symlink path to source.
+    # stage_tree <root> — real hook copy at <root>/harnesses/claude/hooks + a
+    # symlink to it under <root>/link, plus the shared engine the hook sources
+    # (content-core + xml formatter) under <root>/scripts, mirroring a real
+    # install. Prints the symlink path to source.
     local root="$1"
-    mkdir -p "$root/claude/hooks" "$root/link" "$root/scripts/formatters"
-    cp "$COMMON" "$root/claude/hooks/memory_common.sh"
+    mkdir -p "$root/harnesses/claude/hooks" "$root/link" "$root/scripts/formatters"
+    cp "$COMMON" "$root/harnesses/claude/hooks/memory_common.sh"
     cp "$REPO/scripts/content-core.sh" "$root/scripts/content-core.sh"
     cp "$REPO/scripts/formatters/xml.sh" "$root/scripts/formatters/xml.sh"
-    ln -s "$root/claude/hooks/memory_common.sh" "$root/link/memory_common.sh"
+    ln -s "$root/harnesses/claude/hooks/memory_common.sh" "$root/link/memory_common.sh"
     printf '%s/link/memory_common.sh' "$root"
 }
 

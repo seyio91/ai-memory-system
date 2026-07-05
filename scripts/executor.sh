@@ -36,7 +36,7 @@ shq() { local s="${1:-}" sq="'" esc="'\\''"; s="${s//$sq/$esc}"; printf "'%s'" "
 run_cli() {
     local key="$1" prompt="$2" tmpl q cmd
     if [ "$key" = "codex" ]; then
-        exec "$SCRIPT_DIR/codex-mem.sh" --executor "$prompt" </dev/null
+        exec "$SCRIPT_DIR/../harnesses/codex/scripts/codex-mem.sh" --executor "$prompt" </dev/null
     fi
     tmpl="$(cmd_template "$key")"
     q="$(shq "$prompt")"

@@ -50,20 +50,20 @@ fi
 
 step "Hooks -> $CLAUDE_DIR/hooks"
 mkdir -p "$CLAUDE_DIR/hooks"
-for h in "$REPO_ROOT"/claude/hooks/*.sh; do
+for h in "$REPO_ROOT"/harnesses/claude/hooks/*.sh; do
     chmod +x "$h"
     link "$h" "$CLAUDE_DIR/hooks/$(basename "$h")"
 done
 
 step "Slash commands -> $CLAUDE_DIR/commands"
-if [ -d "$REPO_ROOT/claude/commands" ]; then bash "$REPO_ROOT/scripts/link-commands.sh" "$CLAUDE_DIR/commands" || info "link-commands.sh skipped/failed"; fi
+if [ -d "$REPO_ROOT/harnesses/claude/commands" ]; then bash "$REPO_ROOT/scripts/link-commands.sh" "$CLAUDE_DIR/commands" || info "link-commands.sh skipped/failed"; fi
 
 step "Status line -> $CLAUDE_DIR/statusline.sh"
-if [ -f "$REPO_ROOT/claude/statusline.sh" ]; then
-    chmod +x "$REPO_ROOT/claude/statusline.sh"
-    link "$REPO_ROOT/claude/statusline.sh" "$CLAUDE_DIR/statusline.sh"
+if [ -f "$REPO_ROOT/harnesses/claude/statusline.sh" ]; then
+    chmod +x "$REPO_ROOT/harnesses/claude/statusline.sh"
+    link "$REPO_ROOT/harnesses/claude/statusline.sh" "$CLAUDE_DIR/statusline.sh"
 else
-    info "no claude/statusline.sh in repo — skipping"
+    info "no harnesses/claude/statusline.sh in repo — skipping"
 fi
 
 step "Skills & agents"
@@ -101,10 +101,10 @@ cat <<EOF
 ==> Done. Two manual steps remain:
 
   1. Settings must be registered in $CLAUDE_DIR/settings.json. Merge the hook
-     entries and the statusLine from claude/settings.hooks.json into your settings file.
+     entries and the statusLine from harnesses/claude/settings.hooks.json into your settings file.
 
-  2. Workflow rules: review claude/CLAUDE.md, then either symlink or merge it:
-       ln -s "$REPO_ROOT/claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"   # if you have none
+  2. Workflow rules: review harnesses/claude/CLAUDE.md, then either symlink or merge it:
+       ln -s "$REPO_ROOT/harnesses/claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"   # if you have none
      (If you already have a ~/.claude/CLAUDE.md, merge by hand.)
 
   Then: edit identity.md, onboard a repo with '/pin <project>', and start a session.

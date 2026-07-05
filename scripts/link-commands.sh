@@ -2,10 +2,10 @@
 #
 # link-commands.sh — symlink canonical slash commands from the memory system
 # into an agent harness's commands directory. LLM/harness-agnostic: point it at
-# any runtime's commands dir and every command in memory/claude/commands/ gets
-# linked in.
+# any runtime's commands dir and every command in memory/harnesses/claude/commands/
+# gets linked in.
 #
-# Canonical store (source of truth): ~/.claude-memory/claude/commands/
+# Canonical store (source of truth): ~/.claude-memory/harnesses/claude/commands/
 # Each entry is a flat <name>.md file (the command body).
 #
 # Usage:
@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-COMMANDS_SRC="${COMMANDS_SRC:-$(cd "$(dirname "$0")/.." && pwd)/claude/commands}"
+COMMANDS_SRC="${COMMANDS_SRC:-$(cd "$(dirname "$0")/.." && pwd)/harnesses/claude/commands}"
 DRY_RUN=0
 TARGET=""
 

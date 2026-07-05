@@ -374,19 +374,27 @@ Claude hook output to be **byte-identical** to today (they touch the live inject
 - **Gate:** ✅ met — pre/post-refactor outputs diffed **byte-identical** (codex AGENTS.md, Claude
       full, Claude breadcrumb); suite **22/22 green**; live symlinked hook verified.
 
-### Phase 2 — Layout restructure (move, no logic change)
-- [ ] Create `harnesses/`; move `claude/` → `harnesses/claude/` (hooks, commands, CLAUDE.md,
+### Phase 2 — Layout restructure (move, no logic change) — ✅ DONE 2026-07-05
+- [x] Create `harnesses/`; move `claude/` → `harnesses/claude/` (hooks, commands, CLAUDE.md,
       statusline.sh, settings.hooks.json) and the Codex assets (`codex-mem.sh` +
-      `codex-mem-checkpoint.sh` + AGENTS handling) → `harnesses/codex/scripts/`.
-- [ ] **Audit `scripts/` against the placement rule** (shared-only): relocate any harness-specific
-      script to `harnesses/<name>/scripts/`. Known movers: `codex-mem.sh`, `codex-mem-checkpoint.sh`
-      → `harnesses/codex/scripts/`. Update every caller/path ref (`sync-system.sh`, `codex-mem*`
-      cross-refs, `run-tests.sh` discovery, docs).
-- [ ] Fix `memory_common.sh` `MEMORY_DIR` self-location (symlink parent is now **three** levels up,
-      not two) + its test.
-- [ ] Update `.gitignore` tracked-path carve-outs (`claude/` → `harnesses/`), `install.sh` symlink
-      sources, `link-skills.sh`/`link-agents.sh`, and the docs paths (`docs/install.md`, `docs/harnesses/*`).
-- **Gate:** full suite green after the move; a clean `install.sh` still wires Claude + Codex identically.
+      `codex-mem-checkpoint.sh`) → `harnesses/codex/scripts/` (via `git mv`).
+- [x] **Audited `scripts/` (shared-only):** only `codex-mem.sh` + `codex-mem-checkpoint.sh` were
+      harness-specific → moved. Both now source the shared engine from `../../../scripts` (`_lib.sh`,
+      `content-core.sh`, `formatters/md.sh`). Callers updated: `executor.sh` (codex path →
+      `../harnesses/codex/scripts/`), `test_codex_mem.sh` + `test_codex_agents_golden.sh` invocations.
+      `sync-system.sh` needed nothing (it just calls `install.sh`); `run-tests.sh` discovery unaffected
+      (tests stayed in `scripts/tests/`).
+- [x] Fixed `memory_common.sh` `MEMORY_DIR` self-location (`../..` → `../../..`; hook is now three
+      levels deep) + `test_memory_dir_resolution.sh` `stage_tree` (mirrors `harnesses/claude/hooks/`).
+      `test_skill_boundary_hooks.sh` path updated too.
+- [x] `install.sh` symlink sources → `harnesses/claude/{hooks,commands,statusline.sh}` + manual-step
+      text; `link-commands.sh` `COMMANDS_SRC` → `harnesses/claude/commands`; `config.local.sh.example`
+      comments. **`.gitignore` needed no change** (it had no `claude/` carve-out — the dir was tracked
+      implicitly; `.claude/` with a dot is the unrelated runtime marker). `link-agents.sh` unaffected
+      (`agents/` stays at root). Docs path-refs swept (delegated).
+- **Gate:** ✅ met — full suite **22/22 green**; sandbox `install.sh` wires all hooks/commands/
+      statusline from the new layout (targets resolve); live `~/.claude` repointed + hook and
+      `codex-mem.sh` verified working.
 
 ### Phase 3 — Manifest + archetype drivers + installer engine
 - [ ] Define the manifest schema with **two capability faces**: **deliver** (`archetype`, `format`,

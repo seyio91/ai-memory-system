@@ -16,7 +16,7 @@ _**Shipped 2026-07-02** — PRs #12–#15; task 391f6850 done; plan archived. Ca
 ### Make memory engine harness-agnostic → [plan](plans/make-memory-engine-harness-agnostic.md)
 _Design approved 2026-07-02. Behavior-preserving refactors (P1–2) before new capability (P3–5); each phase gates on `run-tests.sh` green._
 - [x] Phase 1 — content core extraction (content-core.sh + xml/md formatters; rewire Claude+Codex; golden tests) _(byte-identical verified; suite 22/22)_
-- [ ] Phase 2 — layout restructure (`claude/`→`harnesses/claude/`, Codex→`harnesses/codex/`; fix MEMORY_DIR depth; .gitignore/install paths)
+- [x] Phase 2 — layout restructure (`claude/`→`harnesses/claude/`, Codex→`harnesses/codex/scripts/`; MEMORY_DIR depth `../../..`; install/link/executor/test paths) _(suite 22/22; live install repointed + verified)_
 - [ ] Phase 3 — manifest + archetype drivers (hook/file) + `install.sh` engine (`--harness` + auto-detect)
 - [ ] Phase 4 — skills fan-out (manifest `skills_dir`) + commands surface (native/doc/none)
 - [ ] Phase 5 — prove new harness: **Antigravity** (both faces — AGENTS.md install + `agy -p` executor; Cursor `.mdc` as override example) + agent-runnable install from Codex; docs + reverse no-bootstrap non-goal
