@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # inject_memory.sh (UserPromptSubmit) contract:
-#   - project resolves ONLY by walking cwd up to a .claude/memory-project marker
-#     (no .active_project global fallback).
+#   - project resolves ONLY by walking cwd up to a .agents/memory-project marker
+#     (legacy .claude/memory-project still resolves via fallback; no .active_project global).
 #   - plain prompt + project  -> tiny <memory:active ...> breadcrumb
 #   - "@memory" prompt + project -> full payload (identity + project + index + working)
 #   - no marker (any prompt)   -> silent (generic Claude, memory system dormant)
@@ -33,8 +33,8 @@ printf '# Working\n\nSCRATCH-LINE\n' > "$MEM/projects/proj/working.md"
 printf 'stale-global\n' > "$MEM/.active_project"
 
 # Marked repo with a nested working dir to exercise upward traversal.
-mkdir -p "$REPO/.claude" "$REPO/sub/deep"
-printf 'proj\n' > "$REPO/.claude/memory-project"
+mkdir -p "$REPO/.agents" "$REPO/sub/deep"
+printf 'proj\n' > "$REPO/.agents/memory-project"
 
 valid_json() { # valid_json <file> <label>
     if command -v python3 >/dev/null 2>&1; then
@@ -72,6 +72,12 @@ assert_eq "" "$(cat "$out")" "no marker: plain prompt silent"
 # --- no marker, @memory -> still silent (no project = no memory) ---
 bash "$HOOK" > "$out" <<<'{"prompt":"reload @memory","cwd":"/tmp"}'
 assert_eq "" "$(cat "$out")" "no marker: @memory silent"
+
+# --- legacy .claude/memory-project still resolves via the hook's fallback ---
+LEG="$(new_sandbox)"; mkdir -p "$LEG/x"; mkdir -p "$LEG/.claude"; printf 'proj\n' > "$LEG/.claude/memory-project"
+bash "$HOOK" > "$out" <<<"{\"prompt\":\"hi\",\"cwd\":\"$LEG/x\"}"
+assert_contains "$(cat "$out")" '<memory:active project=\"proj\"' "legacy .claude marker resolves (hook fallback)"
+rm -rf "$LEG"
 
 # --- breadcrumb carries memory-file paths + reload directive ---
 bash "$HOOK" > "$out" <<<"{\"prompt\":\"hi\",\"cwd\":\"$REPO\",\"session_id\":\"s1\"}"

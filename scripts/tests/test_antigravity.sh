@@ -20,7 +20,7 @@ summary: proj summary
 ---
 # Project: proj
 EOF
-WORK="$MEM/work"; mkdir -p "$WORK/.claude"; printf 'proj\n' > "$WORK/.claude/memory-project"
+WORK="$MEM/work"; mkdir -p "$WORK/.agents"; printf 'proj\n' > "$WORK/.agents/memory-project"
 
 # Stub agy that records its args.
 CAP="$BIN/agy-args"

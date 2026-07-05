@@ -51,8 +51,14 @@ set +e
 out=$(cd "$CO" && bash "$PIN" proj 2>&1); code=$?
 set -e
 assert_exit 0 "$code" "pin exits 0"
-assert_file "$CO/.claude/memory-project" "forward marker written"
-assert_eq "proj" "$(cat "$CO/.claude/memory-project")" "forward marker names project"
+assert_file "$CO/.agents/memory-project" "forward marker written (neutral path)"
+assert_eq "proj" "$(cat "$CO/.agents/memory-project")" "forward marker names project"
+
+# --- legacy .claude marker is migrated away on pin ---
+mkdir -p "$CO/.claude"; printf 'proj\n' > "$CO/.claude/memory-project"
+out=$(cd "$CO" && bash "$PIN" proj 2>&1) || true
+assert_file "$CO/.agents/memory-project" "re-pin keeps neutral marker"
+[ ! -f "$CO/.claude/memory-project" ] && _ok "legacy .claude marker removed on pin" || _bad "legacy .claude marker removed on pin"
 assert_eq "$URL" "$(extract_fm_field "$MF" repo)" "frontmatter repo = origin url"
 assert_eq "mycode" "$(extract_fm_field "$MF" repo_path)" "frontmatter repo_path = root-relative"
 assert_contains "$(cat "$MF")" "BODY-SENTINEL-LINE" "body preserved"

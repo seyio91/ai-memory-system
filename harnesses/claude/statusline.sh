@@ -3,9 +3,9 @@
 # Line 1: model · dir · git branch · active memory project
 # Line 2: context-window usage bar + percentage + session cost
 #
-# The "memory project" is resolved with the SAME fallback chain the memory
-# hook uses (walk up for .claude/memory-project, then .active_project) by
-# sourcing the ai-memory _lib.sh helper.
+# The "memory project" is resolved the SAME way the memory hook does (walk up
+# for .agents/memory-project, then the legacy .claude/memory-project) by sourcing
+# the ai-memory _lib.sh helper.
 set -uo pipefail
 
 input="$(cat)"

@@ -8,13 +8,13 @@ One slash command in Claude does the whole thing:
 /new-project acme-migration
 ```
 
-`/new-project` scaffolds `projects/acme-migration/` from `_template`, **asks for the repo's absolute path and places the `.claude/memory-project` marker there itself** (so the project is pinned — no separate `/pin` step), then interviews you section-by-section to fill `memory.md`. Leave the path blank to skip pinning and scaffold only.
+`/new-project` scaffolds `projects/acme-migration/` from `_template`, **asks for the repo's absolute path and places the `.agents/memory-project` marker there itself** (so the project is pinned — no separate `/pin` step), then interviews you section-by-section to fill `memory.md`. Leave the path blank to skip pinning and scaffold only.
 
 **Manual equivalent (Two-Path).** The raw script is scaffold-only; do the marker by hand:
 
 ```bash
 ~/.claude-memory/scripts/new-project.sh acme-migration
-cd ~/code/acme-migration && mkdir -p .claude && echo acme-migration > .claude/memory-project
+cd ~/code/acme-migration && mkdir -p .agents && echo acme-migration > .agents/memory-project
 ```
 
 ## Re-pin when the checkout moves
@@ -25,7 +25,7 @@ cd ~/code/acme-migration && mkdir -p .claude && echo acme-migration > .claude/me
 /pin acme-migration
 ```
 
-`/pin` (`memory-pin.sh`) writes **both directions**: the forward `.claude/memory-project` marker *and* the reverse `repo`/`repo_path` frontmatter in `memory.md` (which powers cross-project code resolution — see [Reverse map](install.md#reverse-map-project--checkout)). That reverse half is why `/pin` — not just the plain marker — is the right tool when a location changes.
+`/pin` (`memory-pin.sh`) writes **both directions**: the forward `.agents/memory-project` marker *and* the reverse `repo`/`repo_path` frontmatter in `memory.md` (which powers cross-project code resolution — see [Reverse map](install.md#reverse-map-project--checkout)). That reverse half is why `/pin` — not just the plain marker — is the right tool when a location changes.
 
 Manual equivalent:
 
@@ -87,7 +87,7 @@ For deeper cleanup (dedup, merge, split files): tell Claude "reorganize memory" 
 |---------|-------------|
 | Memory not injected in Claude session | Hook didn't fire. Check `~/.claude/settings.json` registers it and `~/.claude/hooks/inject_memory.sh` is executable. Confirm output is `hookSpecificOutput.additionalContext` JSON. Working memory only injects when non-empty. |
 | Identity re-injected every prompt | The per-session marker isn't being written. Confirm `~/.claude/memory_sessions/` is writable and the hook can parse `session_id` from stdin. |
-| Codex doesn't see project memory | `codex-mem.sh` couldn't resolve the project. Pin the repo with `.claude/memory-project` (launch from inside the repo tree). |
+| Codex doesn't see project memory | `codex-mem.sh` couldn't resolve the project. Pin the repo with `.agents/memory-project` (launch from inside the repo tree). |
 | Cross-project delegate (Codex) sees the wrong project | A `codex-mem.sh` executor resolves `AGENTS.md` from the *active* project. Pin the sibling repo before launching, or pass the sibling `memory.md` path in the prompt. |
 | `~/.codex/AGENTS.md` looks stale | It's only regenerated when you launch via `codex-mem.sh`. Plain `codex` reads the existing file as-is. |
 | Local Codex instructions vanished | You edited `~/.codex/AGENTS.md` (generated, overwritten). Move your additions to `~/.codex/AGENTS.local.md`. |

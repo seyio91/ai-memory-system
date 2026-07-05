@@ -4,7 +4,7 @@ Argument: `$ARGUMENTS` — optional one-line slug describing what the rolled bat
 
 **Auto-suggest:** if `$ARGUMENTS` is empty, before asking the user, scan `~/.claude-memory/projects/<active>/todo.md` for `plans/<name>.md` references. If exactly one unique plan is referenced, derive the slug from that filename (strip a trailing `-plan` suffix if present) and use it without asking. If zero or multiple distinct plans are referenced, fall back to asking the user.
 
-Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.claude/memory-project`).
+Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`).
 
 Step 2 — sanity check. Read `~/.claude-memory/projects/<active>/todo.md`. Confirm to the user:
 - How many items are checked vs. unchecked.

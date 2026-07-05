@@ -2,7 +2,7 @@ Promote one or more learnings from the active project's `working.md` into either
 
 Use today's actual date (from `<memory:identity>` injection context) for all entries — do not invent.
 
-Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.claude/memory-project`).
+Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`).
 
 Step 2 — read `~/.claude-memory/projects/<active>/working.md`. If empty (or only the `_(none yet)_` placeholder under "Cross-project learnings"), abort and tell the user there's nothing to promote.
 

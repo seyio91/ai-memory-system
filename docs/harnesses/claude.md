@@ -65,8 +65,8 @@ All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips
 
 | Command | Purpose |
 |---------|---------|
-| `/new-project <name>` | Copy `_template` into `projects/<name>`, prompt for the repo's absolute path and place the `.claude/memory-project` marker there (pins the project — no separate `/pin` needed), then interview to fill `memory.md`. Blank path → scaffold only. |
-| `/pin <name> [--category <client>]` | (Re)pin — needed when the checkout **location changes** or to pin an already-scaffolded project. From inside a checkout, runs `memory-pin.sh <name>` — writes the forward `.claude/memory-project` marker **and** the reverse `repo`/`repo_path` frontmatter. `--category <client>` also sets the project's (personal, gitignored) `category:` |
+| `/new-project <name>` | Copy `_template` into `projects/<name>`, prompt for the repo's absolute path and place the `.agents/memory-project` marker there (pins the project — no separate `/pin` needed), then interview to fill `memory.md`. Blank path → scaffold only. |
+| `/pin <name> [--category <client>]` | (Re)pin — needed when the checkout **location changes** or to pin an already-scaffolded project. From inside a checkout, runs `memory-pin.sh <name>` — writes the forward `.agents/memory-project` marker **and** the reverse `repo`/`repo_path` frontmatter (readers check `.agents/memory-project` first, fall back to the legacy `.claude/memory-project`; migrate with `scripts/migrate-marker.sh`). `--category <client>` also sets the project's (personal, gitignored) `category:` |
 | `/checkpoint` | Synthesize task/done/next/blockers from session context (no questions); append a dated entry to `## Checkpoints` in `working.md` |
 | `/new-plan <name>` | Scaffold a new plan file in `projects/<active>/plans/` with frontmatter and a required `## Success criteria` section (the [Task Contract](../workflow.md#task-contract)). Renamed from `/plan` to avoid colliding with the native `/plan` plan-mode command. |
 | `/plan-done <name>` | Flip a plan's `status:` to `done` and stamp `completed:` date |

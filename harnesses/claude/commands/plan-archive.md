@@ -2,7 +2,7 @@ Move a completed plan from `plans/` to `archive/plans/` in the active project.
 
 Argument: `$ARGUMENTS` — the plan slug (filename without `.md` extension).
 
-Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.claude/memory-project`).
+Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`).
 
 Step 2 — verify the plan exists at `~/.claude-memory/projects/<active>/plans/$ARGUMENTS.md`. If not, abort with the path and a hint to check `ls plans/`.
 

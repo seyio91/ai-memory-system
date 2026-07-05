@@ -1,8 +1,8 @@
 Run `bash ~/.claude-memory/scripts/new-project.sh $ARGUMENTS` and confirm it succeeds.
 
-Ask: "What is the absolute path to the project repo? I'll place a `.claude/memory-project` marker there so any Claude session opened in that directory auto-loads this project context. Leave blank to skip."
+Ask: "What is the absolute path to the project repo? I'll place a `.agents/memory-project` marker there so any Claude session opened in that directory auto-loads this project context. Leave blank to skip."
 
-If a path is provided, run `mkdir -p <path>/.claude && echo "$ARGUMENTS" > <path>/.claude/memory-project` and confirm the marker was created.
+If a path is provided, run `mkdir -p <path>/.agents && echo "$ARGUMENTS" > <path>/.agents/memory-project` and confirm the marker was created.
 
 Ask: "What client/category does this project belong to? This groups it under a client for `/state` and `/activity`. It is **personal** (stays gitignored). Leave blank for none."
 

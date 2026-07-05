@@ -29,11 +29,20 @@ assert_eq "" "$(extract_fm_field "$MEM/plain.md" topic)" "extract_fm_field no-fm
 printf 'stale-global\n' > "$MEM/.active_project"
 assert_eq "" "$(detect_active_project "$MEM/projects")" "global .active_project ignored (no fallback)"
 
-# --- detect_active_project: in-repo marker resolved by walking up ---
+# --- detect_active_project: neutral .agents marker resolved by walking up ---
 REPO="$MEM/repo/sub"
-mkdir -p "$REPO/.git" "$MEM/repo/.claude"
-printf 'pinned-proj\n' > "$MEM/repo/.claude/memory-project"
-assert_eq "pinned-proj" "$(detect_active_project "$REPO")" "marker resolved (walks up)"
+mkdir -p "$REPO/.git" "$MEM/repo/.agents"
+printf 'pinned-proj\n' > "$MEM/repo/.agents/memory-project"
+assert_eq "pinned-proj" "$(detect_active_project "$REPO")" "neutral marker resolved (walks up)"
+
+# --- legacy .claude marker still resolves (back-compat fallback) ---
+LEG="$(new_sandbox)"; mkdir -p "$LEG/deep/.git" "$LEG/.claude"
+printf 'legacy-proj\n' > "$LEG/.claude/memory-project"
+assert_eq "legacy-proj" "$(detect_active_project "$LEG/deep")" "legacy .claude marker resolves (fallback)"
+# --- when both exist at the same level, the neutral marker wins ---
+mkdir -p "$LEG/.agents"; printf 'neutral-proj\n' > "$LEG/.agents/memory-project"
+assert_eq "neutral-proj" "$(detect_active_project "$LEG/deep")" "neutral marker wins over legacy"
+rm -rf "$LEG"
 
 # --- detect_active_project: none ---
 rm -f "$MEM/.active_project"

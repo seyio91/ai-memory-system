@@ -25,13 +25,19 @@ skills_with_partial() {
 }
 
 # detect_active_project — print active project name to stdout, or empty.
-# Walks up from $1 (defaults to cwd) looking for .claude/memory-project. No
-# marker -> empty: no global fallback, the project is whichever repo you are in.
+# Walks up from $1 (defaults to cwd) looking for the harness-neutral marker
+# .agents/memory-project, falling back to the legacy .claude/memory-project (pre-
+# Phase-6 pins) at the same level. No marker -> empty: no global fallback, the
+# project is whichever repo you are in. Nearest marker wins (per-level check).
 detect_active_project() {
     local start_dir="${1:-$PWD}"
     local dir="$start_dir"
     while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-        if [ -f "$dir/.claude/memory-project" ]; then
+        if [ -f "$dir/.agents/memory-project" ]; then
+            tr -d '[:space:]' < "$dir/.agents/memory-project"
+            return 0
+        fi
+        if [ -f "$dir/.claude/memory-project" ]; then   # legacy fallback
             tr -d '[:space:]' < "$dir/.claude/memory-project"
             return 0
         fi

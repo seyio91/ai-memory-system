@@ -123,9 +123,15 @@ for f in "$MEMORY_DIR"/projects/*/memory.md; do
         emit "WARN:  $f repo_path resolves to missing dir: $cand"
         continue
     fi
-    pin="$cand/.claude/memory-project"
+    # Prefer the harness-neutral marker; a legacy .claude one still counts but
+    # gets a migration nudge (the deprecation warning lives here, off the hot path).
+    pin="$cand/.agents/memory-project"
+    if [ ! -f "$pin" ] && [ -f "$cand/.claude/memory-project" ]; then
+        emit "WARN:  $cand still uses legacy .claude/memory-project — migrate with memory-pin.sh $project"
+        pin="$cand/.claude/memory-project"
+    fi
     if [ ! -f "$pin" ]; then
-        emit "WARN:  $cand missing .claude/memory-project back-pin (run memory-pin.sh $project)"
+        emit "WARN:  $cand missing .agents/memory-project back-pin (run memory-pin.sh $project)"
         continue
     fi
     backpin=$(head -n1 "$pin" | tr -d '[:space:]')

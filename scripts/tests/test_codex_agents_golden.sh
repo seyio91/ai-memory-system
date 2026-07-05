@@ -24,7 +24,7 @@ summary: proj summary
 # Project: proj
 EOF
 printf '# Working\n\nactive scratch\n' > "$MEM/projects/proj/working.md"
-WORK="$MEM/work"; mkdir -p "$WORK/.claude"; printf 'proj\n' > "$WORK/.claude/memory-project"
+WORK="$MEM/work"; mkdir -p "$WORK/.agents"; printf 'proj\n' > "$WORK/.agents/memory-project"
 
 # Stub codex (build path only; we never exec the real thing).
 cat > "$BIN/codex" <<'EOF'
