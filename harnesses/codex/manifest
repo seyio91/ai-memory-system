@@ -1,0 +1,19 @@
+# Codex CLI — delivery + execute manifest.
+# file archetype: materialize ~/.codex/AGENTS.md, rebuilt on each launch by the
+# wrapper (harnesses/codex/scripts/codex-mem.sh); md format.
+name           = codex
+archetype      = file
+format         = md
+context_target = ~/.codex/AGENTS.md
+refresh        = launch
+
+# Forward-declared delivery surfaces. The generic per-manifest fan-out (skills
+# into ~/.agents/skills; command bodies delivered AS skills) lands in Phase 4;
+# the Phase-3 engine reports them deferred rather than wiring them.
+skills_dir     = ~/.agents/skills
+commands       = skill
+
+# execute face: headless Codex. {prompt}/{model} are substituted by executor.sh.
+exec_cmd        = codex exec {prompt}
+exec_model_flag = --model {model}
+exec_readonly   = codex exec --sandbox read-only {prompt}
