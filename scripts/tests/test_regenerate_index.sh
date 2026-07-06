@@ -21,6 +21,15 @@ summary: A real project summary
 EOF
 : > "$MEM/projects/realproj/working.md"
 
+# Domain scaffold must be excluded like the project scaffold is.
+cat > "$MEM/domain/_template.md" <<'EOF'
+---
+topic: <topic>
+triggers: [<keyword>]
+summary: <one-line description>
+---
+EOF
+
 # Put a sentinel outside the fence to verify preservation.
 printf '# Index\n\nSENTINEL-PRESERVE-ME\n\n<!-- BEGIN AUTOGEN -->\n<!-- END AUTOGEN -->\n' > "$MEM/index.md"
 
@@ -33,6 +42,7 @@ assert_contains     "$first" "A real project summary"         "lists project sum
 assert_not_contains "$first" "projects/realproj/memory.md"    "project file path NOT in index"
 assert_not_contains "$first" "Working memory"                 "Working-memory section removed"
 assert_not_contains "$first" "/_template/"                    "excludes _template"
+assert_not_contains "$first" "<topic>"                        "excludes domain/_template.md scaffold"
 # Domain table is path-less now: topic + triggers + summary, but no file path.
 assert_contains     "$first" "terraform"                      "lists domain topic"
 assert_not_contains "$first" "domain/terraform.md"            "domain file path NOT in index (derive domain/<topic>.md)"
