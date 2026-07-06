@@ -39,6 +39,7 @@ emit_autogen() {
     printf '|-------|----------|---------|\n'
     if [ -d "$MEMORY_DIR/domain" ]; then
         for f in $(find "$MEMORY_DIR/domain" -maxdepth 1 -type f -name '*.md' | sort); do
+            case "$f" in */_template.md) continue;; esac
             topic=$(extract_fm_field "$f" "topic")
             triggers=$(extract_fm_field "$f" "triggers")
             summary=$(extract_fm_field "$f" "summary")
