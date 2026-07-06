@@ -173,6 +173,11 @@ case "$MODE" in
         fi
         q="$(shq "$PROMPT")"
         cmd="${R_CMD//\{prompt\}/$q}"
+        # Advertise the role to the executor process (and any hooks it spawns) so a
+        # hook-capable harness can enforce it — e.g. the Antigravity PreToolUse guard
+        # applies the deny-list for both roles and denies writes when explore. Unset
+        # for interactive sessions, which stay unguarded.
+        export AI_MEMORY_ROLE="$ROLE"
         eval "exec ${cmd} </dev/null"
         ;;
     --show)

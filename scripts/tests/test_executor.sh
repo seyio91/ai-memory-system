@@ -156,10 +156,11 @@ mk_manifest gone 'name = gone' 'archetype = file' 'format = md' \
 mk_manifest md1  'name = md1' 'archetype = file' 'format = md' \
     'exec_cmd = $MEMORY_DIR/x {prompt}' 'exec_probe = wwbin'
 
-WMARK="$BIN/ww-ran.txt"
+WMARK="$BIN/ww-ran.txt"; RMARK="$BIN/ww-role.txt"
 cat > "$BIN/wwbin" <<EOF
 #!/usr/bin/env bash
 printf '%s' "\$*" > "$WMARK"
+printf '%s' "\${AI_MEMORY_ROLE:-<unset>}" > "$RMARK"
 exit 0
 EOF
 printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/ttbin"
@@ -223,6 +224,18 @@ assert_exit 0 "$CODE" "--run manifest harness exits 0 via stub"
 args="$(cat "$WMARK")"
 assert_contains "$args" "hello world" "--run passes the prompt to the harness command"
 assert_contains "$args" "--model m9"  "--run threads the model flag"
+# --run exports AI_MEMORY_ROLE so a hook-capable harness can enforce it
+assert_eq "task" "$(cat "$RMARK")" "--run (task) exports AI_MEMORY_ROLE=task"
+
+# explore --run uses exec_readonly AND advertises the explore role
+unset AI_MEMORY_EXECUTOR_TASK
+export AI_MEMORY_EXECUTOR_EXPLORE="ww"
+run --role explore --run "scout the tree"
+assert_exit 0 "$CODE" "--run explore exits 0 via stub"
+args="$(cat "$WMARK")"
+assert_contains "$args" "--ro" "--run explore uses exec_readonly (wwbin --ro)"
+assert_eq "explore" "$(cat "$RMARK")" "--run (explore) exports AI_MEMORY_ROLE=explore"
+unset AI_MEMORY_EXECUTOR_EXPLORE
 export PATH="$OLDPATH"
 
 finish

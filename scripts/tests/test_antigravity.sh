@@ -94,4 +94,46 @@ if command -v python3 >/dev/null 2>&1; then
     fi
 fi
 
+# ================= PreToolUse guard (pretooluse.sh) =================
+GUARD="$REPO/harnesses/antigravity/hooks/pretooluse.sh"
+
+# guard <role> <toolName> <commandLine> ; sets OUT (AI_MEMORY_ROLE empty => unset)
+guard() {
+    local role="$1" name="$2" cmd="$3" payload
+    payload="$(printf '{"toolCall":{"name":"%s","args":{"CommandLine":"%s"}}}' "$name" "$cmd")"
+    if [ -n "$role" ]; then
+        OUT="$(printf '%s' "$payload" | AI_MEMORY_ROLE="$role" bash "$GUARD")"
+    else
+        OUT="$(printf '%s' "$payload" | env -u AI_MEMORY_ROLE bash "$GUARD")"
+    fi
+}
+denied()  { case "$1" in *'"decision":"deny"'*)  _ok "$2" ;; *) _bad "$2 (got: $1)" ;; esac; }
+allowed() { case "$1" in *'"decision":"allow"'*) _ok "$2" ;; *) _bad "$2 (got: $1)" ;; esac; }
+
+# interactive (no AI_MEMORY_ROLE) -> unguarded, everything allowed
+guard "" run_command "terraform apply -auto-approve"; allowed "$OUT" "no role: interactive unguarded (allows terraform apply)"
+guard "" write_to_file "";                            allowed "$OUT" "no role: interactive unguarded (allows a write tool)"
+
+# deny-list applies in BOTH roles, matched on the CommandLine
+for c in "terraform apply" "terraform destroy" "kubectl apply -f x.yaml" "kubectl delete ns foo" \
+         "helm install a b" "helm upgrade a b" "gh pr merge 12" "bkt pr merge" "az repos pr update --status completed"; do
+    guard task run_command "$c"; denied "$OUT" "task deny-list blocks: $c"
+done
+
+# task role: benign shell is allowed
+guard task run_command "ls -la && git log --oneline"; allowed "$OUT" "task: benign run_command allowed"
+guard task write_to_file "";                          allowed "$OUT" "task: write tool allowed (task is write-capable)"
+
+# explore role: read-only allowlist — reads allowed, everything else denied
+guard explore view_file "";        allowed "$OUT" "explore: view_file allowed"
+guard explore grep_search "";      allowed "$OUT" "explore: grep_search allowed"
+guard explore list_dir "";         allowed "$OUT" "explore: list_dir allowed (live tool name)"
+guard explore run_command "ls";    denied  "$OUT" "explore: run_command denied (no shell in read-only)"
+guard explore write_to_file "";    denied  "$OUT" "explore: write_to_file denied"
+guard explore create_file "";      denied  "$OUT" "explore: create_file denied"
+guard explore some_unknown_tool ""; denied "$OUT" "explore: unknown tool denied (allowlist fails safe)"
+
+# explore deny-list still blocks destructive shell even though run_command is denied anyway
+guard explore run_command "kubectl apply -f x"; denied "$OUT" "explore: destructive shell denied"
+
 finish

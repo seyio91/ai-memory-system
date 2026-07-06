@@ -184,7 +184,20 @@ answered `ai-memory` + `Platform / Kubernetes Engineer` purely from the injected
 - Flip `harnesses/antigravity/manifest` to `archetype = hook`.
 - Tests (hermetic hook I/O: full on `invocationNum==0`, breadcrumb after; env-based project resolution).
 
-### Phase 2 — PreToolUse guard (enforcement) + exec_readonly
+### Phase 2 — PreToolUse guard (enforcement) + exec_readonly — ✅ done
+Shipped: `harnesses/antigravity/hooks/pretooluse.sh` (self-gates on `AI_MEMORY_ROLE`; layer 1 = shared
+deny-list matched on `CommandLine` for both roles; layer 2 = read-only **allowlist** for explore — chosen
+over deny-by-name because live tool names drift, so allow-by-name fails safe), `scripts/deny-list.txt`
+(shared shipped artifact: terraform/kubectl apply, gh/bkt/az merge, helm), `jsonutil.sh` gained
+`json_get_path` (nested `toolCall.args.CommandLine`). `executor.sh` exports `AI_MEMORY_ROLE=$ROLE` before
+`exec` (interactive stays unguarded). Manifest gained `exec_readonly` (= same `agy -p`; the guard enforces
+read-only) + `guard_script`; the `hook` driver now registers **both** `ai-memory-inject` (PreInvocation)
+and `ai-memory-guard` (PreToolUse, matcher `*`). Antigravity is now a real `explore` executor.
+**Verified:** suite 27/27 (38 guard/inject assertions in test_antigravity; executor role-export tests);
+guard exercised against agy's exact live PreToolUse payload shape — task→deny `terraform apply`,
+explore→deny shell, explore→allow `view_file`, interactive→allow. (Full agy round-trip deny was proven in
+Phase 0; a live full-session run is slow because the model re-plans after each denial — decision logic is
+identical to the unit-covered path.)
 - Guard script + shared deny-list artifact; `AI_MEMORY_ROLE`-gated (deny-list always; write-deny on explore).
 - `executor.sh` sets `AI_MEMORY_ROLE` on launch; Antigravity manifest gains `exec_readonly`; `test_executor.sh`
   reflects Antigravity as a valid `explore` executor.

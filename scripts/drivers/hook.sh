@@ -48,25 +48,28 @@ _hook_install_scripts() {
     fi
 }
 
-# _hook_register_json <hooks_json> — Antigravity style: register a namespaced
-# PreInvocation entry running hook_script into the JSON hooks file. Idempotent
-# merge via python3 (preserves any other hooks); if python3 is absent, write a new
-# file wholesale, or (file already exists) defer to a manual merge note.
+# _hook_register_json <hooks_json> — Antigravity style: register namespaced hook
+# entries into the JSON hooks file — a PreInvocation entry (hook_script, memory
+# injection) and, if the manifest declares guard_script, a PreToolUse entry (the
+# executor-only enforcement guard, matcher "*"). Idempotent merge via python3
+# (preserves any other hooks + only touches our two keys); if python3 is absent,
+# write a new file wholesale, or (file already exists) defer to a manual merge note.
 _hook_register_json() {
-    local hooks_json="$1" hs cmd
-    hs="$(manifest_get "$MANIFEST" hook_script)"
-    hs="${hs//\$MEMORY_DIR/$MEMORY_DIR}"
+    local hooks_json="$1" hs gs
+    hs="$(manifest_get "$MANIFEST" hook_script)"; hs="${hs//\$MEMORY_DIR/$MEMORY_DIR}"
+    gs="$(manifest_get "$MANIFEST" guard_script)"; gs="${gs//\$MEMORY_DIR/$MEMORY_DIR}"
     [ -n "$hs" ] || { info "hooks_json set but no hook_script in manifest — nothing to register"; return; }
     chmod +x "$hs" 2>/dev/null || true
-    cmd="bash $hs"
+    [ -n "$gs" ] && chmod +x "$gs" 2>/dev/null || true
 
-    step "PreInvocation hook -> $hooks_json"
+    step "Hooks -> $hooks_json"
     mkdir -p "$(dirname "$hooks_json")"
     if command -v python3 >/dev/null 2>&1; then
-        AIM_HOOKS_JSON="$hooks_json" AIM_HOOK_CMD="$cmd" python3 - <<'PY'
+        AIM_HOOKS_JSON="$hooks_json" AIM_INJECT_CMD="bash $hs" AIM_GUARD_CMD="${gs:+bash $gs}" python3 - <<'PY'
 import json, os
 path = os.environ["AIM_HOOKS_JSON"]
-cmd  = os.environ["AIM_HOOK_CMD"]
+inject = os.environ["AIM_INJECT_CMD"]
+guard  = os.environ.get("AIM_GUARD_CMD", "")
 try:
     with open(path) as f:
         data = json.load(f)
@@ -74,17 +77,28 @@ try:
         data = {}
 except Exception:
     data = {}
-data["ai-memory-inject"] = {"PreInvocation": [{"type": "command", "command": cmd}]}
+data["ai-memory-inject"] = {"PreInvocation": [{"type": "command", "command": inject}]}
+if guard:
+    data["ai-memory-guard"] = {"PreToolUse": [
+        {"matcher": "*", "hooks": [{"type": "command", "command": guard}]}
+    ]}
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
-        info "registered PreInvocation 'ai-memory-inject' -> $cmd"
+        info "registered PreInvocation 'ai-memory-inject' -> bash $hs"
+        [ -n "$gs" ] && info "registered PreToolUse  'ai-memory-guard'  -> bash $gs"
     elif [ ! -e "$hooks_json" ]; then
-        printf '{\n  "ai-memory-inject": {\n    "PreInvocation": [\n      { "type": "command", "command": "%s" }\n    ]\n  }\n}\n' "$cmd" > "$hooks_json"
+        {
+            printf '{\n  "ai-memory-inject": {\n    "PreInvocation": [\n      { "type": "command", "command": "bash %s" }\n    ]\n  }' "$hs"
+            if [ -n "$gs" ]; then
+                printf ',\n  "ai-memory-guard": {\n    "PreToolUse": [\n      { "matcher": "*", "hooks": [ { "type": "command", "command": "bash %s" } ] }\n    ]\n  }' "$gs"
+            fi
+            printf '\n}\n'
+        } > "$hooks_json"
         info "wrote $hooks_json (no python3 — new file)"
     else
-        info "python3 absent and $hooks_json exists — merge the 'ai-memory-inject' entry by hand (see notes)"
+        info "python3 absent and $hooks_json exists — merge the 'ai-memory-inject'/'ai-memory-guard' entries by hand (see notes)"
     fi
 }
 
