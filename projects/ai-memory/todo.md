@@ -6,7 +6,12 @@
 
 ## Active
 
-_(nothing in flight)_
+### Antigravity hook-archetype (live injection + PreToolUse enforcement) → [plan](plans/antigravity-hook-archetype.md)
+_Design approved 2026-07-06 (brainstorm). Pure-hook injection + executor-only PreToolUse guard. Phase 0 (probe tool catalog) gates the rest._
+- [ ] Phase 0 — probe `agy` tool catalog + `hooks.json` install location (prerequisite)
+- [ ] Phase 1 — PreInvocation live injection (flip manifest to `archetype=hook`; drop built AGENTS.md; keep overlay)
+- [ ] Phase 2 — PreToolUse guard (executor-only, `AI_MEMORY_ROLE`-gated) + shared deny-list + Antigravity `exec_readonly`
+- [ ] Phase 3 — docs
 
 ## Done
 _(checked items stay above until the file is rolled)_
