@@ -167,7 +167,14 @@ proven against ground-truth; config dir restored to pristine (no hooks.json left
 - Enumerated the tool catalog (write vs read) and resolved the `hooks.json` install location — see
   **Phase 0 findings** above. Install target: global `~/.gemini/config/hooks.json`.
 
-### Phase 1 — PreInvocation live injection (hook archetype)
+### Phase 1 — PreInvocation live injection (hook archetype) — ✅ done
+Shipped: `scripts/jsonutil.sh` (shared json_escape/json_get), `harnesses/antigravity/hooks/
+preinvocation.sh` (env-resolved, `invocationNum==0`→full via `content_sections|xml_render_*`), `agy.sh`
+rewritten to export `AI_MEMORY_PROJECT`/`AI_MEMORY_CWD`/`MEMORY_DIR` (build-AGENTS.md dropped), manifest
+flipped to `archetype=hook`/`format=xml` (+ `hooks_json`/`hook_script`), `hook` driver generalized to
+register a namespaced PreInvocation entry into `~/.gemini/config/hooks.json` (python3 idempotent merge),
+`validate-manifest` accepts `hooks_dir|hooks_json`. Suite 27/27. **Verified live:** a real `agy -p`
+answered `ai-memory` + `Platform / Kubernetes Engineer` purely from the injected 50KB full payload.
 - Antigravity hook script: read stdin `invocationNum`, read `AI_MEMORY_PROJECT`/`MEMORY_DIR` from env
   (exported by `agy.sh` at launch — payload has no workspace handle), build via `content-core.sh`, emit
   `injectSteps` (`ephemeralMessage`). Generalize/extend the `hook` driver for the JSON envelope +

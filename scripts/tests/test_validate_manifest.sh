@@ -46,10 +46,16 @@ assert_contains "$OUT" "archetype must be hook|file" "bad archetype: message"
 mf="$(write_manifest claude 'name = claude' 'archetype = hook' 'format = yaml' 'hooks_dir = ~/.claude/hooks')"
 run_vm "$mf"; assert_contains "$OUT" "format must be xml|md" "bad format: message"
 
-# --- hook archetype missing hooks_dir ---
+# --- hook archetype missing both hooks_dir and hooks_json ---
 mf="$(write_manifest claude 'name = claude' 'archetype = hook' 'format = xml')"
-run_vm "$mf"; assert_exit 1 "$RC" "hook w/o hooks_dir: exit 1"
-assert_contains "$OUT" "requires 'hooks_dir'" "hook w/o hooks_dir: message"
+run_vm "$mf"; assert_exit 1 "$RC" "hook w/o hooks_dir|hooks_json: exit 1"
+assert_contains "$OUT" "requires 'hooks_dir' or 'hooks_json'" "hook w/o hooks_dir|hooks_json: message"
+
+# --- hook via hooks_json is valid (Antigravity style), but needs hook_script ---
+mf="$(write_manifest antigravity 'name = antigravity' 'archetype = hook' 'format = xml' 'hooks_json = ~/.gemini/config/hooks.json')"
+run_vm "$mf"; assert_contains "$OUT" "hooks_json requires 'hook_script'" "hooks_json w/o hook_script: message"
+mf="$(write_manifest antigravity 'name = antigravity' 'archetype = hook' 'format = xml' 'hooks_json = ~/.gemini/config/hooks.json' 'hook_script = $MEMORY_DIR/h.sh')"
+run_vm "$mf"; assert_exit 0 "$RC" "hook via hooks_json + hook_script: exit 0"
 
 # --- file archetype missing context_target ---
 mf="$(write_manifest codex 'name = codex' 'archetype = file' 'format = md' 'refresh = launch')"
