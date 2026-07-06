@@ -60,15 +60,25 @@ assert_file "$FHOME/.agents/skills/pin/SKILL.md"      "codex: command delivered 
 assert_file "$FHOME/.agents/skills/pin/.from-command" "codex: command-skill marked generated"
 assert_contains "$(cat "$FHOME/.agents/skills/pin/SKILL.md")" "name: pin" "codex: command-skill wrapper frontmatter"
 
-# --- antigravity (file archetype, both faces): install = deliver face ---
+# --- antigravity (hook archetype, both faces): install = deliver face ---
 run_install --harness antigravity >"$SBROOT/log.agy" 2>&1; rc=$?
 assert_exit 0 "$rc" "antigravity install exits 0"
-assert_file "$FHOME/.gemini/config" "antigravity: context dir prepared"
-if [ ! -e "$FHOME/.gemini/config/AGENTS.md" ]; then _ok "antigravity: no AGENTS.md symlink (built at launch)"; else _bad "antigravity: unexpected AGENTS.md symlink"; fi
+# hook archetype registers a PreInvocation entry into the global hooks.json.
+assert_file "$FHOME/.gemini/config/hooks.json" "antigravity: hooks.json registered"
+hj="$(cat "$FHOME/.gemini/config/hooks.json")"
+assert_contains "$hj" "ai-memory-inject" "antigravity: namespaced hook key present"
+assert_contains "$hj" "PreInvocation"    "antigravity: PreInvocation event registered"
+assert_contains "$hj" "harnesses/antigravity/hooks/preinvocation.sh" "antigravity: hook command -> preinvocation.sh"
+# the built AGENTS.md is gone: the memory system never writes the static base.
+if [ ! -e "$FHOME/.gemini/config/AGENTS.md" ]; then _ok "antigravity: no memory-built AGENTS.md"; else _bad "antigravity: unexpected AGENTS.md"; fi
 assert_file "$FHOME/.agents/skills/demo-skill"   "antigravity: canonical skill in shared ~/.agents/skills"
 assert_file "$FHOME/.agents/skills/pin/SKILL.md" "antigravity: command delivered as skill"
-# execute face is declared in the manifest (consumed by executor.sh in Phase 7)
+# execute face is declared in the manifest (consumed by executor.sh)
 assert_contains "$(cat "$FAKE/harnesses/antigravity/manifest")" "exec_cmd" "antigravity: manifest declares an execute face"
+# idempotent re-run: hooks.json merge is stable, still exactly one entry.
+run_install --harness antigravity >"$SBROOT/log.agy2" 2>&1; rc=$?
+assert_exit 0 "$rc" "antigravity re-run exits 0"
+assert_eq "1" "$(grep -c 'ai-memory-inject' "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single hook entry"
 
 # --- doc surface (synthetic file harness with commands=doc, no skills_dir) ---
 mkdir -p "$FAKE/harnesses/doch"

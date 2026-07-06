@@ -1,31 +1,36 @@
 # Antigravity CLI (`agy`) — delivery + execute manifest. The headline third-party
 # proof harness: registered once, works as BOTH an install target and an executor,
-# with no Antigravity-specific engine code.
+# with no Antigravity-specific engine code beyond its hook I/O adapter.
 #
-# file archetype: materialize an AGENTS.md-style context, rebuilt on each launch by
-# the wrapper (harnesses/antigravity/scripts/agy.sh); md format (same as Codex).
+# hook archetype: live per-model-call injection via a PreInvocation hook in
+# Antigravity's hooks.json (harnesses/antigravity/hooks/preinvocation.sh) — the
+# same live-refresh model as Claude, NOT a materialized file. xml format: the
+# injected payload is the <memory:*> serialization, identical to Claude's.
 name           = antigravity
-archetype      = file
-format         = md
+archetype      = hook
+format         = xml
 
-# Global context file. Antigravity reads GEMINI.md/AGENTS.md by walking up from cwd
-# and honors a machine-local ~/.gemini/config/. This is the best-guess GLOBAL target;
-# if a live `agy` session shows it reads a different global path, it's a one-line fix.
-context_target = ~/.gemini/config/AGENTS.md
-refresh        = launch
+# hook registration: Antigravity discovers hooks from a JSON file at its global
+# customization root (~/.gemini/config/). The install driver registers a
+# namespaced PreInvocation entry that runs hook_script. (Contrast Claude's
+# hooks_dir script-symlink + settings.json model.) $MEMORY_DIR is expanded at
+# install time so the command has a stable absolute path.
+hooks_json     = ~/.gemini/config/hooks.json
+hook_script    = $MEMORY_DIR/harnesses/antigravity/hooks/preinvocation.sh
 
-# Skills: Antigravity honors the cross-agent ~/.agents/skills standard (it is listed
-# in ~/.agents/.skill-lock.json), and its skill layout is skills/<name>/SKILL.md —
-# byte-identical to our canonical store, so fan-out is a zero-transform symlink.
+# Skills: Antigravity honors the cross-agent ~/.agents/skills standard (it is
+# listed in ~/.agents/.skill-lock.json), and its skill layout is skills/<name>/
+# SKILL.md — byte-identical to our canonical store, so fan-out is a zero-transform
+# symlink. commands=skill: Antigravity's command mechanism IS skills.
 skills_dir     = ~/.agents/skills
 commands       = skill
 
-# execute face — headless `agy -p` via the launch wrapper (rebuilds AGENTS.md first,
-# so a delegated run sees fresh memory). {prompt}/{model} substituted by executor.sh;
-# $MEMORY_DIR expanded; exec_probe gates availability on the agy bin.
-# No read-only flag exists (agy -p is write-capable), so exec_readonly is intentionally
-# omitted: Antigravity is a task-role executor only; the exploration role degrades to
-# the Claude Explore agent. A future PreToolUse hooks.json guard could add read-only.
+# execute face — headless `agy -p` via the launch wrapper. agy.sh exports the
+# resolved project into agy's env, so the PreInvocation hook injects fresh memory
+# for a delegated run. {prompt}/{model} substituted by executor.sh; $MEMORY_DIR
+# expanded; exec_probe gates availability on the agy bin. No exec_readonly yet
+# (agy -p is write-capable) — Antigravity is a task-role executor only until the
+# Phase-2 PreToolUse guard adds an enforced read-only mode.
 exec_cmd        = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} --dangerously-skip-permissions
 exec_model_flag = --model {model}
 exec_probe      = agy
