@@ -38,3 +38,26 @@ except Exception:
         echo ""
     fi
 }
+
+# json_get_path <key1> <key2> ... — read a NESTED scalar from JSON on stdin
+# (e.g. `json_get_path toolCall args CommandLine`). Empty on any missing level or
+# parse error. python3 -> jq (python3 first: nested walking is cleaner there).
+json_get_path() {
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import json,sys
+try:
+    d = json.load(sys.stdin)
+    for k in sys.argv[1:]:
+        d = d.get(k) if isinstance(d, dict) else None
+        if d is None: break
+    print("" if d is None else d)
+except Exception:
+    print("")' "$@" 2>/dev/null
+    elif command -v jq >/dev/null 2>&1; then
+        local expr="." k
+        for k in "$@"; do expr="${expr}[\"$k\"]"; done
+        jq -r "${expr} // empty" 2>/dev/null
+    else
+        echo ""
+    fi
+}

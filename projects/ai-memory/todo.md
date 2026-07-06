@@ -10,7 +10,7 @@
 _Design approved 2026-07-06 (brainstorm). Pure-hook injection + executor-only PreToolUse guard. Phase 0 (probe tool catalog) gates the rest._
 - [x] Phase 0 — probe `agy` tool catalog + `hooks.json` install location (prerequisite) — findings folded into plan; install target = global `~/.gemini/config/hooks.json`
 - [x] Phase 1 — PreInvocation live injection (manifest `archetype=hook`; agy.sh exports project; hook driver registers hooks.json) — verified live: agy answered from injected memory
-- [ ] Phase 2 — PreToolUse guard (executor-only, `AI_MEMORY_ROLE`-gated) + shared deny-list + Antigravity `exec_readonly`
+- [x] Phase 2 — PreToolUse guard (executor-only, `AI_MEMORY_ROLE`-gated) + shared deny-list + Antigravity `exec_readonly` — verified vs live agy payload shape
 - [ ] Phase 3 — docs
 
 ### System showcase (doc + diagrams + live demo) → [plan](plans/system-showcase.md)

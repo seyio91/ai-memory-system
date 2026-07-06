@@ -11,12 +11,14 @@ archetype      = hook
 format         = xml
 
 # hook registration: Antigravity discovers hooks from a JSON file at its global
-# customization root (~/.gemini/config/). The install driver registers a
-# namespaced PreInvocation entry that runs hook_script. (Contrast Claude's
-# hooks_dir script-symlink + settings.json model.) $MEMORY_DIR is expanded at
-# install time so the command has a stable absolute path.
+# customization root (~/.gemini/config/). The install driver registers a namespaced
+# PreInvocation entry (hook_script, live memory injection) and a PreToolUse entry
+# (guard_script, executor-only enforcement). (Contrast Claude's hooks_dir
+# script-symlink + settings.json model.) $MEMORY_DIR is expanded at install time so
+# the commands have stable absolute paths.
 hooks_json     = ~/.gemini/config/hooks.json
 hook_script    = $MEMORY_DIR/harnesses/antigravity/hooks/preinvocation.sh
+guard_script   = $MEMORY_DIR/harnesses/antigravity/hooks/pretooluse.sh
 
 # Skills: Antigravity honors the cross-agent ~/.agents/skills standard (it is
 # listed in ~/.agents/.skill-lock.json), and its skill layout is skills/<name>/
@@ -28,9 +30,13 @@ commands       = skill
 # execute face — headless `agy -p` via the launch wrapper. agy.sh exports the
 # resolved project into agy's env, so the PreInvocation hook injects fresh memory
 # for a delegated run. {prompt}/{model} substituted by executor.sh; $MEMORY_DIR
-# expanded; exec_probe gates availability on the agy bin. No exec_readonly yet
-# (agy -p is write-capable) — Antigravity is a task-role executor only until the
-# Phase-2 PreToolUse guard adds an enforced read-only mode.
+# expanded; exec_probe gates availability on the agy bin.
+#
+# exec_readonly is the SAME command: `agy -p` has no read-only CLI flag, so the
+# read-only guarantee comes from the PreToolUse guard (guard_script) denying every
+# non-read tool when executor.sh sets AI_MEMORY_ROLE=explore. This makes Antigravity
+# a real `explore` executor (no longer degrading to the Claude Explore agent).
 exec_cmd        = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} --dangerously-skip-permissions
+exec_readonly   = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} --dangerously-skip-permissions
 exec_model_flag = --model {model}
 exec_probe      = agy

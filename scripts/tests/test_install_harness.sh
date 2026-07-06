@@ -66,9 +66,13 @@ assert_exit 0 "$rc" "antigravity install exits 0"
 # hook archetype registers a PreInvocation entry into the global hooks.json.
 assert_file "$FHOME/.gemini/config/hooks.json" "antigravity: hooks.json registered"
 hj="$(cat "$FHOME/.gemini/config/hooks.json")"
-assert_contains "$hj" "ai-memory-inject" "antigravity: namespaced hook key present"
+assert_contains "$hj" "ai-memory-inject" "antigravity: namespaced inject hook key present"
 assert_contains "$hj" "PreInvocation"    "antigravity: PreInvocation event registered"
-assert_contains "$hj" "harnesses/antigravity/hooks/preinvocation.sh" "antigravity: hook command -> preinvocation.sh"
+assert_contains "$hj" "harnesses/antigravity/hooks/preinvocation.sh" "antigravity: inject command -> preinvocation.sh"
+# ...and the PreToolUse enforcement guard.
+assert_contains "$hj" "ai-memory-guard"  "antigravity: namespaced guard hook key present"
+assert_contains "$hj" "PreToolUse"       "antigravity: PreToolUse event registered"
+assert_contains "$hj" "harnesses/antigravity/hooks/pretooluse.sh" "antigravity: guard command -> pretooluse.sh"
 # the built AGENTS.md is gone: the memory system never writes the static base.
 if [ ! -e "$FHOME/.gemini/config/AGENTS.md" ]; then _ok "antigravity: no memory-built AGENTS.md"; else _bad "antigravity: unexpected AGENTS.md"; fi
 assert_file "$FHOME/.agents/skills/demo-skill"   "antigravity: canonical skill in shared ~/.agents/skills"
@@ -78,7 +82,8 @@ assert_contains "$(cat "$FAKE/harnesses/antigravity/manifest")" "exec_cmd" "anti
 # idempotent re-run: hooks.json merge is stable, still exactly one entry.
 run_install --harness antigravity >"$SBROOT/log.agy2" 2>&1; rc=$?
 assert_exit 0 "$rc" "antigravity re-run exits 0"
-assert_eq "1" "$(grep -c 'ai-memory-inject' "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single hook entry"
+assert_eq "1" "$(grep -c 'ai-memory-inject' "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single inject entry"
+assert_eq "1" "$(grep -c 'ai-memory-guard'  "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single guard entry"
 
 # --- doc surface (synthetic file harness with commands=doc, no skills_dir) ---
 mkdir -p "$FAKE/harnesses/doch"
