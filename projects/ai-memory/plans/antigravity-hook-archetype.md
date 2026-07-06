@@ -19,9 +19,9 @@ harness with real guardrails after codex execpolicy.
 ## Success criteria
 - A `PreInvocation` hook injects project memory into Antigravity **without relaunch**: editing
   `working.md` mid-session and triggering a new model call surfaces the change.
-- Injection is **cwd-resolved per invocation** — launching/working in different pinned repos resolves
-  the correct project (no global single-file clobber). `invocationNum==1` → full payload; later → the
-  `<memory:active>` breadcrumb.
+- Injection resolves **the correct project per session** — launching in different pinned repos injects
+  the right project's memory (no global single-file clobber; project comes from the launch env, see
+  Design). `invocationNum==0` → full payload; later invocations → the `<memory:active>` breadcrumb.
 - The memory-built **AGENTS.md is gone**; only a hand-owned static global `~/.gemini/config/AGENTS.md`
   (workflow-rules base, the `~/.claude/CLAUDE.md` analogue — *not* `AGENTS.local.md`, which agy lacks)
   remains. Antigravity manifest is `archetype = hook`.
@@ -38,11 +38,17 @@ harness with real guardrails after codex execpolicy.
 Reached via the brainstorming skill (2026-07-06). Antigravity `hooks.json` (`PreInvocation` for live
 injection; `PreToolUse` for enforcement) is the enabling mechanism.
 
-**Inject — pure hook (chosen).** One `PreInvocation` script resolves the active project from `cwd`
-(`workspacePaths`) per call and emits `injectSteps` (`ephemeralMessage`) built from `content-core.sh`:
-`invocationNum==1` → full (identity/project/index/working), else → breadcrumb. The memory-built AGENTS.md
-is dropped; a hand-owned static global `~/.gemini/config/AGENTS.md` carries the workflow-rules base (the
-`~/.claude/CLAUDE.md` analogue — agy has **no** `AGENTS.local.md`, so the static base is a plain AGENTS.md).
+**Inject — pure hook (chosen).** A global `~/.gemini/config/hooks.json` `PreInvocation` script emits
+`injectSteps` (`ephemeralMessage`) built from `content-core.sh`: `invocationNum==0` → full
+(identity/project/index/working), else → breadcrumb. **Project resolution (revised after live probe):**
+the global hook payload carries no workspace handle (`workspacePaths=[]`; hook cwd = the config dir), so
+the active project is resolved at **launch** by the `agy.sh` wrapper (from `$PWD`) and **exported into
+agy's env** (`AI_MEMORY_PROJECT` + `MEMORY_DIR`), which the hook inherits and reads (env inheritance
+verified live). An `agy` session is single-workspace for its lifetime, so launch-time resolution ==
+per-invocation; the hook still re-reads content each call (live `working.md` refresh). The memory-built
+AGENTS.md is dropped; a hand-owned static global `~/.gemini/config/AGENTS.md` carries the workflow-rules
+base (the `~/.claude/CLAUDE.md` analogue — agy has **no** `AGENTS.local.md`, so the static base is a
+plain AGENTS.md).
 - *Rejected — hybrid (AGENTS.md base + hook delta):* its "persistent per-project base" doesn't exist —
   the built AGENTS.md's only home is a **global** `~/.gemini/config/AGENTS.md` (single-project, clobbers
   under concurrency, and unverified that Antigravity even reads it there). Pure hook is cwd-resolved like
@@ -70,9 +76,10 @@ seeding the future manifest `guard` capability (working.md generalization) witho
 mechanism yet (YAGNI until a 2nd hook-capable harness needs it).
 
 ## Decisions (locked)
-- **Inject model = pure hook** (`PreInvocation`, cwd-resolved, `invocationNum`-gated); drop the built
-  AGENTS.md; static base = hand-owned global `~/.gemini/config/AGENTS.md` (agy has no `AGENTS.local.md`).
-  Manifest → `archetype = hook`.
+- **Inject model = pure hook** (`PreInvocation`, `invocationNum`-gated: **0-based**, `==0` → full);
+  project resolved at launch via env (`agy.sh` exports `AI_MEMORY_PROJECT`/`MEMORY_DIR`, hook reads them
+  — the payload has no workspace handle); drop the built AGENTS.md; static base = hand-owned global
+  `~/.gemini/config/AGENTS.md` (agy has no `AGENTS.local.md`). Manifest → `archetype = hook`.
 - **Enforcement = one `PreToolUse` guard, executor-delegations-only** (gated on `AI_MEMORY_ROLE`):
   always-on deny-list for executor sessions + read-only when `explore`. Interactive `agy` unguarded.
 - **Deny-list is a shared shipped artifact** the guard reads (reusable), not inline prose.
@@ -127,16 +134,48 @@ need sandbox disabled or they return empty.
 - **PreToolUse decision vocabulary:** `allow` / `deny` (hard block) / `ask` / `force_ask`. Guard emits
   `{"decision":"deny","reason":...}`. PreInvocation emits `{"injectSteps":[{"ephemeralMessage":...}]}`.
 
+### Live verification (2026-07-06 — throwaway global hooks.json + real `agy -p` runs, since removed)
+Ran a real authed `agy` (Gemini 3.5 Flash) with a temporary global `~/.gemini/config/hooks.json`. All
+proven against ground-truth; config dir restored to pristine (no hooks.json left behind).
+- ✅ **Global hook auto-runs in an *untrusted* workspace.** Both `PreInvocation` and `PreToolUse` fired
+  in a fresh dir not in `trustedWorkspaces` → **trust does NOT gate the global hook.** (RESOLVED the
+  trust open question.)
+- ✅ **`ephemeralMessage` reaches the model.** Injected "codename = BLUE-GIRAFFE-42"; the model answered
+  `BLUE-GIRAFFE-42`. Re-injected every invocation, so cross-invocation persistence is a non-issue —
+  `userMessage` fallback NOT needed. (RESOLVED.)
+- ✅ **`PreToolUse` deny hard-blocks.** Denying a sentinel `run_command` returned to the model as
+  `tool call denied ... blocked by memory test guard` — the enforcement path works end-to-end.
+- ⚠️ **`invocationNum` is 0-BASED** (observed 0 → 1 → 2 across one turn). The full-vs-breadcrumb gate is
+  **`invocationNum == 0` → full**, else breadcrumb. (Plan previously said `==1`; corrected throughout.)
+- ⚠️ **The `PreInvocation` payload has NO workspace handle.** `workspacePaths=[]` even in a git repo AND
+  in a trusted workspace; hook `cwd`/`PWD` = `~/.gemini/config` (the hooks.json dir), never the user's
+  repo. Payload fields are only `conversationId`, `transcriptPath`, `artifactDirectoryPath`,
+  `invocationNum`, `initialNumSteps`, `modelName`. → **cwd/payload-based project resolution is impossible
+  for a global hook.**
+- ✅ **Resolution mechanism found — launch-env inheritance.** The hook process **inherits env vars
+  exported when `agy` is launched** (verified: `AI_MEMORY_PROBE=HELLO123` reached the hook). So `agy.sh`
+  resolves the active project from `$PWD` at launch and exports it (`AI_MEMORY_PROJECT` + `MEMORY_DIR`);
+  the `PreInvocation` hook reads those to select which project's memory to inject. An `agy` session is
+  single-workspace for its lifetime, so launch-time resolution == per-invocation; the hook still re-reads
+  content each call, preserving live `working.md` refresh. (Per-repo `.agents/hooks.json` — working dir =
+  the repo — is a viable alternative but abandons the install-once-globally model; not chosen.)
+- **Confirmed live tool names:** `list_permissions` (fires first, invNum 0), `run_command` (args:
+  `CommandLine`, `Cwd`, `WaitMsBeforeAsync`).
+
 ## Phases
 ### Phase 0 — Probe Antigravity's tool catalog (prerequisite) — ✅ done
 - Enumerated the tool catalog (write vs read) and resolved the `hooks.json` install location — see
   **Phase 0 findings** above. Install target: global `~/.gemini/config/hooks.json`.
 
 ### Phase 1 — PreInvocation live injection (hook archetype)
-- Antigravity hook script: read stdin (`invocationNum`, `cwd`), resolve project, build via `content-core.sh`,
-  emit `injectSteps`. Generalize/extend the `hook` driver for the JSON envelope + `hooks.json` registration.
-- Flip `harnesses/antigravity/manifest` to `archetype = hook`; retire the built-AGENTS.md path (keep overlay).
-- Tests (hermetic hook I/O: full on `invocationNum==1`, breadcrumb after, cwd resolution).
+- Antigravity hook script: read stdin `invocationNum`, read `AI_MEMORY_PROJECT`/`MEMORY_DIR` from env
+  (exported by `agy.sh` at launch — payload has no workspace handle), build via `content-core.sh`, emit
+  `injectSteps` (`ephemeralMessage`). Generalize/extend the `hook` driver for the JSON envelope +
+  registration into global `~/.gemini/config/hooks.json`.
+- `agy.sh`: resolve active project from `$PWD` at launch, export `AI_MEMORY_PROJECT` + `MEMORY_DIR`,
+  drop the built-AGENTS.md path (static `~/.gemini/config/AGENTS.md` overlay stays).
+- Flip `harnesses/antigravity/manifest` to `archetype = hook`.
+- Tests (hermetic hook I/O: full on `invocationNum==0`, breadcrumb after; env-based project resolution).
 
 ### Phase 2 — PreToolUse guard (enforcement) + exec_readonly
 - Guard script + shared deny-list artifact; `AI_MEMORY_ROLE`-gated (deny-list always; write-deny on explore).
@@ -154,15 +193,15 @@ need sandbox disabled or they return empty.
   `toolCall.name`, e.g. `list_dir`); spot-verify against a live transcript
   (`~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/transcript.jsonl`) in Phase 2. The
   `run_command` `CommandLine` deny-list covers the destructive class regardless of naming.
-- **Workspace-trust allowlist** — NEW, OPEN. `~/.gemini/antigravity-cli/settings.json` has a
-  `trustedWorkspaces` list; hooks/customizations may only auto-run in trusted workspaces. Confirm a
-  global `~/.gemini/config/hooks.json` fires in a fresh/untrusted repo — else install must also register
-  the repo as trusted. Needs a live authed `agy` session.
+- ~~**Workspace-trust allowlist**~~ — RESOLVED (live). Global `~/.gemini/config/hooks.json` fires in an
+  untrusted workspace; `trustedWorkspaces` does not gate it. No trust registration needed at install.
+- ~~**Project resolution for a global hook**~~ — RESOLVED (live). Payload has no workspace handle
+  (`workspacePaths=[]`, cwd = config dir) → resolve at launch: `agy.sh` exports `AI_MEMORY_PROJECT`/
+  `MEMORY_DIR`, hook inherits + reads them (env inheritance verified).
 - ~~**`hooks.json` discovery location**~~ — RESOLVED (Phase 0): global `~/.gemini/config/hooks.json`
   (per-repo `.agents/hooks.json` is the alternative surface, not used for the global install).
-- **`ephemeralMessage` persistence** — STILL OPEN. Confirm it survives the turn adequately; if too
-  transient for the breadcrumb, fall back to `userMessage`. Needs a live authed `agy` session
-  (couldn't exercise the loop in the read-only probe).
+- ~~**`ephemeralMessage` persistence**~~ — RESOLVED (live). Reaches the model (codename echoed);
+  re-injected every invocation, so transience is moot — no `userMessage` fallback needed.
 - **Generalizing the `hook` driver** — how much of Antigravity's JSON contract the driver absorbs vs a
   per-harness override script; decide during Phase 1. (The Claude `hook` driver emits raw-text
   `additionalContext`; Antigravity needs a JSON `injectSteps` envelope + `hooks.json` registration into
