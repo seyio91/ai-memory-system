@@ -203,9 +203,13 @@ identical to the unit-covered path.)
   reflects Antigravity as a valid `explore` executor.
 - Tests (deny-list blocks; explore denies writes; interactive unguarded).
 
-### Phase 3 — Docs
-- `docs/harnesses/antigravity.md`, adding-a-harness (hook archetype for a JSON-contract harness), working.md
-  enforcement note graduated.
+### Phase 3 — Docs — ✅ done
+Shipped: `docs/harnesses/antigravity.md` fully rewritten for the hook archetype (PreInvocation live
+injection, launch-env project resolution, static `~/.gemini/config/AGENTS.md` base, PreToolUse guard +
+`exec_readonly`, hooks.json registration table); `docs/harnesses/adding-a-harness.md` covers the two hook
+registration styles (`hooks_dir` vs `hooks_json`/`hook_script`/`guard_script`) + the JSON-contract hook
+script + the `AI_MEMORY_ROLE`/guard enforcement pattern; `docs/install.md` archetype-driver bullet
+corrected (Antigravity is hook, not file); working.md enforcement note graduated (marked shipped).
 
 ## Risks / open questions
 - ~~**Tool-catalog dependency**~~ — RESOLVED (Phase 0). Write/read lists authored above. **Guard uses

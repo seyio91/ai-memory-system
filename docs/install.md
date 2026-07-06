@@ -27,9 +27,11 @@ cd ~/.claude-memory
 
 - resolves the harness (`--harness` flag, else auto-detect) and reads its **manifest**,
 - validates the manifest (`scripts/validate-manifest.sh`), then runs the archetype driver:
-  **hook** (Claude) symlinks `harnesses/claude/hooks/*.sh` + `statusline.sh` into `~/.claude/`;
-  **file** (Codex, Antigravity) prepares the `context_target` dir — the context is rebuilt on
-  each launch by the harness wrapper (`codex-mem.sh` / `agy.sh`), not symlinked,
+  **hook** either symlinks `*.sh` + `statusline.sh` into `~/.claude/` (Claude) or registers
+  namespaced `PreInvocation`/`PreToolUse` entries into a JSON hooks file (Antigravity —
+  `~/.gemini/config/hooks.json`, injection live per model call via `agy.sh`);
+  **file** (Codex) prepares the `context_target` dir — the context is rebuilt on
+  each launch by the harness wrapper (`codex-mem.sh`), not symlinked,
 - delivers **commands** per the manifest — `native` symlinks into the command dir (Claude
   `~/.claude/commands`), `skill` wraps each command as a `SKILL.md` into `skills_dir`
   (Codex/Antigravity `~/.agents/skills`), `doc` renders a reference, `none`,

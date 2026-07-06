@@ -1,11 +1,11 @@
 # Antigravity CLI (`agy`)
 
-Antigravity is the headline third-party harness: it was registered once, as a
-manifest, and works as **both** an install target and a task-role executor with no
-Antigravity-specific engine code. Like Codex it has no native memory hook — the
-bridge is `harnesses/antigravity/scripts/agy.sh`, a launch wrapper that rebuilds
-`~/.gemini/config/AGENTS.md` from the memory tree (via the shared
-`scripts/build-context-md.sh`) and then `exec agy "$@"`.
+Antigravity is the headline third-party harness: registered once, as a manifest,
+it works as **both** an install target and an executor with no Antigravity-specific
+engine code beyond a thin hook I/O adapter. It is a **`hook` archetype** — memory
+is injected **live, per model call**, the same live-refresh model as Claude's
+`UserPromptSubmit`, not materialized into a file. It is also the second harness
+with *enforced* guardrails after codex execpolicy.
 
 The CLI binary is `agy` (v1.0.16 at `~/.local/bin/agy`); headless is `agy -p
 "<prompt>"`, with `--model` and `--dangerously-skip-permissions`.
@@ -13,85 +13,136 @@ The CLI binary is `agy` (v1.0.16 at `~/.local/bin/agy`); headless is `agy -p
 ## Daily use
 
 ```bash
-# Instead of `agy`:
+# Instead of `agy` (resolves the active project + exports it for the hook):
 ~/.claude-memory/harnesses/antigravity/scripts/agy.sh
 
-# Or alias it:
+# Alias it:
 alias agy='~/.claude-memory/harnesses/antigravity/scripts/agy.sh'
 
 # Arguments pass through:
 agy -p "what does our terraform domain file say?"
 ```
 
-## What lands in `~/.gemini/config/AGENTS.md`
+## How injection works — the `PreInvocation` hook
 
-Built fresh on every launch by the shared `build-context-md.sh` (label `agy`) —
-the same builder and section order Codex uses:
+Antigravity discovers **lifecycle hooks** from a `hooks.json` at its global
+customization root, `~/.gemini/config/`. `install.sh --harness antigravity`
+registers two namespaced entries there:
 
-1. **`# === IDENTITY ===`** — `identity.md` verbatim.
-2. **`# === PROJECT: <name> ===`** — `projects/<active>/memory.md`.
-3. **`# === MEMORY INDEX ===`** — `index.md` (lifecycle prose + auto-generated catalog).
-4. **`# === DOMAIN INDEX ===`** — table synthesized from each `domain/*.md` frontmatter (path, triggers, summary), with a lazy-load instruction: Antigravity reads the file when the request matches a topic's triggers.
-5. **`# === WORKING MEMORY ===`** — `projects/<active>/working.md` if non-empty.
-6. **`# === LOCAL OVERLAY ===`** — `~/.gemini/config/AGENTS.local.md` if present.
+| key | event | script | effect |
+|-----|-------|--------|--------|
+| `ai-memory-inject` | `PreInvocation` | `hooks/preinvocation.sh` | inject project memory before each model call |
+| `ai-memory-guard` | `PreToolUse` (matcher `*`) | `hooks/pretooluse.sh` | executor-only enforcement (see below) |
 
-The target is a **best-guess global path**: Antigravity reads `GEMINI.md` /
-`AGENTS.md` by walking up from `$PWD` to the repo root, and honors the
-machine-local `~/.gemini/config/`. If a live `agy` session turns out to read a
-different global path, it's a one-line fix in the manifest (`context_target`).
+`preinvocation.sh` emits Antigravity's `injectSteps` envelope (an
+`ephemeralMessage`) built from the **shared** `content-core.sh` selection +
+`formatters/xml.sh` — byte-for-byte the same `<memory:*>` payload Claude injects:
 
-## Local overlay — your permanent Antigravity instructions
+- **`invocationNum == 0`** (0-based — the first model call of a session) → the
+  **full** payload: `<memory:identity>` + `<memory:project>` + `<memory:index>` +
+  `<memory:working>`.
+- **later invocations** → the lightweight `<memory:active>` **breadcrumb** (project
+  pointer + absolute memory paths + a re-read directive).
+- **no active project** → `{"injectSteps":[]}` — the memory system stays dormant
+  (generic `agy`) until a repo is onboarded with `/pin`.
 
-`~/.gemini/config/AGENTS.local.md` is **never** touched by the wrapper. Edit it
-freely; it's concatenated at the bottom of the generated file every launch. The
-Antigravity analogue of `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.local.md`.
+Because the hook re-reads content every call, editing `working.md` mid-session
+surfaces on the next model turn — no relaunch.
 
-```bash
-echo "Always run 'just lint' before suggesting commit messages." >> ~/.gemini/config/AGENTS.local.md
+### Why the launch wrapper exports the project
+
+Antigravity's hook payload carries **no workspace handle** — `workspacePaths` is
+empty and the hook's cwd is the config dir, in every session (verified live). So
+the active project cannot be resolved from the payload. Instead `agy.sh` resolves
+it from `$PWD` **at launch** and exports it into agy's environment, which the hook
+inherits and reads:
+
+```
+export MEMORY_DIR
+export AI_MEMORY_PROJECT="$(detect_active_project)"   # walks up to .agents/memory-project
+export AI_MEMORY_CWD="$PWD"
+exec agy "$@"
 ```
 
-## Skills and commands — the `.agents/` namespace
+An `agy` session is single-workspace for its lifetime, so launch-time resolution
+is equivalent to per-invocation — and env-scoping per process sidesteps the
+global-single-file clobber a materialized `~/.gemini/config/AGENTS.md` would have.
 
-Antigravity natively discovers the cross-agent `.agents/` namespace, so both
-skills and slash commands reach it with no adapter:
+## Static base — your permanent Antigravity instructions
 
-- **Skills** — `skills/<name>/SKILL.md` in this repo is byte-identical to
-  Antigravity's own layout, so fan-out is a zero-transform symlink. At install
-  time `scripts/link-skills.sh` links the store into the shared
-  `~/.agents/skills` (Antigravity is registered in `~/.agents/.skill-lock.json`).
-- **Commands** — the manifest declares `commands = skill`, so each canonical
-  slash-command body under `harnesses/claude/commands/` is wrapped into a
-  `SKILL.md` and fanned into the same `~/.agents/skills` by
-  `scripts/link-command-skills.sh`. Antigravity's command mechanism *is* skills,
-  so `/checkpoint`, `/pin`, etc. surface as invocable skills rather than native
-  slash commands.
+Antigravity has **no `AGENTS.local.md`**. The static, always-on workflow-rules base
+(the `~/.claude/CLAUDE.md` analogue) is a **hand-owned** `~/.gemini/config/AGENTS.md`
+— agy reads `AGENTS.md`/`GEMINI.md` by walking up from cwd, and honors this global
+one for every session. The memory system **never writes it**; the dynamic
+per-project memory lives entirely in the hook.
 
-Because both land in `~/.agents/skills`, the exact same store is shared with
-Codex — install either harness and both agents see the same skills + commands.
+```bash
+echo "Always run 'just lint' before suggesting commit messages." >> ~/.gemini/config/AGENTS.md
+```
+
+## Enforcement — the `PreToolUse` guard
+
+`pretooluse.sh` is registered globally but **self-gates on `AI_MEMORY_ROLE`**,
+which `executor.sh` sets only for a delegation. Interactive `agy` (no role) is
+**unguarded** — the human decides. For a delegation it applies two layers:
+
+1. **Deny-list (both roles).** A tool whose shell `CommandLine` matches the shared
+   `scripts/deny-list.txt` — `terraform`/`kubectl apply`, `terraform destroy`,
+   `kubectl delete`, `gh`/`bkt` `pr merge`, `az repos pr update`, `helm
+   install`/`upgrade` — is hard-blocked (`{"decision":"deny"}`). The O/E/V "never
+   apply/merge to running infra" rule, **enforced** rather than only restated in
+   the prompt.
+2. **Read-only (explore role).** Only a read-tool **allowlist** is permitted
+   (`view_file`, `grep_search`, `code_search`, `list_dir`, `read_url_content`, …);
+   `run_command` and every write tool are denied. It's an *allowlist*, not
+   deny-by-name, because Antigravity's live `toolCall.name` drifts from the
+   doc-derived names (`list_dir`, not `list_directory`) — allowing by name **fails
+   safe**.
+
+The deny-list is a **shared shipped artifact** (`scripts/deny-list.txt`), read by
+the guard — seeding a future manifest `guard` capability so any hook-capable
+harness can plug the same list into its native gate.
 
 ## The executor face
 
-Antigravity is also a **task-role executor** — the same manifest that installs it
-declares its `execute` face:
+The same manifest that installs Antigravity declares its `execute` face:
 
 ```
-exec_cmd        = agy -p {prompt} --dangerously-skip-permissions
+exec_cmd        = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} --dangerously-skip-permissions
+exec_readonly   = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} --dangerously-skip-permissions
 exec_model_flag = --model {model}
+exec_probe      = agy
 ```
 
-Select it with `AI_MEMORY_EXECUTOR` (see [Workflow › Executor
-selection](../workflow.md#executor-selection)); `executor.sh` substitutes
-`{prompt}` / `{model}` and runs it headless.
+Select it per role with `AI_MEMORY_EXECUTOR_TASK` / `AI_MEMORY_EXECUTOR_EXPLORE`
+(see [Workflow › Executor selection](../workflow.md#executor-selection));
+`executor.sh` substitutes `{prompt}`/`{model}`, exports `AI_MEMORY_ROLE`, and runs
+it headless.
 
-**Read-only caveat.** `agy -p` is write-capable and has **no clean read-only
-flag**, so `exec_readonly` is intentionally omitted from the manifest —
-Antigravity is a **task-role executor only**. Read-only exploration degrades to
-the Claude `Explore` agent instead. (A future `PreToolUse` `hooks.json` guard
-could add enforced read-only.) The infra deny-list still applies: it is restated
-in every delegation prompt regardless of executor.
+**Read-only is real now.** `agy -p` has no read-only CLI flag, so `exec_readonly`
+is the *same* command — the read-only guarantee comes from the `PreToolUse` guard
+denying every non-read tool when `AI_MEMORY_ROLE=explore`. So Antigravity is a
+genuine **`explore`** executor, not degrading to the Claude `Explore` agent.
+(Enforcement requires the guard installed — i.e. `install.sh --harness antigravity`
+registered the hooks.json entries.)
+
+## Skills and commands — the `.agents/` namespace
+
+Antigravity natively discovers the cross-agent `.agents/` namespace, so both skills
+and slash commands reach it with no adapter:
+
+- **Skills** — `skills/<name>/SKILL.md` here is byte-identical to Antigravity's own
+  layout, so fan-out is a zero-transform symlink into the shared `~/.agents/skills`
+  (Antigravity is registered in `~/.agents/.skill-lock.json`).
+- **Commands** — the manifest declares `commands = skill`, so each canonical
+  slash-command body under `harnesses/claude/commands/` is wrapped as a `SKILL.md`
+  into the same `~/.agents/skills` (Antigravity's command mechanism *is* skills).
+
+Because both land in `~/.agents/skills`, the exact same store is shared with Codex.
 
 ## Adding a new domain topic
 
-Same as every `file`-archetype harness: drop `domain/<topic>.md` with `topic` /
-`triggers` / `summary` frontmatter, and the next `agy.sh` launch regenerates
-`AGENTS.md` with a new Domain Index row. No code change.
+Drop `domain/<topic>.md` with `topic` / `triggers` / `summary` frontmatter. The
+`<memory:index>` block (injected live) carries the new Domain Index row on the next
+model call — agy reads the file on demand when a request matches the triggers. No
+code change, no relaunch.

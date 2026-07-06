@@ -11,7 +11,7 @@ _Design approved 2026-07-06 (brainstorm). Pure-hook injection + executor-only Pr
 - [x] Phase 0 — probe `agy` tool catalog + `hooks.json` install location (prerequisite) — findings folded into plan; install target = global `~/.gemini/config/hooks.json`
 - [x] Phase 1 — PreInvocation live injection (manifest `archetype=hook`; agy.sh exports project; hook driver registers hooks.json) — verified live: agy answered from injected memory
 - [x] Phase 2 — PreToolUse guard (executor-only, `AI_MEMORY_ROLE`-gated) + shared deny-list + Antigravity `exec_readonly` — verified vs live agy payload shape
-- [ ] Phase 3 — docs
+- [x] Phase 3 — docs (antigravity.md hook-archetype rewrite; adding-a-harness JSON-contract + guard; install.md fix; working.md note graduated)
 
 ### System showcase (doc + diagrams + live demo) → [plan](plans/system-showcase.md)
 _Draft 2026-07-06. 60-min live technical deep-dive against the real system; educate/document. Mermaid + 2 Excalidraw heroes._
