@@ -54,6 +54,13 @@ __pycache__/
 # Per-environment overrides (secrets/paths) — ship config.local.sh.example only
 /config.local.sh
 
+# Per-instance ("local") skills: authored/installed on THIS instance only, never
+# synced. The whole folder is ignored by one line — drop a skill dir in and it fans
+# out locally (link-skills.sh) without any per-skill gitignore edit. The tracked
+# .gitkeep both documents the convention and keeps the empty folder in git.
+/skills-local/*
+!/skills-local/.gitkeep
+
 # Client-specific skill — not for publication (generic skills only)
 /skills/fiter-infrastructure-analyzer/
 

@@ -159,4 +159,30 @@ got=$( unset MEMORY_DIR; . "$SBLIB/scripts/_lib.sh"; printf '%s' "$MEMORY_DIR" )
 assert_eq "$EXPECTED_ROOT" "$got" "MEMORY_DIR default self-locates to memory root"
 rm -rf "$SBLIB"
 
+# --- skill_roots / list_skill_dirs ---
+SK="$(new_sandbox)"
+export MEMORY_DIR="$SK"
+unset AI_MEMORY_SKILL_ROOTS
+# generic store: one valid skill + one dir missing SKILL.md (a non-skill)
+mkdir -p "$SK/skills/gen-a" "$SK/skills/nomd"
+printf -- '---\nname: gen-a\n---\n' > "$SK/skills/gen-a/SKILL.md"
+# local store: one valid skill
+mkdir -p "$SK/skills-local/loc-a"
+printf -- '---\nname: loc-a\n---\n' > "$SK/skills-local/loc-a/SKILL.md"
+
+assert_eq "$SK/skills
+$SK/skills-local" "$(skill_roots)" "skill_roots default = generic + local"
+
+dirs="$(list_skill_dirs)"
+assert_contains "$dirs" "$SK/skills/gen-a" "list_skill_dirs yields generic skill"
+assert_contains "$dirs" "$SK/skills-local/loc-a" "list_skill_dirs yields local skill (second root)"
+assert_not_contains "$dirs" "nomd" "list_skill_dirs skips dir without SKILL.md"
+
+# AI_MEMORY_SKILL_ROOTS override pins the roots
+export AI_MEMORY_SKILL_ROOTS="$SK/skills"
+assert_eq "$SK/skills" "$(skill_roots)" "AI_MEMORY_SKILL_ROOTS override -> single root"
+assert_not_contains "$(list_skill_dirs)" "loc-a" "override excludes the local root"
+unset AI_MEMORY_SKILL_ROOTS
+rm -rf "$SK"
+
 finish
