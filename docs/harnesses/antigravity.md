@@ -159,8 +159,9 @@ It surfaces, left→right: the **memory project** — resolved from `AI_MEMORY_P
 (+subagent/task counts). It's **responsive** (wide single-line / medium two-line / narrow
 compact) and never crashes the CLI (jq-optional, defaults on error).
 
-- **Nerd Font** glyphs by default; set `USE_NERD_FONTS=false` for an emoji/text fallback if your
-  terminal font lacks the icons.
+- **Emoji glyphs by default** (🧠 project · 📁 folder · 🌿 branch — the same set Claude's statusline
+  uses, so they render in any terminal). Set `USE_NERD_FONTS=true` for Nerd Font icons instead (needs a
+  Nerd Font installed, else they show as boxes).
 - Toggle it in-CLI with `/statusline on|off`. The memory project shows as **dormant** outside a
   pinned repo (or when launched without the `agy.sh` wrapper, which is what exports the project).
 

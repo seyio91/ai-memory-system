@@ -9,11 +9,13 @@
 # project + folder come from AI_MEMORY_PROJECT / AI_MEMORY_CWD (exported by agy.sh),
 # falling back to walking up $PWD for a .agents/memory-project marker.
 #
-# Glyphs: Nerd Font by default; set USE_NERD_FONTS=false for an emoji/text fallback.
+# Glyphs: emoji by default (same set Claude's statusline uses — renders in any
+# terminal). Set USE_NERD_FONTS=true to use Nerd Font icons instead (needs a Nerd
+# Font installed, else glyphs show as boxes).
 # Never aborts (a statusline must not crash the CLI): jq-optional, defaults on error.
 set -uo pipefail
 
-USE_NERD_FONTS="${USE_NERD_FONTS:-true}"
+USE_NERD_FONTS="${USE_NERD_FONTS:-false}"
 
 # ─── ANSI (standard 16-color) ────────────────────────────────────────────────
 R="\033[0m"; B="\033[1m"; I="\033[3m"

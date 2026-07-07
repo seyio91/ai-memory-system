@@ -158,9 +158,13 @@ OUT="$(printf '%s' "$PAYLOAD" | PATH=/usr/bin:/bin AI_MEMORY_PROJECT=proj USE_NE
 assert_exit 0 "$c" "statusline: no-jq fallback exits 0"
 assert_contains "$OUT" "proj" "statusline: no-jq fallback still renders the project"
 
-# Nerd Font mode emits the pinned glyph codepoints (F1C0 database / F07B folder)
+# default glyphs are emoji (like Claude) \u2014 \ud83e\udde0 memory, renders in any terminal
 OUT="$(printf '%s' "$PAYLOAD" | AI_MEMORY_PROJECT=proj bash "$SL")"
+MEM_EMOJI=$'\U0001F9E0'
+case "$OUT" in *"$MEM_EMOJI"*) _ok "statusline: default emoji glyph present (brain)" ;; *) _bad "statusline: missing default emoji glyph" ;; esac
+# opt-in Nerd Font mode emits the pinned glyph codepoints (U+F1C0 database)
+OUT="$(printf '%s' "$PAYLOAD" | AI_MEMORY_PROJECT=proj USE_NERD_FONTS=true bash "$SL")"
 NF_GLYPH=$'\uf1c0'
-case "$OUT" in *"$NF_GLYPH"*) _ok "statusline: Nerd Font glyph present (U+F1C0)" ;; *) _bad "statusline: missing NF glyph" ;; esac
+case "$OUT" in *"$NF_GLYPH"*) _ok "statusline: USE_NERD_FONTS=true emits NF glyph (U+F1C0)" ;; *) _bad "statusline: NF glyph missing in nerd mode" ;; esac
 
 finish
