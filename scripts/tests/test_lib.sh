@@ -183,6 +183,22 @@ export AI_MEMORY_SKILL_ROOTS="$SK/skills"
 assert_eq "$SK/skills" "$(skill_roots)" "AI_MEMORY_SKILL_ROOTS override -> single root"
 assert_not_contains "$(list_skill_dirs)" "loc-a" "override excludes the local root"
 unset AI_MEMORY_SKILL_ROOTS
+
+# --- resolve_skill_dir: finds a skill in either root, fails on unknown ---
+assert_eq "$SK/skills/gen-a" "$(resolve_skill_dir gen-a)" "resolve_skill_dir -> generic dir"
+assert_eq "$SK/skills-local/loc-a" "$(resolve_skill_dir loc-a)" "resolve_skill_dir -> local dir"
+out=$(resolve_skill_dir nope); code=$?
+assert_exit 1 "$code" "resolve_skill_dir unknown -> exit 1"
+assert_eq "" "$out" "resolve_skill_dir unknown -> empty"
+
+# --- skills_with_partial: scans all roots by default ---
+printf '\n<!-- partial:self-rating START x -->\n<!-- partial:self-rating END -->\n' >> "$SK/skills/gen-a/SKILL.md"
+printf '\n<!-- partial:self-rating START x -->\n<!-- partial:self-rating END -->\n' >> "$SK/skills-local/loc-a/SKILL.md"
+carriers="$(skills_with_partial self-rating)"
+assert_contains "$carriers" "gen-a" "skills_with_partial (no dir) finds generic carrier"
+assert_contains "$carriers" "loc-a" "skills_with_partial (no dir) finds local carrier"
+# explicit-dir form still scans just that dir (back-compat)
+assert_not_contains "$(skills_with_partial self-rating "$SK/skills")" "loc-a" "explicit dir scopes to that root"
 rm -rf "$SK"
 
 finish

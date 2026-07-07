@@ -17,11 +17,15 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-SKILLS_DIR="${SKILLS_DIR:-$MEMORY_DIR/skills}"
+# Legacy single-source override: SKILLS_DIR pins enumeration to one dir. Otherwise
+# aggregate ratings across every root (generic + per-instance local).
+[ -n "${SKILLS_DIR:-}" ] && export AI_MEMORY_SKILL_ROOTS="$SKILLS_DIR"
 ALL=0
 [ "${1:-}" = "--all" ] && ALL=1
 
-[ -d "$SKILLS_DIR" ] || { printf 'skill-ratings: no skills dir at %s\n' "$SKILLS_DIR" >&2; exit 2; }
+have_root=0
+while IFS= read -r r; do [ -d "$r" ] && have_root=1; done < <(skill_roots)
+[ "$have_root" = 1 ] || { printf 'skill-ratings: no skills dir under any root\n' >&2; exit 2; }
 
 # Parse one rating log -> "count<TAB>latest_score<TAB>avg<TAB>latest_improve".
 # LC_ALL=C pins the decimal point to '.' regardless of the shell locale.
@@ -43,8 +47,8 @@ parse_log() {
 
 found=0
 printf '%-34s %5s %7s %5s  %s\n' "SKILL" "N" "LATEST" "AVG" "LATEST IMPROVE"
-for d in "$SKILLS_DIR"/*/; do
-    [ -d "$d" ] || continue
+while IFS= read -r d; do
+    [ -n "$d" ] || continue
     name="$(basename "$d")"
     log="$d/self-rating.md"
     if [ -f "$log" ]; then
@@ -55,15 +59,15 @@ EOF
         found=$((found + 1))
         printf '%-34s %5s %7s %5s  %s\n' "$name" "$n" "$latest" "$avg" "$imp"
     fi
-done
+done < <(list_skill_dirs)
 
 # --all also lists skills that are IN the loop (carry the self-rating block)
 # but have no VALID scored entries yet. Membership is marker-derived; "rated" is
 # decided by parse_log (same 1-5 validation as the main loop) so a log with only
 # out-of-range scores still shows here rather than vanishing from both views.
 if [ "$ALL" = 1 ]; then
-    for s in $(skills_with_partial self-rating "$SKILLS_DIR"); do
-        log="$SKILLS_DIR/$s/self-rating.md"
+    for s in $(skills_with_partial self-rating); do
+        log="$(resolve_skill_dir "$s")/self-rating.md"
         n=0
         [ -f "$log" ] && n="$(parse_log "$log" | cut -f1)"
         if [ "${n:-0}" = "0" ]; then

@@ -45,8 +45,8 @@ END="<!-- partial:$PARTIAL END -->"
 apply_one() {
     name="$1"
     case "$name" in *[!A-Za-z0-9._-]*|.|..) printf 'apply-partial: invalid skill name %s\n' "$name" >&2; return 2 ;; esac
-    f="$MEMORY_DIR/skills/$name/SKILL.md"
-    [ -f "$f" ] || { printf 'apply-partial: no SKILL.md for skill %s\n' "$name" >&2; return 2; }
+    sdir="$(resolve_skill_dir "$name")" || { printf 'apply-partial: no SKILL.md for skill %s\n' "$name" >&2; return 2; }
+    f="$sdir/SKILL.md"
     # First injection (no block yet) is an explicit act -> require --force.
     # Re-sync (block already present) is always allowed.
     if ! grep -Fq "<!-- partial:$PARTIAL START" "$f" && [ "$FORCE" != 1 ]; then
@@ -73,7 +73,7 @@ apply_one() {
     } >> "$tmp"
 
     mv "$tmp" "$f"
-    printf 'applied: %s -> skills/%s/SKILL.md\n' "$PARTIAL" "$name"
+    printf 'applied: %s -> %s\n' "$PARTIAL" "${f#$MEMORY_DIR/}"
 
     # Validate just this skill (markdown body can't break frontmatter, but the
     # store validator is the contract — isolate this skill's findings by name).

@@ -13,15 +13,22 @@ MEMORY_DIR="${MEMORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # managed partial block, one per line. Membership in a partial's loop (e.g.
 # self-rating) is DERIVED from marker presence, not a static list — so a skill
 # enters the loop exactly when the block is injected (new-skill --kind workflow,
-# or apply-partial --force) and never drifts out of sync.
+# or apply-partial --force) and never drifts out of sync. With no <skills_dir>,
+# scans every skill root (via list_skill_dirs); pass a dir to scan just that one.
 #   skills_with_partial <partial> [skills_dir]
 skills_with_partial() {
-    local partial="$1" dir="${2:-$MEMORY_DIR/skills}" d
-    [ -d "$dir" ] || return 0
-    for d in "$dir"/*/; do
-        [ -f "$d/SKILL.md" ] || continue
+    local partial="$1" dir="${2:-}" d
+    if [ -n "$dir" ]; then
+        [ -d "$dir" ] || return 0
+        for d in "$dir"/*/; do
+            [ -f "$d/SKILL.md" ] || continue
+            grep -Fq "<!-- partial:$partial START" "$d/SKILL.md" && basename "$d"
+        done
+        return 0
+    fi
+    while IFS= read -r d; do
         grep -Fq "<!-- partial:$partial START" "$d/SKILL.md" && basename "$d"
-    done
+    done < <(list_skill_dirs)
 }
 
 # skill_roots — print the skill store roots, one per line, in precedence order.
@@ -52,6 +59,19 @@ list_skill_dirs() {
             printf '%s\n' "${d%/}"
         done
     done < <(skill_roots)
+}
+
+# resolve_skill_dir — print the absolute dir of the skill named <name>, searching
+# roots in precedence order (first match wins), and return 0; return 1 if no root
+# holds a skill by that name. Lets name-addressed tools (apply-partial, ratings)
+# work regardless of which store — generic or local — a skill lives in.
+#   resolve_skill_dir <name>
+resolve_skill_dir() {
+    local name="$1" d
+    while IFS= read -r d; do
+        [ "$(basename "$d")" = "$name" ] && { printf '%s\n' "$d"; return 0; }
+    done < <(list_skill_dirs)
+    return 1
 }
 
 # detect_active_project — print active project name to stdout, or empty.

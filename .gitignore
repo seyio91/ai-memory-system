@@ -61,7 +61,4 @@ __pycache__/
 /skills-local/*
 !/skills-local/.gitkeep
 
-# Client-specific skill — not for publication (generic skills only)
-/skills/fiter-infrastructure-analyzer/
-
 # identity.md IS committed (preferences, no client data) — see identity.template.md
