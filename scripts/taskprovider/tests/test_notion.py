@@ -9,6 +9,9 @@ class NotionProviderOfflineTests(unittest.TestCase):
         self.saved_env = {
             "NOTION_TOKEN": os.environ.pop("NOTION_TOKEN", None),
             "NOTION_DATA_SOURCE_ID": os.environ.pop("NOTION_DATA_SOURCE_ID", None),
+            # Isolate the status-property kind so a shell env (e.g. select) can't
+            # leak into these offline tests, which assert the default status shape.
+            "NOTION_STATUS_KIND": os.environ.pop("NOTION_STATUS_KIND", None),
         }
         self.provider = NotionProvider()
         self.provider.data_source_id = "data-source-123"
@@ -17,10 +20,10 @@ class NotionProviderOfflineTests(unittest.TestCase):
         def fake_request(method, url, body=None):
             self.calls.append((method, url, body))
             if method == "POST" and url.endswith("/pages"):
-                return {"id": "page-123"}
+                return {"id": "01234567-89ab-cdef-0123-456789abcdef"}
             if method == "POST" and url.endswith("/data_sources/data-source-123/query"):
                 return {"results": [self.page_fixture()]}
-            if method == "GET" and url.endswith("/pages/page-123"):
+            if method == "GET" and url.endswith("/pages/01234567-89ab-cdef-0123-456789abcdef"):
                 return self.page_fixture()
             return {}
 
@@ -35,7 +38,7 @@ class NotionProviderOfflineTests(unittest.TestCase):
 
     def page_fixture(self):
         return {
-            "id": "page-123",
+            "id": "01234567-89ab-cdef-0123-456789abcdef",
             "created_time": "2026-06-12T10:11:12.000Z",
             "properties": {
                 "Name": {
@@ -59,7 +62,7 @@ class NotionProviderOfflineTests(unittest.TestCase):
     def test_capture_builds_page_create_request(self):
         ref = self.provider.capture("alpha", "Ship Notion Provider", "initial summary")
 
-        self.assertEqual("page-123", ref)
+        self.assertEqual("01234567-89ab-cdef-0123-456789abcdef", ref)
         method, url, body = self.calls[-1]
         self.assertEqual("POST", method)
         self.assertTrue(url.endswith("/v1/pages"))
@@ -82,7 +85,7 @@ class NotionProviderOfflineTests(unittest.TestCase):
         self.assertIn({"property": "Project", "rich_text": {"equals": "alpha"}}, filters)
         self.assertIn({"property": "Status", "status": {"equals": "Backlog"}}, filters)
         self.assertEqual(1, len(tasks))
-        self.assertEqual("page-123", tasks[0].ref)
+        self.assertEqual("01234567-89ab-cdef-0123-456789abcdef", tasks[0].ref)
         self.assertEqual("alpha", tasks[0].project)
         self.assertEqual("Ship Notion Provider", tasks[0].title)
         self.assertEqual("fixture summary", tasks[0].summary)
@@ -90,18 +93,18 @@ class NotionProviderOfflineTests(unittest.TestCase):
         self.assertEqual("2026-06-12T10:11:12.000Z", tasks[0].created)
 
     def test_update_summary_writes_only_summary_property(self):
-        self.provider.update("page-123", summary="updated summary")
+        self.provider.update("01234567-89ab-cdef-0123-456789abcdef", summary="updated summary")
 
         method, url, body = self.calls[-1]
         self.assertEqual("PATCH", method)
-        self.assertTrue(url.endswith("/v1/pages/page-123"))
+        self.assertTrue(url.endswith("/v1/pages/01234567-89ab-cdef-0123-456789abcdef"))
         self.assertEqual(["Summary"], list(body["properties"].keys()))
         self.assertEqual("updated summary", body["properties"]["Summary"]["rich_text"][0]["text"]["content"])
 
     def test_page_response_parses_every_task_field(self):
-        task = self.provider.get("page-123")
+        task = self.provider.get("01234567-89ab-cdef-0123-456789abcdef")
 
-        self.assertEqual("page-123", task.ref)
+        self.assertEqual("01234567-89ab-cdef-0123-456789abcdef", task.ref)
         self.assertEqual("alpha", task.project)
         self.assertEqual("Ship Notion Provider", task.title)
         self.assertEqual("fixture summary", task.summary)
@@ -112,6 +115,27 @@ class NotionProviderOfflineTests(unittest.TestCase):
         reverse = {value: key for key, value in self.provider.status_map.items()}
         for canonical, native in self.provider.status_map.items():
             self.assertEqual(canonical, reverse[native])
+
+    def test_ref_methods_reject_short_ids(self):
+        # A short prefix is ambiguous + rejected by the API — guard fails early
+        # with an actionable message, before any request goes out.
+        for op in (
+            lambda: self.provider.get("38ef6850"),
+            lambda: self.provider.set_status("38ef6850", "done"),
+            lambda: self.provider.update("38ef6850", summary="x"),
+        ):
+            before = len(self.calls)
+            with self.assertRaises(ValueError) as ctx:
+                op()
+            self.assertIn("full page UUID", str(ctx.exception))
+            self.assertEqual(before, len(self.calls), "guard must not hit the API")
+
+    def test_ref_methods_accept_full_uuid_dashed_or_not(self):
+        # Both the dashed fixture id and its dashless form pass the guard.
+        self.provider.get("01234567-89ab-cdef-0123-456789abcdef")
+        self.provider.update("0123456789abcdef0123456789abcdef", summary="ok")
+        method, url, _ = self.calls[-1]
+        self.assertEqual("PATCH", method)
 
 
 @unittest.skipUnless(

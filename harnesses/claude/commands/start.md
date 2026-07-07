@@ -20,7 +20,7 @@ Classify the pulled `summary` (treat it as the initial request):
 
 ### Step 3 — scaffold the plan in the TASK's project
 - Slug = kebab-case of the title (or reuse `<ref>`). Target path: `~/.claude-memory/projects/<task-project>/plans/<slug>.md`. If it already exists, abort and tell the user (pick another slug or edit it).
-- Write the standard plan scaffold (same shape `/new-plan` produces): frontmatter `plan`, `status: active`, `created` (today, from the identity injection — do not invent), `owner: claude (orchestrator)`, **plus** `task_provider: <MEMORY_TASK_PROVIDER or "local">` and `task_ref: <ref>`. Body sections: `## Goal`, `## Success criteria`, `## Design`, `## Decisions (locked)`, `## Phases`, `## Risks / open questions`.
+- Write the standard plan scaffold (same shape `/new-plan` produces): frontmatter `plan`, `status: active`, `created` (today, from the identity injection — do not invent), `owner: claude (orchestrator)`, **plus** `task_provider: <MEMORY_TASK_PROVIDER or "local">` and `task_ref: <ref>`. Record `<ref>` **verbatim and in full** (the backend's complete id — for Notion the full page UUID, never an 8-char abbreviation; short ids are ambiguous and rejected by the API). Body sections: `## Goal`, `## Success criteria`, `## Design`, `## Decisions (locked)`, `## Phases`, `## Risks / open questions`.
 - Fold the approved design in: `## Goal` ← the clarified one-or-two-sentence purpose; `## Success criteria` ← criteria derived with the user; `## Design` ← chosen approach + one-line note per rejected alternative; `## Risks` ← deferred items. (For settled/quick tasks: Goal from the summary, a one-line Design, best-effort Success criteria.) Leave `## Phases` for the normal decomposition step.
 
 ### Step 4 — link, push back, flip status

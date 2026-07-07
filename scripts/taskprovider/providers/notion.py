@@ -1,9 +1,30 @@
 import json
 import os
+import re
 import urllib.error
 import urllib.request
 
 from taskprovider.contract import Task, TaskProvider
+
+_UUID_RE = re.compile(r"\A[0-9a-fA-F]{32}\Z")
+
+
+def _require_full_ref(ref):
+    """Guard: a Notion ref must be a full page UUID (32 hex, dashes optional).
+
+    A short prefix (e.g. the 8-char abbreviation humans sometimes jot in notes)
+    is ambiguous — several pages can share it — and the API rejects it with an
+    opaque 400. Fail early with an actionable message so callers always pass the
+    full ref returned by ``capture`` / ``list`` / ``get``.
+    """
+    compact = (ref or "").replace("-", "")
+    if not _UUID_RE.match(compact):
+        raise ValueError(
+            "Notion ref must be a full page UUID (32 hex, dashes optional), got "
+            "%r — short ids are ambiguous and rejected by the API; use the "
+            "full ref from `taskctl list` / `get`." % ref
+        )
+    return ref
 
 
 class NotionProvider(TaskProvider):
@@ -83,9 +104,11 @@ class NotionProvider(TaskProvider):
         return [self._task_from_page(page) for page in response.get("results", [])]
 
     def get(self, ref):
+        _require_full_ref(ref)
         return self._task_from_page(self._request("GET", self.API_ROOT + "/pages/" + ref))
 
     def update(self, ref, *, title=None, summary=None):
+        _require_full_ref(ref)
         properties = {}
         if title is not None:
             properties[self.NAME_PROP] = self._title_value(title)
@@ -94,6 +117,7 @@ class NotionProvider(TaskProvider):
         self._request("PATCH", self.API_ROOT + "/pages/" + ref, {"properties": properties})
 
     def set_status(self, ref, status):
+        _require_full_ref(ref)
         body = {
             "properties": {
                 self.STATUS_PROP: self._status_value(self.status_map[status]),
