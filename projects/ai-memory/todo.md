@@ -6,11 +6,7 @@
 
 ## Active
 
-### Antigravity memory-aware statusline → [plan](plans/antigravity-statusline.md)
-_Design locked 2026-07-07: memory project + folder + brain info (memory-load + agy runtime), auto-wired via install (settings.json merge), Nerd Font w/ emoji fallback._
-- [x] Phase 1 — statusline.sh (stdin parse + memory/folder resolution + responsive render) — verified across widths + no-jq fallback
-- [x] Phase 2 — install wiring (manifest statusline_settings/_script; hook driver settings.json merge; validate-manifest) — merges preserving existing keys
-- [x] Phase 3 — tests + docs — 48 antigravity assertions incl. statusline; wired live on real settings.json
+_(nothing in flight)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
