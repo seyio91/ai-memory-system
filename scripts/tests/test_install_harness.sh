@@ -61,6 +61,9 @@ assert_file "$FHOME/.agents/skills/pin/.from-command" "codex: command-skill mark
 assert_contains "$(cat "$FHOME/.agents/skills/pin/SKILL.md")" "name: pin" "codex: command-skill wrapper frontmatter"
 
 # --- antigravity (hook archetype, both faces): install = deliver face ---
+# Seed an existing settings.json to prove the statusline merge preserves keys.
+mkdir -p "$FHOME/.gemini/antigravity-cli"
+printf '{\n  "colorScheme": "dark",\n  "trustedWorkspaces": ["/x"]\n}\n' > "$FHOME/.gemini/antigravity-cli/settings.json"
 run_install --harness antigravity >"$SBROOT/log.agy" 2>&1; rc=$?
 assert_exit 0 "$rc" "antigravity install exits 0"
 # hook archetype registers a PreInvocation entry into the global hooks.json.
@@ -77,6 +80,12 @@ assert_contains "$hj" "harnesses/antigravity/hooks/pretooluse.sh" "antigravity: 
 if [ ! -e "$FHOME/.gemini/config/AGENTS.md" ]; then _ok "antigravity: no memory-built AGENTS.md"; else _bad "antigravity: unexpected AGENTS.md"; fi
 assert_file "$FHOME/.agents/skills/demo-skill"   "antigravity: canonical skill in shared ~/.agents/skills"
 assert_file "$FHOME/.agents/skills/pin/SKILL.md" "antigravity: command delivered as skill"
+# statusline merged into settings.json, existing keys preserved.
+sj="$(cat "$FHOME/.gemini/antigravity-cli/settings.json")"
+assert_contains "$sj" "statusLine" "antigravity: statusLine registered in settings.json"
+assert_contains "$sj" "harnesses/antigravity/statusline.sh" "antigravity: statusLine -> statusline.sh"
+assert_contains "$sj" "colorScheme"       "antigravity: existing settings.json keys preserved"
+assert_contains "$sj" "trustedWorkspaces" "antigravity: existing trustedWorkspaces preserved"
 # execute face is declared in the manifest (consumed by executor.sh)
 assert_contains "$(cat "$FAKE/harnesses/antigravity/manifest")" "exec_cmd" "antigravity: manifest declares an execute face"
 # idempotent re-run: hooks.json merge is stable, still exactly one entry.

@@ -136,4 +136,31 @@ guard explore some_unknown_tool ""; denied "$OUT" "explore: unknown tool denied 
 # explore deny-list still blocks destructive shell even though run_command is denied anyway
 guard explore run_command "kubectl apply -f x"; denied "$OUT" "explore: destructive shell denied"
 
+# ================= statusline (statusline.sh) =================
+SL="$REPO/harnesses/antigravity/statusline.sh"
+PAYLOAD='{"agent_state":"working","context_window":{"used_percentage":63.4},"vcs":{"branch":"main","dirty":true},"sandbox":{"enabled":true},"subagents":[1,2],"task_count":3,"model":{"display_name":"Gemini 3.5 Flash"},"terminal_width":100}'
+
+# project + folder resolve from env; renders memory project, folder, branch, model, ctx
+OUT="$(printf '%s' "$PAYLOAD" | AI_MEMORY_PROJECT=proj AI_MEMORY_CWD="$WORK" USE_NERD_FONTS=false bash "$SL")"
+assert_contains "$OUT" "proj"            "statusline: shows the memory project"
+assert_contains "$OUT" "$(basename "$WORK")" "statusline: shows the folder"
+assert_contains "$OUT" "main"            "statusline: shows the git branch"
+assert_contains "$OUT" "Gemini 3.5 Flash" "statusline: shows the model"
+assert_contains "$OUT" "63.4%"           "statusline: shows context % (period decimal, any locale)"
+assert_contains "$OUT" "WORKING"         "statusline: shows agent state"
+
+# dormant when no project resolves
+OUT="$(printf '%s' "$PAYLOAD" | env -u AI_MEMORY_PROJECT AI_MEMORY_CWD=/tmp/nowhere-xyz USE_NERD_FONTS=false bash "$SL")"
+assert_contains "$OUT" "dormant" "statusline: dormant with no active project"
+
+# no-jq fallback: must not error, still prints something
+OUT="$(printf '%s' "$PAYLOAD" | PATH=/usr/bin:/bin AI_MEMORY_PROJECT=proj USE_NERD_FONTS=false bash "$SL" 2>&1)"; c=$?
+assert_exit 0 "$c" "statusline: no-jq fallback exits 0"
+assert_contains "$OUT" "proj" "statusline: no-jq fallback still renders the project"
+
+# Nerd Font mode emits the pinned glyph codepoints (F1C0 database / F07B folder)
+OUT="$(printf '%s' "$PAYLOAD" | AI_MEMORY_PROJECT=proj bash "$SL")"
+NF_GLYPH=$'\uf1c0'
+case "$OUT" in *"$NF_GLYPH"*) _ok "statusline: Nerd Font glyph present (U+F1C0)" ;; *) _bad "statusline: missing NF glyph" ;; esac
+
 finish

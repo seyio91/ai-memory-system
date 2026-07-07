@@ -20,6 +20,14 @@ hooks_json     = ~/.gemini/config/hooks.json
 hook_script    = $MEMORY_DIR/harnesses/antigravity/hooks/preinvocation.sh
 guard_script   = $MEMORY_DIR/harnesses/antigravity/hooks/pretooluse.sh
 
+# statusline: agy renders settings.json → "statusLine".command each frame, piping a
+# JSON payload on stdin. The install driver merges a statusLine entry (pointing at
+# statusline_script) into statusline_settings, preserving existing keys. Surfaces the
+# active memory project + folder + brain/runtime state. NB: settings.json lives under
+# antigravity-cli/, NOT the config/ customization root the hooks use.
+statusline_settings = ~/.gemini/antigravity-cli/settings.json
+statusline_script   = $MEMORY_DIR/harnesses/antigravity/statusline.sh
+
 # Skills: Antigravity honors the cross-agent ~/.agents/skills standard (it is
 # listed in ~/.agents/.skill-lock.json), and its skill layout is skills/<name>/
 # SKILL.md — byte-identical to our canonical store, so fan-out is a zero-transform
