@@ -46,6 +46,16 @@ assert_file "$MEM/.skill-cache/aliased/SKILL.md" "aliased skill in cache"
 run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget
 assert_exit 1 "$code" "duplicate name refused (exit 1)"
 assert_contains "$out" "already in" "duplicate guard names the conflict"
+# manifest untouched by the refused install
+n_before="$(grep -c '^\[\[skills\]\]' "$GEN_MF")"
+run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget
+n_after="$(grep -c '^\[\[skills\]\]' "$GEN_MF")"
+assert_eq "$n_before" "$n_after" "refused duplicate did not append to the manifest"
+# --force appends anyway (explicit override)
+run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget --force
+assert_exit 0 "$code" "--force appends a duplicate (exit 0)"
+n_forced="$(grep -c '^\[\[skills\]\]' "$GEN_MF")"
+assert_eq "$((n_before + 1))" "$n_forced" "--force added one [[skills]] entry"
 
 # === guards ===================================================================
 run "$INS" --remote "file://$REPO" --path packs/widget --name noref

@@ -28,6 +28,8 @@ They sit on one maturation path: `working.md` (scratch) → `domain/*.md` (stabl
 
 Not every skill graduates from a domain file, either. The `brainstorming` skill (see [Skills](harnesses/claude.md#skills)) was authored directly as a Claude-only, orchestrator-only capability — it encodes a procedure (the Tier-3-feature design pass) that never existed as cross-project *knowledge*, so it has no `domain/*.md` source and gets no index row. Authoring a skill outright is fine when the thing is a procedure from the start; the maturation path is the common case, not the only one.
 
+**Where a skill lives is a second axis.** Independent of whether a skill graduated from a domain file, it varies on **scope** (generic — synced to every instance via `skills/` — vs local — per-instance, gitignored, in `skills-local/`) and **source** (authored here vs referenced from a git repo, declared in a TOML manifest and cached, never forked). The rule is *modify it → make it local; just use it → reference it as remote.* This is how a skill is distributed rather than how it's born, so it's documented with the mechanism in [Skill scope & source](harnesses/claude.md#skill-scope--source-localgeneric--authoredremote), not here.
+
 ---
 
 # Memory governance
