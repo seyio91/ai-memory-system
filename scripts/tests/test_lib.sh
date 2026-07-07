@@ -171,12 +171,20 @@ mkdir -p "$SK/skills-local/loc-a"
 printf -- '---\nname: loc-a\n---\n' > "$SK/skills-local/loc-a/SKILL.md"
 
 assert_eq "$SK/skills
-$SK/skills-local" "$(skill_roots)" "skill_roots default = generic + local"
+$SK/skills-local
+$SK/.skill-cache" "$(skill_roots)" "skill_roots default = generic + local + remote cache"
+assert_eq "$SK/.skill-cache" "$(skill_cache_dir)" "skill_cache_dir default"
 
 dirs="$(list_skill_dirs)"
 assert_contains "$dirs" "$SK/skills/gen-a" "list_skill_dirs yields generic skill"
 assert_contains "$dirs" "$SK/skills-local/loc-a" "list_skill_dirs yields local skill (second root)"
 assert_not_contains "$dirs" "nomd" "list_skill_dirs skips dir without SKILL.md"
+
+# a materialized remote skill in .skill-cache/ is enumerated as a third root
+mkdir -p "$SK/.skill-cache/rem-a"
+printf -- '---\nname: rem-a\n---\n' > "$SK/.skill-cache/rem-a/SKILL.md"
+assert_contains "$(list_skill_dirs)" "$SK/.skill-cache/rem-a" "list_skill_dirs yields cached remote skill"
+assert_eq "$SK/.skill-cache/rem-a" "$(resolve_skill_dir rem-a)" "resolve_skill_dir -> cached remote dir"
 
 # AI_MEMORY_SKILL_ROOTS override pins the roots
 export AI_MEMORY_SKILL_ROOTS="$SK/skills"

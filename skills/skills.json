@@ -1,0 +1,4 @@
+{
+  "$schema": "remote-skill manifest — see docs/harnesses/claude.md (skills). Each entry declares a skill fetched from a git source into the gitignored .skill-cache/ by scripts/resolve-skills.sh; content is referenced, never committed. Fields: name (required, dir name in the cache), url (required, git remote), ref (required, branch/tag/sha to pin), path (optional, subdir within the repo holding SKILL.md). Entries here are GENERIC (synced to every instance); per-instance remotes go in skills-local/skills.json (gitignored).",
+  "skills": []
+}
