@@ -11,7 +11,7 @@ _Design locked 2026-07-07 (brainstorm; rebundled from "local vs generic"). Two a
 - [x] Phase 1 — scope foundation: `skills-local/` folder + centralized `_lib.sh:list_skill_dirs` (link-skills + validate-skills route through it; `/skills-local/` gitignored)
 - [x] Phase 2 — authored authoring + migrate: `new-skill --local`, migrate fiter, route boundary/ratings/partial through the enumerator
 - [x] Phase 3 — remote source layer: split manifests + resolver → gitignored `.skill-cache/` (+ lockfile), cache as a third enumeration root
-- [ ] Phase 4 — remote authoring + sync: `install-skill --remote --save` write-back to the TOML manifest, `sync-system` resolve/update step, derived `list-skills` (provenance: local authored vs remote referenced)
+- [x] Phase 4 — remote authoring + sync: `install-skill --remote --save` write-back to the TOML manifest, `sync-system` resolve/update step, derived `list-skills` (provenance: local authored vs remote referenced)
 - [ ] Phase 5 — tests (local-authored/remote × generic/local) + docs
 
 ## Done
