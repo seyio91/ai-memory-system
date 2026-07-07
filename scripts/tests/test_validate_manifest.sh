@@ -57,6 +57,10 @@ run_vm "$mf"; assert_contains "$OUT" "hooks_json requires 'hook_script'" "hooks_
 mf="$(write_manifest antigravity 'name = antigravity' 'archetype = hook' 'format = xml' 'hooks_json = ~/.gemini/config/hooks.json' 'hook_script = $MEMORY_DIR/h.sh')"
 run_vm "$mf"; assert_exit 0 "$RC" "hook via hooks_json + hook_script: exit 0"
 
+# --- statusline_settings requires statusline_script ---
+mf="$(write_manifest antigravity 'name = antigravity' 'archetype = hook' 'format = xml' 'hooks_json = ~/.gemini/config/hooks.json' 'hook_script = $MEMORY_DIR/h.sh' 'statusline_settings = ~/.gemini/antigravity-cli/settings.json')"
+run_vm "$mf"; assert_contains "$OUT" "statusline_settings requires 'statusline_script'" "statusline_settings w/o script: message"
+
 # --- file archetype missing context_target ---
 mf="$(write_manifest codex 'name = codex' 'archetype = file' 'format = md' 'refresh = launch')"
 run_vm "$mf"; assert_contains "$OUT" "requires 'context_target'" "file w/o context_target: message"

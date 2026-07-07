@@ -140,6 +140,31 @@ and slash commands reach it with no adapter:
 
 Because both land in `~/.agents/skills`, the exact same store is shared with Codex.
 
+## Statusline
+
+`install.sh --harness antigravity` also registers a **memory-aware statusline**
+(`harnesses/antigravity/statusline.sh`). agy renders `settings.json → statusLine.command`
+each frame, piping a JSON payload on stdin (`agent_state`, `model.display_name`,
+`context_window.used_percentage`, `vcs.branch`/`dirty`, `sandbox`, `subagents`, `task_count`,
+`terminal_width`); the script prints the formatted line. Registration is an idempotent merge
+into `~/.gemini/antigravity-cli/settings.json` that **preserves** existing keys
+(`colorScheme`, `trustedWorkspaces`, …):
+
+```json
+{ "statusLine": { "type": "", "command": "bash …/harnesses/antigravity/statusline.sh", "enabled": true } }
+```
+
+It surfaces, left→right: the **memory project** — resolved from `AI_MEMORY_PROJECT`
+(exported by `agy.sh`), else by walking up `$PWD` for `.agents/memory-project`; the **folder**; git **branch** (+dirty); **model**; a **context-window %** bar; and **agent state**
+(+subagent/task counts). It's **responsive** (wide single-line / medium two-line / narrow
+compact) and never crashes the CLI (jq-optional, defaults on error).
+
+- **Emoji glyphs by default** (🧠 project · 📁 folder · 🌿 branch — the same set Claude's statusline
+  uses, so they render in any terminal). Set `USE_NERD_FONTS=true` for Nerd Font icons instead (needs a
+  Nerd Font installed, else they show as boxes).
+- Toggle it in-CLI with `/statusline on|off`. The memory project shows as **dormant** outside a
+  pinned repo (or when launched without the `agy.sh` wrapper, which is what exports the project).
+
 ## Adding a new domain topic
 
 Drop `domain/<topic>.md` with `topic` / `triggers` / `summary` frontmatter. The

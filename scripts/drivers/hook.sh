@@ -11,7 +11,7 @@
 
 # driver_install — dispatch on which registration style the manifest declares.
 driver_install() {
-    local hooks_dir hooks_json
+    local hooks_dir hooks_json sl_settings
     hooks_dir="$(manifest_get "$MANIFEST" hooks_dir)"
     hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
 
@@ -21,6 +21,48 @@ driver_install() {
         _hook_register_json "$hooks_json"
     else
         info "hook archetype but neither hooks_dir nor hooks_json in manifest — nothing wired"
+    fi
+
+    # Optional statusline registered into a JSON settings file (Antigravity —
+    # ~/.gemini/antigravity-cli/settings.json → "statusLine"). Distinct from the
+    # hooks.json above and from Claude's symlinked statusline (hooks_dir style).
+    sl_settings="$(manifest_get "$MANIFEST" statusline_settings)"
+    if [ -n "$sl_settings" ]; then
+        _hook_register_statusline "$sl_settings"
+    fi
+}
+
+# _hook_register_statusline <settings_json> — merge a "statusLine" entry pointing
+# at statusline_script into the harness's JSON settings file, idempotently and
+# WITHOUT clobbering existing keys (colorScheme, trustedWorkspaces, …).
+_hook_register_statusline() {
+    local settings="$1" ss
+    ss="$(manifest_get "$MANIFEST" statusline_script)"; ss="${ss//\$MEMORY_DIR/$MEMORY_DIR}"
+    [ -n "$ss" ] || { info "statusline_settings set but no statusline_script — nothing to register"; return; }
+    chmod +x "$ss" 2>/dev/null || true
+
+    step "Statusline -> $settings"
+    mkdir -p "$(dirname "$settings")"
+    if command -v python3 >/dev/null 2>&1; then
+        AIM_SL_SETTINGS="$settings" AIM_SL_CMD="bash $ss" python3 - <<'PY'
+import json, os
+path = os.environ["AIM_SL_SETTINGS"]
+cmd  = os.environ["AIM_SL_CMD"]
+try:
+    with open(path) as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        data = {}
+except Exception:
+    data = {}
+data["statusLine"] = {"type": "", "command": cmd, "enabled": True}
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PY
+        info "registered statusLine -> bash $ss"
+    else
+        info "python3 absent — add \"statusLine\": {\"command\": \"bash $ss\", \"enabled\": true} to $settings by hand"
     fi
 }
 
@@ -115,6 +157,9 @@ driver_notes() {
      $cd/AGENTS.md — create/edit it yourself; the memory system never writes it.
      Per-project memory is injected live by the PreInvocation hook now registered
      in $hooks_json. Verify: run 'agy' in a pinned repo and check it sees memory.
+  3. Statusline (if wired): registered in $(manifest_get "$MANIFEST" statusline_settings).
+     It shows the memory project + folder + brain/runtime state. Needs a Nerd Font in
+     your terminal (or set USE_NERD_FONTS=false for emoji). Toggle in-CLI: /statusline.
 EOF
         return
     fi
