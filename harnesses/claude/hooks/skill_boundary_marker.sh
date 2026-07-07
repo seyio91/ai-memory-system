@@ -31,7 +31,10 @@ except Exception:
 # Reject path-traversal / odd skill names before building a filesystem path.
 case "$SKILL" in *[!A-Za-z0-9._-]*) exit 0 ;; esac
 
-SKILL_MD="$MEMORY_DIR/skills/$SKILL/SKILL.md"
+# Resolve across ALL skill roots (generic / local / remote cache) — a read-only
+# skill in skills-local/ or .skill-cache/ must still have its tier read and armed.
+SKILL_DIR="$(skill_dir_for "$SKILL")" || exit 0
+SKILL_MD="$SKILL_DIR/SKILL.md"
 [ -f "$SKILL_MD" ] || exit 0
 
 # Read metadata.tier (nested under metadata:). Only read-only skills are armed.

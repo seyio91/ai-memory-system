@@ -50,9 +50,11 @@ for marker in "$MDIR"/*.marker; do
     set -- check --skill "$skill" --tier target-read-only \
         --memory "$MEMORY_DIR" --memory-baseline "$membase" --memory-scope others-only
 
-    # Optional target half: the skill drops skills/<skill>/.boundary-target with
-    # the resolved target repo path (line 1) + a baseline snapshot file (line 2).
-    tgtfile="$MEMORY_DIR/skills/$skill/.boundary-target"
+    # Optional target half: the skill drops <skill-dir>/.boundary-target with the
+    # resolved target repo path (line 1) + a baseline snapshot file (line 2). Resolve
+    # the skill dir across all roots (it may be local/remote, not just skills/).
+    sdir="$(skill_dir_for "$skill" 2>/dev/null)"
+    tgtfile="${sdir:-$MEMORY_DIR/skills/$skill}/.boundary-target"
     if [ -f "$tgtfile" ]; then
         tpath=$(sed -n '1p' "$tgtfile" 2>/dev/null)
         tbase=$(sed -n '2p' "$tgtfile" 2>/dev/null)

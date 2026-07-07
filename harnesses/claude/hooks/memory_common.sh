@@ -90,6 +90,25 @@ detect_project() {
     printf '%s' "$proj"
 }
 
+# skill_dir_for <name> — print the invoked skill's dir across ALL skill roots
+# (generic skills/, local skills-local/, remote .skill-cache/) and return 0, else
+# return 1. Routes through _lib.sh:resolve_skill_dir (the centralized enumerator) so
+# the boundary hooks agree with the rest of the skills toolchain — a skill is no
+# longer only in skills/. _lib is sourced lazily (only the boundary hooks call this,
+# so injection hooks stay lean); falls back to skills/<name> if _lib is unavailable.
+skill_dir_for() {
+    local name="$1" d
+    if ! command -v resolve_skill_dir >/dev/null 2>&1 && [ -f "$MEMORY_DIR/scripts/_lib.sh" ]; then
+        . "$MEMORY_DIR/scripts/_lib.sh"
+    fi
+    if command -v resolve_skill_dir >/dev/null 2>&1; then
+        d="$(resolve_skill_dir "$name" 2>/dev/null)"
+        [ -n "$d" ] && { printf '%s\n' "$d"; return 0; }
+    fi
+    [ -d "$MEMORY_DIR/skills/$name" ] && { printf '%s\n' "$MEMORY_DIR/skills/$name"; return 0; }
+    return 1
+}
+
 # Assemble the full memory payload (identity + project + index + working) into stdout.
 # No project -> empty output: outside an onboarded repo the memory system stays
 # dormant and Claude runs generic. Selection comes from content-core; the xml
