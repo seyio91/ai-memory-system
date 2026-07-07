@@ -48,6 +48,9 @@ __pycache__/
 # Superpowers brainstorm specs / plans are personal working docs (not published)
 /docs/superpowers/
 
+# One-shot system overview generated for external review — local, not published
+/docs/system-overview.md
+
 # Per-environment overrides (secrets/paths) — ship config.local.sh.example only
 /config.local.sh
 
