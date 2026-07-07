@@ -1,29 +1,32 @@
 #!/usr/bin/env bash
-# install-skill.sh — intake an EXISTING/external skill into the store (#13).
-# Copies the skill under skills/<name>/, normalizes its frontmatter to our schema
-# (ensures metadata.tier = --tier), validates, and optionally links. Does NOT
-# inject the self-rating block — that is a first-party concern; imported skills
-# are left as-is (add it later, on request, as a demarcated appended section).
+# install-skill.sh — intake an EXISTING skill into the store by COPYING it (#13),
+# i.e. an authored fork: the content is vendored under our tree and thereafter
+# owned/edited here (contrast Phase 4's `--remote`, which references without copying).
+# Copies the skill under skills/<name>/ (or skills-local/<name>/ with --local),
+# normalizes its frontmatter to our schema (ensures metadata.tier = --tier),
+# validates, and optionally links. Does NOT inject the self-rating block — that is a
+# first-party concern; imported skills are left as-is (add it later, on request).
 #
 # Tier is required and never guessed: classify the imported skill yourself
 # (target-read-only for review/analysis, target-write for generators/actions).
 #
 # Usage:
-#   install-skill.sh --from <dir|SKILL.md> --tier <tier> [--name <name>] [--link] [--force]
+#   install-skill.sh --from <dir|SKILL.md> --tier <tier> [--name <name>] [--local] [--link] [--force]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-FROM="" TIER="" NAME="" LINK=0 FORCE=0
+FROM="" TIER="" NAME="" LINK=0 FORCE=0 LOCAL=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --from)  FROM="${2:-}"; shift 2 ;;
         --tier)  TIER="${2:-}"; shift 2 ;;
         --name)  NAME="${2:-}"; shift 2 ;;
+        --local) LOCAL=1; shift ;;
         --link)  LINK=1; shift ;;
         --force) FORCE=1; shift ;;
-        -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) printf 'install-skill: unknown arg: %s\n' "$1" >&2; exit 2 ;;
     esac
 done
@@ -48,7 +51,8 @@ if [ -z "$NAME" ]; then
 fi
 case "$NAME" in *[!A-Za-z0-9._-]*|.|..) printf 'install-skill: invalid skill name %s\n' "$NAME" >&2; exit 2 ;; esac
 
-TARGET="$MEMORY_DIR/skills/$NAME"
+STORE="skills"; [ "$LOCAL" = 1 ] && STORE="skills-local"
+TARGET="$MEMORY_DIR/$STORE/$NAME"
 
 # Refuse an in-place re-import: --from resolving to TARGET would be deleted by
 # the rm -rf below before the copy. Compare canonicalized paths.

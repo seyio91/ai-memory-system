@@ -4,16 +4,20 @@
 # metadata.tier, metadata.compatibility), then validates it. A skill may write
 # its own skills/<name>/ folder at any time, regardless of tier.
 #
+# A skill is generic by default (skills/, git-tracked, synced to every instance).
+# --local scaffolds it into skills-local/ instead: per-instance, gitignored, never
+# synced — but authored, validated, linked, and self-rated exactly like a generic one.
+#
 # Usage:
 #   new-skill.sh --name <name> --tier target-read-only|target-write \
 #       [--description <text>] [--kind workflow|reference] \
-#       [--compat <csv>] [--link] [--force]
+#       [--compat <csv>] [--local] [--link] [--force]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-NAME="" TIER="" DESC="" KIND="" COMPAT="claude-code, codex-cli" LINK=0 FORCE=0
+NAME="" TIER="" DESC="" KIND="" COMPAT="claude-code, codex-cli" LINK=0 FORCE=0 LOCAL=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --name)        NAME="${2:-}"; shift 2 ;;
@@ -21,9 +25,10 @@ while [ $# -gt 0 ]; do
         --description) DESC="${2:-}"; shift 2 ;;
         --kind)        KIND="${2:-}"; shift 2 ;;
         --compat)      COMPAT="${2:-}"; shift 2 ;;
+        --local)       LOCAL=1; shift ;;
         --link)        LINK=1; shift ;;
         --force)       FORCE=1; shift ;;
-        -h|--help)     sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)     sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) printf 'new-skill: unknown arg: %s\n' "$1" >&2; exit 2 ;;
     esac
 done
@@ -36,7 +41,8 @@ if [ -n "$KIND" ]; then
 fi
 [ -n "$DESC" ] || DESC="TODO: one-line description + trigger phrases (what this skill does and when to use it)."
 
-TARGET="$MEMORY_DIR/skills/$NAME"
+STORE="skills"; [ "$LOCAL" = 1 ] && STORE="skills-local"
+TARGET="$MEMORY_DIR/$STORE/$NAME"
 if [ -e "$TARGET" ] && [ "$FORCE" != 1 ]; then
     printf 'new-skill: %s already exists (use --force to overwrite)\n' "$TARGET" >&2; exit 1
 fi
@@ -56,7 +62,7 @@ mkdir -p "$TARGET"
     printf 'TODO: the instruction set. Brief a skilled colleague — what to do, in what\n'
     printf 'order, and what to produce. '
     if [ "$TIER" = target-read-only ]; then
-        printf 'This skill MUST NOT modify the target it\noperates on; write any output (notes, reviews, self-rating) to its own folder\n(skills/%s/), never to the target repo or the system memory tree.\n' "$NAME"
+        printf 'This skill MUST NOT modify the target it\noperates on; write any output (notes, reviews, self-rating) to its own folder\n(%s/%s/), never to the target repo or the system memory tree.\n' "$STORE" "$NAME"
     else
         printf 'This skill may modify the target it operates\non.\n'
     fi

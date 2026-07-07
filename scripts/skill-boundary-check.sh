@@ -136,7 +136,15 @@ cmd_check() {
         # hash itself and self-flag — warn the caller (the hook uses gitignored
         # .sessions, so this never fires in production).
         case "$mem_base" in "$memory"/*) git -C "$memory" check-ignore -q "$mem_base" 2>/dev/null || printf 'check: warning: --memory-baseline is inside --memory and not gitignored; keep baselines outside the repo\n' >&2 ;; esac
-        local own="skills/$skill/" p
+        # Own folder defaults to skills/<skill>/, but a local skill lives in
+        # skills-local/<skill>/ — resolve its real root when the helper is available
+        # (run inside the tree). Local own-folders are gitignored so own-writes are
+        # invisible here anyway; this keeps the allowlist correct for any exception.
+        local own="skills/$skill/" p sdir
+        if command -v resolve_skill_dir >/dev/null 2>&1; then
+            sdir="$(resolve_skill_dir "$skill" 2>/dev/null || true)"
+            [ -n "$sdir" ] && [ -n "${MEMORY_DIR:-}" ] && own="${sdir#$MEMORY_DIR/}/"
+        fi
         while IFS= read -r p; do
             [ -n "$p" ] || continue
             case "$p" in
