@@ -31,16 +31,23 @@ skills_with_partial() {
     done < <(list_skill_dirs)
 }
 
-# skill_roots — print the skill store roots, one per line, in precedence order.
-# Defaults to the git-tracked generic store plus the per-instance, gitignored local
-# store; override with AI_MEMORY_SKILL_ROOTS (colon-separated). This is the single
-# place roots are declared — add a new root (e.g. a future remote .skill-cache/) here
-# once and every skills tool picks it up. Roots need not exist on disk; callers guard.
+# skill_roots — print the skill store roots, one per line, in precedence order:
+# generic authored (skills/, git-tracked, synced) > local authored (skills-local/,
+# gitignored, per-instance) > remote cache (.skill-cache/, gitignored, materialized
+# from manifests by resolve-skills.sh). Override the whole list with
+# AI_MEMORY_SKILL_ROOTS (colon-separated). This is the single place roots are declared
+# — every skills tool picks up a new root here. Roots need not exist; callers guard.
 skill_roots() {
-    local roots="${AI_MEMORY_SKILL_ROOTS:-$MEMORY_DIR/skills:$MEMORY_DIR/skills-local}"
+    local roots="${AI_MEMORY_SKILL_ROOTS:-$MEMORY_DIR/skills:$MEMORY_DIR/skills-local:$MEMORY_DIR/.skill-cache}"
     local IFS=:
     set -- $roots
     printf '%s\n' "$@"
+}
+
+# skill_cache_dir — the remote-skill cache root (gitignored). Content is materialized
+# by resolve-skills.sh from the split manifests and pinned by .skill-cache/skills.lock.
+skill_cache_dir() {
+    printf '%s\n' "${AI_MEMORY_SKILL_CACHE:-$MEMORY_DIR/.skill-cache}"
 }
 
 # list_skill_dirs — print every skill dir (one absolute path per line, no trailing

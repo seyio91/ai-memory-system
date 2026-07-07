@@ -117,8 +117,12 @@ where," yielding dirs across `skills/` + `skills-local/` + `.skill-cache/` (over
   manifest, the cache, per-instance vs per-repo axes.
 
 ## Risks / open questions
-- **Fetch mechanism/offline** — remote resolve needs git + network; sync must degrade gracefully (use the
-  cached copy, warn, never hard-fail a whole install). Pins via lockfile give reproducibility.
+- **Fetch mechanism/offline** — RESOLVED (Phase 3). Fetch is **sparse + shallow** (`git init` → `fetch
+  --depth 1 origin <ref>`, full-fetch fallback for by-sha refs → `sparse-checkout` the `path` → pin
+  `FETCH_HEAD`); the resolved skill is copied into `.skill-cache/<name>/` (no nested `.git`). Offline
+  policy is **hard-fail on any fetch that must run**, with the corollary that a plain resolve is a
+  **cache hit** (no network) for anything already in `skills.lock` — so re-linking is offline-safe and
+  only first-resolve / `--update` touch the network. Lockfile pins give reproducibility.
 - **Name collisions** across roots (an authored and a remote skill sharing a name) — `validate-skills`
   should flag cross-root duplicates; last-root-wins is confusing.
 - **Cache location & cleanup** — `.skill-cache/` growth; a prune for entries no longer in any manifest.
