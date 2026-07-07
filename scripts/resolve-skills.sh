@@ -41,8 +41,8 @@ done
 
 CACHE="$(skill_cache_dir)"
 LOCK="$CACHE/skills.lock"
-GEN_MANIFEST="$MEMORY_DIR/skills/skills.toml"
-LOC_MANIFEST="$MEMORY_DIR/skills-local/skills.toml"
+GEN_MANIFEST="$(skill_manifest generic)"
+LOC_MANIFEST="$(skill_manifest local)"
 
 err()  { printf 'resolve-skills: %s\n' "$*" >&2; }
 

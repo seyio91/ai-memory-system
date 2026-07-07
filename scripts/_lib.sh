@@ -50,6 +50,17 @@ skill_cache_dir() {
     printf '%s\n' "${AI_MEMORY_SKILL_CACHE:-$MEMORY_DIR/.skill-cache}"
 }
 
+# skill_manifest — path to the remote-skill TOML manifest for a scope. `local` ->
+# the gitignored per-instance manifest; anything else -> the tracked generic one.
+# The single place the manifest paths are defined (resolve/install/list agree).
+#   skill_manifest [generic|local]
+skill_manifest() {
+    case "${1:-generic}" in
+        local) printf '%s\n' "$MEMORY_DIR/skills-local/skills.toml" ;;
+        *)     printf '%s\n' "$MEMORY_DIR/skills/skills.toml" ;;
+    esac
+}
+
 # list_skill_dirs — print every skill dir (one absolute path per line, no trailing
 # slash) across all skill roots. A "skill dir" is an immediate child of a root that
 # contains a SKILL.md; dirs without one are silently skipped (not skills). This is the

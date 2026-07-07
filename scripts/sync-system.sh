@@ -12,6 +12,7 @@
 #   sync-system.sh                 # fetch + ff-only pull, then re-install
 #   sync-system.sh --no-pull       # skip the pull; just re-link from current tree
 #   sync-system.sh --dry-run       # show what a pull would bring; do not install
+#   sync-system.sh --update        # also re-resolve remote skills (re-fetch pinned refs)
 #
 # Safe by design:
 #   - Pull is --ff-only: it refuses to merge/rebase over local divergence and
@@ -25,11 +26,13 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DO_PULL=1
 DRY_RUN=0
+UPDATE_REMOTES=0
 
 for arg in "$@"; do
   case "$arg" in
     --no-pull) DO_PULL=0 ;;
     --dry-run) DRY_RUN=1 ;;
+    --update)  UPDATE_REMOTES=1 ;;
     -*) echo "unknown flag: $arg" >&2; exit 2 ;;
     *) echo "unexpected argument: $arg" >&2; exit 2 ;;
   esac
@@ -78,6 +81,12 @@ fi
 if [ "$DRY_RUN" = 1 ]; then
   step "[dry-run] would run install.sh to relink features — stopping here"
   exit 0
+fi
+
+if [ "$UPDATE_REMOTES" = 1 ]; then
+  step "Re-resolving remote skills (--update: re-fetch pinned refs)"
+  bash "$REPO_ROOT/scripts/resolve-skills.sh" --update \
+    || { echo "  ABORT: a remote skill failed to re-resolve (see above)." >&2; exit 1; }
 fi
 
 step "Re-installing features (install.sh)"

@@ -1,37 +1,121 @@
 #!/usr/bin/env bash
-# install-skill.sh — intake an EXISTING skill into the store by COPYING it (#13),
-# i.e. an authored fork: the content is vendored under our tree and thereafter
-# owned/edited here (contrast Phase 4's `--remote`, which references without copying).
-# Copies the skill under skills/<name>/ (or skills-local/<name>/ with --local),
-# normalizes its frontmatter to our schema (ensures metadata.tier = --tier),
-# validates, and optionally links. Does NOT inject the self-rating block — that is a
-# first-party concern; imported skills are left as-is (add it later, on request).
+# install-skill.sh — bring an existing skill into the store, two modes:
 #
-# Tier is required and never guessed: classify the imported skill yourself
-# (target-read-only for review/analysis, target-write for generators/actions).
+#  --remote <url>  REFERENCE a skill from a git source (the config-driven path).
+#     Appends a [[skills]] entry to the TOML manifest (generic skills/skills.toml, or
+#     skills-local/skills.toml with --local) AND resolves it into the gitignored cache
+#     via resolve-skills.sh. No copy — the content is referenced, pinned, re-fetchable;
+#     bump the ref + `resolve-skills.sh --update` to update. The manifest is the source
+#     of truth and installing writes it back (--no-save to resolve without recording).
+#     The skill declares its own tier in its SKILL.md, so --tier is not required here.
+#
+#  --from <dir|SKILL.md>  SEED a LOCAL skill from an existing dir (a fork you then own
+#     and edit here). Copies under skills/<name>/ (or skills-local/<name>/ with --local),
+#     normalizes metadata.tier = --tier, validates. This is authoring, not referencing:
+#     it does not touch the manifest. Rule of thumb: modify it -> --from (local); just
+#     use it -> --remote. --tier is required (classify it; do not guess).
+#
+# Neither mode injects the self-rating block (a first-party concern; add on request).
 #
 # Usage:
+#   install-skill.sh --remote <url> --ref <ref> [--path <p>] [--name <n>] [--local] [--no-save] [--link] [--force]
 #   install-skill.sh --from <dir|SKILL.md> --tier <tier> [--name <name>] [--local] [--link] [--force]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-FROM="" TIER="" NAME="" LINK=0 FORCE=0 LOCAL=0
+FROM="" REMOTE="" REF="" RPATH="" TIER="" NAME="" LINK=0 FORCE=0 LOCAL=0 SAVE=1
 while [ $# -gt 0 ]; do
     case "$1" in
-        --from)  FROM="${2:-}"; shift 2 ;;
-        --tier)  TIER="${2:-}"; shift 2 ;;
-        --name)  NAME="${2:-}"; shift 2 ;;
-        --local) LOCAL=1; shift ;;
-        --link)  LINK=1; shift ;;
-        --force) FORCE=1; shift ;;
-        -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --from)    FROM="${2:-}"; shift 2 ;;
+        --remote)  REMOTE="${2:-}"; shift 2 ;;
+        --ref)     REF="${2:-}"; shift 2 ;;
+        --path)    RPATH="${2:-}"; shift 2 ;;
+        --tier)    TIER="${2:-}"; shift 2 ;;
+        --name)    NAME="${2:-}"; shift 2 ;;
+        --local)   LOCAL=1; shift ;;
+        --no-save) SAVE=0; shift ;;
+        --link)    LINK=1; shift ;;
+        --force)   FORCE=1; shift ;;
+        -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) printf 'install-skill: unknown arg: %s\n' "$1" >&2; exit 2 ;;
     esac
 done
 
-[ -n "$FROM" ] || { printf 'install-skill: --from required\n' >&2; exit 2; }
+# ── --remote: declare in the manifest + resolve into the cache ────────────────
+if [ -n "$REMOTE" ]; then
+    [ -z "$FROM" ] || { printf 'install-skill: --from and --remote are mutually exclusive\n' >&2; exit 2; }
+    [ -n "$REF" ]  || { printf 'install-skill: --ref required with --remote (pin a branch/tag/sha)\n' >&2; exit 2; }
+    case "$RPATH" in /*|*..*) printf 'install-skill: --path must be repo-relative, no ".."\n' >&2; exit 2 ;; esac
+
+    # Name: --name, else the path basename, else the repo name (url minus .git).
+    if [ -z "$NAME" ]; then
+        if [ -n "$RPATH" ]; then NAME="$(basename "$RPATH")"
+        else NAME="$(basename "$REMOTE")"; NAME="${NAME%.git}"; fi
+    fi
+    case "$NAME" in *[!A-Za-z0-9._-]*|""|.|..) printf 'install-skill: invalid skill name %s (set --name)\n' "$NAME" >&2; exit 2 ;; esac
+
+    SCOPE=generic; [ "$LOCAL" = 1 ] && SCOPE=local
+    MANIFEST="$(skill_manifest "$SCOPE")"
+
+    if [ "$SAVE" = 1 ]; then
+        mkdir -p "$(dirname "$MANIFEST")"
+        REM_NAME="$NAME" REM_URL="$REMOTE" REM_REF="$REF" REM_PATH="$RPATH" REM_FORCE="$FORCE" \
+        python3 - "$MANIFEST" <<'PY'
+import os, sys
+mf = sys.argv[1]
+name, url, ref, path = (os.environ[k] for k in ("REM_NAME","REM_URL","REM_REF","REM_PATH"))
+force = os.environ.get("REM_FORCE") == "1"
+entries = []
+if os.path.exists(mf):
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        sys.exit("install-skill: TOML manifests need python3.11+ (tomllib)")
+    try:
+        with open(mf, "rb") as f:
+            entries = [e.get("name") for e in (tomllib.load(f).get("skills") or [])]
+    except Exception as e:
+        sys.exit("install-skill: cannot parse %s: %s" % (mf, e))
+if name in entries and not force:
+    sys.exit("install-skill: '%s' already in %s — edit it by hand, or --force to append anyway" % (name, mf))
+def s(v): return v.replace("\\", "\\\\").replace('"', '\\"')
+block = '\n[[skills]]\nname = "%s"\nurl  = "%s"\nref  = "%s"\n' % (s(name), s(url), s(ref))
+if path:
+    block += 'path = "%s"\n' % s(path)
+with open(mf, "a") as f:
+    f.write(block)
+print("saved: %s (%s) -> %s" % (name, "local" if mf.endswith("skills-local/skills.toml") else "generic", mf))
+PY
+        rc=$?
+        [ "$rc" = 0 ] || exit "$rc"
+    fi
+
+    # Materialize the manifest (resolves the new entry into the cache, pins it).
+    if [ "$SAVE" = 1 ]; then
+        bash "$SCRIPT_DIR/resolve-skills.sh" || { printf 'install-skill: resolve failed for %s\n' "$NAME" >&2; exit 1; }
+    else
+        printf 'install-skill: --no-save — declared nothing; nothing to resolve (remote installs go through the manifest)\n' >&2
+        exit 0
+    fi
+
+    # Validate just this skill (its own SKILL.md tier etc.), then optionally link.
+    vout="$(bash "$SCRIPT_DIR/validate-skills.sh" 2>&1 || true)"
+    verr="$(printf '%s\n' "$vout" | awk -v n="$NAME" '$1=="ERROR:" && $2==n')"
+    if [ -n "$verr" ]; then
+        printf '%s\ninstall-skill: resolved remote %s has validation errors (review upstream)\n' "$verr" "$NAME" >&2
+        exit 1
+    fi
+    echo "installed (remote): $NAME"
+    if [ "$LINK" = 1 ]; then
+        bash "$SCRIPT_DIR/link-skills.sh" >/dev/null && echo "linked: $NAME -> ~/.claude/skills"
+    fi
+    exit 0
+fi
+
+# ── --from: seed a local skill by copying (authoring, not referencing) ─────────
+[ -n "$FROM" ] || { printf 'install-skill: --from or --remote required\n' >&2; exit 2; }
 case "$TIER" in target-read-only|target-write) : ;; *) printf 'install-skill: --tier required (target-read-only | target-write) — classify the skill, do not guess\n' >&2; exit 2 ;; esac
 
 # Resolve the source SKILL.md and the source dir to copy from.
