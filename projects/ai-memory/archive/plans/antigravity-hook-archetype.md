@@ -1,7 +1,8 @@
 ---
 plan: antigravity-hook-archetype
-status: draft
+status: done
 created: 2026-07-06
+completed: 2026-07-07
 owner: claude (orchestrator)
 ---
 
