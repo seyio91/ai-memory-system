@@ -22,7 +22,10 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-SKILLS_DIR="${SKILLS_DIR:-$MEMORY_DIR/skills}"
+# Legacy single-source override: SKILLS_DIR pins enumeration to one dir. Otherwise
+# validate every root skill_roots yields (generic + per-instance local).
+[ -n "${SKILLS_DIR:-}" ] && export AI_MEMORY_SKILL_ROOTS="$SKILLS_DIR"
+
 MAX_LINES="${SKILL_MAX_LINES:-500}"
 VALID_TIERS="target-read-only target-write"
 ERRORS=0
@@ -65,19 +68,23 @@ fm_tier() {
     ' "$1"
 }
 
-[ -d "$SKILLS_DIR" ] || { printf 'validate-skills: no skills dir at %s\n' "$SKILLS_DIR" >&2; exit 2; }
+# Fail only when NO configured root exists on disk (nothing to validate).
+have_root=0
+while IFS= read -r r; do [ -d "$r" ] && have_root=1; done < <(skill_roots)
+[ "$have_root" = 1 ] || { printf 'validate-skills: no skills dir under any root\n' >&2; exit 2; }
 
 if [ "${1:-}" = "--list" ]; then
-    for d in "$SKILLS_DIR"/*/; do
-        [ -d "$d" ] || continue
+    list_skill_dirs | while IFS= read -r d; do
         printf '%s\n' "$(basename "$d")"
     done
     exit 0
 fi
 
+# Candidate dirs = every immediate child of every root (SKILL.md or not), so a dir
+# missing its SKILL.md is still caught below.
 count=0
-for d in "$SKILLS_DIR"/*/; do
-    [ -d "$d" ] || continue
+while IFS= read -r d; do
+    [ -n "$d" ] || continue
     name="$(basename "$d")"
     f="$d/SKILL.md"
 
@@ -125,7 +132,15 @@ for d in "$SKILLS_DIR"/*/; do
         toks=$(grep -oE '\{\{[A-Z][A-Z0-9_]*\}\}' "$f" | sort -u | tr '\n' ' ')
         err "$name has unresolved placeholder(s): $toks"
     fi
-done
+done < <(
+    while IFS= read -r root; do
+        [ -d "$root" ] || continue
+        for d in "$root"/*/; do
+            [ -d "$d" ] || continue
+            printf '%s\n' "${d%/}"
+        done
+    done < <(skill_roots)
+)
 
 if [ "$ERRORS" -gt 0 ]; then
     printf 'validate-skills: %d error(s) across %d skill(s)\n' "$ERRORS" "$count" >&2

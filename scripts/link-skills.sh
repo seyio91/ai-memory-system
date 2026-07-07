@@ -4,8 +4,10 @@
 # agent harness's skills directory. LLM/harness-agnostic: point it at any
 # runtime's skills dir and every skill in memory/skills/ gets linked in.
 #
-# Canonical store (source of truth): ~/.claude-memory/skills/
-# Each entry is a skill dir containing a SKILL.md.
+# Canonical store (source of truth): ~/.claude-memory/skills/ plus the per-instance
+# ~/.claude-memory/skills-local/. Enumeration is centralized in _lib.sh:list_skill_dirs
+# (override the roots via AI_MEMORY_SKILL_ROOTS); the legacy SKILLS_SRC env still pins
+# it to a single dir. Each entry is a skill dir containing a SKILL.md.
 #
 # Usage:
 #   link-skills.sh [TARGET_DIR]        # default: ~/.claude/skills
@@ -21,19 +23,18 @@
 
 set -euo pipefail
 
-SKILLS_SRC="${SKILLS_SRC:-$(cd "$(dirname "$0")/.." && pwd)/skills}"
+. "$(cd "$(dirname "$0")" && pwd)/_lib.sh"
+
+# Legacy single-source override: SKILLS_SRC pins enumeration to one dir.
+[ -n "${SKILLS_SRC:-}" ] && export AI_MEMORY_SKILL_ROOTS="$SKILLS_SRC"
+
 DRY_RUN=0
 TARGET=""
 
 for arg in "$@"; do
   case "$arg" in
     --list)
-      [ -d "$SKILLS_SRC" ] || { echo "no canonical store at $SKILLS_SRC" >&2; exit 1; }
-      for d in "$SKILLS_SRC"/*/; do
-        [ -d "$d" ] || continue
-        name="$(basename "$d")"
-        [ -f "$d/SKILL.md" ] && echo "$name" || echo "$name (no SKILL.md — skipped)"
-      done
+      list_skill_dirs | while IFS= read -r d; do basename "$d"; done
       exit 0
       ;;
     --dry-run) DRY_RUN=1 ;;
@@ -44,15 +45,13 @@ done
 
 TARGET="${TARGET:-$HOME/.claude/skills}"
 
-[ -d "$SKILLS_SRC" ] || { echo "no canonical store at $SKILLS_SRC" >&2; exit 1; }
 mkdir -p "$TARGET"
 
 linked=0 skipped=0 repaired=0
-for d in "$SKILLS_SRC"/*/; do
-  [ -d "$d" ] || continue
+while IFS= read -r d; do
+  [ -n "$d" ] || continue
   name="$(basename "$d")"
-  [ -f "$d/SKILL.md" ] || { echo "skip (no SKILL.md): $name"; continue; }
-  src="$SKILLS_SRC/$name"
+  src="$d"
   dst="$TARGET/$name"
 
   if [ -L "$dst" ]; then
@@ -70,7 +69,7 @@ for d in "$SKILLS_SRC"/*/; do
   echo "link: $name"
   [ "$DRY_RUN" = 1 ] || ln -s "$src" "$dst"
   linked=$((linked+1))
-done
+done < <(list_skill_dirs)
 
 tag=""; [ "$DRY_RUN" = 1 ] && tag=" [dry-run]"
 echo "done: ${linked} linked, ${repaired} repaired, ${skipped} already-current (target: $TARGET)${tag}"

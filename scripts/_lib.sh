@@ -24,6 +24,36 @@ skills_with_partial() {
     done
 }
 
+# skill_roots — print the skill store roots, one per line, in precedence order.
+# Defaults to the git-tracked generic store plus the per-instance, gitignored local
+# store; override with AI_MEMORY_SKILL_ROOTS (colon-separated). This is the single
+# place roots are declared — add a new root (e.g. a future remote .skill-cache/) here
+# once and every skills tool picks it up. Roots need not exist on disk; callers guard.
+skill_roots() {
+    local roots="${AI_MEMORY_SKILL_ROOTS:-$MEMORY_DIR/skills:$MEMORY_DIR/skills-local}"
+    local IFS=:
+    set -- $roots
+    printf '%s\n' "$@"
+}
+
+# list_skill_dirs — print every skill dir (one absolute path per line, no trailing
+# slash) across all skill roots. A "skill dir" is an immediate child of a root that
+# contains a SKILL.md; dirs without one are silently skipped (not skills). This is the
+# single source of "what skills exist and where" — link/fan-out/ratings tools route
+# through it. Tools that must also see malformed candidate dirs (e.g. validate-skills
+# flagging a dir missing its SKILL.md) iterate skill_roots directly.
+list_skill_dirs() {
+    local root d
+    while IFS= read -r root; do
+        [ -d "$root" ] || continue
+        for d in "$root"/*/; do
+            [ -d "$d" ] || continue
+            [ -f "$d/SKILL.md" ] || continue
+            printf '%s\n' "${d%/}"
+        done
+    done < <(skill_roots)
+}
+
 # detect_active_project — print active project name to stdout, or empty.
 # Walks up from $1 (defaults to cwd) looking for the harness-neutral marker
 # .agents/memory-project, falling back to the legacy .claude/memory-project (pre-
