@@ -87,7 +87,7 @@ All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips
 
 ## Skills
 
-Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from this repo's `skills/` by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Scaffold a new one with `scripts/new-skill.sh --name <n> --tier <t>` (writes the schema, validates, optional `--link`; `--kind workflow` also injects the self-rating block — see below); bring an external skill into the store with `scripts/install-skill.sh --from <dir> --tier <t>` (normalizes frontmatter, preserves `references/`, validates — does not inject self-rating into imported skills). Several ship in `skills/` (e.g. `renovate-manager`, `grafana-oss`, `prometheus`, `tempo`, `dashboarding`, `observability-check`, `terraform-example-gen`, `bkt`, `teach`, `excalidraw-diagram`). The one wired into the workflow is `brainstorming`:
+Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from the skill stores by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Scaffold a new one with `scripts/new-skill.sh --name <n> --tier <t>` (writes the schema, validates, optional `--link`; `--kind workflow` also injects the self-rating block — see below; `--local` scaffolds a per-instance skill — see [Skill scope & source](#skill-scope--source-localgeneric--authoredremote)); seed a local skill from an existing dir with `scripts/install-skill.sh --from <dir> --tier <t>`, or **reference** an external skill from a git source with `scripts/install-skill.sh --remote <url> --ref <r>` (declared in a manifest, never copied). Several ship in `skills/` (e.g. `renovate-manager`, `grafana-oss`, `prometheus`, `tempo`, `dashboarding`, `observability-check`, `terraform-example-gen`, `bkt`, `teach`, `excalidraw-diagram`). List everything you have with `scripts/list-skills.sh` (or `/list-skills`). The one wired into the workflow is `brainstorming`:
 
 | Skill | Gate | Effect |
 |-------|------|--------|
@@ -131,3 +131,37 @@ First-party **workflow** skills carry a managed *self-rating* block — a signal
 - **Membership is marker-derived, not a hand-list.** A skill is "in the loop" exactly when its `SKILL.md` carries the block — so the set never drifts (`scripts/_lib.sh:skills_with_partial`).
 - **On-request only.** The block tells the skill to append a dated rating (`score 1-5` + friction + improve) to its *own* `skills/<name>/self-rating.md` **only when the user asks** — never automatically. An empty log is healthy.
 - **Aggregate:** `scripts/skill-ratings.sh` (per-skill latest/avg/count; `--all` also lists in-loop skills with no ratings yet).
+
+### Skill scope & source (local/generic × authored/remote)
+
+Skills vary on two independent axes. **Scope** — does it sync to your other instances? **Source** — did you author it here, or is it referenced from elsewhere? Every skills tool understands both, and `list-skills.sh` shows them.
+
+- **Scope = which folder.** `skills/` is **generic**: git-tracked, synced to every instance (the default). `skills-local/` is **local**: gitignored wholesale by one `/skills-local/*` line, per-instance, never synced. Location is the only signal — no per-skill metadata, no per-skill gitignore. Moving a skill generic↔local is a `git mv`. Scaffold local with `new-skill.sh --local`; a generic one is the default.
+- **Source = authored vs remote.** **Authored** skills live in one of those folders (content is yours to edit). **Remote** skills are *referenced, not forked*: declared in a TOML manifest and fetched per-instance into a gitignored cache. The rule that keeps them distinct: **modify it → make it local (authored); just use it → reference it (remote).** There is no copy-fork middle category.
+
+**The manifests (TOML, you maintain the list).** Remote skills are declared one `[[skills]]` entry per skill, split symmetric with the folders:
+
+| File | Scope | Tracked? |
+|------|-------|----------|
+| `skills/skills.toml` | generic remotes (synced to every instance) | yes |
+| `skills-local/skills.toml` | local remotes (per-instance) | no (gitignored) |
+
+```toml
+[[skills]]
+name = "renovate-pro"
+url  = "https://github.com/org/skills.git"
+ref  = "v1.2.0"          # branch, tag, or sha — pinned for reproducibility
+path = "skills/renovate" # optional subdir holding SKILL.md
+```
+
+TOML is parsed by python3's stdlib `tomllib` (3.11+) — **no pip dependency** (the task provider already sets the bar at "python3 stdlib, no pip"; the tracked manifest can never leak a private local entry).
+
+**The resolver & cache.** `scripts/resolve-skills.sh` reads both manifests and materializes each remote into the gitignored **`.skill-cache/<name>/`**, pinned by **`.skill-cache/skills.lock`**:
+- **Fetch is sparse + shallow** — `git init` → `fetch --depth 1 <ref>` (full-fetch fallback for by-sha refs) → `sparse-checkout <path>` → copy the resolved skill (no nested `.git`).
+- **A plain resolve is a cache hit** (no network) for anything already locked, so re-linking is offline-safe. Only a first-resolve or `--update` fetches, and a fetch that *must* run **hard-fails** (strict reproducibility). `resolve-skills.sh --update` re-fetches pinned refs; `--list` shows declared remotes; `--dry-run` shows intent.
+
+**Authoring & sync (the config-driven flow).** `install-skill.sh --remote <url> --ref <r> [--path <p>] [--name <n>] [--local]` appends the entry to the manifest **and** resolves it (`--save` is the default; `--no-save` skips the write; a duplicate name needs `--force`). `install.sh` resolves declared remotes before linking, so a fresh install/clone reconstitutes them; `sync-system.sh --update` re-resolves refs across an update. Bumping a `ref` + `--update` is how a remote skill updates — its content is never committed, so it can't drift.
+
+**Enumeration is the linchpin.** `scripts/_lib.sh:list_skill_dirs` (built on `skill_roots`) is the single source of "what skills exist and where," across all three roots (`skills/`, `skills-local/`, `.skill-cache/`, precedence in that order; override with `AI_MEMORY_SKILL_ROOTS`). Every skills tool routes through it — link/fan-out, validation, boundary, ratings, authoring — so a new root is added once, not in each of the globbing scripts. `list-skills.sh` derives each skill's row from which root holds it (+ the manifest and lockfile for remotes): `SKILL · SCOPE · SOURCE · SYNCED · PIN`, with `--remote` / `--local` filters.
+
+> The per-repo `projects/<name>/skills/` axis (`sync-project-skills.sh`) is separate and unchanged — that fans project-scoped skills into a specific checkout, orthogonal to the per-instance generic/local split here.

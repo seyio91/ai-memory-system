@@ -65,6 +65,21 @@ run "$RS" --update
 assert_exit 0 "$code" "--update re-resolves -> exit 0"
 assert_contains "$out" "resolved" "--update actually fetches"
 
+# --- --update re-pins to a moved ref (the whole point of --update) ------------
+pin_before="$(awk -F '\t' '/^#/{next} $1=="remote-sub"{print $2; exit}' "$MEM/.skill-cache/skills.lock")"
+printf 'v2\n' >> "$REPO/pkg/remote-sub/SKILL.md"       # advance the branch
+git -C "$REPO" commit -q -am v2
+new_sha="$(git -C "$REPO" rev-parse HEAD)"
+run "$RS" --update
+assert_exit 0 "$code" "--update after upstream moved -> exit 0"
+pin_after="$(awk -F '\t' '/^#/{next} $1=="remote-sub"{print $2; exit}' "$MEM/.skill-cache/skills.lock")"
+assert_eq "$new_sha" "$pin_after" "--update re-pins the lockfile to the new HEAD"
+[ "$pin_before" != "$pin_after" ] && _ok "pin actually changed" || _bad "pin actually changed"
+assert_contains "$(cat "$MEM/.skill-cache/remote-sub/SKILL.md")" "v2" "cache content updated to the new commit"
+# a plain resolve now sees the new pin as the cache-hit baseline
+run "$RS"
+assert_contains "$out" "cached" "post-update plain resolve is a cache hit at the new pin"
+
 # --- local manifest: skill at repo root (no path) -----------------------------
 loc_manifest <<EOF
 [[skills]]

@@ -98,7 +98,12 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 │   └── codex/
 │       └── scripts/                   #   codex-mem.sh (Codex wrapper), codex-mem-checkpoint.sh
 ├── agents/                            # Bundled subagent definitions → ~/.claude/agents (link-agents.sh)
-├── skills/                            # Bundled skills → ~/.claude/skills (link-skills.sh)
+├── skills/                            # Generic authored skills → ~/.claude/skills (link-skills.sh)
+│   └── skills.toml                     #   generic remote-skill manifest (tracked, one [[skills]] per skill)
+├── skills-local/                       # Local (per-instance) skills — gitignored wholesale (/skills-local/*)
+│   └── skills.toml                     #   local remote-skill manifest (gitignored)
+├── .skill-cache/                       # Remote skills materialized here by resolve-skills.sh — gitignored
+│   └── skills.lock                     #   pins each resolved commit (never committed)
 ├── projects/
 │   ├── _template/                     # Scaffold copied by new-project.sh
 │   └── <name>/
