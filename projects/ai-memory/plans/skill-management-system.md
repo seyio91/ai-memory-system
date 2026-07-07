@@ -25,8 +25,8 @@ skill — authored or remote, local or generic — is low-friction and needs no 
 
 | | authored (self-created) | remote (referenced) |
 |--|--|--|
-| **generic** (synced) | `skills/<name>/` (tracked content) | tracked entry in `skills/skills.json` → fetched to `.skill-cache/` on each instance |
-| **local** (per-instance) | `skills-local/<name>/` (gitignored content) | gitignored entry in `skills-local/skills.json` → fetched to `.skill-cache/` |
+| **generic** (synced) | `skills/<name>/` (tracked content) | tracked entry in `skills/skills.toml` → fetched to `.skill-cache/` on each instance |
+| **local** (per-instance) | `skills-local/<name>/` (gitignored content) | gitignored entry in `skills-local/skills.toml` → fetched to `.skill-cache/` |
 
 Unifying rule: **generic = declared/stored in a tracked location; local = in a gitignored one.** Remote
 *content* is always the gitignored cache; its scope is which manifest declared it.
@@ -37,8 +37,8 @@ Unifying rule: **generic = declared/stored in a tracked location; local = in a g
 - **Enumeration is centralized:** one `_lib.sh:list_skill_dirs` yields every skill dir across all roots
   (`skills/`, `skills-local/`, and the remote `.skill-cache/`); every skills tool routes through it, so a
   new root is added once, not in each of the ~11 globbing scripts.
-- **Source:** a remote skill is declared in a manifest (`skills/skills.json` tracked / `skills-local/
-  skills.json` gitignored) with `url` + `ref`; `sync` resolves it — git-fetches into a gitignored
+- **Source:** a remote skill is declared in a manifest (`skills/skills.toml` tracked / `skills-local/
+  skills.toml` gitignored) with `url` + `ref`; `sync` resolves it — git-fetches into a gitignored
   `~/.claude-memory/.skill-cache/<name>/`, pinned by a lockfile — and it fans out. Its content is never
   committed; bumping `ref` + sync updates it. No forking/vendoring of remote content.
 - **Authoring:** `new-skill.sh --local` scaffolds an authored-local skill; `install-skill.sh` keeps
@@ -62,8 +62,8 @@ needs no metadata; moving a skill generic↔local is a `git mv`.
   (user rejected the bookkeeping).
 
 **Source axis — a manifest + gitignored cache (chosen).** Remote skills are *declared*, not copied.
-- **Manifests (split, symmetric with the folders):** `skills/skills.json` (tracked → generic remotes,
-  shared to every instance) + `skills-local/skills.json` (gitignored → local remotes, per-instance). A
+- **Manifests (split, symmetric with the folders):** `skills/skills.toml` (tracked → generic remotes,
+  shared to every instance) + `skills-local/skills.toml` (gitignored → local remotes, per-instance). A
   tracked manifest can never leak a local/private entry.
 - **Content = gitignored cache:** `~/.claude-memory/.skill-cache/<name>/`, populated by `sync` from the
   manifest (git clone/sparse-checkout of `url` at `ref` → optional `path` subdir). A lockfile pins the
@@ -79,14 +79,29 @@ where," yielding dirs across `skills/` + `skills-local/` + `.skill-cache/` (over
 ## Decisions (locked)
 - **Scope = folders:** `skills/` (generic) + wholesale-gitignored `skills-local/` (local); location is the
   signal, no per-skill metadata/gitignore.
-- **Source = declare-not-fork:** remote skills declared in split manifests (`skills/skills.json` tracked,
-  `skills-local/skills.json` gitignored); content fetched to a gitignored `.skill-cache/`, pinned by a
+- **Source = declare-not-fork:** remote skills declared in split manifests (`skills/skills.toml` tracked,
+  `skills-local/skills.toml` gitignored); content fetched to a gitignored `.skill-cache/`, pinned by a
   lockfile, re-fetched per instance.
 - **Centralized enumeration** (`_lib.sh:list_skill_dirs`) over all roots — added once, not per script.
 - **All skills first-class locally** — fan-out, validation, boundary, ratings apply regardless of
   scope/source; only git tracking + provenance differ.
 - **Migrate `fiter-infrastructure-analyzer`** to `skills-local/`; drop its individual gitignore line.
 - Per-repo `projects/*/skills/` axis unchanged; generic-authored remains the default.
+- **Manifest format = TOML** (revised 2026-07-07): `skills/skills.toml` + `skills-local/skills.toml`,
+  parsed by python3's stdlib `tomllib` (3.11+) — no pip dependency (the task provider already sets the
+  bar at "python3 stdlib, no pip"; PyYAML would have been the first pip dep). Hand-editable declarative
+  list, **one `[[skills]]` entry per skill — the user maintains the explicit list** (per-skill, not
+  whole-repo). Folded into the Phase 3 branch so JSON was never shipped.
+- **Two source categories only — no "vended/copy-fork"** (revised 2026-07-07): a skill is either
+  **local authored** (owned/edited here, lives in the repo) or **remote referenced** (declared, fetched
+  to the cache, never modified in place). Rule: *touch it → make it local; reference it → remote.* This
+  removes the fork-that-sync-would-clobber contradiction. `install-skill --from` is reframed as
+  "seed a local skill from an existing dir" (a local-authoring convenience), **not** vendoring; it never
+  writes the manifest.
+- **End goal (directional):** extract the portable `skills/` content into a **separate git repo** and
+  reference them all as **remote** entries, so the memory repo physically holds only local skills. Phase 4
+  delivers the mechanism (`install-skill --remote --save` + `sync` resolve); the extraction is an
+  operational follow-up.
 
 ## Phases
 ### Phase 1 — Scope foundation
@@ -100,21 +115,27 @@ where," yielding dirs across `skills/` + `skills-local/` + `.skill-cache/` (over
 - Route `skill-boundary-check.sh` / `apply-partial.sh` / `skill-ratings.sh` through `list_skill_dirs`.
 
 ### Phase 3 — Remote source layer (manifest + resolver + cache)
-- Manifest schema + parser (`skills/skills.json` tracked, `skills-local/skills.json` gitignored).
+- Manifest schema + parser (`skills/skills.toml` tracked, `skills-local/skills.toml` gitignored).
 - Resolver: git-fetch `url@ref` (+ `path`) → `~/.claude-memory/.skill-cache/<name>/`; a lockfile
   (`skills.lock`) pins resolved shas. Add `.skill-cache/` as a `list_skill_dirs` root; gitignore it.
 - Verify a declared remote skill materializes into the cache and fans out.
 
-### Phase 4 — Authoring + sync integration for remotes
-- `install-skill.sh --remote <url> [--ref R] [--path P] [--local]` → append a manifest entry (no copy).
-- `sync-system.sh` gains a resolve step (fetch/update remotes from the manifests before re-linking);
-  `--update` re-resolves refs. Offline behavior: keep the cached content, warn on fetch failure.
+### Phase 4 — Remote authoring (`--save` write-back) + sync integration + list
+- `install-skill.sh --remote <url> [--ref R] [--path P] [--local]` → append a `[[skills]]` entry to the
+  TOML manifest (generic or, with `--local`, the gitignored one) **and** resolve it into the cache.
+  Write-back is the headline: the config is the source of truth, and installing updates it
+  (`--no-save` to skip). No content copy — remote = referenced.
+- `sync-system.sh` gains a resolve step (`resolve-skills.sh` before re-linking); `--update` re-resolves
+  refs. Offline follows Phase 3: cache hit needs no network; a fetch that must run hard-fails.
+- **A derived `list-skills` view** — one table of every skill tagged by **provenance** (local authored vs
+  remote referenced), derived from its root + `skills.lock` (no new config to maintain; authored stays
+  folder-driven). This is the unified "how do I list my skills" answer.
 
 ### Phase 5 — Tests + docs
-- Tests across the 2×2 (authored/remote × local/generic): fan-out, git-ignore, validate, manifest resolve
-  (with a local file:// or fixture remote), update flow, offline.
-- Docs: `docs/knowledge-lifecycle.md` + `docs/harnesses/claude.md` skills section — the taxonomy, the
-  manifest, the cache, per-instance vs per-repo axes.
+- Tests across local-authored / remote-referenced × generic/local: fan-out, git-ignore, validate, manifest
+  resolve (file:// fixture), `--save` write-back, update flow, offline, `list-skills` provenance.
+- Docs: `docs/knowledge-lifecycle.md` + `docs/harnesses/claude.md` skills section — the two source
+  categories, the TOML manifest, the cache, the `--save`/`sync` flow, per-instance vs per-repo axes.
 
 ## Risks / open questions
 - **Fetch mechanism/offline** — RESOLVED (Phase 3). Fetch is **sparse + shallow** (`git init` → `fetch
