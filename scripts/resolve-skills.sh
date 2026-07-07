@@ -6,10 +6,12 @@
 # tracked manifest; the content is fetched per-instance into .skill-cache/ and never
 # committed. Bumping `ref` and re-resolving (--update) is how a remote skill updates.
 #
-# Manifests (split, symmetric with the skill folders):
-#   skills/skills.json         — GENERIC remotes (git-tracked, synced everywhere)
-#   skills-local/skills.json   — LOCAL remotes (gitignored, per-instance)
-# Each is { "skills": [ { "name", "url", "ref", "path"? }, ... ] }.
+# Manifests (split, symmetric with the skill folders), TOML — you maintain the list,
+# one [[skills]] entry per skill:
+#   skills/skills.toml         — GENERIC remotes (git-tracked, synced everywhere)
+#   skills-local/skills.toml   — LOCAL remotes (gitignored, per-instance)
+# Each entry: name, url, ref (required) + path (optional subdir holding SKILL.md).
+# Parsing uses python3's stdlib tomllib (3.11+) — no pip dependency.
 #
 # Fetch is sparse + shallow; the resolved commit is pinned in .skill-cache/skills.lock.
 # A plain resolve is a CACHE HIT for anything already in the lockfile (no network) —
@@ -39,22 +41,28 @@ done
 
 CACHE="$(skill_cache_dir)"
 LOCK="$CACHE/skills.lock"
-GEN_MANIFEST="$MEMORY_DIR/skills/skills.json"
-LOC_MANIFEST="$MEMORY_DIR/skills-local/skills.json"
+GEN_MANIFEST="$MEMORY_DIR/skills/skills.toml"
+LOC_MANIFEST="$MEMORY_DIR/skills-local/skills.toml"
 
 err()  { printf 'resolve-skills: %s\n' "$*" >&2; }
 
 # _manifest_tsv <file> — emit one TSV row per declared skill: name\turl\tref\tpath.
-# python3 primary (an accepted dev dependency), jq fallback. Missing file -> nothing.
+# Parses TOML via python3's stdlib tomllib (3.11+); no pip dependency. Missing file
+# -> nothing. Unparseable file or missing tomllib -> exit 3 (surfaced by the caller).
 _manifest_tsv() {
     local f="$1"
     [ -f "$f" ] || return 0
-    if command -v python3 >/dev/null 2>&1; then
-        python3 - "$f" <<'PY'
-import json, sys
+    command -v python3 >/dev/null 2>&1 || { err "need python3 to parse $f"; return 3; }
+    python3 - "$f" <<'PY'
+import sys
 try:
-    with open(sys.argv[1]) as fh:
-        data = json.load(fh)
+    import tomllib
+except ModuleNotFoundError:
+    sys.stderr.write("resolve-skills: TOML manifests need python3.11+ (stdlib tomllib)\n")
+    sys.exit(3)
+try:
+    with open(sys.argv[1], "rb") as fh:
+        data = tomllib.load(fh)
 except Exception as e:
     sys.stderr.write("resolve-skills: cannot parse %s: %s\n" % (sys.argv[1], e))
     sys.exit(3)
@@ -67,11 +75,6 @@ for s in (data.get("skills") or []):
         sys.exit(3)
     print("\t".join(row))
 PY
-    elif command -v jq >/dev/null 2>&1; then
-        jq -r '(.skills // [])[] | [.name // "", .url // "", .ref // "", .path // ""] | @tsv' "$f"
-    else
-        err "need python3 or jq to parse $f"; return 3
-    fi
 }
 
 # lock helpers (TSV: name\tsha\turl\tref\tpath; '#'-comment lines ignored).

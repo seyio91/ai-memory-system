@@ -5,7 +5,7 @@
 
 RS="$SCRIPTS_DIR/resolve-skills.sh"
 command -v git >/dev/null 2>&1 || { printf 'SKIP: git unavailable\n'; finish; }
-command -v python3 >/dev/null 2>&1 || command -v jq >/dev/null 2>&1 || { printf 'SKIP: need python3 or jq\n'; finish; }
+python3 -c 'import tomllib' >/dev/null 2>&1 || { printf 'SKIP: need python3.11+ (tomllib)\n'; finish; }
 
 MEM="$(new_sandbox)"; REPO="$(new_sandbox)"
 trap 'rm -rf "$MEM" "$REPO"' EXIT
@@ -13,8 +13,8 @@ export MEMORY_DIR="$MEM"
 mkdir -p "$MEM/skills" "$MEM/skills-local"
 
 run() { set +e; out=$(bash "$@" 2>&1); code=$?; set -e; }
-gen_manifest() { cat > "$MEM/skills/skills.json"; }
-loc_manifest() { cat > "$MEM/skills-local/skills.json"; }
+gen_manifest() { cat > "$MEM/skills/skills.toml"; }
+loc_manifest() { cat > "$MEM/skills-local/skills.toml"; }
 
 # --- build a "remote" git repo: skill at a subpath + one at the repo root -----
 mkdir -p "$REPO/pkg/remote-sub"
@@ -33,7 +33,11 @@ assert_contains "$out" "no remote skills declared" "reports nothing declared"
 
 # --- resolve a subpath skill from the tracked (generic) manifest --------------
 gen_manifest <<EOF
-{ "skills": [ { "name": "remote-sub", "url": "file://$REPO", "ref": "$BRANCH", "path": "pkg/remote-sub" } ] }
+[[skills]]
+name = "remote-sub"
+url  = "file://$REPO"
+ref  = "$BRANCH"
+path = "pkg/remote-sub"
 EOF
 run "$RS"
 assert_exit 0 "$code" "resolve generic subpath skill -> exit 0"
@@ -63,7 +67,10 @@ assert_contains "$out" "resolved" "--update actually fetches"
 
 # --- local manifest: skill at repo root (no path) -----------------------------
 loc_manifest <<EOF
-{ "skills": [ { "name": "remote-root", "url": "file://$REPO", "ref": "$BRANCH" } ] }
+[[skills]]
+name = "remote-root"
+url  = "file://$REPO"
+ref  = "$BRANCH"
 EOF
 run "$RS"
 assert_exit 0 "$code" "resolve local root skill -> exit 0"
@@ -78,7 +85,10 @@ assert_contains "$out" "local" "--list tags scope local"
 
 # --- hard-fail: bad ref is a fetch error (exit 1), strict --------------------
 loc_manifest <<EOF
-{ "skills": [ { "name": "remote-root", "url": "file://$REPO", "ref": "no-such-ref" } ] }
+[[skills]]
+name = "remote-root"
+url  = "file://$REPO"
+ref  = "no-such-ref"
 EOF
 run "$RS" --update
 assert_exit 1 "$code" "bad ref hard-fails -> exit 1"
@@ -86,7 +96,11 @@ assert_contains "$out" "no-such-ref" "error names the unresolvable ref"
 
 # --- validation: SKILL.md missing at the declared path -> exit 1 --------------
 loc_manifest <<EOF
-{ "skills": [ { "name": "remote-root", "url": "file://$REPO", "ref": "$BRANCH", "path": "pkg/does-not-exist" } ] }
+[[skills]]
+name = "remote-root"
+url  = "file://$REPO"
+ref  = "$BRANCH"
+path = "pkg/does-not-exist"
 EOF
 run "$RS" --update
 assert_exit 1 "$code" "missing SKILL.md at path -> exit 1"
@@ -94,7 +108,9 @@ assert_contains "$out" "no SKILL.md" "names the missing SKILL.md"
 
 # --- guards: missing url / ref are rejected -----------------------------------
 loc_manifest <<'EOF'
-{ "skills": [ { "name": "noref", "url": "file:///x" } ] }
+[[skills]]
+name = "noref"
+url  = "file:///x"
 EOF
 run "$RS"
 assert_exit 1 "$code" "missing ref -> exit 1"
@@ -103,10 +119,14 @@ assert_contains "$out" "missing ref" "flags missing ref"
 # --dry-run never fetches
 rm -rf "$MEM/.skill-cache"
 gen_manifest <<EOF
-{ "skills": [ { "name": "remote-sub", "url": "file://$REPO", "ref": "$BRANCH", "path": "pkg/remote-sub" } ] }
+[[skills]]
+name = "remote-sub"
+url  = "file://$REPO"
+ref  = "$BRANCH"
+path = "pkg/remote-sub"
 EOF
 loc_manifest <<'EOF'
-{ "skills": [] }
+# no local remotes
 EOF
 run "$RS" --dry-run
 assert_exit 0 "$code" "--dry-run exits 0"

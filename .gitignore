@@ -62,7 +62,7 @@ __pycache__/
 !/skills-local/.gitkeep
 
 # Remote-skill cache: content is materialized per-instance by resolve-skills.sh from
-# the manifests (skills/skills.json tracked, skills-local/skills.json ignored) and
+# the manifests (skills/skills.toml tracked, skills-local/skills.toml ignored) and
 # pinned by .skill-cache/skills.lock. Never committed — remote skills are referenced,
 # not vendored.
 /.skill-cache/
