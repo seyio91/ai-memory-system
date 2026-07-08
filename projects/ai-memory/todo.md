@@ -10,7 +10,7 @@
 - [x] Phase 1 — Channel + `--to` in `sync-system.sh` (PR #40)
 - [x] Phase 2 — Migration runner + `.applied-version` (PR #41)
 - [x] Phase 3 — `release.sh` (PR #42)
-- [ ] Phase 4 — Docs (CHANGELOG, UPGRADING, docs/, README)
+- [x] Phase 4 — Docs (CHANGELOG, UPGRADING, docs/, README) (PR #43)
 - [ ] Phase 5 — Cut `v1.0.0` end-to-end + flip a consumer instance
 
 ## Done
