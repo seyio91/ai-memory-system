@@ -19,6 +19,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   The Antigravity `PreToolUse` guard now enforces the read-only allowlist for
   `AI_MEMORY_ROLE=validate` as well as `explore`.
 
+### Changed
+
+- **Install guidance for the Claude workflow-rules base now recommends an
+  `@`-import** over copy/merge. A thin `~/.claude/CLAUDE.md` that `@`-imports the
+  versioned `harnesses/claude/CLAUDE.md` tracks the repo automatically (no drift) while
+  keeping machine-specific lines like `@RTK.md`; merging the body inline freezes a copy
+  that silently drifts from the doctrine on every change. (`scripts/drivers/hook.sh`.)
+
 ## [1.1.0] - 2026-07-08
 
 > **Upgrading from `1.0.0` needs one manual step.** `identity.md` is no longer
