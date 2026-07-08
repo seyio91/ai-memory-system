@@ -112,7 +112,7 @@ metadata:
 The label resolves **three write zones**:
 
 1. **Target tree** — the project/repo being worked on. Gated by `tier` (read-only ⇒ hands off).
-2. **The skill's own folder** (`skills/<name>/`) — **always writable, at any time, regardless of tier**, with no declaration needed. This is where a read-only skill puts its output (e.g. `renovate-manager` writes review memory under `skills/renovate-manager/renovate-reviews/`). No `memory_store` field — the rule is universal, so there's nothing to declare.
+2. **The skill's own folder** (`skills/<name>/`) — **always writable, at any time, regardless of tier**, with no declaration needed. This is where a read-only skill puts skill-owned files. Stateful skills persist local data in `.skill-data/<name>/` (gitignored, `AI_MEMORY_SKILL_DATA`), decoupled from the possibly-ephemeral skill dir; for example, `renovate-manager` writes review memory under `.skill-data/renovate-manager/renovate-reviews/`. No `memory_store` field — the rule is universal, so there's nothing to declare.
 3. **Everything else** (`projects/*/memory.md`, `working.md`, `index.md`, and *other* skills' folders) — **off-limits by default**, even though it's in the memory repo.
 
 Enforcement is harness-agnostic and *detective* (a post-run check, layered under the codex execpolicy which prevents the destructive class) — see `projects/ai-memory/plans/skill-subsystem.md` for the `tier` schema (#10), the `validate-skills.sh` static check (#4), and the post-run git-diff boundary check (#11).

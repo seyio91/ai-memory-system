@@ -140,7 +140,7 @@ cmd_check() {
         # skills-local/<skill>/ — resolve its real root when the helper is available
         # (run inside the tree). Local own-folders are gitignored so own-writes are
         # invisible here anyway; this keeps the allowlist correct for any exception.
-        local own="skills/$skill/" p sdir
+        local own="skills/$skill/" data=".skill-data/$skill/" p sdir
         if command -v resolve_skill_dir >/dev/null 2>&1; then
             sdir="$(resolve_skill_dir "$skill" 2>/dev/null || true)"
             [ -n "$sdir" ] && [ -n "${MEMORY_DIR:-}" ] && own="${sdir#$MEMORY_DIR/}/"
@@ -149,6 +149,7 @@ cmd_check() {
             [ -n "$p" ] || continue
             case "$p" in
                 "$own"*) continue ;;                      # own folder — always allowed
+                "$data"*) continue ;;                      # skill-data folder — always allowed
             esac
             if [ "$mem_scope" = full ]; then
                 printf 'VIOLATION: %s wrote outside its own folder in memory repo: %s\n' "$skill" "$p"

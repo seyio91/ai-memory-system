@@ -67,4 +67,9 @@ __pycache__/
 # not vendored.
 /.skill-cache/
 
+# Per-instance skill data: stateful skills persist local data here, outside their
+# possibly-ephemeral skill dir. Never committed.
+/.skill-data/
+!/.skill-data/.gitkeep
+
 # identity.md IS committed (preferences, no client data) — see identity.template.md

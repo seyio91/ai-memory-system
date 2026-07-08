@@ -1,4 +1,0 @@
-# Generated review memory (chart-level + project-level) — local data, not skill source.
-# Kept inside the skill so it travels with it; ignored so it's never committed when
-# the skill is copied/cloned into a git-tracked harness (e.g. a repo's .claude/skills/).
-renovate-reviews/

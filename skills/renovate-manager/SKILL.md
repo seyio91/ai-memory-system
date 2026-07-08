@@ -292,15 +292,18 @@ Never write to injected memory files or the system `index.md`.
 
 ## Memory store (shared plumbing)
 
-Review memory lives **inside this skill's directory** (`<skill_dir>/renovate-reviews/`),
-gitignored, split by manager (`helm/`, `terraform/`). Both have a **package tier**
+Review memory lives in the instance-local skill-data root:
+`$AI_MEMORY_SKILL_DATA/renovate-manager/renovate-reviews/` (default
+`$MEMORY_DIR/.skill-data/renovate-manager/renovate-reviews/`), resolved by running
+`scripts/skill-data-dir.sh renovate-manager` and appending `/renovate-reviews/`.
+It is split by manager (`helm/`, `terraform/`). Both have a **package tier**
 (reusable upstream analysis, keyed by the dependency). **Helm also has a project
-tier** (`helm/projects/<project>/<unit>.md` — the deployment's config profile + history),
-because helm has no runtime check. **Terraform has package tier only:** the
-consuming module is a `terraform validate` target, not a memory subject — its
+tier** (`helm/projects/<project>/<unit>.md` — the deployment's config profile +
+history), because helm has no runtime check. **Terraform has package tier only:**
+the consuming module is a `terraform validate` target, not a memory subject — its
 validate result is recorded in the package tier. Project is resolved from the repo
-URL via the reverse-map (`repo`/`repo_path`); **ask the user if it doesn't
-resolve — never assume**.
+URL via the reverse-map (`repo`/`repo_path`); **ask the user if it doesn't resolve
+— never assume**.
 
 See **`references/memory.md`** for the full layout, the per-tier templates, the
 project-key resolution, and the update discipline. **Never** write review memory
