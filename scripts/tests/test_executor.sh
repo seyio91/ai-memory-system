@@ -167,6 +167,11 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "$BIN/ttbin"
 chmod +x "$BIN/wwbin" "$BIN/ttbin"
 export PATH="$BIN:$PATH"
 
+# invalid role -> exit 2 with the supported role list
+run --role bogus --which
+assert_exit 2 "$CODE" "invalid --role exits 2"
+assert_contains "$ERR" "task|explore|validate" "invalid --role message lists roles"
+
 # task role resolves a registered harness via its manifest exec_cmd
 export AI_MEMORY_EXECUTOR_TASK=ww
 run --which
@@ -236,6 +241,41 @@ args="$(cat "$WMARK")"
 assert_contains "$args" "--ro" "--run explore uses exec_readonly (wwbin --ro)"
 assert_eq "explore" "$(cat "$RMARK")" "--run (explore) exports AI_MEMORY_ROLE=explore"
 unset AI_MEMORY_EXECUTOR_EXPLORE
+
+# ====== validate role ======
+
+# validate defaults to subagent and does not chain to legacy or task role vars
+export AI_MEMORY_EXECUTOR=ww
+export AI_MEMORY_EXECUTOR_TASK=ww
+unset AI_MEMORY_EXECUTOR_VALIDATE
+run --role validate --which
+assert_eq "subagent" "$OUT" "validate: default ignores legacy and task role vars"
+
+# validate role with an explicit read-only-capable harness -> cli
+export AI_MEMORY_EXECUTOR_VALIDATE=ww
+run --role validate --which
+assert_eq "cli:ww" "$OUT" "validate role: explicit harness with exec_readonly -> cli"
+
+# validate subagent plane carries the model
+export AI_MEMORY_EXECUTOR_VALIDATE="sub1:careful"
+run --role validate --which
+assert_eq "subagent:careful" "$OUT" "validate: subagent plane carries the model"
+
+# validate role with a task-only harness -> degrade to subagent (never write-capable)
+export AI_MEMORY_EXECUTOR_VALIDATE=tt
+run --role validate --which
+assert_eq "subagent" "$OUT" "validate: task-only harness degrades to subagent"
+assert_contains "$ERR" "no read-only mode" "validate degrade reported"
+
+# validate --run uses exec_readonly AND advertises the validate role
+export AI_MEMORY_EXECUTOR_VALIDATE=ww
+run --role validate --run "check the diff"
+assert_exit 0 "$CODE" "--run validate exits 0 via stub"
+args="$(cat "$WMARK")"
+assert_contains "$args" "--ro" "--run validate uses exec_readonly (wwbin --ro)"
+assert_eq "validate" "$(cat "$RMARK")" "--run (validate) exports AI_MEMORY_ROLE=validate"
+unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_VALIDATE
+
 export PATH="$OLDPATH"
 
 finish

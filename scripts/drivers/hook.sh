@@ -169,8 +169,14 @@ EOF
   1. Settings must be registered in $sd/settings.json. Merge the hook
      entries and the statusLine from $HARNESS_DIR/settings.hooks.json into it.
 
-  2. Workflow rules: review $HARNESS_DIR/CLAUDE.md, then either symlink or merge it:
-       ln -s "$HARNESS_DIR/CLAUDE.md" "$sd/CLAUDE.md"   # if you have none
-     (If you already have one, merge by hand.)
+  2. Workflow rules: review $HARNESS_DIR/CLAUDE.md, then wire it into $sd/CLAUDE.md.
+     PREFERRED — a thin shim that @-imports the versioned copy, so it never drifts and
+     you keep machine-specific lines (e.g. @RTK.md):
+       # in $sd/CLAUDE.md
+       @$HARNESS_DIR/CLAUDE.md
+     Or symlink it if you have no machine-specific additions:
+       ln -s "$HARNESS_DIR/CLAUDE.md" "$sd/CLAUDE.md"
+     Do NOT copy/merge the body inline — a merged copy freezes and drifts from the repo
+     every time the doctrine changes.
 EOF
 }

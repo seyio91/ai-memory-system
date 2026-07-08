@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 # Select and dispatch the orchestrator's executor. Resolution is driven by the
 # harness registry (harnesses/<name>/manifest exec_* block) — no per-harness code
-# here. Two roles select independent config, each a `harness[:model]` value:
-#   task     -> AI_MEMORY_EXECUTOR_TASK    (write-capable; a plan step)
-#   explore  -> AI_MEMORY_EXECUTOR_EXPLORE (read-only scouting)
-# Each falls back to the legacy single AI_MEMORY_EXECUTOR, then to claude-subagent.
+# here. Three roles select independent config, each a `harness[:model]` value:
+#   task     -> AI_MEMORY_EXECUTOR_TASK     (write-capable; a plan step)
+#   explore  -> AI_MEMORY_EXECUTOR_EXPLORE  (read-only scouting)
+#   validate -> AI_MEMORY_EXECUTOR_VALIDATE (read-only check of executor output; defaults to claude-subagent, NOT the legacy var)
+# Task/explore fall back to the legacy single AI_MEMORY_EXECUTOR, then to claude-subagent.
 #
-#   executor.sh [--role task|explore] --which          -> 'subagent[:model]' | 'cli:<name>'
-#   executor.sh [--role task|explore] --run "<prompt>" -> execs the CLI executor, or prints
-#                                                          EXECUTOR_USE_SUBAGENT (exit 3)
+#   executor.sh [--role task|explore|validate] --which          -> 'subagent[:model]' | 'cli:<name>'
+#   executor.sh [--role task|explore|validate] --run "<prompt>" -> execs the CLI executor, or prints
+#                                                                   EXECUTOR_USE_SUBAGENT (exit 3)
 #   executor.sh [--role ...] --show                    -> human-readable diagnostics
 #
 # A registered harness resolves through its manifest: exec=subagent -> subagent
-# plane; else exec_cmd (task) / exec_readonly (explore), gated on exec_probe being
-# on PATH. A harness with no read-only mode is skipped for `explore` (degrades to
-# the subagent Explore plane), never run write-capable. An unregistered name falls
-# back to a legacy AI_MEMORY_EXECUTOR_CMD_<key> template.
+# plane; else exec_cmd (task) / exec_readonly (explore/validate), gated on
+# exec_probe being on PATH. A harness with no read-only mode is skipped for
+# `explore`/`validate` (degrades to the subagent plane), never run write-capable.
+# An unregistered name falls back to a legacy AI_MEMORY_EXECUTOR_CMD_<key> template.
 #
 # Exit codes: 0 resolved | 1 preferred unavailable + no fallback |
 #             2 unknown executor / usage error | 3 --run resolved to subagent
@@ -35,12 +36,13 @@ first_word() { set -f; set -- $1; set +f; printf '%s' "${1:-}"; }
 shq() { local s="${1:-}" sq="'" esc="'\\''"; s="${s//$sq/$esc}"; printf "'%s'" "$s"; }
 expand_memdir() { printf '%s' "${1//\$MEMORY_DIR/$MEMORY_DIR}"; }
 
-# The configured value for the active role: role var -> legacy var -> claude-subagent.
+# The configured value for the active role.
 role_value() {
     local v=""
     case "$ROLE" in
-        task)    v="${AI_MEMORY_EXECUTOR_TASK-}" ;;
-        explore) v="${AI_MEMORY_EXECUTOR_EXPLORE-}" ;;
+        task)     v="${AI_MEMORY_EXECUTOR_TASK-}" ;;
+        explore)  v="${AI_MEMORY_EXECUTOR_EXPLORE-}" ;;
+        validate) v="${AI_MEMORY_EXECUTOR_VALIDATE-}"; [ -n "$v" ] || v="claude-subagent"; printf '%s' "$v"; return 0 ;;
     esac
     [ -n "$v" ] || v="${AI_MEMORY_EXECUTOR-}"
     [ -n "$v" ] || v="claude-subagent"
@@ -76,19 +78,21 @@ resolve_value() {
     mf="$(harness_manifest "$harness")"
     if [ -n "$mf" ]; then
         if [ "$(manifest_get "$mf" exec)" = subagent ]; then R_PLANE=subagent; return 0; fi
-        if [ "$ROLE" = explore ]; then
+        case "$ROLE" in explore|validate)
             cmd="$(manifest_get "$mf" exec_readonly)"
             if [ -z "$cmd" ]; then
-                printf 'executor: harness %s has no read-only mode (exec_readonly) — exploration degrades to the subagent Explore plane\n' "$harness" >&2
+                printf 'executor: harness %s has no read-only mode (exec_readonly) — %s degrades to the subagent plane\n' "$harness" "$ROLE" >&2
                 R_PLANE=subagent; return 0
             fi
-        else
+            ;;
+        *)
             cmd="$(manifest_get "$mf" exec_cmd)"
             if [ -z "$cmd" ]; then
                 printf 'executor: harness %s has no execute face (no exec_cmd)\n' "$harness" >&2
                 return 2
             fi
-        fi
+            ;;
+        esac
         # thread model (append the filled model flag) when a model was requested
         if [ -n "$model" ]; then
             mflag="$(manifest_get "$mf" exec_model_flag)"
@@ -154,7 +158,7 @@ while [ "$#" -gt 0 ]; do
         *) break ;;
     esac
 done
-case "$ROLE" in task|explore) ;; *) printf 'executor: --role must be task|explore\n' >&2; exit 2 ;; esac
+case "$ROLE" in task|explore|validate) ;; *) printf 'executor: --role must be task|explore|validate\n' >&2; exit 2 ;; esac
 
 MODE="${1:-}"
 case "$MODE" in
@@ -181,21 +185,22 @@ case "$MODE" in
         eval "exec ${cmd} </dev/null"
         ;;
     --show)
-        printf 'role                        = %s\n' "$ROLE"
-        printf 'AI_MEMORY_EXECUTOR_TASK     = %s\n' "${AI_MEMORY_EXECUTOR_TASK-<unset>}"
-        printf 'AI_MEMORY_EXECUTOR_EXPLORE  = %s\n' "${AI_MEMORY_EXECUTOR_EXPLORE-<unset>}"
-        printf 'AI_MEMORY_EXECUTOR (legacy) = %s\n' "${AI_MEMORY_EXECUTOR-<unset>}"
-        printf 'AI_MEMORY_EXECUTOR_FALLBACK = %s\n' "${FALLBACK:-<empty>}"
-        printf 'resolved value              = %s\n' "$(role_value)"
+        printf 'role                         = %s\n' "$ROLE"
+        printf 'AI_MEMORY_EXECUTOR_TASK      = %s\n' "${AI_MEMORY_EXECUTOR_TASK-<unset>}"
+        printf 'AI_MEMORY_EXECUTOR_EXPLORE   = %s\n' "${AI_MEMORY_EXECUTOR_EXPLORE-<unset>}"
+        printf 'AI_MEMORY_EXECUTOR_VALIDATE  = %s\n' "${AI_MEMORY_EXECUTOR_VALIDATE-<unset>}"
+        printf 'AI_MEMORY_EXECUTOR (legacy)  = %s\n' "${AI_MEMORY_EXECUTOR-<unset>}"
+        printf 'AI_MEMORY_EXECUTOR_FALLBACK  = %s\n' "${FALLBACK:-<empty>}"
+        printf 'resolved value               = %s\n' "$(role_value)"
         if resolve 2>/dev/null; then
-            printf 'resolved plane              = %s\n' "$(plane_token)"
-            [ "$R_PLANE" = cli ] && printf 'resolved command            = %s\n' "$R_CMD"
+            printf 'resolved plane               = %s\n' "$(plane_token)"
+            [ "$R_PLANE" = cli ] && printf 'resolved command             = %s\n' "$R_CMD"
         else
-            printf 'resolved plane              = <unresolved, rc=%s>\n' "$?"
+            printf 'resolved plane               = <unresolved, rc=%s>\n' "$?"
         fi
         ;;
     *)
-        printf 'usage: executor.sh [--role task|explore] --which | --run "<prompt>" | --show\n' >&2
+        printf 'usage: executor.sh [--role task|explore|validate] --which | --run "<prompt>" | --show\n' >&2
         exit 2
         ;;
 esac

@@ -34,16 +34,28 @@
 # export AI_MEMORY_SKILL_DATA="$MEMORY_DIR/.skill-data"  # stateful skill data root
 
 # ── Orchestrator executor selection ──
-# Two roles, each a `harness[:model]` value (harness resolves through its
+# Three roles, each a `harness[:model]` value (harness resolves through its
 # harnesses/<name>/manifest exec_* block; model is optional):
 #   task     — execute a plan step (write-capable)
 #   explore  — read-only scouting (a harness with no read-only mode degrades to the
-#              Claude Explore agent, never runs write-capable)
+#              subagent plane, never runs write-capable)
+#   validate — read-only validator pass over executor output (uses the harness's
+#              read-only face; degrades to the subagent plane like explore)
 # Registered harness values: claude-subagent | claude[:sonnet|:haiku] | codex[:model]
-#   | antigravity[:model] | <generic-cli-key>. Each role falls back to the legacy
-# single AI_MEMORY_EXECUTOR below, then to claude-subagent.
+#   | antigravity[:model] | <generic-cli-key>.
+# task/explore fall back to the legacy single AI_MEMORY_EXECUTOR below, then to
+# claude-subagent.
 # export AI_MEMORY_EXECUTOR_TASK="codex"
 # export AI_MEMORY_EXECUTOR_EXPLORE="claude:haiku"
+#
+# validate does NOT chain to the legacy var: unset => claude-subagent (the
+# orchestrator's own agent plane). That default makes validation CROSS-MODEL for
+# free when the executor is a CLI harness (e.g. codex executes, a Claude subagent
+# validates) — decorrelating reasoning blind spots, not just context. Set it
+# explicitly only to pin a specific validator (e.g. to match the executor's model,
+# or a stronger reviewer). Capability floor: the auto-default never picks a weaker
+# model — a weak validator must be chosen by hand.
+# export AI_MEMORY_EXECUTOR_VALIDATE="claude:opus"
 #
 # Legacy single-var (still honored as the fallback for any unset role):
 #   claude-subagent  — in-harness Claude Agent tool (default; always available)

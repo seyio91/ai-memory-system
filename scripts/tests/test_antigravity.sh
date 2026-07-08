@@ -136,6 +136,17 @@ guard explore some_unknown_tool ""; denied "$OUT" "explore: unknown tool denied 
 # explore deny-list still blocks destructive shell even though run_command is denied anyway
 guard explore run_command "kubectl apply -f x"; denied "$OUT" "explore: destructive shell denied"
 
+# validate role: read-only, same allowlist as explore
+guard validate view_file "";         allowed "$OUT" "validate: view_file allowed"
+guard validate grep_search "";       allowed "$OUT" "validate: grep_search allowed"
+guard validate write_to_file "";     denied  "$OUT" "validate: write_to_file denied"
+guard validate create_file "";       denied  "$OUT" "validate: create_file denied"
+guard validate run_command "ls";     denied  "$OUT" "validate: run_command denied (no shell in read-only)"
+guard validate some_unknown_tool ""; denied  "$OUT" "validate: unknown tool denied (allowlist fails safe)"
+
+# validate deny-list still blocks destructive shell even though run_command is denied anyway
+guard validate run_command "kubectl apply -f x"; denied "$OUT" "validate: destructive shell denied"
+
 # ================= statusline (statusline.sh) =================
 SL="$REPO/harnesses/antigravity/statusline.sh"
 PAYLOAD='{"agent_state":"working","context_window":{"used_percentage":63.4},"vcs":{"branch":"main","dirty":true},"sandbox":{"enabled":true},"subagents":[1,2],"task_count":3,"model":{"display_name":"Gemini 3.5 Flash"},"terminal_width":100}'
