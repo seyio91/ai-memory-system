@@ -3,8 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-
 ## [Unreleased]
+
+## [1.0.0] - 2026-07-08
 
 First tagged release. The system has been in daily use for some time; `1.0.0`
 marks the point at which instances stop tracking a moving `main` and start
@@ -56,3 +57,4 @@ delta from an earlier release.
   never authored.
 - **Harness-neutral project marker** `.agents/memory-project`, with a legacy
   `.claude/memory-project` fallback and `migrate-marker.sh` to bulk-migrate.
+
