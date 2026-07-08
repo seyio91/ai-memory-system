@@ -1,6 +1,6 @@
 ---
 plan: remove-metadata-tier
-status: in-progress
+status: done
 created: 2026-07-08
 owner: seyi
 task_ref: 397f6850-c619-81fa-8af5-eb05f47eb2a9
