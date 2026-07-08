@@ -7,7 +7,7 @@
 ## Active
 
 ### Versioned release channel (git tags) → [plan](plans/versioned-release-channel.md)
-- [ ] Phase 1 — Channel + `--to` in `sync-system.sh`
+- [x] Phase 1 — Channel + `--to` in `sync-system.sh` (PR #40)
 - [ ] Phase 2 — Migration runner + `.applied-version`
 - [ ] Phase 3 — `release.sh`
 - [ ] Phase 4 — Docs (CHANGELOG, UPGRADING, docs/, README)
