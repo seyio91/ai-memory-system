@@ -34,7 +34,7 @@ skills_with_partial() {
 # skill_roots — print the skill store roots, one per line, in precedence order:
 # generic authored (skills/, git-tracked, synced) > local authored (skills-local/,
 # gitignored, per-instance) > remote cache (.skill-cache/, gitignored, materialized
-# from manifests by resolve-skills.sh). Override the whole list with
+# from the root manifest by resolve-skills.sh). Override the whole list with
 # AI_MEMORY_SKILL_ROOTS (colon-separated). This is the single place roots are declared
 # — every skills tool picks up a new root here. Roots need not exist; callers guard.
 skill_roots() {
@@ -45,7 +45,7 @@ skill_roots() {
 }
 
 # skill_cache_dir — the remote-skill cache root (gitignored). Content is materialized
-# by resolve-skills.sh from the split manifests and pinned by .skill-cache/skills.lock.
+# by resolve-skills.sh from skills.toml and pinned by .skill-cache/skills.lock.
 skill_cache_dir() {
     printf '%s\n' "${AI_MEMORY_SKILL_CACHE:-$MEMORY_DIR/.skill-cache}"
 }
@@ -65,15 +65,16 @@ skill_data_dir() {
     printf '%s\n' "$dir"
 }
 
-# skill_manifest — path to the remote-skill TOML manifest for a scope. `local` ->
-# the gitignored per-instance manifest; anything else -> the tracked generic one.
-# The single place the manifest paths are defined (resolve/install/list agree).
-#   skill_manifest [generic|local]
+# skill_manifest — path to the per-instance remote-skill TOML manifest.
+# Callers may pass an ignored legacy arg; there is one manifest now.
+#   skill_manifest
 skill_manifest() {
-    case "${1:-generic}" in
-        local) printf '%s\n' "$MEMORY_DIR/skills-local/skills.toml" ;;
-        *)     printf '%s\n' "$MEMORY_DIR/skills/skills.toml" ;;
-    esac
+    printf '%s\n' "$MEMORY_DIR/skills.toml"
+}
+
+# skill_manifest_template — path to the tracked remote-skill catalog template.
+skill_manifest_template() {
+    printf '%s\n' "$MEMORY_DIR/skills.toml.example"
 }
 
 # list_skill_dirs — print every skill dir (one absolute path per line, no trailing

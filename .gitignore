@@ -54,6 +54,11 @@ __pycache__/
 # Per-environment overrides (secrets/paths) — ship config.local.sh.example only
 /config.local.sh
 
+# Per-instance remote-skill choices — ship skills.toml.example as the tracked
+# catalog, then copy/prune it locally as skills.toml.
+/skills.toml
+!/skills.toml.example
+
 # Per-instance ("local") skills: authored/installed on THIS instance only, never
 # synced. The whole folder is ignored by one line — drop a skill dir in and it fans
 # out locally (link-skills.sh) without any per-skill gitignore edit. The tracked
@@ -62,9 +67,8 @@ __pycache__/
 !/skills-local/.gitkeep
 
 # Remote-skill cache: content is materialized per-instance by resolve-skills.sh from
-# the manifests (skills/skills.toml tracked, skills-local/skills.toml ignored) and
-# pinned by .skill-cache/skills.lock. Never committed — remote skills are referenced,
-# not vendored.
+# root skills.toml and pinned by .skill-cache/skills.lock. Never committed — remote
+# skills are referenced, not vendored.
 /.skill-cache/
 
 # Per-instance skill data: stateful skills persist local data here, outside their

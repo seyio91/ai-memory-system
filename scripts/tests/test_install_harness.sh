@@ -20,6 +20,7 @@ cp -R "$REPO/harnesses" "$FAKE/harnesses"
 cp "$REPO/install.sh" "$FAKE/install.sh"
 printf '# identity template\n' > "$FAKE/identity.template.md"
 printf '# index template\n'    > "$FAKE/index.template.md"
+printf '# skills template\n[[skills]]\nname = "template-skill"\nurl = "https://example.invalid/skills.git"\nref = "main"\n' > "$FAKE/skills.toml.example"
 mkdir -p "$FAKE/skills/demo-skill"
 printf -- '---\nname: demo-skill\ndescription: demo\n---\n# demo\n' > "$FAKE/skills/demo-skill/SKILL.md"
 mkdir -p "$FAKE/agents"
@@ -37,6 +38,11 @@ assert_file "$FHOME/.claude/statusline.sh"        "statusline linked"
 assert_file "$FHOME/.claude/commands/pin.md"      "native command linked (pin)"
 assert_file "$FHOME/.claude/skills/demo-skill"    "skill fanned out"
 assert_file "$FHOME/.claude/agents/demo-agent.md" "agent fanned out"
+assert_file "$FAKE/skills.toml"                   "root skills.toml seeded from template"
+assert_eq "$(cat "$FAKE/skills.toml.example")" "$(cat "$FAKE/skills.toml")" "skills.toml seeded as an exact template copy"
+assert_contains "$(cat "$SBROOT/log.claude")" "seeded skills.toml from template" "install reports the skills.toml seed step"
+set +e; [ -d "$FAKE/.skill-cache/template-skill" ]; e=$?; set -e
+assert_exit 1 "$e" "install seed step does not resolve remote skills"
 assert_eq "$FAKE/harnesses/claude/hooks/inject_memory.sh" \
     "$(readlink "$FHOME/.claude/hooks/inject_memory.sh")" "hook target -> harnesses/claude/hooks"
 assert_eq "$FAKE/harnesses/claude/commands/pin.md" \
@@ -44,9 +50,12 @@ assert_eq "$FAKE/harnesses/claude/commands/pin.md" \
 assert_contains "$(cat "$FAKE/config.local.sh")" "export MEMORY_DIR=" "config.local.sh stamped in FAKE repo"
 
 # --- idempotent re-run ---
+printf '# keep local choices\n' > "$FAKE/skills.toml"
 run_install --harness claude >"$SBROOT/log.claude2" 2>&1; rc=$?
 assert_exit 0 "$rc" "claude re-run exits 0"
 assert_contains "$(cat "$SBROOT/log.claude2")" "ok (already linked)" "re-run: already-linked (no churn)"
+assert_eq "# keep local choices" "$(cat "$FAKE/skills.toml")" "existing skills.toml is not overwritten"
+assert_not_contains "$(cat "$SBROOT/log.claude2")" "seeded skills.toml from template" "existing skills.toml skips seed step"
 
 # --- codex (file archetype): context prep + skills + commands-as-skills ---
 run_install --harness codex >"$SBROOT/log.codex" 2>&1; rc=$?
@@ -107,6 +116,7 @@ assert_contains "$(cat "$FHOME/.doch/MEMORY-COMMANDS.md")" "/pin" "doc: referenc
 assert_contains "$(cat "$SBROOT/log.doch")" "skills fan-out skipped" "doc harness: no skills_dir reported, not failed"
 
 # --- unknown harness errors ---
+set +e
 run_install --harness bogus >"$SBROOT/log.bogus" 2>&1; rc=$?
 assert_exit 1 "$rc" "unknown harness: exit 1"
 

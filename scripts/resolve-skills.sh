@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 #
-# resolve-skills.sh — materialize REMOTE skills declared in the manifests into the
+# resolve-skills.sh — materialize REMOTE skills declared in the root manifest into the
 # gitignored cache, pinned by a lockfile. Remote skills are *referenced, not forked*:
-# the declaration (name + git url + ref [+ path]) syncs across instances via the
-# tracked manifest; the content is fetched per-instance into .skill-cache/ and never
-# committed. Bumping `ref` and re-resolving (--update) is how a remote skill updates.
+# the declaration (name + git url + ref [+ path]) lives in per-instance skills.toml;
+# the content is fetched per-instance into .skill-cache/ and never committed.
+# Bumping `ref` and re-resolving (--update) is how a remote skill updates.
 #
-# Manifests (split, symmetric with the skill folders), TOML — you maintain the list,
-# one [[skills]] entry per skill:
-#   skills/skills.toml         — GENERIC remotes (git-tracked, synced everywhere)
-#   skills-local/skills.toml   — LOCAL remotes (gitignored, per-instance)
+# Manifest, TOML — you maintain the list, one [[skills]] entry per skill:
+#   skills.toml                — per-instance remotes (gitignored)
 # Each entry: name, url, ref (required) + path (optional subdir holding SKILL.md).
 # Parsing uses python3's stdlib tomllib (3.11+) — no pip dependency.
 #
@@ -41,8 +39,7 @@ done
 
 CACHE="$(skill_cache_dir)"
 LOCK="$CACHE/skills.lock"
-GEN_MANIFEST="$(skill_manifest generic)"
-LOC_MANIFEST="$(skill_manifest local)"
+MANIFEST="$(skill_manifest)"
 
 err()  { printf 'resolve-skills: %s\n' "$*" >&2; }
 
@@ -58,7 +55,7 @@ import sys
 try:
     import tomllib
 except ModuleNotFoundError:
-    sys.stderr.write("resolve-skills: TOML manifests need python3.11+ (stdlib tomllib)\n")
+    sys.stderr.write("resolve-skills: TOML manifest needs python3.11+ (stdlib tomllib)\n")
     sys.exit(3)
 try:
     with open(sys.argv[1], "rb") as fh:
@@ -148,46 +145,41 @@ resolve_one() {
     return 0
 }
 
-# --- gather declared remotes from both manifests -----------------------------
-gen_rows="$(_manifest_tsv "$GEN_MANIFEST")" || exit 3
-loc_rows="$(_manifest_tsv "$LOC_MANIFEST")" || exit 3
+# --- gather declared remotes from the root manifest ---------------------------
+rows="$(_manifest_tsv "$MANIFEST")" || exit 3
 
 if [ "$LIST" = 1 ]; then
-    printf '%-30s %-8s %-10s %s\n' "SKILL" "SCOPE" "RESOLVED" "SOURCE"
-    print_rows() { # scope <<rows
-        local scope="$1" line name url ref path sha
+    printf '%-30s %-10s %s\n' "SKILL" "RESOLVED" "SOURCE"
+    print_rows() {
+        local line name url ref path sha
         while IFS="$(printf '\t')" read -r name url ref path; do
             [ -n "$name" ] || continue
             sha="$(lock_sha "$name" 2>/dev/null || true)"
-            printf '%-30s %-8s %-10s %s@%s%s\n' "$name" "$scope" \
+            printf '%-30s %-10s %s@%s%s\n' "$name" \
                 "${sha:+$(printf '%.10s' "$sha")}" "$url" "$ref" "${path:+ [$path]}"
         done
     }
-    printf '%s\n' "$gen_rows" | print_rows generic
-    printf '%s\n' "$loc_rows" | print_rows local
+    printf '%s\n' "$rows" | print_rows
     exit 0
 fi
 
 # --- resolve --------------------------------------------------------------------
 rc=0 n=0
-resolve_rows() { # scope <<rows
-    local scope="$1" name url ref path
+resolve_rows() {
+    local name url ref path
     while IFS="$(printf '\t')" read -r name url ref path; do
         [ -n "$name" ] || continue
         n=$((n + 1))
-        resolve_one "$name" "$url" "$ref" "$path" "$scope" || rc=1
+        resolve_one "$name" "$url" "$ref" "$path" "root" || rc=1
     done
 }
 # Feed via here-strings so the counters/rc survive (no subshell pipe).
-resolve_rows generic <<EOF
-$gen_rows
-EOF
-resolve_rows local <<EOF
-$loc_rows
+resolve_rows <<EOF
+$rows
 EOF
 
 if [ "$n" = 0 ]; then
-    printf 'resolve-skills: no remote skills declared (skills/skills.json, skills-local/skills.json)\n'
+    printf 'resolve-skills: no remote skills declared (skills.toml)\n'
     exit 0
 fi
 if [ "$rc" != 0 ]; then
