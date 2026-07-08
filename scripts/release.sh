@@ -8,7 +8,7 @@
 #   add a fresh empty ## [Unreleased] section above it
 #   git add CHANGELOG.md
 #   git commit -m "chore(release): v<version>"
-#   git tag -a "v<version>" -m "<version plus changelog section body>"
+#   printf '%s\n\n%s\n' "v<version>" "<changelog section body>" | git tag -a "v<version>" --cleanup=verbatim -F -
 #   git push origin main
 #   git push origin "v<version>"
 #
@@ -296,11 +296,17 @@ write_final_changelog() {
     prefix="$(changelog_prefix)"
     suffix="$(changelog_suffix)"
     {
-        [ -n "$prefix" ] && printf '%s\n' "$prefix"
+        if [ -n "$prefix" ]; then
+            printf '%s\n\n' "$prefix"
+        fi
         printf '## [Unreleased]\n\n'
         printf '## [%s] - %s\n' "$version" "$date"
-        printf '%s\n\n' "$body"
-        [ -n "$suffix" ] && printf '%s\n' "$suffix"
+        if [ -n "$suffix" ]; then
+            printf '%s\n\n' "$body"
+            printf '%s\n' "$suffix"
+        else
+            printf '%s\n' "$body"
+        fi
     } > "$tmp"
     mv "$tmp" "$file"
 }
@@ -471,7 +477,7 @@ case "$RELEASE_MODE" in
         ;;
     resume-at-tag)
         RELEASE_BODY="$(version_body "$VERSION")"
-        git tag -a "$TAG" -m "$(tag_message "$RELEASE_BODY")"
+        tag_message "$RELEASE_BODY" | git tag -a "$TAG" --cleanup=verbatim -F -
         publish_release
         exit 0
         ;;
@@ -482,5 +488,5 @@ RELEASE_BODY="$(release_body "$PREV_TAG")"
 write_final_changelog "$VERSION" "$RELEASE_BODY" "$TODAY"
 git add CHANGELOG.md
 git commit -q -m "$RELEASE_COMMIT_SUBJECT"
-git tag -a "$TAG" -m "$(tag_message "$RELEASE_BODY")"
+tag_message "$RELEASE_BODY" | git tag -a "$TAG" --cleanup=verbatim -F -
 publish_release
