@@ -154,6 +154,51 @@ semver_gt() {
     return 1
 }
 
+sort_v_supported() {
+    local last
+    [ "${AI_MEMORY_TEST_NO_SORT_V:-}" = "1" ] && return 1
+    last="$(printf 'v1.10.0\nv1.9.0\n' | sort -V 2>/dev/null | tail -1 || true)"
+    [ "$last" = "v1.10.0" ]
+}
+
+semver_sort_asc() {
+    local v i j
+    local versions=()
+
+    if sort_v_supported; then
+        sort -V
+        return 0
+    fi
+
+    while IFS= read -r v; do
+        [ -n "$v" ] || continue
+        if [ "${#versions[@]}" -eq 0 ]; then
+            versions[0]="$v"
+            continue
+        fi
+        i=0
+        while [ "$i" -lt "${#versions[@]}" ]; do
+            if semver_gt "${versions[$i]}" "$v"; then
+                j="${#versions[@]}"
+                while [ "$j" -gt "$i" ]; do
+                    versions[$j]="${versions[$((j - 1))]}"
+                    j=$((j - 1))
+                done
+                versions[$i]="$v"
+                break
+            fi
+            i=$((i + 1))
+        done
+        if [ "$i" -eq "${#versions[@]}" ]; then
+            versions[$i]="$v"
+        fi
+    done
+
+    if [ "${#versions[@]}" -gt 0 ]; then
+        printf '%s\n' "${versions[@]}"
+    fi
+}
+
 # detect_active_project — print active project name to stdout, or empty.
 # Walks up from $1 (defaults to cwd) looking for the harness-neutral marker
 # .agents/memory-project, falling back to the legacy .claude/memory-project (pre-

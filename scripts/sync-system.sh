@@ -14,6 +14,10 @@
 #     git status --porcelain --untracked-files=no
 #     git fetch --tags origin
 #     git checkout "$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
+#     for f in migrations/<semver>-<slug>.sh newer than .applied-version; do
+#       MEMORY_DIR="$PWD" REPO_ROOT="$PWD" bash "$f"
+#       echo "<semver>" > .applied-version
+#     done
 #     bash install.sh
 #   dev channel:
 #     git status --porcelain --untracked-files=no
@@ -25,11 +29,19 @@
 #       git checkout "${branch:-main}"
 #     fi
 #     git merge --ff-only @{u}
+#     for f in migrations/<semver>-<slug>.sh newer than .applied-version; do
+#       MEMORY_DIR="$PWD" REPO_ROOT="$PWD" bash "$f"
+#       echo "<semver>" > .applied-version
+#     done
 #     bash install.sh
 #   one-shot ref:
 #     git status --porcelain --untracked-files=no
 #     git fetch --tags origin
 #     git checkout <ref>
+#     for f in migrations/<semver>-<slug>.sh newer than .applied-version; do
+#       MEMORY_DIR="$PWD" REPO_ROOT="$PWD" bash "$f"
+#       echo "<semver>" > .applied-version
+#     done
 #     bash install.sh
 #     # --to cannot be combined with --no-pull
 #
@@ -96,13 +108,6 @@ dirty_tracked_guard() {
     git status --short --untracked-files=no >&2
     exit 1
   fi
-}
-
-sort_v_supported() {
-  local last
-  [ "${AI_MEMORY_TEST_NO_SORT_V:-}" = "1" ] && return 1
-  last="$(printf 'v1.10.0\nv1.9.0\n' | sort -V 2>/dev/null | tail -1 || true)"
-  [ "$last" = "v1.10.0" ]
 }
 
 stable_release_tags() {
@@ -204,9 +209,171 @@ preview_dev_incoming() {
   fi
 }
 
-run_migrations_placeholder() {
-  # Phase 2: run pending migrations here before install.sh.
-  :
+migrations_dir() {
+  printf '%s\n' "${AI_MEMORY_MIGRATIONS_DIR:-$REPO_ROOT/migrations}"
+}
+
+applied_version_file() {
+  printf '%s\n' "${AI_MEMORY_APPLIED_VERSION_FILE:-$REPO_ROOT/.applied-version}"
+}
+
+read_applied_version() {
+  local file version
+  file="$(applied_version_file)"
+  if [ ! -f "$file" ]; then
+    # Missing marker means an existing pre-1.0 instance runs the full idempotent
+    # history; migrations are required to be safe when repeated.
+    printf '0.0.0\n'
+    return 0
+  fi
+  IFS= read -r version < "$file" || version=""
+  if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "  ABORT: applied-version marker must contain a bare semver: $file" >&2
+    exit 1
+  fi
+  printf '%s\n' "$version"
+}
+
+validate_migration_files() {
+  local dir f base version i
+  local versions=()
+  local bases=()
+  dir="$(migrations_dir)"
+  [ -d "$dir" ] || return 0
+  for f in "$dir"/*; do
+    [ -e "$f" ] || continue
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    case "$base" in
+      README.md|.gitkeep) continue ;;
+    esac
+    if ! printf '%s\n' "$base" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[A-Za-z0-9._-]+\.sh$'; then
+      echo "  ABORT: malformed migration filename: $base" >&2
+      echo "  Expected migrations/<semver>-<slug>.sh, e.g. migrations/1.1.0-agents-marker.sh" >&2
+      exit 1
+    fi
+    version="${base%%-*}"
+    if [ "${#versions[@]}" -gt 0 ]; then
+      i=0
+      while [ "$i" -lt "${#versions[@]}" ]; do
+        if [ "${versions[$i]}" = "$version" ]; then
+          echo "  ABORT: duplicate migration version: $version" >&2
+          echo "  One migration version may map to only one file." >&2
+          echo "  Colliding files: ${bases[$i]} and $base" >&2
+          exit 1
+        fi
+        i=$((i + 1))
+      done
+    fi
+    versions[${#versions[@]}]="$version"
+    bases[${#bases[@]}]="$base"
+  done
+}
+
+list_migration_versions() {
+  local dir f base
+  dir="$(migrations_dir)"
+  [ -d "$dir" ] || return 0
+  for f in "$dir"/*; do
+    [ -e "$f" ] || continue
+    [ -f "$f" ] || continue
+    base="$(basename "$f")"
+    case "$base" in
+      README.md|.gitkeep) continue ;;
+    esac
+    printf '%s\n' "${base%%-*}"
+  done
+}
+
+pending_migrations() {
+  local dir marker versions version f base
+  dir="$(migrations_dir)"
+  marker="$1"
+  [ -d "$dir" ] || return 0
+  versions="$(list_migration_versions | semver_sort_asc | uniq)" || return 1
+  [ -n "$versions" ] || return 0
+  while IFS= read -r version; do
+    [ -n "$version" ] || continue
+    semver_gt "$version" "$marker" || continue
+    for f in "$dir/$version"-*.sh; do
+      [ -f "$f" ] || continue
+      base="$(basename "$f")"
+      printf '%s\t%s\t%s\n' "$version" "$base" "$f"
+    done
+  done <<EOF
+$versions
+EOF
+}
+
+dry_run_migrations() {
+  local marker pending_list count version base file
+  validate_migration_files
+  marker="$(read_applied_version)"
+  pending_list="$(pending_migrations "$marker")" || { echo "  ABORT: could not compute pending migrations." >&2; exit 1; }
+  step "[dry-run] pending migrations"
+  info "applied marker: $marker"
+  count=0
+  if [ -n "$pending_list" ]; then
+    while IFS="$(printf '\t')" read -r version base file; do
+      [ -n "$version" ] || continue
+      count=$((count + 1))
+      info "$version  $base"
+    done <<EOF
+$pending_list
+EOF
+  fi
+  if [ "$count" -eq 0 ]; then
+    info "none"
+  fi
+}
+
+write_applied_version() {
+  local marker_file="$1" version="$2" marker_dir tmp rc
+  marker_dir="$(dirname "$marker_file")"
+  mkdir -p "$marker_dir"
+  tmp="$marker_file.tmp.$$"
+  printf '%s\n' "$version" > "$tmp" || {
+    rc=$?
+    rm -f "$tmp"
+    exit "$rc"
+  }
+  mv "$tmp" "$marker_file" || {
+    rc=$?
+    rm -f "$tmp"
+    exit "$rc"
+  }
+}
+
+run_migrations() {
+  local marker marker_file pending_list version base file count rc
+  validate_migration_files
+  marker="$(read_applied_version)"
+  marker_file="$(applied_version_file)"
+  pending_list="$(pending_migrations "$marker")" || { echo "  ABORT: could not compute pending migrations." >&2; exit 1; }
+  count=0
+  if [ -n "$pending_list" ]; then
+    while IFS="$(printf '\t')" read -r version base file; do
+      [ -n "$version" ] || continue
+      count=$((count + 1))
+      step "Running migration $base"
+      info "version: $version"
+      if MEMORY_DIR="$MEMORY_DIR" REPO_ROOT="$REPO_ROOT" bash "$file"; then
+        write_applied_version "$marker_file" "$version"
+        marker="$version"
+        info "recorded $(basename "$marker_file"): $version"
+      else
+        rc=$?
+        echo "  ABORT: migration failed: $file" >&2
+        echo "  The applied-version marker was left at $marker." >&2
+        exit "$rc"
+      fi
+    done <<EOF
+$pending_list
+EOF
+  fi
+  if [ "$count" -eq 0 ]; then
+    info "No pending migrations (applied marker: $marker)"
+  fi
 }
 
 resolve_channel() {
@@ -247,6 +414,7 @@ if [ "$DO_PULL" = 1 ]; then
       info "target: @{u} (dev ff-only merge)"
       preview_dev_incoming
     fi
+    dry_run_migrations
     info "[dry-run] $FETCH_STATUS, not checking out, not installing"
     exit 0
   fi
@@ -295,12 +463,13 @@ else
   if [ "$DRY_RUN" = 1 ]; then
     step "[dry-run] sync target"
     info "--no-pull: current tree (no fetch, no checkout, no install)"
+    dry_run_migrations
     exit 0
   fi
   info "--no-pull: re-linking from current tree (no fetch)"
 fi
 
-run_migrations_placeholder
+run_migrations
 
 if [ "$UPDATE_REMOTES" = 1 ]; then
   step "Re-resolving remote skills (--update: re-fetch pinned refs)"

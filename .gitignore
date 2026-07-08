@@ -54,6 +54,9 @@ __pycache__/
 # Per-environment overrides (secrets/paths) — ship config.local.sh.example only
 /config.local.sh
 
+# Machine-written migration high-water mark for sync-system.sh.
+/.applied-version
+
 # Per-instance remote-skill choices — ship skills.toml.example as the tracked
 # catalog, then copy/prune it locally as skills.toml.
 /skills.toml
