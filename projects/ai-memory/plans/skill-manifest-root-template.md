@@ -67,8 +67,30 @@ authored skill dirs — untouched.
   `skills/skills.toml` path must be swept for stale path assumptions.
 
 ## Phases
-- [ ] Phase 1 — `_lib.sh` (`skill_manifest` → root, add `skill_manifest_template`) + `resolve-skills.sh` / `list-skills` / `install-skill` path updates
-- [ ] Phase 2 — `install.sh` seed step (copy template if absent, no auto-resolve, print guidance)
-- [ ] Phase 3 — `.gitignore` + migrate content: create `skills.toml.example` (curated) + per-instance root `skills.toml` (full set); `git rm skills/skills.toml`
-- [ ] Phase 4 — tests (update `test_skill_manifest.sh` / `test_resolve_skills.sh` / install test; add seeding test) + full suite green
-- [ ] Phase 5 — docs (`docs/harnesses/claude.md`) + "Skill scope & source" decision record
+- [x] Phase 1 — `_lib.sh` (`skill_manifest` → root, add `skill_manifest_template`) + `resolve-skills.sh` / `list-skills` / `install-skill` path updates
+- [x] Phase 2 — `install.sh` seed step (copy template if absent, no auto-resolve, print guidance)
+- [x] Phase 3 — `.gitignore` + migrate content: create `skills.toml.example` (curated) + per-instance root `skills.toml` (full set); `git rm skills/skills.toml`
+- [x] Phase 4 — tests (update `test_skill_manifest.sh` / `test_resolve_skills.sh` / install test; add seeding test) + full suite green
+- [x] Phase 5 — docs (`docs/harnesses/claude.md`) + "Skill scope & source" decision record
+
+## Phase 6 — consolidate authored-skill dirs to a single `skills/` (addendum)
+The remote migration emptied the tracked generic `skills/`; the only authored
+content now lives in the per-instance `skills-local/`. Collapse the two: `skills/`
+becomes **the** authored-skills dir — per-instance, gitignored — and the
+generic/local *authored* distinction is **retired** (to share a skill you publish
+it to a remote and reference it via the catalog; there is no tracked in-tree
+authored skill anymore). The only axis left is source: authored `skills/` vs
+remote `.skill-cache/`.
+
+- [x] Move `skills-local/*` → `skills/` (incl. per-instance `fiter-infrastructure-analyzer` + `.gitkeep`); remove `skills-local/`
+- [x] `.gitignore`: `/skills-local/*` → `/skills/*`, `!/skills-local/.gitkeep` → `!/skills/.gitkeep`
+- [x] `_lib.sh` `skill_roots` → `skills` + `.skill-cache` (drop `skills-local`)
+- [x] Sweep all `skills-local` references (scripts, hooks, tests) to the single `skills/` authored dir; retire the generic/local target/flag distinction (authored target is always `skills/`)
+- [x] Docs: **explicitly document how the skill system works now** — `skills/` (authored, per-instance) + `.skill-cache/` (remote, from root manifest/catalog); update `docs/harnesses/claude.md`, `docs/scripts.md`, `docs/knowledge-lifecycle.md`, `docs/install.md`, and the "Skill scope & source" decision record
+- [x] Full suite green
+
+### Additional success criteria (Phase 6)
+- `skills-local/` no longer exists; `skills/` is gitignored per-instance (except `.gitkeep`); `fiter-infrastructure-analyzer` lives under `skills/` and still enumerates.
+- `skill_roots` = `skills` + `.skill-cache`; no `skills-local` references remain in scripts/hooks/docs/tests (outside `archive/`).
+- Docs clearly state the two-location model (authored `skills/` vs remote `.skill-cache/`) and that the generic/local authored split is retired.
+- Suite green.
