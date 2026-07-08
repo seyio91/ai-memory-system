@@ -16,6 +16,9 @@
 | `regenerate-activity.sh` | **Activity report** (`/activity`) — plans created in a window, grouped by category | `regenerate-activity.sh (<category>\|--all) [--since <N>[d]] [--stdout]` → `activity.md` (gitignored) |
 | `lint-memory.sh` | Mechanical lint | exit 0 if clean, 1 if any WARN/ERROR |
 | `archive-cleanup.sh` | Prune old `archive/` files | `archive-cleanup.sh [--all-projects] [--days N]` (dry-run, then confirm) |
+| `sync-system.sh` | Sync an instance to its configured channel, run pending migrations, then re-run `install.sh` | `sync-system.sh`, `sync-system.sh --to <ref>`, `sync-system.sh --to=<ref>`, `sync-system.sh --dry-run`, `sync-system.sh --no-pull`, `sync-system.sh --update`; `--to` with `--no-pull` is a usage error (exit 2) |
+| `release.sh` | Orchestrator-only release cut; refuses when `AI_MEMORY_ROLE` is set | `release.sh <version> [--dry-run] [--no-push]` |
+| `migrations/` | Forward-only instance migrations; see [Migrations](../migrations/README.md) | `migrations/<semver>-<slug>.sh` |
 | `new-project.sh` | Scaffold a new project (pin a repo with `memory-pin.sh` → `.agents/memory-project` to activate) | `new-project.sh <name>` |
 | `memory-pin.sh` | Pin a checkout ↔ project (forward `.agents/memory-project` marker + reverse `repo`/`repo_path`); `--category` sets the project's category; migrates a legacy `.claude` marker | `memory-pin.sh <name> [--category <client>]` (run from inside the checkout) |
 | `migrate-marker.sh` | Migrate pinned checkouts `.claude/memory-project` → `.agents/memory-project` (walks each project's reverse map) | `migrate-marker.sh` (dry-run), `migrate-marker.sh --apply` |
@@ -40,6 +43,11 @@ All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and re
 | `MEMORY_STALE_DAYS` | `30` | `lint-memory.sh` |
 | `MEMORY_ARCHIVE_RETAIN_DAYS` | `30` | `archive-cleanup.sh` |
 | `MEMORY_SESSIONS_DIR` | `~/.claude/memory_sessions` | `inject_memory.sh` |
+| `AI_MEMORY_CHANNEL` | `release` | `sync-system.sh` channel selection: `release` checks out the latest stable `v*` tag; `dev` ff-pulls the tracking branch |
+| `AI_MEMORY_MIGRATIONS_DIR` | `$REPO_ROOT/migrations` | `sync-system.sh`, `test_upgrading_doc.sh` (migration directory override) |
+| `AI_MEMORY_APPLIED_VERSION_FILE` | `$REPO_ROOT/.applied-version` | `sync-system.sh` (migration high-water marker override) |
+| `AI_MEMORY_TEST_NO_SORT_V` | unset | Test seam, not for production use; `_lib.sh:sort_v_supported` override that forces the portable semver sorter |
+| `AI_MEMORY_UPGRADING_DOC` | `$REPO_ROOT/UPGRADING.md` | Test seam, not for production use; `test_upgrading_doc.sh` doc path override |
 | `AI_MEMORY_SKILL_ROOTS` | `skills:.skill-cache` | `_lib.sh:skill_roots` → all skills tools (enumeration roots, colon-separated) |
 | `AI_MEMORY_SKILL_CACHE` | `$MEMORY_DIR/.skill-cache` | `_lib.sh:skill_cache_dir`, `resolve-skills.sh`, `list-skills.sh` (remote-skill cache) |
 | `MEMORY_TASK_PROVIDER` | `local` | task-provider factory (`local`/`notion`) — see [Task-provider layer](task-provider.md) |
@@ -49,3 +57,6 @@ All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and re
 | `AI_MEMORY_EXECUTOR` | `claude-subagent` | `executor.sh` — preferred executor **and validator** backend — see [Workflow › Executor selection](workflow.md#executor-selection) |
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | `executor.sh` — command template for a generic CLI executor |
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `claude-subagent` | `executor.sh` — used when the preferred CLI binary is absent |
+
+`REPO_ROOT` is the checkout root. In a normal install it is the same directory as
+`MEMORY_DIR`, but they diverge if `MEMORY_DIR` is overridden.

@@ -58,6 +58,18 @@ set `MEMORY_DIR` to that path before running `install.sh`.
 > `archive/` are git-ignored. `identity.md` is committed (preferences, not client
 > data) alongside `identity.template.md` as a generic starting point. See `.gitignore`.
 
+## Upgrading
+
+Upgrade with `scripts/sync-system.sh`. By default instances use `AI_MEMORY_CHANNEL=release`
+and sync to the latest stable `v*` tag. Set `AI_MEMORY_CHANNEL=dev` in gitignored
+`config.local.sh` for a source or dogfood checkout that should ff-pull its tracking branch
+instead. One-shot `--to <ref>` syncs to a tag, branch, or sha without changing the channel.
+
+See [UPGRADING.md](../UPGRADING.md) for the channel table, rollback behavior, semver rule,
+and migration compatibility rules. After every checkout, `sync-system.sh` automatically runs
+pending migrations and re-runs `install.sh`, so harness wiring is rebuilt from the checked-out
+version.
+
 ## Rebuilding the wiring by hand
 
 Prefer not to run the installer? The components, in build order — each has a detailed spec section elsewhere in the docs.
@@ -82,6 +94,9 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── .gitignore                         # Ships templates + engine; ignores your real memory data
 ├── identity.md                        # Hard rules, injected once per Claude session (git-tracked)
 ├── identity.template.md               # Generic starting point for identity.md
+├── CHANGELOG.md                       # Thin changelog shell; release.sh finalizes sections
+├── UPGRADING.md                       # Channel, rollback, semver, and migration notes
+├── .applied-version                   # Migration high-water marker (gitignored)
 ├── index.md                           # Lifecycle prose + AUTOGEN roster (git-ignored; regenerated)
 ├── index.template.md                  # Template for index.md
 ├── domain/                            # Cross-project knowledge (one file per topic)
@@ -103,6 +118,8 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── skills.toml                         # Per-instance remote-skill manifest (gitignored)
 ├── .skill-cache/                       # Remote skills materialized here by resolve-skills.sh — gitignored
 │   └── skills.lock                     #   pins each resolved commit (never committed)
+├── migrations/                         # Forward-only instance migrations; see migrations/README.md
+│   └── README.md
 ├── projects/
 │   ├── _template/                     # Scaffold copied by new-project.sh
 │   └── <name>/
