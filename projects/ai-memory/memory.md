@@ -63,7 +63,7 @@ Functional and in daily use across the real engagements indexed in `index.md`. T
 - **Plan-mode plan path:** the harness default (`~/.claude/plans/<slug>.md`) conflicts with the canonical path (`projects/<active>/plans/<name>.md`). In plan mode, always write to the memory-system path.
 
 ## Related Skills / Tooling
-- **`renovate-manager`** (`skills/renovate-manager/`) — read-only Renovate-PR review dispatcher: routes by Renovate manager type to per-domain reviewers (helm vs terraform), runs heavy work (diff/clone/validate/release-notes) in parallel subagents, keeps review memory in the per-instance skill-data root, resolves the project from the PR repo URL via the reverse-map. Skill specifics live with the skill, not in Architecture Decisions.
+- **`renovate-manager`** (remote-referenced from the `agent-skills` repo → materialized in `.skill-cache/`) — read-only Renovate-PR review dispatcher: routes by Renovate manager type to per-domain reviewers (helm vs terraform), runs heavy work (diff/clone/validate/release-notes) in parallel subagents, keeps review memory in the per-instance skill-data root (so re-resolving the remote never touches its data), resolves the project from the PR repo URL via the reverse-map. Skill specifics live with the skill, not in Architecture Decisions.
 - **`domain/terraform-module-cache/` convention** — a path-addressed cache keyed on module short name (one file per module). Not in the `index.md` catalog (regenerate-index only globs top-level `domain/*.md`), and `domain/*` is gitignored — local, untracked, looked up by direct path. No reindex when writing them.
 
 ## Current Goal
