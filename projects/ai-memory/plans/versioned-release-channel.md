@@ -25,11 +25,16 @@ change — zip/external-user distribution is explicitly deferred (brainstorm doc
 1. On an instance with `AI_MEMORY_CHANNEL=release` (the default when unset), plain
    `sync-system.sh` checks out the **latest `v*` tag** — never raw `main` — then
    runs pending migrations and re-runs `install.sh`. `AI_MEMORY_CHANNEL=dev`
-   preserves today's `--ff-only` pull of `main` byte-for-byte in behavior.
+   preserves today's `--ff-only` pull of `main`, including the `--dry-run`
+   incoming-commits/diffstat preview. Two intended deltas from the old script (do
+   not treat as regressions): the shared dirty-tracked-file guard now runs on the
+   dev path too, and `fetch` now passes `--tags`.
 2. `sync-system.sh --to <ref>` works for a tag, branch, or sha; it does **not**
    change the channel, and the next plain `sync-system.sh` snaps back to the
-   channel default. A dirty tracked tree aborts before checkout with a clear
-   message.
+   channel default **on both channels** — `release` re-checks-out the latest tag,
+   `dev` returns to its tracking branch even from detached HEAD. A dirty tracked
+   tree aborts before checkout with a clear message, on every path that checks out.
+   `--to` with `--no-pull` is a usage error, not a silent no-op.
 3. The migration runner executes every `migrations/<semver>-<slug>.sh` with version
    strictly greater than the applied marker, in semver order, then records the
    highest version run in the gitignored `.applied-version`. Re-running sync is a
