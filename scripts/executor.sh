@@ -82,7 +82,7 @@ resolve_value() {
             cmd="$(manifest_get "$mf" exec_readonly)"
             if [ -z "$cmd" ]; then
                 printf 'executor: harness %s has no read-only mode (exec_readonly) — %s degrades to the subagent plane\n' "$harness" "$ROLE" >&2
-                R_PLANE=subagent; return 0
+                R_PLANE=subagent; R_MODEL=""; return 0
             fi
             ;;
         *)

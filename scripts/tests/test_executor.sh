@@ -267,6 +267,16 @@ run --role validate --which
 assert_eq "subagent" "$OUT" "validate: task-only harness degrades to subagent"
 assert_contains "$ERR" "no read-only mode" "validate degrade reported"
 
+# degrade clears the model -> no foreign harness model leaks onto the subagent plane
+export AI_MEMORY_EXECUTOR_VALIDATE="tt:gpt-5-turbo"
+run --role validate --which
+assert_eq "subagent" "$OUT" "validate: degrade drops the foreign model suffix"
+# same guarantee for explore (the shared read-only degrade path)
+export AI_MEMORY_EXECUTOR_EXPLORE="tt:gpt-5-turbo"
+run --role explore --which
+assert_eq "subagent" "$OUT" "explore: degrade drops the foreign model suffix"
+unset AI_MEMORY_EXECUTOR_EXPLORE
+
 # validate --run uses exec_readonly AND advertises the validate role
 export AI_MEMORY_EXECUTOR_VALIDATE=ww
 run --role validate --run "check the diff"
