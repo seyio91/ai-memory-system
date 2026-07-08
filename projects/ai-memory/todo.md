@@ -11,7 +11,8 @@
 - [x] Phase 2 — Migration runner + `.applied-version` (PR #41)
 - [x] Phase 3 — `release.sh` (PR #42)
 - [x] Phase 4 — Docs (CHANGELOG, UPGRADING, docs/, README) (PR #43)
-- [ ] Phase 5 — Cut `v1.0.0` end-to-end + flip a consumer instance
+- [x] Phase 5 — Cut `v1.0.0` (tagged + pushed; retagged after the `--cleanup` fix, PR #44)
+- [ ] Phase 5b — Flip a real consumer instance to the release channel (needs a 2nd machine/harness root)
 
 ## Done
 _(checked items stay above until the file is rolled)_
