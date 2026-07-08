@@ -174,6 +174,9 @@ assert_eq "$SK/skills
 $SK/skills-local
 $SK/.skill-cache" "$(skill_roots)" "skill_roots default = generic + local + remote cache"
 assert_eq "$SK/.skill-cache" "$(skill_cache_dir)" "skill_cache_dir default"
+assert_eq "$SK/skills.toml" "$(skill_manifest)" "skill_manifest default -> root skills.toml"
+assert_eq "$SK/skills.toml" "$(skill_manifest local)" "skill_manifest ignores legacy scope arg"
+assert_eq "$SK/skills.toml.example" "$(skill_manifest_template)" "skill_manifest_template -> root catalog template"
 
 dirs="$(list_skill_dirs)"
 assert_contains "$dirs" "$SK/skills/gen-a" "list_skill_dirs yields generic skill"

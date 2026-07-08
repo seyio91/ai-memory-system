@@ -22,24 +22,24 @@ git -C "$REPO" init -q; git -C "$REPO" config user.email t@t.co; git -C "$REPO" 
 git -C "$REPO" add -A; git -C "$REPO" commit -qm init
 BRANCH="$(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
 
-GEN_MF="$MEM/skills/skills.toml"
-LOC_MF="$MEM/skills-local/skills.toml"
+ROOT_MF="$MEM/skills.toml"
 
-# === install-skill --remote: write-back + resolve (generic) ===================
+# === install-skill --remote: write-back + resolve =============================
 run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget
 assert_exit 0 "$code" "install --remote resolves + saves (exit 0)"
-assert_contains "$out" "saved: widget (generic)" "wrote a generic manifest entry"
+assert_contains "$out" "saved: widget ->" "wrote a root manifest entry"
 assert_contains "$out" "installed (remote): widget" "reports remote install"
-assert_file "$GEN_MF" "generic manifest created"
-assert_contains "$(cat "$GEN_MF")" 'name = "widget"' "manifest entry has the name"
-assert_contains "$(cat "$GEN_MF")" 'path = "packs/widget"' "manifest entry has the path"
+assert_file "$ROOT_MF" "root manifest created"
+assert_contains "$(cat "$ROOT_MF")" 'name = "widget"' "manifest entry has the name"
+assert_contains "$(cat "$ROOT_MF")" 'path = "packs/widget"' "manifest entry has the path"
 assert_file "$MEM/.skill-cache/widget/SKILL.md" "skill materialized into the cache"
 
-# name derived from path when --name omitted (already 'widget'); explicit --name honored
+# name derived from path when --name omitted (already 'widget'); explicit --name honored.
+# --local is ignored for remote manifest routing; remote declarations have one root file.
 run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget --name aliased --local
 assert_exit 0 "$code" "install --remote --local --name resolves"
-assert_contains "$out" "saved: aliased (local)" "wrote a LOCAL manifest entry under --name"
-assert_file "$LOC_MF" "local manifest created"
+assert_contains "$out" "saved: aliased ->" "wrote a root manifest entry under --name"
+assert_contains "$(cat "$ROOT_MF")" 'name = "aliased"' "aliased entry lives in root manifest"
 assert_file "$MEM/.skill-cache/aliased/SKILL.md" "aliased skill in cache"
 
 # === duplicate guard ==========================================================
@@ -47,14 +47,14 @@ run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget
 assert_exit 1 "$code" "duplicate name refused (exit 1)"
 assert_contains "$out" "already in" "duplicate guard names the conflict"
 # manifest untouched by the refused install
-n_before="$(grep -c '^\[\[skills\]\]' "$GEN_MF")"
+n_before="$(grep -c '^\[\[skills\]\]' "$ROOT_MF")"
 run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget
-n_after="$(grep -c '^\[\[skills\]\]' "$GEN_MF")"
+n_after="$(grep -c '^\[\[skills\]\]' "$ROOT_MF")"
 assert_eq "$n_before" "$n_after" "refused duplicate did not append to the manifest"
 # --force appends anyway (explicit override)
 run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget --force
 assert_exit 0 "$code" "--force appends a duplicate (exit 0)"
-n_forced="$(grep -c '^\[\[skills\]\]' "$GEN_MF")"
+n_forced="$(grep -c '^\[\[skills\]\]' "$ROOT_MF")"
 assert_eq "$((n_before + 1))" "$n_forced" "--force added one [[skills]] entry"
 
 # === guards ===================================================================
@@ -69,10 +69,10 @@ run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path "../escape" --name x
 assert_exit 2 "$code" "--path with .. rejected"
 
 # --no-save declares nothing (no manifest write, nothing resolved)
-cp "$GEN_MF" "$MEM/gen.before"
+cp "$ROOT_MF" "$MEM/root.before"
 run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget --name skipme --no-save
 assert_exit 0 "$code" "--no-save exits 0"
-assert_eq "$(cat "$MEM/gen.before")" "$(cat "$GEN_MF")" "--no-save left the manifest untouched"
+assert_eq "$(cat "$MEM/root.before")" "$(cat "$ROOT_MF")" "--no-save left the manifest untouched"
 set +e; [ -e "$MEM/.skill-cache/skipme" ]; e=$?; set -e
 assert_exit 1 "$e" "--no-save resolved nothing"
 
@@ -93,9 +93,9 @@ assert_contains "$loc_row" "local" "authored local tagged local"
 assert_contains "$loc_row" "no" "local is synced=no"
 rem_row="$(printf '%s\n' "$out" | awk '$1=="widget"')"
 assert_contains "$rem_row" "remote" "cached skill tagged remote"
-assert_contains "$rem_row" "generic" "widget's scope derived from the generic manifest"
+assert_contains "$rem_row" "instance" "widget's scope derived from the root manifest"
 alias_row="$(printf '%s\n' "$out" | awk '$1=="aliased"')"
-assert_contains "$alias_row" "local" "aliased's scope derived from the local manifest"
+assert_contains "$alias_row" "instance" "aliased's scope derived from the root manifest"
 
 # filters
 run "$LS" --remote

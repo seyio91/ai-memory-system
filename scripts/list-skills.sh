@@ -5,11 +5,11 @@
 # Nothing new to maintain: provenance is DERIVED from where each skill sits —
 #   skills/<name>/        -> generic authored (tracked, synced)
 #   skills-local/<name>/  -> local   authored (gitignored, per-instance)
-#   .skill-cache/<name>/  -> remote referenced (scope from the manifest that declared
-#                            it; commit pin from skills.lock)
+#   .skill-cache/<name>/  -> remote referenced (declared in root skills.toml;
+#                            commit pin from skills.lock)
 # so this is the single answer to "how do I list my skills." One row per skill.
 #
-# Columns: SKILL  SCOPE(generic|local)  SOURCE(authored|remote)  SYNCED(yes|no)  PIN
+# Columns: SKILL  SCOPE(generic|local|instance)  SOURCE(authored|remote)  SYNCED(yes|no)  PIN
 #
 # Usage: list-skills.sh [--remote] [--local]
 #   --remote  only remote (referenced) skills
@@ -56,8 +56,7 @@ for s in (data.get("skills") or []):
 PY
 }
 
-GEN_NAMES="$(_declared_names "$(skill_manifest generic)")"
-LOC_NAMES="$(_declared_names "$(skill_manifest local)")"
+REMOTE_NAMES="$(_declared_names "$(skill_manifest)")"
 
 has_name() { printf '%s\n' "$1" | grep -qxF "$2"; }
 lock_pin() { [ -f "$LOCK" ] || return 0; awk -F '\t' -v n="$1" '/^#/{next} $1==n{print substr($2,1,10); exit}' "$LOCK"; }
@@ -70,8 +69,7 @@ emit_rows() {
         case "$d" in
             "$CACHE"/*)
                 source=remote; pin="$(lock_pin "$name")"; [ -n "$pin" ] || pin='-'
-                if has_name "$GEN_NAMES" "$name"; then scope=generic; synced=yes
-                elif has_name "$LOC_NAMES" "$name"; then scope=local; synced=no
+                if has_name "$REMOTE_NAMES" "$name" || [ "$pin" != "-" ]; then scope=instance; synced=no
                 else scope='?'; synced='?'; fi ;;   # in the cache but no manifest declares it
             "$LOC_ROOT"/*) source=authored; scope=local;   synced=no;  pin='-' ;;
             "$GEN_ROOT"/*) source=authored; scope=generic; synced=yes; pin='-' ;;

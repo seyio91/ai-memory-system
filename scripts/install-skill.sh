@@ -2,12 +2,12 @@
 # install-skill.sh — bring an existing skill into the store, two modes:
 #
 #  --remote <url>  REFERENCE a skill from a git source (the config-driven path).
-#     Appends a [[skills]] entry to the TOML manifest (generic skills/skills.toml, or
-#     skills-local/skills.toml with --local) AND resolves it into the gitignored cache
-#     via resolve-skills.sh. No copy — the content is referenced, pinned, re-fetchable;
-#     bump the ref + `resolve-skills.sh --update` to update. The manifest is the source
-#     of truth and installing writes it back (--no-save to resolve without recording).
-#     The skill declares its own tier in its SKILL.md, so --tier is not required here.
+#     Appends a [[skills]] entry to the root skills.toml manifest AND resolves it into
+#     the gitignored cache via resolve-skills.sh. No copy — the content is referenced,
+#     pinned, re-fetchable; bump the ref + `resolve-skills.sh --update` to update. The
+#     manifest is the source of truth and installing writes it back (--no-save to
+#     resolve without recording). The skill declares its own tier in its SKILL.md, so
+#     --tier is not required here.
 #
 #  --from <dir|SKILL.md>  SEED a LOCAL skill from an existing dir (a fork you then own
 #     and edit here). Copies under skills/<name>/ (or skills-local/<name>/ with --local),
@@ -18,7 +18,7 @@
 # Neither mode injects the self-rating block (a first-party concern; add on request).
 #
 # Usage:
-#   install-skill.sh --remote <url> --ref <ref> [--path <p>] [--name <n>] [--local] [--no-save] [--link] [--force]
+#   install-skill.sh --remote <url> --ref <ref> [--path <p>] [--name <n>] [--no-save] [--link] [--force]
 #   install-skill.sh --from <dir|SKILL.md> --tier <tier> [--name <name>] [--local] [--link] [--force]
 set -euo pipefail
 
@@ -56,8 +56,7 @@ if [ -n "$REMOTE" ]; then
     fi
     case "$NAME" in *[!A-Za-z0-9._-]*|""|.|..) printf 'install-skill: invalid skill name %s (set --name)\n' "$NAME" >&2; exit 2 ;; esac
 
-    SCOPE=generic; [ "$LOCAL" = 1 ] && SCOPE=local
-    MANIFEST="$(skill_manifest "$SCOPE")"
+    MANIFEST="$(skill_manifest)"
 
     if [ "$SAVE" = 1 ]; then
         mkdir -p "$(dirname "$MANIFEST")"
@@ -72,7 +71,7 @@ if os.path.exists(mf):
     try:
         import tomllib
     except ModuleNotFoundError:
-        sys.exit("install-skill: TOML manifests need python3.11+ (tomllib)")
+        sys.exit("install-skill: TOML manifest needs python3.11+ (tomllib)")
     try:
         with open(mf, "rb") as f:
             entries = [e.get("name") for e in (tomllib.load(f).get("skills") or [])]
@@ -86,7 +85,7 @@ if path:
     block += 'path = "%s"\n' % s(path)
 with open(mf, "a") as f:
     f.write(block)
-print("saved: %s (%s) -> %s" % (name, "local" if mf.endswith("skills-local/skills.toml") else "generic", mf))
+print("saved: %s -> %s" % (name, mf))
 PY
         rc=$?
         [ "$rc" = 0 ] || exit "$rc"

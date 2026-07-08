@@ -139,12 +139,12 @@ Skills vary on two independent axes. **Scope** — does it sync to your other in
 - **Scope = which folder.** `skills/` is **generic**: git-tracked, synced to every instance (the default). `skills-local/` is **local**: gitignored wholesale by one `/skills-local/*` line, per-instance, never synced. Location is the only signal — no per-skill metadata, no per-skill gitignore. Moving a skill generic↔local is a `git mv`. Scaffold local with `new-skill.sh --local`; a generic one is the default.
 - **Source = authored vs remote.** **Authored** skills live in one of those folders (content is yours to edit). **Remote** skills are *referenced, not forked*: declared in a TOML manifest and fetched per-instance into a gitignored cache. The rule that keeps them distinct: **modify it → make it local (authored); just use it → reference it (remote).** There is no copy-fork middle category.
 
-**The manifests (TOML, you maintain the list).** Remote skills are declared one `[[skills]]` entry per skill, split symmetric with the folders:
+**The manifest (TOML, you maintain the list).** Remote skills are declared one `[[skills]]` entry per skill in a single root manifest. The repo ships a tracked `skills.toml.example` catalog; `install.sh` seeds a per-instance `skills.toml` from it only when missing, then you prune what you do not want and run `scripts/resolve-skills.sh`.
 
 | File | Scope | Tracked? |
 |------|-------|----------|
-| `skills/skills.toml` | generic remotes (synced to every instance) | yes |
-| `skills-local/skills.toml` | local remotes (per-instance) | no (gitignored) |
+| `skills.toml.example` | catalog template | yes |
+| `skills.toml` | per-instance remote choices | no (gitignored) |
 
 ```toml
 [[skills]]
@@ -154,14 +154,14 @@ ref  = "v1.2.0"          # branch, tag, or sha — pinned for reproducibility
 path = "skills/renovate" # optional subdir holding SKILL.md
 ```
 
-TOML is parsed by python3's stdlib `tomllib` (3.11+) — **no pip dependency** (the task provider already sets the bar at "python3 stdlib, no pip"; the tracked manifest can never leak a private local entry).
+TOML is parsed by python3's stdlib `tomllib` (3.11+) — **no pip dependency** (the task provider already sets the bar at "python3 stdlib, no pip"; the per-instance manifest is gitignored so private remotes stay local).
 
-**The resolver & cache.** `scripts/resolve-skills.sh` reads both manifests and materializes each remote into the gitignored **`.skill-cache/<name>/`**, pinned by **`.skill-cache/skills.lock`**:
+**The resolver & cache.** `scripts/resolve-skills.sh` reads root `skills.toml` and materializes each remote into the gitignored **`.skill-cache/<name>/`**, pinned by **`.skill-cache/skills.lock`**:
 - **Fetch is sparse + shallow** — `git init` → `fetch --depth 1 <ref>` (full-fetch fallback for by-sha refs) → `sparse-checkout <path>` → copy the resolved skill (no nested `.git`).
 - **A plain resolve is a cache hit** (no network) for anything already locked, so re-linking is offline-safe. Only a first-resolve or `--update` fetches, and a fetch that *must* run **hard-fails** (strict reproducibility). `resolve-skills.sh --update` re-fetches pinned refs; `--list` shows declared remotes; `--dry-run` shows intent.
 
-**Authoring & sync (the config-driven flow).** `install-skill.sh --remote <url> --ref <r> [--path <p>] [--name <n>] [--local]` appends the entry to the manifest **and** resolves it (`--save` is the default; `--no-save` skips the write; a duplicate name needs `--force`). `install.sh` resolves declared remotes before linking, so a fresh install/clone reconstitutes them; `sync-system.sh --update` re-resolves refs across an update. Bumping a `ref` + `--update` is how a remote skill updates — its content is never committed, so it can't drift.
+**Authoring & sync (the config-driven flow).** `install-skill.sh --remote <url> --ref <r> [--path <p>] [--name <n>]` appends the entry to root `skills.toml` **and** resolves it (`--save` is the default; `--no-save` skips the write; a duplicate name needs `--force`). `install.sh` only seeds `skills.toml` from the template; it does not resolve remotes automatically. `sync-system.sh --update` re-resolves refs across an update. Bumping a `ref` + `--update` is how a remote skill updates — its content is never committed, so it can't drift.
 
-**Enumeration is the linchpin.** `scripts/_lib.sh:list_skill_dirs` (built on `skill_roots`) is the single source of "what skills exist and where," across all three roots (`skills/`, `skills-local/`, `.skill-cache/`, precedence in that order; override with `AI_MEMORY_SKILL_ROOTS`). Every skills tool routes through it — link/fan-out, validation, boundary, ratings, authoring — so a new root is added once, not in each of the globbing scripts. `list-skills.sh` derives each skill's row from which root holds it (+ the manifest and lockfile for remotes): `SKILL · SCOPE · SOURCE · SYNCED · PIN`, with `--remote` / `--local` filters.
+**Enumeration is the linchpin.** `scripts/_lib.sh:list_skill_dirs` (built on `skill_roots`) is the single source of "what skills exist and where," across all three roots (`skills/`, `skills-local/`, `.skill-cache/`, precedence in that order; override with `AI_MEMORY_SKILL_ROOTS`). Every skills tool routes through it — link/fan-out, validation, boundary, ratings, authoring — so a new root is added once, not in each of the globbing scripts. `list-skills.sh` derives each skill's row from which root holds it (+ root `skills.toml` and the lockfile for remotes): `SKILL · SCOPE · SOURCE · SYNCED · PIN`, with `--remote` / `--local` filters.
 
 > The per-repo `projects/<name>/skills/` axis (`sync-project-skills.sh`) is separate and unchanged — that fans project-scoped skills into a specific checkout, orthogonal to the per-instance generic/local split here.

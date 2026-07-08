@@ -124,14 +124,10 @@ driver_install
 # skills_dir the manifest names (Claude ~/.claude/skills, Codex ~/.agents/skills).
 SKILLS_DIR="$(manifest_get "$MANIFEST" skills_dir)"
 AGENTS_DIR="$(manifest_get "$MANIFEST" agents_dir)"
-# Resolve declared remote skills into the gitignored cache BEFORE linking, so any
-# remote skill fans out with the authored ones. A plain resolve is a cache hit for
-# anything already pinned (offline-safe); only new/changed remotes fetch. Non-fatal:
-# an unreachable remote must not brick a full reinstall — it is reported, and the
-# rest (authored + cached) still link. Re-fetch stale refs with resolve-skills.sh --update.
-if [ -f "$REPO_ROOT/skills/skills.toml" ] || [ -f "$REPO_ROOT/skills-local/skills.toml" ]; then
-    step "Resolve remote skills (manifest -> .skill-cache/)"
-    bash "$REPO_ROOT/scripts/resolve-skills.sh" || info "resolve-skills.sh reported failures (see above) — linking cached + authored only"
+if [ ! -f "$REPO_ROOT/skills.toml" ] && [ -f "$REPO_ROOT/skills.toml.example" ]; then
+    step "Seed remote-skill manifest"
+    cp "$REPO_ROOT/skills.toml.example" "$REPO_ROOT/skills.toml"
+    info "seeded skills.toml from template — prune what you don't want, then run scripts/resolve-skills.sh"
 fi
 if [ -n "$SKILLS_DIR" ] && [ -d "$REPO_ROOT/skills" ]; then
     step "Skills -> $SKILLS_DIR"

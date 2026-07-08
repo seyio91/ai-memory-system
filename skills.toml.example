@@ -1,0 +1,79 @@
+# Remote-skill catalog template.
+#
+# Copy/prune this per instance as root skills.toml (gitignored). One root manifest
+# holds all remote skill declarations; authored skill dirs still live in skills/ or
+# skills-local/.
+#
+# Fields:
+#   name  (required) — the skill's directory name in the cache
+#   url   (required) — git remote (https/ssh/file)
+#   ref   (required) — branch, tag, or sha to pin (reproducibility)
+#   path  (optional) — subdir within the repo that holds SKILL.md
+
+[[skills]]
+name = "bkt"
+url  = "https://github.com/avivsinai/bitbucket-cli.git"
+ref  = "v0.28.2"
+path = "skills/bkt"
+
+[[skills]]
+name = "teach"
+url  = "https://github.com/mattpocock/skills.git"
+ref  = "v1.0.1"
+path = "skills/productivity/teach"
+
+[[skills]]
+name = "grafana-oss"
+url  = "https://github.com/grafana/skills.git"
+ref  = "main"
+path = "skills/grafana-core/grafana-oss"
+
+[[skills]]
+name = "grafana-dashboard"
+url  = "https://github.com/grafana/skills.git"
+ref  = "main"
+path = "skills/grafana-core/dashboarding"
+
+[[skills]]
+name = "grafana-tempo"
+url  = "https://github.com/grafana/skills.git"
+ref  = "main"
+path = "skills/grafana-lgtm/tempo"
+
+[[skills]]
+name = "prometheus"
+url  = "https://github.com/grafana/skills.git"
+ref  = "main"
+path = "skills/grafana-lgtm/prometheus"
+
+# Example — first-party skills from a private repo; uncomment + point at your own:
+#
+# [[skills]]
+# name = "renovate-manager"
+# url  = "git@github.com:seyio91/agent-skills.git"
+# ref  = "main"
+# path = "renovate-manager"
+#
+# [[skills]]
+# name = "brainstorming"
+# url  = "git@github.com:seyio91/agent-skills.git"
+# ref  = "main"
+# path = "brainstorming"
+#
+# [[skills]]
+# name = "excalidraw-diagram"
+# url  = "git@github.com:seyio91/agent-skills.git"
+# ref  = "main"
+# path = "excalidraw-diagram"
+#
+# [[skills]]
+# name = "observability-check"
+# url  = "git@github.com:seyio91/agent-skills.git"
+# ref  = "main"
+# path = "observability-check"
+#
+# [[skills]]
+# name = "terraform-example-gen"
+# url  = "git@github.com:seyio91/agent-skills.git"
+# ref  = "main"
+# path = "terraform-example-gen"
