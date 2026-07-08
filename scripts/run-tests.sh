@@ -6,8 +6,9 @@
 # check, in a HERMETIC environment: it scrubs the developer-shell variables that
 # would otherwise steer a test into a live backend or the real tree
 # (MEMORY_TASK_PROVIDER, NOTION_*, MEMORY_DIR, AI_MEMORY_PROJECTS_ROOT,
-# AI_MEMORY_EXECUTOR*). Each test owns its own sandbox + cleanup; this runner just
-# guarantees a clean baseline so results are reproducible on any machine / in CI.
+# AI_MEMORY_EXECUTOR*, AI_MEMORY_ROLE). Each test owns its own sandbox + cleanup;
+# this runner just guarantees a clean baseline so results are reproducible on any
+# machine / in CI.
 #
 # Usage: run-tests.sh [--no-lint] [-v]
 #   --no-lint   skip the lint-memory.sh pass (tests only)
@@ -37,7 +38,8 @@ done
 hermetic() {
     env -u MEMORY_TASK_PROVIDER -u NOTION_STATUS_KIND -u NOTION_TOKEN \
         -u NOTION_DATA_SOURCE_ID -u MEMORY_DIR -u AI_MEMORY_PROJECTS_ROOT \
-        -u AI_MEMORY_EXECUTOR -u AI_MEMORY_EXECUTOR_FALLBACK "$@"
+        -u AI_MEMORY_EXECUTOR -u AI_MEMORY_EXECUTOR_FALLBACK \
+        -u AI_MEMORY_ROLE "$@"
 }
 
 LOGDIR="$(mktemp -d 2>/dev/null || mktemp -d -t runtests)"

@@ -110,24 +110,9 @@ dirty_tracked_guard() {
   fi
 }
 
-stable_release_tags() {
-  git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true
-}
-
-latest_release_tag() {
-  local tag candidate
-  tag=""
-  if sort_v_supported; then
-    tag="$(stable_release_tags | sort -V | tail -1)"
-  else
-    while IFS= read -r candidate; do
-      [ -n "$candidate" ] || continue
-      if [ -z "$tag" ] || semver_gt "$candidate" "$tag"; then
-        tag="$candidate"
-      fi
-    done < <(stable_release_tags)
-  fi
-  if [ -z "$tag" ]; then
+sync_latest_release_tag() {
+  local tag
+  if ! tag="$(latest_release_tag)"; then
     if [ -n "$(git tag -l 'v*')" ]; then
       echo "  ABORT: v* tags exist, but none are stable release tags matching v<num>.<num>.<num>." >&2
       exit 1
@@ -408,7 +393,7 @@ if [ "$DO_PULL" = 1 ]; then
     if [ "$MODE" = "ref" ]; then
       info "target: $TARGET (--to override)"
     elif [ "$MODE" = "release" ]; then
-      TARGET="$(latest_release_tag)"
+      TARGET="$(sync_latest_release_tag)"
       info "target: $TARGET (latest release tag)"
     else
       info "target: @{u} (dev ff-only merge)"
@@ -425,7 +410,7 @@ if [ "$DO_PULL" = 1 ]; then
   git fetch --quiet --tags origin
 
   if [ "$MODE" = "release" ]; then
-    TARGET="$(latest_release_tag)"
+    TARGET="$(sync_latest_release_tag)"
     step "Checking out release $TARGET"
     git checkout --quiet "$TARGET"
   elif [ "$MODE" = "ref" ]; then
