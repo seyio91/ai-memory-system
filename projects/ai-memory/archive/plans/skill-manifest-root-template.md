@@ -1,6 +1,6 @@
 ---
 plan: skill-manifest-root-template
-status: in-progress
+status: done
 created: 2026-07-08
 owner: seyi
 ---
