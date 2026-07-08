@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
+> **Upgrading from `1.0.0` needs one manual step.** `identity.md` is no longer
+> tracked. Back it up first — see [UPGRADING.md](UPGRADING.md#110). Do not point an
+> instance at `v1.0.0` or earlier: that tag still tracks `identity.md` and checking
+> it out silently overwrites a personalised copy.
+
+### Removed
+
+- **`identity.md` is no longer under version control.** It is per-instance and
+  git-ignored, like `config.local.sh` and `skills.toml`. `install.sh` seeds it from
+  the tracked `identity.template.md` whenever it is missing.
+
+### Fixed
+
+- **A tracked `identity.md` bricked the release channel.** `install.sh` tells you to
+  edit `identity.md`; `sync-system.sh`'s dirty-tracked-file guard then aborted every
+  subsequent sync. An instance stopped syncing the moment it was personalised.
+- **Annotated tag messages lost every markdown heading.** `git tag -a -m` defaults to
+  `--cleanup=strip`, which deletes lines beginning with `#`. `release.sh` now passes
+  `--cleanup=verbatim` on both the normal and resume-at-tag paths. `v1.0.0` was
+  retagged with its headings restored.
+- `release.sh` seeds `CHANGELOG.md` atomically, keeps exactly one blank line before
+  `## [Unreleased]` across repeated releases, and handles a changelog whose first
+  line is `## [Unreleased]`.
+
+### Changed
+
+- The `/sync-system` command documented the pre-release script — an `--ff-only` pull
+  and two flags. Rewritten for channels, `--to`, the migration runner, and detached
+  HEAD.
+- `UPGRADING.md` gains a **Converting an existing instance to the release channel**
+  runbook, and no longer claims that no stable tags exist.
+- A downgrade can clobber a file the older tag tracked and the newer one does not;
+  `UPGRADING.md` now says so.
+- Renamed a client-named test fixture and domain reference ahead of open-sourcing.
+
 ## [1.0.0] - 2026-07-08
 
 First tagged release. The system has been in daily use for some time; `1.0.0`
