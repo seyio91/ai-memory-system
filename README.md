@@ -26,6 +26,9 @@ cd ~/.claude-memory
 
 `install.sh` is idempotent and backs up anything it overwrites. Two steps it leaves to you (merge hook settings; symlink `CLAUDE.md`) and the full breakdown are in **[docs/install.md](docs/install.md)**. Then edit `identity.md`, pin a repo with `/pin <project>`, and start a session.
 
+Upgrade instances with `scripts/sync-system.sh`; it syncs to the latest stable tag by default.
+Set `AI_MEMORY_CHANNEL=dev` in `config.local.sh` on the source checkout.
+
 ## What you get
 
 - **Context on tap** — active project's memory, hard rules, and index arrive automatically each session; domain knowledge loads lazily when your task matches its triggers.
@@ -50,6 +53,8 @@ cd ~/.claude-memory
 | [docs/scripts.md](docs/scripts.md) | Every script + its invocations, and the environment-override table |
 | [docs/knowledge-lifecycle.md](docs/knowledge-lifecycle.md) | working → domain → skill maturation, domain-vs-skill, governance, design rationale |
 | [docs/workflows.md](docs/workflows.md) | Common workflows (new engagement, capture, promote, maintenance) and troubleshooting |
+| [CHANGELOG.md](CHANGELOG.md) | Release notes |
+| [UPGRADING.md](UPGRADING.md) | Channel model, rollback behavior, semver, and migration notes |
 
 ## Layout at a glance
 
@@ -60,7 +65,10 @@ domain/<topic>.md        Cross-project knowledge (lazy-loaded on trigger match)
 projects/<name>/         memory.md · working.md · todo.md · plans/ · archive/
 harnesses/<name>/        Per-harness wiring + manifest (claude · codex · antigravity)
 skills/  ·  agents/       Bundled skills + subagents (→ ~/.claude, ~/.agents/skills)
+migrations/              Forward-only instance migrations
 scripts/                 Bash engine (install · drivers · formatters) + Python task-provider
+CHANGELOG.md             Release notes
+UPGRADING.md             Upgrade contract + per-version notes
 install.sh               Manifest-driven, agent-runnable installer
 ```
 
