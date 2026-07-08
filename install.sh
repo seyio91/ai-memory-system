@@ -216,5 +216,6 @@ printf '\n==> Done (%s). Manual steps that remain:\n\n' "$HARNESS"
 driver_notes
 cat <<EOF
 
-  Then: edit identity.md, onboard a repo with '/pin <project>', and start a session.
+  Then: edit identity.md (per-instance, git-ignored), onboard a repo with '/pin <project>',
+  and start a session.
 EOF

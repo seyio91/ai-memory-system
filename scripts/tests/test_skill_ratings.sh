@@ -18,7 +18,7 @@ run() { set +e; out=$(bash "$@" 2>&1); code=$?; set -e; }
 
 seed_skill renovate-manager
 seed_skill observability-check
-seed_skill fiter-infrastructure-analyzer
+seed_skill example-infrastructure-analyzer
 seed_skill brainstorming
 seed_skill teach
 

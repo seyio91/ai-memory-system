@@ -58,7 +58,7 @@ Upgrade instances with `scripts/sync-system.sh`; it syncs to the latest stable t
 ## Layout at a glance
 
 ```
-identity.md              Hard rules (injected once per session)
+identity.md              Hard rules (injected once per session) — per-instance, git-ignored
 index.md                 Auto-generated roster of projects + domains
 domain/<topic>.md        Cross-project knowledge (lazy-loaded on trigger match)
 projects/<name>/         memory.md · working.md · todo.md · plans/ · archive/
@@ -75,4 +75,4 @@ Full tree and the `~/.claude` / `~/.codex` symlink maps: **[docs/install.md](doc
 
 ---
 
-*Committed: the engine (`scripts/`, `harnesses/` wiring, `skills/`, `agents/`, `install.sh`, `*.template.md`) plus the self-documenting `projects/ai-memory` meta-project. Git-ignored: your data (`index.md`, `domain/*`, `projects/*` except `_template/` and `ai-memory`, `config.local.sh`, `tasks/`, `archive/`). See `.gitignore`.*
+*Committed: the engine (`scripts/`, `harnesses/` wiring, `skills/`, `agents/`, `install.sh`, `*.template.md`) plus the self-documenting `projects/ai-memory` meta-project. Git-ignored: your data (`identity.md`, `index.md`, `domain/*`, `projects/*` except `_template/` and `ai-memory`, `config.local.sh`, `tasks/`, `archive/`). See `.gitignore`.*

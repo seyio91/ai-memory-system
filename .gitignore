@@ -79,4 +79,8 @@ __pycache__/
 /.skill-data/
 !/.skill-data/.gitkeep
 
-# identity.md IS committed (preferences, no client data) — see identity.template.md
+# Your identity.md is per-instance, like config.local.sh and skills.toml. It was
+# tracked until v1.0.0, which made it a trap: install.sh tells you to edit it, and
+# sync-system.sh's dirty-tracked-file guard then aborts every sync. install.sh seeds
+# it from the tracked identity.template.md whenever it is missing.
+/identity.md
