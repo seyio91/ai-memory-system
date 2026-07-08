@@ -106,21 +106,36 @@ Tracking it was a trap: `install.sh` tells you to edit `identity.md`, and
 `sync-system.sh`'s dirty-tracked-file guard then aborts every subsequent sync. An
 instance was bricked the moment it was personalised.
 
-What happens when you upgrade past `1.1.0`:
+This is not only a `sync-system.sh` concern. `identity.md` is removed by **any
+checkout that crosses this commit** — `git pull`, `git reset --hard`, or switching
+branches — because at that moment the file is still tracked in your old `HEAD`. A
+dev or dogfood checkout that never runs `sync-system.sh` is affected too.
+
+What happens when you cross `1.1.0`:
 
 | Your `identity.md` | Result |
 |---|---|
-| Edited (differs from `v1.0.0`) | Sync **aborts** on the dirty guard. Save your copy, then `git checkout -- identity.md`, sync, and restore it. |
-| Unedited | Git deletes it during checkout; `install.sh` reseeds the generic template. Your previous content is recoverable with `git show v1.0.0:identity.md`. |
+| Edited (differs from the last tracked version) | `sync-system.sh` **aborts** on the dirty guard; a plain `git pull` refuses to overwrite. Save your copy, then `git checkout -- identity.md`, pull, and restore it. |
+| Unedited | Git deletes it during checkout; `install.sh` reseeds the generic template. Your previous content is recoverable — see below. |
 | Absent (fresh install) | Seeded from the template. Nothing to do. |
+
+The unedited row is the dangerous one: it is **silent**. Nothing warns you, and
+`install.sh` cheerfully replaces your file with the stock template.
 
 **A migration cannot do this for you.** The runner executes *after* checkout, by
 which point git has already removed the file — so this is a manual note, not a
 `migrations/1.1.0-*.sh`. Any future removal of a tracked file has the same
 constraint.
 
-Recover the old content at any time:
+Recover the old content at any time — the blob is still in history, and `identity.md`
+is now git-ignored, so writing it back leaves the tree clean:
 
 ```bash
 git show v1.0.0:identity.md > identity.md
+```
+
+Verify it landed intact:
+
+```bash
+cmp <(git show v1.0.0:identity.md) identity.md && echo restored
 ```
