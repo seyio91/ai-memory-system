@@ -3,7 +3,7 @@
 # whose custom-command mechanism IS skills (Codex: prompts deprecated, skills are
 # the command surface). Each canonical command <name>.md (a bare prompt body) is
 # wrapped into <target>/<name>/SKILL.md with synthesized frontmatter (name +
-# description-from-first-line + tier), unifying commands and skills into one
+# description-from-first-line), unifying commands and skills into one
 # skills_dir. The `commands=skill` case of the Phase-4 command surface.
 #
 #   link-command-skills.sh <commands-src> [target-skills-dir] [--dry-run]
@@ -46,7 +46,6 @@ for f in "$SRC"/*.md; do
         printf -- '---\n'
         printf 'name: %s\n' "$name"
         printf 'description: "%s"\n' "$(yq "$desc")"
-        printf 'metadata:\n  tier: target-write\n'
         printf -- '---\n\n'
         cat "$f"
     } > "$dst/SKILL.md"

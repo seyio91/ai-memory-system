@@ -1,7 +1,7 @@
 # Claude Code
 
 How the memory system wires into Claude Code: auto-injection, hooks, maintenance rules,
-slash commands, and skills (including the skill write boundary and the self-rating loop).
+slash commands, and skills (including the self-rating loop).
 
 ## Auto-injection
 
@@ -87,7 +87,7 @@ All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips
 
 ## Skills
 
-Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from the skill stores by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Scaffold a new authored skill with `scripts/new-skill.sh --name <n> --tier <t>` (writes the schema, validates, optional `--link`; `--kind workflow` also injects the self-rating block — see below); seed an authored skill from an existing dir with `scripts/install-skill.sh --from <dir> --tier <t>`, or **reference** an external skill from a git source with `scripts/install-skill.sh --remote <url> --ref <r>` (declared in a manifest, never copied). List everything you have with `scripts/list-skills.sh` (or `/list-skills`). The one wired into the workflow is `brainstorming`:
+Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked from the skill stores by `link-skills.sh` — and are auto-discovered by their frontmatter `description` (not listed in `index.md` — they are capabilities, not memory). Scaffold a new authored skill with `scripts/new-skill.sh --name <n>` (writes the schema, validates, optional `--link`; `--kind workflow` also injects the self-rating block — see below); seed an authored skill from an existing dir with `scripts/install-skill.sh --from <dir>`, or **reference** an external skill from a git source with `scripts/install-skill.sh --remote <url> --ref <r>` (declared in a manifest, never copied). List everything you have with `scripts/list-skills.sh` (or `/list-skills`). The one wired into the workflow is `brainstorming`:
 
 | Skill | Gate | Effect |
 |-------|------|--------|
@@ -95,33 +95,9 @@ Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked f
 
 The gate lives in two places that must agree: the skill's `description` (what Claude Code matches on) and the routing rule in `identity.md` → Orchestration (the injected-every-session anchor). The skill is **orchestrator-only** (Claude main session — Codex never brainstorms) and **seed-agnostic**: it accepts either a fresh user request or a pulled task summary, so a future `/start` can delegate to it without changing the skill.
 
-### Skill write boundary (`metadata.tier`)
+### Skill file conventions
 
-Every skill declares one neutral frontmatter field under `metadata:`:
-
-```yaml
-metadata:
-  tier: target-read-only   # or: target-write
-```
-
-`tier` is a **coarse label, not a tool list** — deliberately *not* Claude's `allowed-tools` (that's Claude-only; Codex ignores it). Enforcement stays harness-agnostic: the label is what *we* check, identically for Claude and Codex.
-
-- **`target-read-only`** — the skill must not modify the thing it operates on (the project/repo under review). Review, analysis, planning, and reference skills: `renovate-manager`, `observability-check`, `prometheus`, `tempo`, `teach`, `brainstorming`.
-- **`target-write`** — the skill may modify the target. Generators and action skills: `terraform-example-gen`, `dashboarding`, `excalidraw-diagram`, `fiter-infrastructure-analyzer`, `grafana-oss`, `bkt`.
-
-The label resolves **three write zones**:
-
-1. **Target tree** — the project/repo being worked on. Gated by `tier` (read-only ⇒ hands off).
-2. **The skill's own folder** (`skills/<name>/`) — **always writable, at any time, regardless of tier**, with no declaration needed. This is where a read-only skill puts skill-owned files. Stateful skills persist local data in `.skill-data/<name>/` (gitignored, `AI_MEMORY_SKILL_DATA`), decoupled from the possibly-ephemeral skill dir; for example, `renovate-manager` writes review memory under `.skill-data/renovate-manager/renovate-reviews/`. No `memory_store` field — the rule is universal, so there's nothing to declare.
-3. **Everything else** (`projects/*/memory.md`, `working.md`, `index.md`, and *other* skills' folders) — **off-limits by default**, even though it's in the memory repo.
-
-Enforcement is harness-agnostic and *detective* (a post-run check, layered under the codex execpolicy which prevents the destructive class) — see `projects/ai-memory/plans/skill-subsystem.md` for the `tier` schema (#10), the `validate-skills.sh` static check (#4), and the post-run git-diff boundary check (#11).
-
-**Boundary enforcement (in-session).** `scripts/skill-boundary-check.sh` is the engine: `snapshot` a repo's git state before a skill runs, `check` after. The Claude trigger is two hooks (in `harnesses/claude/settings.hooks.json`):
-- `skill_boundary_marker.sh` (PostToolUse:Skill) — when a `target-read-only` skill is invoked, captures a memory-repo baseline.
-- `skill_boundary_check.sh` (Stop) — at turn end, verifies the skill didn't write outside its own folder in the memory repo (scope `others-only`, so the orchestrator's own `memory.md`/`todo.md` edits don't count) and, if a target was registered, that the target repo is untouched. Exits 2 to surface a violation.
-
-A read-only skill that resolves a **target** repo registers it for the target-half check by writing `skills/<skill>/.boundary-target` (= `<repo-path>` on line 1, a `snapshot` baseline file on line 2) — a write into its *own* folder, which is always allowed. (Codex executor enforcement is deferred — Codex mostly runs target-write work; read-only skills run in-session.)
+A skill writes skill-owned files (notes, reviews, self-rating) into its **own folder** (`skills/<name>/`). Stateful skills persist local data in `.skill-data/<name>/` (gitignored, `AI_MEMORY_SKILL_DATA`), decoupled from the possibly-ephemeral skill dir so remote-referenced skills don't lose state on re-resolve; for example, `renovate-manager` writes review memory under `.skill-data/renovate-manager/renovate-reviews/`. There is no write-boundary declaration or enforcement: execpolicy is the destructive-class floor and the Validator catches a skill that mutated something it shouldn't (against the plan's success criteria).
 
 ### Self-rating loop (`apply-partial.sh` · `skill-ratings.sh`)
 
@@ -164,6 +140,6 @@ TOML is parsed by python3's stdlib `tomllib` (3.11+) — **no pip dependency** (
 
 **Authoring & sync.** `new-skill.sh` and `install-skill.sh --from` write authored skills under `skills/`. `install-skill.sh --remote <url> --ref <r> [--path <p>] [--name <n>]` appends the entry to root `skills.toml` **and** resolves it (`--save` is the default; `--no-save` skips the write; a duplicate name needs `--force`). `install.sh` only seeds `skills.toml` from the template; it does not resolve remotes automatically. `sync-system.sh --update` re-resolves refs across an update. Bumping a `ref` + `--update` is how a remote skill updates — its content is never committed, so it can't drift.
 
-**Enumeration is the linchpin.** `scripts/_lib.sh:list_skill_dirs` (built on `skill_roots`) is the single source of "what skills exist and where," across both roots (`skills/`, `.skill-cache/`, precedence in that order; override with `AI_MEMORY_SKILL_ROOTS`). Every skills tool routes through it — link/fan-out, validation, boundary, ratings, authoring — so a new root is added once, not in each of the globbing scripts. `list-skills.sh` derives each skill's row from which root holds it (+ root `skills.toml` and the lockfile for remotes): `SKILL · SOURCE · SYNCED · PIN`, with a `--remote` filter.
+**Enumeration is the linchpin.** `scripts/_lib.sh:list_skill_dirs` (built on `skill_roots`) is the single source of "what skills exist and where," across both roots (`skills/`, `.skill-cache/`, precedence in that order; override with `AI_MEMORY_SKILL_ROOTS`). Every skills tool routes through it — link/fan-out, validation, ratings, authoring — so a new root is added once, not in each of the globbing scripts. `list-skills.sh` derives each skill's row from which root holds it (+ root `skills.toml` and the lockfile for remotes): `SKILL · SOURCE · SYNCED · PIN`, with a `--remote` filter.
 
 > The per-repo `projects/<name>/skills/` axis (`sync-project-skills.sh`) is separate and unchanged — that fans project-scoped skills into a specific checkout, orthogonal to the per-instance authored/remote stores here.

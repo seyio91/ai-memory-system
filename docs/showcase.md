@@ -44,7 +44,7 @@ column points to where each capability is toured.
 | Knowledge lifecycle | Capture → graduate scratch notes into durable wiki / skills | `/checkpoint` · `/promote-memory` | 5 |
 | Task provider | Pluggable capture→plan→execute backend (local + Notion) | `/task` · `/start` | — |
 | Design gate | Collaborative brainstorming before feature-tier work | `brainstorming` skill | — |
-| Skills subsystem | Canonical skill store + symlink, write-boundary tiers, self-rating | `skills/` · `link-skills.sh` | — |
+| Skills subsystem | Canonical skill store + symlink, static validation, self-rating | `skills/` · `link-skills.sh` | — |
 
 **Platform & rigor**
 | Feature | What it gives you | Entry point | § |

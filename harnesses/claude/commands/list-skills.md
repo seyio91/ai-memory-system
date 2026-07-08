@@ -12,6 +12,6 @@ bash ~/.claude-memory/scripts/list-skills.sh $ARGUMENTS
 
 Step 2 — present the table as-is (columns: `SKILL  SOURCE  SYNCED  PIN`). Keep it terse. If the user is deciding what to add, remind them:
 - **remote** (referenced via root `skills.toml`) — add with `install-skill.sh --remote <url> --ref <ref> [--path <p>]`.
-- **authored** (owned/edited on this instance) — create with `new-skill.sh`, or seed from an existing dir with `install-skill.sh --from <dir> --tier <tier>`.
+- **authored** (owned/edited on this instance) — create with `new-skill.sh`, or seed from an existing dir with `install-skill.sh --from <dir>`.
 
 Read/verify only — do not modify skills, manifests, or the cache from this command.

@@ -17,8 +17,8 @@ manifest() { cat > "$MEM/skills.toml"; }
 
 # --- build a "remote" git repo: skill at a subpath + one at the repo root -----
 mkdir -p "$REPO/pkg/remote-sub"
-printf -- '---\nname: remote-sub\ndescription: remote skill at a subpath.\nmetadata:\n  tier: target-read-only\n---\n# remote-sub\n' > "$REPO/pkg/remote-sub/SKILL.md"
-printf -- '---\nname: remote-root\ndescription: skill at repo root (no path).\nmetadata:\n  tier: target-write\n---\n# remote-root\n' > "$REPO/SKILL.md"
+printf -- '---\nname: remote-sub\ndescription: remote skill at a subpath.\n---\n# remote-sub\n' > "$REPO/pkg/remote-sub/SKILL.md"
+printf -- '---\nname: remote-root\ndescription: skill at repo root (no path).\n---\n# remote-root\n' > "$REPO/SKILL.md"
 git -C "$REPO" init -q
 git -C "$REPO" config user.email t@t.co; git -C "$REPO" config user.name t
 git -C "$REPO" add -A; git -C "$REPO" commit -qm init
