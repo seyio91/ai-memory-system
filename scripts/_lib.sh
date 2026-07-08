@@ -108,6 +108,49 @@ resolve_skill_dir() {
     return 1
 }
 
+_semver_num() {
+    case "$1" in
+        ''|*[!0-9]*) printf '0\n' ;;
+        *) printf '%s\n' "$1" ;;
+    esac
+}
+
+semver_gt() {
+    local a="${1#v}" b="${2#v}" old_ifs
+    local a_core b_core a_pre b_pre
+    local a1 a2 a3 b1 b2 b3
+
+    a="${a%%+*}"
+    b="${b%%+*}"
+    a_core="${a%%-*}"
+    b_core="${b%%-*}"
+    a_pre=""
+    b_pre=""
+    case "$a" in *-*) a_pre="${a#*-}" ;; esac
+    case "$b" in *-*) b_pre="${b#*-}" ;; esac
+
+    old_ifs="$IFS"
+    IFS=.
+    set -- $a_core
+    a1="$(_semver_num "${1:-0}")"
+    a2="$(_semver_num "${2:-0}")"
+    a3="$(_semver_num "${3:-0}")"
+    set -- $b_core
+    b1="$(_semver_num "${1:-0}")"
+    b2="$(_semver_num "${2:-0}")"
+    b3="$(_semver_num "${3:-0}")"
+    IFS="$old_ifs"
+
+    [ "$a1" -gt "$b1" ] && return 0
+    [ "$a1" -lt "$b1" ] && return 1
+    [ "$a2" -gt "$b2" ] && return 0
+    [ "$a2" -lt "$b2" ] && return 1
+    [ "$a3" -gt "$b3" ] && return 0
+    [ "$a3" -lt "$b3" ] && return 1
+    [ -z "$a_pre" ] && [ -n "$b_pre" ] && return 0
+    return 1
+}
+
 # detect_active_project — print active project name to stdout, or empty.
 # Walks up from $1 (defaults to cwd) looking for the harness-neutral marker
 # .agents/memory-project, falling back to the legacy .claude/memory-project (pre-

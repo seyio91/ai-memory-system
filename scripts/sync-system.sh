@@ -13,11 +13,15 @@
 #   release channel:
 #     git status --porcelain --untracked-files=no
 #     git fetch --tags origin
-#     git checkout "$(git tag -l 'v*' | sort -V | tail -1)"
+#     git checkout "<latest v* semver tag>"
 #     bash install.sh
 #   dev channel:
 #     git status --porcelain --untracked-files=no
 #     git fetch --tags origin
+#     if [ "$(git rev-parse --abbrev-ref HEAD)" = "HEAD" ]; then
+#       branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's#^origin/##')"
+#       git checkout "${branch:-main}"
+#     fi
 #     git merge --ff-only @{u}
 #     bash install.sh
 #   one-shot ref:
@@ -25,6 +29,7 @@
 #     git fetch --tags origin
 #     git checkout <ref>
 #     bash install.sh
+#     # --to cannot be combined with --no-pull
 #
 # Usage:
 #   sync-system.sh                 # channel default: release -> latest v* tag
@@ -70,6 +75,12 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+if [ "$DO_PULL" = 0 ] && [ -n "$SYNC_TO" ]; then
+  echo "  ABORT: --to cannot be combined with --no-pull." >&2
+  echo "  Use --to <ref> to checkout a ref, or --no-pull to re-link the current tree." >&2
+  exit 2
+fi
+
 cd "$REPO_ROOT"
 
 step() { printf '\n==> %s\n' "$1"; }
@@ -85,14 +96,86 @@ dirty_tracked_guard() {
   fi
 }
 
+SORT_V_SUPPORTED=""
+sort_v_supported() {
+  local last
+  [ "${AI_MEMORY_TEST_NO_SORT_V:-}" = "1" ] && return 1
+  if [ -z "$SORT_V_SUPPORTED" ]; then
+    last="$(printf 'v1.10.0\nv1.9.0\n' | sort -V 2>/dev/null | tail -1 || true)"
+    if [ "$last" = "v1.10.0" ]; then
+      SORT_V_SUPPORTED=1
+    else
+      SORT_V_SUPPORTED=0
+    fi
+  fi
+  [ "$SORT_V_SUPPORTED" = 1 ]
+}
+
 latest_release_tag() {
-  local tag
-  tag="$(git tag -l 'v*' | sort -V | tail -1)"
+  local tag candidate
+  tag=""
+  if sort_v_supported; then
+    tag="$(git tag -l 'v*' | sort -V | tail -1)"
+  else
+    while IFS= read -r candidate; do
+      [ -n "$candidate" ] || continue
+      if [ -z "$tag" ] || semver_gt "$candidate" "$tag"; then
+        tag="$candidate"
+      fi
+    done < <(git tag -l 'v*')
+  fi
   if [ -z "$tag" ]; then
     echo "  ABORT: no release tag yet — cut one with release.sh, or set AI_MEMORY_CHANNEL=dev." >&2
     exit 1
   fi
   printf '%s\n' "$tag"
+}
+
+dev_default_branch() {
+  local branch
+  branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  branch="${branch#origin/}"
+  [ -n "$branch" ] || branch="main"
+  printf '%s\n' "$branch"
+}
+
+checkout_dev_tracking_branch() {
+  local branch
+  branch="$(dev_default_branch)"
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    git checkout --quiet "$branch"
+  elif git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    git checkout --quiet -b "$branch" --track "origin/$branch"
+  else
+    echo "  ABORT: cannot recover detached HEAD; origin/$branch does not exist." >&2
+    exit 1
+  fi
+  if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; then
+    git branch --set-upstream-to="origin/$branch" "$branch" >/dev/null 2>&1 || true
+  fi
+}
+
+preview_dev_incoming() {
+  local branch local_sha remote_sha
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+  if [ "$branch" = "HEAD" ]; then
+    branch="$(dev_default_branch)"
+    info "target: $branch (dev tracking branch; detached HEAD would be recovered on real sync)"
+    return 0
+  fi
+
+  local_sha="$(git rev-parse @)"
+  remote_sha="$(git rev-parse "@{u}" 2>/dev/null || echo "")"
+  if [ -z "$remote_sha" ]; then
+    info "no upstream configured for $branch — skipping pull"
+  elif [ "$local_sha" = "$remote_sha" ]; then
+    info "already up to date with origin/$branch ($local_sha)"
+  else
+    info "incoming changes on $branch:"
+    git --no-pager log --oneline "${local_sha}..${remote_sha}" | sed 's/^/    /'
+    echo
+    git --no-pager diff --stat "${local_sha}..${remote_sha}" | sed 's/^/    /'
+  fi
 }
 
 run_migrations_placeholder() {
@@ -122,6 +205,7 @@ if [ "$DO_PULL" = 1 ]; then
   fi
 
   if [ "$DRY_RUN" = 1 ]; then
+    git fetch --quiet --tags origin
     step "[dry-run] sync target"
     info "channel: $CHANNEL"
     if [ "$MODE" = "ref" ]; then
@@ -131,8 +215,9 @@ if [ "$DO_PULL" = 1 ]; then
       info "target: $TARGET (latest release tag)"
     else
       info "target: @{u} (dev ff-only merge)"
+      preview_dev_incoming
     fi
-    info "[dry-run] not fetching, not checking out, not installing"
+    info "[dry-run] fetched origin, not checking out, not installing"
     exit 0
   fi
 
@@ -150,6 +235,11 @@ if [ "$DO_PULL" = 1 ]; then
     git checkout --quiet "$TARGET"
   else
     BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+    if [ "$BRANCH" = "HEAD" ]; then
+      step "Recovering dev tracking branch"
+      checkout_dev_tracking_branch
+      BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+    fi
     local_sha="$(git rev-parse @)"
     remote_sha="$(git rev-parse "@{u}" 2>/dev/null || echo "")"
 

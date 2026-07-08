@@ -17,7 +17,9 @@
 
 # Sync channel for scripts/sync-system.sh:
 #   release  — default when unset/empty; sync to the latest v* release tag
-#   dev      — sync by fast-forwarding the current branch from its upstream
+#   dev      — sync by fast-forwarding the tracking branch from its upstream;
+#              if a one-shot --to left the checkout detached, return to the
+#              origin default branch first
 # Set dev in the checkout you use for active memory-system development.
 # export AI_MEMORY_CHANNEL="release"
 

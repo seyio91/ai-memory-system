@@ -92,6 +92,18 @@ capture_sync_channel() {
     ( cd "$repo" && MEMORY_DIR="$repo" AI_MEMORY_CHANNEL="$channel" bash scripts/sync-system.sh "$@" ) 2>&1
 }
 
+run_sync_channel_no_sort_v() {
+    local repo="$1" channel="$2"
+    shift 2
+    ( cd "$repo" && MEMORY_DIR="$repo" AI_MEMORY_CHANNEL="$channel" AI_MEMORY_TEST_NO_SORT_V=1 bash scripts/sync-system.sh "$@" )
+}
+
+capture_sync_channel_no_sort_v() {
+    local repo="$1" channel="$2"
+    shift 2
+    ( cd "$repo" && MEMORY_DIR="$repo" AI_MEMORY_CHANNEL="$channel" AI_MEMORY_TEST_NO_SORT_V=1 bash scripts/sync-system.sh "$@" ) 2>&1
+}
+
 # --- release/default resolves to latest semver tag ---
 R1="$(make_fixture release-default yes)"
 out="$(capture_sync_unset "$R1")"
@@ -103,6 +115,11 @@ assert_contains "$out" "Checking out release v0.10.0" "release output reports la
 R2="$(make_fixture release-explicit yes)"
 run_sync_channel "$R2" release >/dev/null 2>&1
 assert_eq "v0.10.0" "$(git -C "$R2" describe --tags --exact-match 2>/dev/null)" "release channel checks out latest semver tag"
+
+R3="$(make_fixture release-fallback-sort yes)"
+fallback_out="$(capture_sync_channel_no_sort_v "$R3" release)"
+assert_eq "v0.10.0" "$(git -C "$R3" describe --tags --exact-match 2>/dev/null)" "release latest-tag fallback orders semver tags without sort -V"
+assert_contains "$fallback_out" "Checking out release v0.10.0" "release fallback reports latest semver tag"
 
 # --- dev keeps ff-only branch behavior ---
 D1="$(make_fixture dev yes)"
@@ -140,6 +157,11 @@ run_sync_channel "$T2" release --to "$sha" >/dev/null 2>&1
 assert_eq "HEAD" "$(git -C "$T2" rev-parse --abbrev-ref HEAD)" "--to sha leaves detached HEAD"
 assert_eq "$sha" "$(git -C "$T2" rev-parse HEAD)" "--to sha checks out the requested commit"
 
+T3="$(make_fixture to-tag yes)"
+run_sync_channel "$T3" release --to v0.9.0 >/dev/null 2>&1
+assert_eq "v0.9.0" "$(git -C "$T3" describe --tags --exact-match 2>/dev/null)" "--to tag checks out the tag"
+assert_eq "nine" "$(cat "$T3/VERSION")" "--to tag reaches tag content"
+
 # --- --to is ephemeral; next plain run snaps back to channel default ---
 E1="$(make_fixture ephemeral yes)"
 run_sync_channel "$E1" release --to trial >/dev/null 2>&1
@@ -147,6 +169,21 @@ assert_eq "trial" "$(git -C "$E1" rev-parse --abbrev-ref HEAD)" "--to starts on 
 run_sync_channel "$E1" release >/dev/null 2>&1
 assert_eq "v0.10.0" "$(git -C "$E1" describe --tags --exact-match 2>/dev/null)" "plain sync after --to returns to release tag"
 assert_eq "HEAD" "$(git -C "$E1" rev-parse --abbrev-ref HEAD)" "snap-back release checkout is detached"
+
+E2="$(make_fixture ephemeral-dev yes)"
+sha="$(git -C "$E2" rev-parse trial)"
+run_sync_channel "$E2" dev --to "$sha" >/dev/null 2>&1
+assert_eq "HEAD" "$(git -C "$E2" rev-parse --abbrev-ref HEAD)" "--to sha starts detached for dev snap-back"
+PEER="$ROOT/ephemeral-dev/peer"
+git clone -q "$ROOT/ephemeral-dev/origin.git" "$PEER"
+git_identity "$PEER"
+printf 'remote-dev-after-detach\n' > "$PEER/VERSION"
+git -C "$PEER" add VERSION
+git -C "$PEER" commit -q -m "remote dev after detach"
+git -C "$PEER" push -q origin main
+run_sync_channel "$E2" dev >/dev/null 2>&1
+assert_eq "main" "$(git -C "$E2" rev-parse --abbrev-ref HEAD)" "plain dev sync after --to returns to tracking branch"
+assert_eq "$(git -C "$E2" rev-parse origin/main)" "$(git -C "$E2" rev-parse HEAD)" "plain dev sync after --to fast-forwards tracking branch"
 
 # --- dirty tracked files abort; untracked files do not ---
 DIRTY="$(make_fixture dirty yes)"
@@ -159,10 +196,29 @@ assert_exit 1 "$dirty_rc" "dirty tracked file aborts"
 assert_contains "$dirty_out" "tracked files have local modifications" "dirty abort explains tracked-file guard"
 assert_eq "main" "$(git -C "$DIRTY" rev-parse --abbrev-ref HEAD)" "dirty abort happens before checkout"
 
+DIRTY_TO="$(make_fixture dirty-to yes)"
+printf 'dirty-to\n' > "$DIRTY_TO/VERSION"
+set +e
+dirty_to_out="$(capture_sync_channel "$DIRTY_TO" release --to trial)"
+dirty_to_rc=$?
+set -u
+assert_exit 1 "$dirty_to_rc" "dirty tracked file aborts before --to checkout"
+assert_contains "$dirty_to_out" "tracked files have local modifications" "dirty --to abort explains tracked-file guard"
+assert_eq "main" "$(git -C "$DIRTY_TO" rev-parse --abbrev-ref HEAD)" "dirty --to abort happens before checkout"
+
 UNTRACKED="$(make_fixture untracked yes)"
 printf 'scratch\n' > "$UNTRACKED/scratch.txt"
 run_sync_channel "$UNTRACKED" release >/dev/null 2>&1
 assert_eq "v0.10.0" "$(git -C "$UNTRACKED" describe --tags --exact-match 2>/dev/null)" "untracked files do not block release checkout"
+
+NO_PULL_TO="$(make_fixture no-pull-to yes)"
+set +e
+no_pull_to_out="$(capture_sync_channel "$NO_PULL_TO" release --to trial --no-pull)"
+no_pull_to_rc=$?
+set -u
+assert_exit 2 "$no_pull_to_rc" "--to with --no-pull is a usage error"
+assert_contains "$no_pull_to_out" "--to cannot be combined with --no-pull" "--to --no-pull explains invalid combination"
+assert_eq "main" "$(git -C "$NO_PULL_TO" rev-parse --abbrev-ref HEAD)" "--to --no-pull leaves branch unchanged"
 
 # --- no release tags fails actionably ---
 NOTAGS="$(make_fixture no-tags no)"
@@ -184,5 +240,37 @@ assert_eq "$before_branch" "$(git -C "$DRY" rev-parse --abbrev-ref HEAD)" "dry-r
 assert_contains "$dry_out" "channel: release" "dry-run reports channel"
 assert_contains "$dry_out" "target: v0.10.0" "dry-run reports resolved target"
 if [ ! -f "$DRY/install-ran.txt" ]; then _ok "dry-run does not run install"; else _bad "dry-run does not run install"; fi
+
+DRY_FETCH="$(make_fixture dry-fetch yes)"
+PEER="$ROOT/dry-fetch/peer"
+git clone -q "$ROOT/dry-fetch/origin.git" "$PEER"
+git_identity "$PEER"
+printf 'eleven\n' > "$PEER/VERSION"
+git -C "$PEER" add VERSION
+git -C "$PEER" commit -q -m "v0.11.0"
+git -C "$PEER" tag v0.11.0
+git -C "$PEER" push -q origin main --tags
+dry_fetch_out="$(capture_sync_channel "$DRY_FETCH" release --dry-run)"
+assert_contains "$dry_fetch_out" "target: v0.11.0" "release dry-run fetches tags before resolving latest target"
+assert_eq "main" "$(git -C "$DRY_FETCH" rev-parse --abbrev-ref HEAD)" "release dry-run fetch leaves branch unchanged"
+if [ ! -f "$DRY_FETCH/install-ran.txt" ]; then _ok "release dry-run fetch does not run install"; else _bad "release dry-run fetch does not run install"; fi
+
+DRY_DEV="$(make_fixture dry-dev yes)"
+PEER="$ROOT/dry-dev/peer"
+git clone -q "$ROOT/dry-dev/origin.git" "$PEER"
+git_identity "$PEER"
+printf 'remote-dry-dev\n' > "$PEER/VERSION"
+git -C "$PEER" add VERSION
+git -C "$PEER" commit -q -m "remote dry dev"
+git -C "$PEER" push -q origin main
+before_head="$(git -C "$DRY_DEV" rev-parse HEAD)"
+before_branch="$(git -C "$DRY_DEV" rev-parse --abbrev-ref HEAD)"
+dry_dev_out="$(capture_sync_channel "$DRY_DEV" dev --dry-run)"
+assert_eq "$before_head" "$(git -C "$DRY_DEV" rev-parse HEAD)" "dev dry-run leaves HEAD unchanged"
+assert_eq "$before_branch" "$(git -C "$DRY_DEV" rev-parse --abbrev-ref HEAD)" "dev dry-run leaves branch unchanged"
+assert_contains "$dry_dev_out" "incoming changes on main:" "dev dry-run prints incoming commit preview"
+assert_contains "$dry_dev_out" "remote dry dev" "dev dry-run prints incoming commit subject"
+assert_contains "$dry_dev_out" "VERSION |" "dev dry-run prints incoming diffstat"
+if [ ! -f "$DRY_DEV/install-ran.txt" ]; then _ok "dev dry-run does not run install"; else _bad "dev dry-run does not run install"; fi
 
 finish
