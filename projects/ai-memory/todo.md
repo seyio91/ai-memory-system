@@ -8,7 +8,7 @@
 
 ### Versioned release channel (git tags) → [plan](plans/versioned-release-channel.md)
 - [x] Phase 1 — Channel + `--to` in `sync-system.sh` (PR #40)
-- [ ] Phase 2 — Migration runner + `.applied-version`
+- [x] Phase 2 — Migration runner + `.applied-version` (PR #41)
 - [ ] Phase 3 — `release.sh`
 - [ ] Phase 4 — Docs (CHANGELOG, UPGRADING, docs/, README)
 - [ ] Phase 5 — Cut `v1.0.0` end-to-end + flip a consumer instance
