@@ -76,6 +76,8 @@ if ! printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_RE"; then
 fi
 
 TAG="v$VERSION"
+RELEASE_COMMIT_SUBJECT="chore(release): $TAG"
+RELEASE_MODE="normal"
 
 cd "$REPO_ROOT"
 
@@ -104,6 +106,7 @@ fetch_origin() {
 }
 
 origin_main_guard() {
+    local allow_ahead="${1:-0}"
     local local_sha remote_sha
     if ! git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null; then
         abort "origin/main is missing after fetch." "Set the origin remote and fetch main before releasing."
@@ -117,15 +120,10 @@ origin_main_guard() {
         abort "local main is behind origin/main." "Fast-forward main before releasing."
     fi
     if git merge-base --is-ancestor origin/main main; then
+        [ "$allow_ahead" = 1 ] && return 0
         abort "local main is ahead of origin/main." "Push or drop local commits before releasing."
     fi
     abort "local main has diverged from origin/main." "Reconcile main with origin/main before releasing."
-}
-
-tag_guard() {
-    if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
-        abort "tag $TAG already exists locally or on origin." "Choose a new version or delete the incorrect tag by hand."
-    fi
 }
 
 previous_tag() {
@@ -156,23 +154,54 @@ changelog_path() {
 }
 
 seed_changelog() {
-    local file
+    local file tmp
     file="$(changelog_path)"
     [ -f "$file" ] && return 0
-    cat > "$file" <<'EOF'
+    tmp="$file.tmp.$$"
+    cat > "$tmp" <<'EOF'
 # Changelog
 
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 EOF
+    mv "$tmp" "$file"
 }
 
-has_unreleased_section() {
+unreleased_heading_count() {
     local file
     file="$(changelog_path)"
-    [ -f "$file" ] || return 0
-    grep -Eq '^## \[Unreleased\]$' "$file"
+    [ -f "$file" ] || { printf '1\n'; return 0; }
+    awk '
+        { sub(/\r$/, "", $0) }
+        /^## \[Unreleased\]$/ { count++ }
+        END { printf "%d\n", count + 0 }
+    ' "$file"
+}
+
+require_one_unreleased_section() {
+    local count
+    count="$(unreleased_heading_count)"
+    [ "$count" = 1 ] && return 0
+    abort "CHANGELOG.md must contain exactly one ## [Unreleased] heading; found $count." "Fix the changelog headings before releasing."
+}
+
+version_heading_count() {
+    local file version="$1"
+    file="$(changelog_path)"
+    [ -f "$file" ] || { printf '0\n'; return 0; }
+    awk -v version="$version" '
+        { sub(/\r$/, "", $0) }
+        $0 == "## [" version "]" || index($0, "## [" version "] - ") == 1 { count++ }
+        END { printf "%d\n", count + 0 }
+    ' "$file"
+}
+
+ensure_no_version_section() {
+    local count
+    count="$(version_heading_count "$VERSION")"
+    [ "$count" = 0 ] && return 0
+    abort "CHANGELOG.md already contains a ## [$VERSION] section." "Reconcile the existing section before running the normal release path."
 }
 
 unreleased_body() {
@@ -180,22 +209,51 @@ unreleased_body() {
     file="$(changelog_path)"
     [ -f "$file" ] || return 0
     awk '
-        /^## \[Unreleased\]$/ { in_section=1; next }
-        in_section && /^## / { exit }
+        { line=$0; sub(/\r$/, "", line) }
+        line == "## [Unreleased]" { in_section=1; next }
+        in_section && line ~ /^## / { exit }
         in_section { print }
     ' "$file"
 }
 
 changelog_prefix() {
-    awk '/^## \[Unreleased\]$/ { exit } { print }' "$(changelog_path)"
+    awk '{ line=$0; sub(/\r$/, "", line); if (line == "## [Unreleased]") exit; print }' "$(changelog_path)"
 }
 
 changelog_suffix() {
     awk '
-        /^## \[Unreleased\]$/ { in_section=1; next }
-        in_section && /^## / { in_suffix=1 }
+        { line=$0; sub(/\r$/, "", line) }
+        line == "## [Unreleased]" { in_section=1; next }
+        in_section && line ~ /^## / { in_suffix=1 }
         in_suffix { print }
     ' "$(changelog_path)"
+}
+
+newest_release_version() {
+    local file
+    file="$(changelog_path)"
+    [ -f "$file" ] || return 0
+    awk '
+        { line=$0; sub(/\r$/, "", line) }
+        line ~ /^## \[[0-9]+\.[0-9]+\.[0-9]+\]( - .*)?$/ {
+            sub(/^## \[/, "", line)
+            sub(/\].*$/, "", line)
+            print line
+            exit
+        }
+    ' "$file"
+}
+
+version_body() {
+    local file version="$1"
+    file="$(changelog_path)"
+    [ -f "$file" ] || return 0
+    awk -v version="$version" '
+        { line=$0; sub(/\r$/, "", line) }
+        line == "## [" version "]" || index(line, "## [" version "] - ") == 1 { in_section=1; next }
+        in_section && line ~ /^## / { exit }
+        in_section { print }
+    ' "$file"
 }
 
 body_has_entries() {
@@ -222,9 +280,7 @@ EOF
 
 release_body() {
     local prev="$1" body
-    if ! has_unreleased_section; then
-        abort "CHANGELOG.md is missing an ## [Unreleased] section." "Add the section or remove CHANGELOG.md so release.sh can seed it."
-    fi
+    require_one_unreleased_section
     body="$(unreleased_body)"
     if body_has_entries "$body"; then
         printf '%s\n' "$body"
@@ -255,12 +311,110 @@ tag_message() {
 }
 
 dry_run_report() {
-    local prev="$1" body="$2" date="$3"
+    local prev="$1" body="$2" date="$3" mode="$4"
+    printf 'release mode: %s\n' "$mode"
     printf 'previous tag: %s\n' "${prev:-<none>}"
     printf 'new tag: %s\n' "$TAG"
     printf 'changelog section that would be written:\n'
     printf '## [%s] - %s\n' "$VERSION" "$date"
     printf '%s\n' "$body"
+}
+
+remote_tag_commit() {
+    local tag="$1" out
+    out="$(git ls-remote --tags origin "refs/tags/$tag^{}" "refs/tags/$tag" | awk '
+        $2 ~ /\^\{\}$/ { peeled=$1 }
+        $2 !~ /\^\{\}$/ && first == "" { first=$1 }
+        END {
+            if (peeled != "") print peeled
+            else if (first != "") print first
+        }
+    ')" || return 1
+    [ -n "$out" ] || return 1
+    printf '%s\n' "$out"
+}
+
+local_tag_commit() {
+    git rev-list -n 1 "$1"
+}
+
+detect_release_state() {
+    local local_exists=0 remote_exists=0 local_commit="" remote_commit="" head subject newest
+
+    if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+        local_exists=1
+        local_commit="$(local_tag_commit "$TAG")"
+    fi
+    if remote_commit="$(remote_tag_commit "$TAG")"; then
+        remote_exists=1
+    fi
+
+    if [ "$remote_exists" = 1 ] && [ "$local_exists" = 1 ]; then
+        if [ "$remote_commit" != "$local_commit" ]; then
+            abort "$TAG exists locally and on origin but points at different commits." "Local: $local_commit; origin: $remote_commit"
+        fi
+        if git merge-base --is-ancestor "$local_commit" origin/main; then
+            RELEASE_MODE="already-released"
+            return 0
+        fi
+        abort "$TAG exists on origin but its commit is not reachable from origin/main." "Commit: $local_commit"
+    fi
+
+    if [ "$remote_exists" = 1 ]; then
+        abort "$TAG exists on origin but not locally — \`git fetch --tags\` and reconcile."
+    fi
+
+    head="$(git rev-parse HEAD)"
+    if [ "$local_exists" = 1 ]; then
+        if [ "$local_commit" = "$head" ]; then
+            RELEASE_MODE="resume-at-push"
+            return 0
+        fi
+        abort "$TAG already exists locally on another commit: $local_commit." "Reconcile or delete the local tag before releasing."
+    fi
+
+    subject="$(git log -1 --format=%s)"
+    newest="$(newest_release_version)"
+    if [ "$subject" = "$RELEASE_COMMIT_SUBJECT" ] && [ "$newest" = "$VERSION" ]; then
+        RELEASE_MODE="resume-at-tag"
+        return 0
+    fi
+
+    RELEASE_MODE="normal"
+}
+
+push_failure_resume_message() {
+    printf 're-run `release.sh %s` to resume — it will detect the existing commit/tag and only push what'\''s missing.\n' "$VERSION" >&2
+}
+
+push_main_if_needed() {
+    if git merge-base --is-ancestor HEAD origin/main; then
+        return 0
+    fi
+    if ! git push origin main; then
+        push_failure_resume_message
+        exit 1
+    fi
+}
+
+push_tag_if_needed() {
+    if remote_tag_commit "$TAG" >/dev/null 2>&1; then
+        return 0
+    fi
+    if ! git push origin "$TAG"; then
+        push_failure_resume_message
+        exit 1
+    fi
+}
+
+publish_release() {
+    if [ "$NO_PUSH" = 1 ]; then
+        printf 'Created local release commit and tag %s (--no-push).\n' "$TAG"
+        return 0
+    fi
+    push_main_if_needed
+    push_tag_if_needed
+    printf 'Released %s.\n' "$TAG"
 }
 
 PREV_TAG=""
@@ -270,30 +424,63 @@ TODAY="$(date +%Y-%m-%d)"
 dirty_tracked_guard
 branch_guard
 fetch_origin
-origin_main_guard
-tag_guard
-PREV_TAG="$(previous_tag)"
-version_guard "$PREV_TAG"
-run_suite_guard
+detect_release_state
+
+case "$RELEASE_MODE" in
+    already-released)
+        printf '%s is already released; local and origin tags match and are reachable from origin/main.\n' "$TAG"
+        exit 0
+        ;;
+    resume-at-push)
+        origin_main_guard 1
+        ;;
+    resume-at-tag)
+        origin_main_guard 1
+        ;;
+    normal)
+        origin_main_guard 0
+        PREV_TAG="$(previous_tag)"
+        version_guard "$PREV_TAG"
+        ensure_no_version_section
+        ;;
+    *)
+        abort "internal error: unknown release mode $RELEASE_MODE."
+        ;;
+esac
+
+# Resume-at-push already has the release commit and local annotated tag. The suite
+# passed before those existed; re-running it would block recovery without testing new code.
+[ "$RELEASE_MODE" = "resume-at-push" ] || run_suite_guard
 
 if [ "$DRY_RUN" = 1 ]; then
-    RELEASE_BODY="$(release_body "$PREV_TAG")"
-    dry_run_report "$PREV_TAG" "$RELEASE_BODY" "$TODAY"
+    if [ "$RELEASE_MODE" = "resume-at-push" ]; then
+        RELEASE_BODY="$(version_body "$VERSION")"
+    elif [ "$RELEASE_MODE" = "resume-at-tag" ]; then
+        RELEASE_BODY="$(version_body "$VERSION")"
+    else
+        RELEASE_BODY="$(release_body "$PREV_TAG")"
+    fi
+    dry_run_report "$PREV_TAG" "$RELEASE_BODY" "$TODAY" "$RELEASE_MODE"
     exit 0
 fi
+
+case "$RELEASE_MODE" in
+    resume-at-push)
+        publish_release
+        exit 0
+        ;;
+    resume-at-tag)
+        RELEASE_BODY="$(version_body "$VERSION")"
+        git tag -a "$TAG" -m "$(tag_message "$RELEASE_BODY")"
+        publish_release
+        exit 0
+        ;;
+esac
 
 seed_changelog
 RELEASE_BODY="$(release_body "$PREV_TAG")"
 write_final_changelog "$VERSION" "$RELEASE_BODY" "$TODAY"
-
 git add CHANGELOG.md
-git commit -q -m "chore(release): $TAG"
+git commit -q -m "$RELEASE_COMMIT_SUBJECT"
 git tag -a "$TAG" -m "$(tag_message "$RELEASE_BODY")"
-
-if [ "$NO_PUSH" = 1 ]; then
-    printf 'Created local release commit and tag %s (--no-push).\n' "$TAG"
-else
-    git push origin main
-    git push origin "$TAG"
-    printf 'Released %s.\n' "$TAG"
-fi
+publish_release
