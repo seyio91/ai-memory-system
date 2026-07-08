@@ -77,6 +77,21 @@ capture_sync_fixture_no_sort_v() {
     ( cd "$repo" && MEMORY_DIR="$repo" AI_MEMORY_MIGRATIONS_DIR="$migrations" AI_MEMORY_APPLIED_VERSION_FILE="$marker" AI_MEMORY_TEST_NO_SORT_V=1 bash scripts/sync-system.sh "$@" ) 2>&1
 }
 
+capture_sync_fixture_sort_failure() {
+    local fixture="$1" repo migrations marker
+    shift
+    repo="$(fixture_repo "$fixture")"
+    migrations="$(fixture_migrations "$fixture")"
+    marker="$(fixture_marker "$fixture")"
+    cat >> "$repo/scripts/_lib.sh" <<'EOF'
+
+semver_sort_asc() {
+    return 7
+}
+EOF
+    ( cd "$repo" && MEMORY_DIR="$repo" AI_MEMORY_MIGRATIONS_DIR="$migrations" AI_MEMORY_APPLIED_VERSION_FILE="$marker" bash scripts/sync-system.sh "$@" ) 2>&1
+}
+
 # --- absent marker runs all migrations in ascending semver order ---
 F1="$(make_fixture absent-marker)"
 R1="$(fixture_repo "$F1")"
@@ -219,5 +234,94 @@ EOF
 run_sync_fixture "$F11" --no-pull >/dev/null 2>&1
 assert_contains "$(cat "$R11/env.log")" "MEMORY_DIR=$R11" "migration receives MEMORY_DIR"
 assert_contains "$(cat "$R11/env.log")" "REPO_ROOT=$R11" "migration receives REPO_ROOT"
+
+# --- duplicate migration versions hard-fail before any migration runs ---
+F12="$(make_fixture duplicate-version)"
+R12="$(fixture_repo "$F12")"
+M12="$(fixture_migrations "$F12")"
+add_log_migration "$M12" "1.2.0" "a"
+add_log_migration "$M12" "1.2.0" "b"
+set +e
+dup_out="$(capture_sync_fixture "$F12" --no-pull)"
+dup_rc=$?
+set -u
+assert_exit 1 "$dup_rc" "duplicate migration version aborts"
+assert_contains "$dup_out" "duplicate migration version: 1.2.0" "duplicate version message names version"
+assert_contains "$dup_out" "1.2.0-a.sh" "duplicate version message names first file"
+assert_contains "$dup_out" "1.2.0-b.sh" "duplicate version message names second file"
+if [ ! -f "$R12/order.log" ]; then _ok "duplicate version runs no migrations"; else _bad "duplicate version runs no migrations"; fi
+if [ ! -f "$R12/install-ran.txt" ]; then _ok "duplicate version prevents install.sh"; else _bad "duplicate version prevents install.sh"; fi
+
+# --- producer failures while computing pending migrations abort instead of no-op ---
+F13="$(make_fixture producer-failure)"
+R13="$(fixture_repo "$F13")"
+M13="$(fixture_migrations "$F13")"
+add_log_migration "$M13" "1.0.0" "one"
+set +e
+producer_out="$(capture_sync_fixture_sort_failure "$F13" --no-pull)"
+producer_rc=$?
+set -u
+assert_exit 1 "$producer_rc" "pending migration producer failure aborts"
+assert_contains "$producer_out" "could not compute pending migrations" "producer failure reports pending computation failure"
+assert_not_contains "$producer_out" "No pending migrations" "producer failure does not report no pending migrations"
+if [ ! -f "$R13/order.log" ]; then _ok "producer failure runs no migrations"; else _bad "producer failure runs no migrations"; fi
+if [ ! -f "$R13/install-ran.txt" ]; then _ok "producer failure prevents install.sh"; else _bad "producer failure prevents install.sh"; fi
+
+# --- marker writes are single-line and leave no temp files ---
+F14="$(make_fixture atomic-marker)"
+R14="$(fixture_repo "$F14")"
+M14="$(fixture_migrations "$F14")"
+MARK14="$(fixture_marker "$F14")"
+add_log_migration "$M14" "1.0.0" "one"
+run_sync_fixture "$F14" --no-pull >/dev/null 2>&1
+assert_eq "1" "$(wc -l < "$MARK14" | tr -d ' ')" "atomic marker writes exactly one line"
+assert_eq "1.0.0" "$(cat "$MARK14")" "atomic marker records the migration version"
+if [ -z "$(find "$R14" "$(dirname "$MARK14")" -name '*.tmp.*' -print)" ]; then _ok "atomic marker leaves no tmp files"; else _bad "atomic marker leaves no tmp files"; fi
+
+# --- migration filename regex is strict semver core plus safe slug charset ---
+F15="$(make_fixture regex-invalid-leading-zero)"
+R15="$(fixture_repo "$F15")"
+M15="$(fixture_migrations "$F15")"
+add_log_migration "$M15" "01.2.0" "x"
+set +e
+regex_zero_out="$(capture_sync_fixture "$F15" --no-pull)"
+regex_zero_rc=$?
+set -u
+assert_exit 1 "$regex_zero_rc" "leading-zero migration version is rejected"
+assert_contains "$regex_zero_out" "malformed migration filename: 01.2.0-x.sh" "leading-zero rejection names file"
+if [ ! -f "$R15/install-ran.txt" ]; then _ok "leading-zero rejection prevents install.sh"; else _bad "leading-zero rejection prevents install.sh"; fi
+
+F16="$(make_fixture regex-invalid-space)"
+R16="$(fixture_repo "$F16")"
+M16="$(fixture_migrations "$F16")"
+add_log_migration "$M16" "1.2.0" "x y"
+set +e
+regex_space_out="$(capture_sync_fixture "$F16" --no-pull)"
+regex_space_rc=$?
+set -u
+assert_exit 1 "$regex_space_rc" "space in migration slug is rejected"
+assert_contains "$regex_space_out" "malformed migration filename: 1.2.0-x y.sh" "space rejection names file"
+if [ ! -f "$R16/install-ran.txt" ]; then _ok "space rejection prevents install.sh"; else _bad "space rejection prevents install.sh"; fi
+
+F17="$(make_fixture regex-invalid-tab)"
+R17="$(fixture_repo "$F17")"
+M17="$(fixture_migrations "$F17")"
+printf '#!/usr/bin/env bash\nset -euo pipefail\n' > "$M17/1.2.0-x	 y.sh"
+set +e
+regex_tab_out="$(capture_sync_fixture "$F17" --no-pull)"
+regex_tab_rc=$?
+set -u
+assert_exit 1 "$regex_tab_rc" "tab in migration slug is rejected"
+assert_contains "$regex_tab_out" "malformed migration filename:" "tab rejection reports malformed filename"
+if [ ! -f "$R17/install-ran.txt" ]; then _ok "tab rejection prevents install.sh"; else _bad "tab rejection prevents install.sh"; fi
+
+F18="$(make_fixture regex-valid)"
+R18="$(fixture_repo "$F18")"
+M18="$(fixture_migrations "$F18")"
+add_log_migration "$M18" "1.2.0" "ok_slug"
+add_log_migration "$M18" "1.2.1" "ok.slug-2"
+run_sync_fixture "$F18" --no-pull >/dev/null 2>&1
+assert_eq "$(printf '1.2.0\n1.2.1')" "$(cat "$R18/order.log")" "safe migration slugs are accepted"
+assert_file "$R18/install-ran.txt" "safe migration slugs allow install.sh"
 
 finish

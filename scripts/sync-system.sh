@@ -235,7 +235,9 @@ read_applied_version() {
 }
 
 validate_migration_files() {
-  local dir f base
+  local dir f base version i
+  local versions=()
+  local bases=()
   dir="$(migrations_dir)"
   [ -d "$dir" ] || return 0
   for f in "$dir"/*; do
@@ -245,11 +247,26 @@ validate_migration_files() {
     case "$base" in
       README.md|.gitkeep) continue ;;
     esac
-    if ! printf '%s\n' "$base" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+-.+\.sh$'; then
+    if ! printf '%s\n' "$base" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[A-Za-z0-9._-]+\.sh$'; then
       echo "  ABORT: malformed migration filename: $base" >&2
       echo "  Expected migrations/<semver>-<slug>.sh, e.g. migrations/1.1.0-agents-marker.sh" >&2
       exit 1
     fi
+    version="${base%%-*}"
+    if [ "${#versions[@]}" -gt 0 ]; then
+      i=0
+      while [ "$i" -lt "${#versions[@]}" ]; do
+        if [ "${versions[$i]}" = "$version" ]; then
+          echo "  ABORT: duplicate migration version: $version" >&2
+          echo "  One migration version may map to only one file." >&2
+          echo "  Colliding files: ${bases[$i]} and $base" >&2
+          exit 1
+        fi
+        i=$((i + 1))
+      done
+    fi
+    versions[${#versions[@]}]="$version"
+    bases[${#bases[@]}]="$base"
   done
 }
 
@@ -269,10 +286,12 @@ list_migration_versions() {
 }
 
 pending_migrations() {
-  local dir marker version f base
+  local dir marker versions version f base
   dir="$(migrations_dir)"
   marker="$1"
   [ -d "$dir" ] || return 0
+  versions="$(list_migration_versions | semver_sort_asc | uniq)" || return 1
+  [ -n "$versions" ] || return 0
   while IFS= read -r version; do
     [ -n "$version" ] || continue
     semver_gt "$version" "$marker" || continue
@@ -281,50 +300,77 @@ pending_migrations() {
       base="$(basename "$f")"
       printf '%s\t%s\t%s\n' "$version" "$base" "$f"
     done
-  done < <(list_migration_versions | semver_sort_asc | uniq)
+  done <<EOF
+$versions
+EOF
 }
 
 dry_run_migrations() {
-  local marker count version base file
+  local marker pending_list count version base file
   validate_migration_files
   marker="$(read_applied_version)"
+  pending_list="$(pending_migrations "$marker")" || { echo "  ABORT: could not compute pending migrations." >&2; exit 1; }
   step "[dry-run] pending migrations"
   info "applied marker: $marker"
   count=0
-  while IFS="$(printf '\t')" read -r version base file; do
-    [ -n "$version" ] || continue
-    count=$((count + 1))
-    info "$version  $base"
-  done < <(pending_migrations "$marker")
+  if [ -n "$pending_list" ]; then
+    while IFS="$(printf '\t')" read -r version base file; do
+      [ -n "$version" ] || continue
+      count=$((count + 1))
+      info "$version  $base"
+    done <<EOF
+$pending_list
+EOF
+  fi
   if [ "$count" -eq 0 ]; then
     info "none"
   fi
 }
 
+write_applied_version() {
+  local marker_file="$1" version="$2" marker_dir tmp rc
+  marker_dir="$(dirname "$marker_file")"
+  mkdir -p "$marker_dir"
+  tmp="$marker_file.tmp.$$"
+  printf '%s\n' "$version" > "$tmp" || {
+    rc=$?
+    rm -f "$tmp"
+    exit "$rc"
+  }
+  mv "$tmp" "$marker_file" || {
+    rc=$?
+    rm -f "$tmp"
+    exit "$rc"
+  }
+}
+
 run_migrations() {
-  local marker marker_file version base file count rc marker_dir
+  local marker marker_file pending_list version base file count rc
   validate_migration_files
   marker="$(read_applied_version)"
   marker_file="$(applied_version_file)"
+  pending_list="$(pending_migrations "$marker")" || { echo "  ABORT: could not compute pending migrations." >&2; exit 1; }
   count=0
-  while IFS="$(printf '\t')" read -r version base file; do
-    [ -n "$version" ] || continue
-    count=$((count + 1))
-    step "Running migration $base"
-    info "version: $version"
-    if MEMORY_DIR="$MEMORY_DIR" REPO_ROOT="$REPO_ROOT" bash "$file"; then
-      marker_dir="$(dirname "$marker_file")"
-      mkdir -p "$marker_dir"
-      printf '%s\n' "$version" > "$marker_file"
-      marker="$version"
-      info "recorded $(basename "$marker_file"): $version"
-    else
-      rc=$?
-      echo "  ABORT: migration failed: $file" >&2
-      echo "  The applied-version marker was left at $marker." >&2
-      exit "$rc"
-    fi
-  done < <(pending_migrations "$marker")
+  if [ -n "$pending_list" ]; then
+    while IFS="$(printf '\t')" read -r version base file; do
+      [ -n "$version" ] || continue
+      count=$((count + 1))
+      step "Running migration $base"
+      info "version: $version"
+      if MEMORY_DIR="$MEMORY_DIR" REPO_ROOT="$REPO_ROOT" bash "$file"; then
+        write_applied_version "$marker_file" "$version"
+        marker="$version"
+        info "recorded $(basename "$marker_file"): $version"
+      else
+        rc=$?
+        echo "  ABORT: migration failed: $file" >&2
+        echo "  The applied-version marker was left at $marker." >&2
+        exit "$rc"
+      fi
+    done <<EOF
+$pending_list
+EOF
+  fi
   if [ "$count" -eq 0 ]; then
     info "No pending migrations (applied marker: $marker)"
   fi

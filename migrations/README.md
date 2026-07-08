@@ -15,6 +15,8 @@ Example:
 Rules:
 
 - Forward-only: no down-migrations.
+- One migration per version. If a change needs two ordered steps, give them two versions.
+- Filename format is strict: semver core without leading zeroes, then a slug containing only letters, numbers, `.`, `_`, or `-`.
 - Idempotent and re-runnable: a migration may run against a tree that already has the change.
 - Touch data and harness config only: `$MEMORY_DIR` data, `~/.claude/settings.json`, `~/.gemini/...`.
 - Never touch engine code: git already moves the engine files.
