@@ -20,32 +20,4 @@
 #   ref  = "v1.2.0"
 #   path = "skills/renovate"
 
-[[skills]]
-name = "renovate-manager"
-url  = "git@github.com:seyio91/agent-skills.git"
-ref  = "main"
-path = "renovate-manager"
-
-[[skills]]
-name = "brainstorming"
-url  = "git@github.com:seyio91/agent-skills.git"
-ref  = "main"
-path = "brainstorming"
-
-[[skills]]
-name = "excalidraw-diagram"
-url  = "git@github.com:seyio91/agent-skills.git"
-ref  = "main"
-path = "excalidraw-diagram"
-
-[[skills]]
-name = "observability-check"
-url  = "git@github.com:seyio91/agent-skills.git"
-ref  = "main"
-path = "observability-check"
-
-[[skills]]
-name = "terraform-example-gen"
-url  = "git@github.com:seyio91/agent-skills.git"
-ref  = "main"
-path = "terraform-example-gen"
+# (no generic remote skills declared yet)
