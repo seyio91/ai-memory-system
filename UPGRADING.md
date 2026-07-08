@@ -92,6 +92,35 @@ Released versions that need manual steps or carry a migration get one section:
 
 `scripts/tests/test_upgrading_doc.sh` enforces that every
 `migrations/<version>-<slug>.sh` file has a matching `## <version>` section here.
+The reverse does not hold: a version may need a manual step without shipping a
+migration — as the next section does.
 
-There are currently no per-version upgrade notes because there are no migration
-files yet.
+## 1.1.0
+
+**`identity.md` is no longer tracked. Back it up before upgrading.**
+
+It is now per-instance and git-ignored, like `config.local.sh` and `skills.toml`.
+`install.sh` seeds it from the tracked `identity.template.md` whenever it is missing.
+
+Tracking it was a trap: `install.sh` tells you to edit `identity.md`, and
+`sync-system.sh`'s dirty-tracked-file guard then aborts every subsequent sync. An
+instance was bricked the moment it was personalised.
+
+What happens when you upgrade past `1.1.0`:
+
+| Your `identity.md` | Result |
+|---|---|
+| Edited (differs from `v1.0.0`) | Sync **aborts** on the dirty guard. Save your copy, then `git checkout -- identity.md`, sync, and restore it. |
+| Unedited | Git deletes it during checkout; `install.sh` reseeds the generic template. Your previous content is recoverable with `git show v1.0.0:identity.md`. |
+| Absent (fresh install) | Seeded from the template. Nothing to do. |
+
+**A migration cannot do this for you.** The runner executes *after* checkout, by
+which point git has already removed the file — so this is a manual note, not a
+`migrations/1.1.0-*.sh`. Any future removal of a tracked file has the same
+constraint.
+
+Recover the old content at any time:
+
+```bash
+git show v1.0.0:identity.md > identity.md
+```

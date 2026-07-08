@@ -55,8 +55,9 @@ set `MEMORY_DIR` to that path before running `install.sh`.
 > **Committed vs ignored.** The engine ships — `scripts/`, the `harnesses/claude/` wiring,
 > `skills/`, `agents/`, and the `*.template.md` files. Your data does not: the real
 > `index.md`, `domain/*.md`, `projects/*` (except `_template/`), `tasks/`, and
-> `archive/` are git-ignored. `identity.md` is committed (preferences, not client
-> data) alongside `identity.template.md` as a generic starting point. See `.gitignore`.
+> `archive/` are git-ignored — and so is `identity.md`, which is per-instance. The
+> tracked `identity.template.md` is its generic starting point; `install.sh` copies
+> it to `identity.md` whenever that file is missing. See `.gitignore`.
 
 ## Upgrading
 
@@ -92,7 +93,7 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── install.sh                         # Links the harnesses/claude/ wiring into ~/.claude (see Install)
 ├── LICENSE
 ├── .gitignore                         # Ships templates + engine; ignores your real memory data
-├── identity.md                        # Hard rules, injected once per Claude session (git-tracked)
+├── identity.md                        # Hard rules, injected once per session (per-instance, git-ignored)
 ├── identity.template.md               # Generic starting point for identity.md
 ├── CHANGELOG.md                       # Thin changelog shell; release.sh finalizes sections
 ├── UPGRADING.md                       # Channel, rollback, semver, and migration notes
