@@ -1,22 +1,44 @@
-Pull the latest memory-system from the remote and reinstall every feature it ships (hooks, slash commands, skills, agents, statusline).
+Sync this instance to its configured channel, run pending migrations, and reinstall every feature the checked-out version ships (hooks, slash commands, skills, agents, statusline).
 
-Use this after the remote has new commits — a plain `git pull` updates the repo files, but new commands/skills/agents only become visible to the harness once they are symlinked into `~/.claude/`. This command does both.
+A plain `git pull` updates repo files, but new commands/skills/agents only become visible to the harness once they are symlinked into `~/.claude/`. This does both — and it never syncs to raw `main` unless the instance is configured to.
+
+**The channel decides what a plain sync does.** It is per-instance, set in the gitignored `config.local.sh`:
+
+- `AI_MEMORY_CHANNEL=release` (**the default when unset**) — check out the latest stable `v*` tag. The instance ends on a detached HEAD at that tag; consumer instances never commit.
+- `AI_MEMORY_CHANNEL=dev` — fast-forward pull of the tracking branch. For the source checkout and dogfood instances. Recovers automatically from a detached HEAD.
+
+A value exported in `config.local.sh` **overrides an environment prefix**, so `AI_MEMORY_CHANNEL=dev bash sync-system.sh` will not work on an instance whose config sets the channel. Edit the file.
 
 Argument: `$ARGUMENTS` — optional flags forwarded to the script:
-- `--dry-run` — show the incoming commits and the changed-file stat, then stop without pulling or installing.
-- `--no-pull` — skip the fetch/pull; just relink features from the current tree (use after a manual edit to the store).
+
+- `--dry-run` — report the resolved channel, the target ref, and the pending migrations; mutate nothing.
+- `--to <ref>` — one-shot checkout of a tag, branch, or sha. **Ephemeral**: it does not change the channel, so the next plain sync snaps back to the channel default. `--to <branch>` checks out that ref *as-is* and does not fast-forward it — to dogfood current `main`, use `--to origin/main`.
+- `--no-pull` — skip the fetch/checkout; just relink features from the current tree. Cannot be combined with `--to` (usage error, exit 2).
+- `--update` — additionally re-resolve remote skills against their pinned refs.
 
 Step 1 — run:
+
 ```
 bash ~/.claude-memory/scripts/sync-system.sh $ARGUMENTS
 ```
-Capture stdout and the exit code. The script does a `--ff-only` pull (it aborts, rather than merging, if the local branch has diverged) and then re-runs the idempotent `install.sh`, which relinks hooks, commands, skills, agents, and the statusline.
+
+Capture stdout and the exit code. Every path shares one tail: dirty-tracked-file guard → `git fetch --tags` → checkout (or ff-merge on `dev`) → **pending migrations** → the idempotent `install.sh`.
 
 Step 2 — report concisely:
-- If "already up to date": say so in one line and stop.
-- If it pulled: summarize the incoming commits (the script prints the `git log --oneline` range) and name any **new** slash commands / skills / agents that got linked (lines like `link: <name>` in the install output). These are the freshly available features.
-- If it aborted on divergence: surface the abort message — the user has local commits or a dirty tree and must resolve by hand. Do not attempt to merge or rebase.
+
+- **Synced** — say which version is now live (`git describe --tags`) and name any **new** slash commands / skills / agents that got linked (lines like `link: <name>`).
+- **Migrations ran** — name each one. They mutate instance data and harness config, and `.applied-version` records the high-water mark. Never re-run them by hand.
+- **Aborted on a dirty tracked tree** — surface the message. The user has local modifications to a *tracked* file. Untracked and git-ignored files never block. Do not stash, commit, or discard on their behalf.
+- **Aborted with "no release tag yet"** — the release channel has nothing to check out. Either a tag must be cut, or this instance belongs on `dev`.
+- **Aborted on divergence (`dev` only)** — the branch has local commits or a non-ff history. Surface it; do not merge or rebase.
+- **A migration failed** — the sync stopped *before* `install.sh`, and `.applied-version` sits at the last migration that succeeded. Re-running resumes from there. Surface the failing filename.
 
 Step 3 — if any new slash command was linked, remind the user once: slash commands load at session start, so they must restart or reconnect the session to see it.
 
-Do not edit files from this command — it is pull-and-relink only.
+Do not edit files from this command — it is sync-and-relink only.
+
+**Two things this command is not for.**
+
+Converting an existing `main`-tracking instance to the release channel for the first time is a documented runbook, not this command: `UPGRADING.md` → *Converting an existing instance to the release channel*.
+
+Never point an instance at a tag earlier than `v1.1.0`. At `v1.0.0` `identity.md` was still tracked, so checking it out **silently overwrites** a personalised `identity.md` — no conflict, no warning, clean tree afterwards.
