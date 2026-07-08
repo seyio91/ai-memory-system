@@ -40,7 +40,7 @@ cd ~/.claude-memory
 | Page | What's in it |
 |------|--------------|
 | [docs/install.md](docs/install.md) | Install, rebuilding the wiring by hand, directory layout, project detection & the reverse (project→checkout) map |
-| [docs/harnesses/claude.md](docs/harnesses/claude.md) | Claude Code: auto-injection, hooks, slash commands, skills, the skill write-boundary & self-rating loop |
+| [docs/harnesses/claude.md](docs/harnesses/claude.md) | Claude Code: auto-injection, hooks, slash commands, skills, the skill self-rating loop |
 | [docs/harnesses/codex.md](docs/harnesses/codex.md) | Codex CLI: the `codex-mem.sh` bridge, what lands in `AGENTS.md`, the local overlay, `/checkpoint` in Codex |
 | [docs/harnesses/antigravity.md](docs/harnesses/antigravity.md) | Antigravity (`agy`): live `PreInvocation` injection, the `PreToolUse` enforcement guard + read-only executor, skills/commands via `~/.agents/skills`, the memory-aware statusline |
 | [docs/harnesses/adding-a-harness.md](docs/harnesses/adding-a-harness.md) | Register a new harness by manifest — archetype, surfaces, launch wrapper, detection |

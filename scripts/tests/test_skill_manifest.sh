@@ -17,7 +17,7 @@ run() { set +e; out=$(bash "$@" 2>&1); code=$?; set -e; }
 
 # remote repo with a skill at a subpath
 mkdir -p "$REPO/packs/widget"
-printf -- '---\nname: widget\ndescription: remote widget skill.\nmetadata:\n  tier: target-read-only\n---\n# widget\n' > "$REPO/packs/widget/SKILL.md"
+printf -- '---\nname: widget\ndescription: remote widget skill.\n---\n# widget\n' > "$REPO/packs/widget/SKILL.md"
 git -C "$REPO" init -q; git -C "$REPO" config user.email t@t.co; git -C "$REPO" config user.name t
 git -C "$REPO" add -A; git -C "$REPO" commit -qm init
 BRANCH="$(git -C "$REPO" rev-parse --abbrev-ref HEAD)"
@@ -78,7 +78,7 @@ assert_exit 1 "$e" "--no-save resolved nothing"
 # === list-skills: unified provenance ==========================================
 # add an authored skill alongside the resolved remotes
 mkdir -p "$MEM/skills/authored-one"
-printf -- '---\nname: authored-one\nmetadata:\n  tier: target-write\n---\n# a\n' > "$MEM/skills/authored-one/SKILL.md"
+printf -- '---\nname: authored-one\ndescription: an authored skill.\n---\n# a\n' > "$MEM/skills/authored-one/SKILL.md"
 
 run "$LS"
 assert_exit 0 "$code" "list-skills runs"

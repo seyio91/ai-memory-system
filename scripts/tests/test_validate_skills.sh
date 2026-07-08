@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# validate-skills.sh: tier + structural static checks over a skills store.
+# validate-skills.sh: structural static checks over a skills store.
 . "$(dirname "$0")/_assert.sh"
 
 VS="$SCRIPTS_DIR/validate-skills.sh"
@@ -20,8 +20,6 @@ write_skill "$MEM" good-ro <<'EOF'
 ---
 name: good-ro
 description: A read-only skill.
-metadata:
-  tier: target-read-only
 ---
 # Good RO
 Body.
@@ -33,8 +31,6 @@ name: good-rw
 description:
   A write skill whose description is a YAML block scalar
   spanning two lines.
-metadata:
-  tier: target-write
 ---
 # Good RW
 Body.
@@ -45,8 +41,6 @@ write_skill "$MEM" good-content <<'EOF'
 ---
 name: good-content
 description: legitimate lowercase templating in body.
-metadata:
-  tier: target-write
 ---
 # Good content
 "legendFormat": "{{status_code}}", titled "{{service}} {{version}}".
@@ -71,22 +65,10 @@ assert_contains "$lst" "good-ro" "--list shows good-ro"
 BAD="$(new_sandbox)"
 export MEMORY_DIR="$BAD"
 
-# top-level tier (outside metadata:) must NOT satisfy the metadata.tier check
-write_skill "$BAD" toptier <<'EOF'
----
-name: toptier
-description: tier at top level, not under metadata.
-tier: target-write
----
-# x
-EOF
-
 # missing name key
 write_skill "$BAD" noname <<'EOF'
 ---
 description: no name field.
-metadata:
-  tier: target-read-only
 ---
 # x
 EOF
@@ -97,15 +79,13 @@ printf 'name: noopen\nNo frontmatter fence here.\n' > "$BAD/skills/noopen/SKILL.
 
 # opening --- present, closing --- absent
 mkdir -p "$BAD/skills/noclose"
-printf -- '---\nname: noclose\ndescription: unterminated.\nmetadata:\n  tier: target-write\n# body, never closed\n' > "$BAD/skills/noclose/SKILL.md"
+printf -- '---\nname: noclose\ndescription: unterminated.\n# body, never closed\n' > "$BAD/skills/noclose/SKILL.md"
 
 # valid one survives alongside the bad ones
 write_skill "$BAD" ok <<'EOF'
 ---
 name: ok
 description: fine.
-metadata:
-  tier: target-write
 ---
 # ok
 EOF
@@ -113,29 +93,9 @@ EOF
 # dir with no SKILL.md
 mkdir -p "$BAD/skills/nomd"
 
-write_skill "$BAD" notier <<'EOF'
----
-name: notier
-description: missing tier.
----
-# x
-EOF
-
-write_skill "$BAD" badtier <<'EOF'
----
-name: badtier
-description: bogus tier value.
-metadata:
-  tier: sometimes
----
-# x
-EOF
-
 write_skill "$BAD" nodesc <<'EOF'
 ---
 name: nodesc
-metadata:
-  tier: target-read-only
 ---
 # x
 EOF
@@ -144,8 +104,6 @@ write_skill "$BAD" ph <<'EOF'
 ---
 name: ph
 description: has a placeholder.
-metadata:
-  tier: target-write
 ---
 Body with {{UNRESOLVED}} token.
 EOF
@@ -155,12 +113,9 @@ out=$(bash "$VS" 2>&1); code=$?
 set -e
 assert_exit 1 "$code" "bad store exits 1"
 assert_contains "$out" "nomd missing SKILL.md" "flags missing SKILL.md"
-assert_contains "$out" "notier missing metadata.tier" "flags missing tier"
-assert_contains "$out" "badtier invalid metadata.tier: 'sometimes'" "flags invalid tier"
 assert_contains "$out" "nodesc missing frontmatter field: description" "flags missing description"
 assert_contains "$out" "noname missing frontmatter field: name" "flags missing name"
 assert_contains "$out" "ph has unresolved placeholder(s): {{UNRESOLVED}}" "flags placeholder"
-assert_contains "$out" "toptier missing metadata.tier" "top-level tier doesn't satisfy metadata.tier"
 assert_contains "$out" "noopen SKILL.md has no opening frontmatter" "flags missing opening ---"
 assert_contains "$out" "noclose frontmatter not closed" "flags missing closing ---"
 
@@ -169,7 +124,7 @@ BIG="$(new_sandbox)"
 export MEMORY_DIR="$BIG"
 mkdir -p "$BIG/skills/big"
 {
-    printf -- '---\nname: big\ndescription: big.\nmetadata:\n  tier: target-write\n---\n'
+    printf -- '---\nname: big\ndescription: big.\n---\n'
     i=1; while [ "$i" -le 520 ]; do printf 'line %d\n' "$i"; i=$((i + 1)); done
 } > "$BIG/skills/big/SKILL.md"
 

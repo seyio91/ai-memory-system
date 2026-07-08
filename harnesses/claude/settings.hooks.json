@@ -22,21 +22,6 @@
           { "type": "command", "command": "$HOME/.claude/hooks/block_task_tools.sh" }
         ]
       }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Skill",
-        "hooks": [
-          { "type": "command", "command": "$HOME/.claude/hooks/skill_boundary_marker.sh" }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "$HOME/.claude/hooks/skill_boundary_check.sh" }
-        ]
-      }
     ]
   },
   "statusLine": {

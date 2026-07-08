@@ -22,7 +22,6 @@ assert_file "$TGT/state/SKILL.md"      "state SKILL.md generated"
 body="$(cat "$TGT/pin/SKILL.md")"
 assert_contains "$body" "name: pin"                 "pin: name frontmatter"
 assert_contains "$body" "Pin the current repo"      "pin: description from first line"
-assert_contains "$body" "tier: target-write"        "pin: tier frontmatter"
 assert_contains "$body" "More body here."           "pin: command body carried through"
 # description with an embedded double-quote is escaped (state.md has one)
 assert_contains "$(cat "$TGT/state/SKILL.md")" '\"In Flight\"' "state: description double-quotes escaped"

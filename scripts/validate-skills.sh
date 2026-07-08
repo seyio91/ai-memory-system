@@ -11,9 +11,8 @@
 #   1. SKILL.md exists
 #   2. frontmatter present (opening + closing ---)
 #   3. required fields present: name, description
-#   4. metadata.tier present and valid (target-read-only | target-write)
-#   5. size flag (WARN) when SKILL.md exceeds $SKILL_MAX_LINES (default 500)
-#   6. no unresolved {{PLACEHOLDER}} scaffolding tokens (UPPERCASE only — lowercase
+#   4. size flag (WARN) when SKILL.md exceeds $SKILL_MAX_LINES (default 500)
+#   5. no unresolved {{PLACEHOLDER}} scaffolding tokens (UPPERCASE only — lowercase
 #      {{...}} is legitimate content, e.g. Grafana legendFormat "{{status_code}}")
 #
 # Usage: validate-skills.sh [--list]
@@ -27,7 +26,6 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 [ -n "${SKILLS_DIR:-}" ] && export AI_MEMORY_SKILL_ROOTS="$SKILLS_DIR"
 
 MAX_LINES="${SKILL_MAX_LINES:-500}"
-VALID_TIERS="target-read-only target-write"
 ERRORS=0
 
 err()  { printf 'ERROR: %s\n' "$*"; ERRORS=$((ERRORS + 1)); }
@@ -48,23 +46,6 @@ fm_has_close() {
     awk '
         NR == 1 && /^---[[:space:]]*$/ { o = 1; next }
         o && /^---[[:space:]]*$/ { print "yes"; exit }
-    ' "$1"
-}
-
-# fm_tier — pull metadata.tier (nested under the metadata: block) from frontmatter.
-fm_tier() {
-    awk '
-        NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
-        fm && /^---[[:space:]]*$/ { exit }
-        fm && /^metadata:[[:space:]]*$/ { meta = 1; next }
-        fm && meta && /^  tier:[[:space:]]*/ {
-            v = $0
-            sub(/^  tier:[[:space:]]*/, "", v)
-            sub(/[[:space:]]+$/, "", v)
-            print v
-            exit
-        }
-        fm && /^[^[:space:]]/ { meta = 0 }
     ' "$1"
 }
 
@@ -109,24 +90,13 @@ while IFS= read -r d; do
     [ -n "$(fm_has_key name "$f")" ]        || err "$name missing frontmatter field: name"
     [ -n "$(fm_has_key description "$f")" ] || err "$name missing frontmatter field: description"
 
-    # 4. metadata.tier present + valid
-    tier="$(fm_tier "$f")"
-    if [ -z "$tier" ]; then
-        err "$name missing metadata.tier (want: target-read-only | target-write)"
-    else
-        case " $VALID_TIERS " in
-            *" $tier "*) : ;;
-            *) err "$name invalid metadata.tier: '$tier' (want: target-read-only | target-write)" ;;
-        esac
-    fi
-
-    # 5. size flag (advisory)
+    # 4. size flag (advisory)
     lines=$(wc -l < "$f" | tr -d '[:space:]')
     if [ "${lines:-0}" -gt "$MAX_LINES" ]; then
         warn "$name SKILL.md is $lines lines (> $MAX_LINES; consider splitting)"
     fi
 
-    # 6. no unresolved scaffolding placeholders (UPPERCASE tokens only; lowercase
+    # 5. no unresolved scaffolding placeholders (UPPERCASE tokens only; lowercase
     #    {{...}} is legitimate content such as Grafana legend templating)
     if grep -q '{{[A-Z][A-Z0-9_]*}}' "$f"; then
         toks=$(grep -oE '\{\{[A-Z][A-Z0-9_]*\}\}' "$f" | sort -u | tr '\n' ' ')

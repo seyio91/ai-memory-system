@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # new-skill.sh — scaffold a NEW skill to the memory-system schema (#12).
 # Writes skills/<name>/SKILL.md with the required frontmatter (name, description,
-# metadata.tier, metadata.compatibility), then validates it. A skill may write
-# its own skills/<name>/ folder at any time, regardless of tier.
+# metadata.compatibility), then validates it.
 #
 # Authored skills live in skills/ (gitignored, per-instance).
 #
 # Usage:
-#   new-skill.sh --name <name> --tier target-read-only|target-write \
+#   new-skill.sh --name <name> \
 #       [--description <text>] [--kind workflow|reference] \
 #       [--compat <csv>] [--link] [--force]
 set -euo pipefail
@@ -15,24 +14,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-NAME="" TIER="" DESC="" KIND="" COMPAT="claude-code, codex-cli" LINK=0 FORCE=0
+NAME="" DESC="" KIND="" COMPAT="claude-code, codex-cli" LINK=0 FORCE=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --name)        NAME="${2:-}"; shift 2 ;;
-        --tier)        TIER="${2:-}"; shift 2 ;;
         --description) DESC="${2:-}"; shift 2 ;;
         --kind)        KIND="${2:-}"; shift 2 ;;
         --compat)      COMPAT="${2:-}"; shift 2 ;;
         --link)        LINK=1; shift ;;
         --force)       FORCE=1; shift ;;
-        -h|--help)     sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)     sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) printf 'new-skill: unknown arg: %s\n' "$1" >&2; exit 2 ;;
     esac
 done
 
 [ -n "$NAME" ] || { printf 'new-skill: --name required\n' >&2; exit 2; }
 case "$NAME" in *[!A-Za-z0-9._-]*|.|..) printf 'new-skill: invalid name (allowed: A-Za-z0-9._-; not . or ..)\n' >&2; exit 2 ;; esac
-case "$TIER" in target-read-only|target-write) : ;; *) printf 'new-skill: --tier must be target-read-only | target-write\n' >&2; exit 2 ;; esac
 if [ -n "$KIND" ]; then
     case "$KIND" in workflow|reference) : ;; *) printf 'new-skill: --kind must be workflow | reference\n' >&2; exit 2 ;; esac
 fi
@@ -51,18 +48,12 @@ mkdir -p "$TARGET"
     printf 'name: %s\n' "$NAME"
     printf 'description: %s\n' "$DESC"
     printf 'metadata:\n'
-    printf '  tier: %s\n' "$TIER"
     [ -n "$KIND" ] && printf '  kind: %s\n' "$KIND"
     printf '  compatibility: %s\n' "$COMPAT"
     printf -- '---\n\n'
     printf '# %s\n\n' "$NAME"
     printf 'TODO: the instruction set. Brief a skilled colleague — what to do, in what\n'
-    printf 'order, and what to produce. '
-    if [ "$TIER" = target-read-only ]; then
-        printf 'This skill MUST NOT modify the target it\noperates on; write any output (notes, reviews, self-rating) to its own folder\n(%s/%s/), never to the target repo or the system memory tree.\n' "$STORE" "$NAME"
-    else
-        printf 'This skill may modify the target it operates\non.\n'
-    fi
+    printf 'order, and what to produce.\n'
 } > "$TARGET/SKILL.md"
 
 echo "created: $TARGET/SKILL.md"

@@ -9,18 +9,18 @@ MEM="$(new_sandbox)"
 trap 'rm -rf "$MEM"' EXIT
 export MEMORY_DIR="$MEM"
 
-seed_skill() { # <name> <tier>
+seed_skill() { # <name>
     mkdir -p "$MEM/skills/$1"
-    printf -- '---\nname: %s\ndescription: seed skill for tests.\nmetadata:\n  tier: %s\n---\n# %s\nbody.\n' "$1" "$2" "$1" > "$MEM/skills/$1/SKILL.md"
+    printf -- '---\nname: %s\ndescription: seed skill for tests.\n---\n# %s\nbody.\n' "$1" "$1" > "$MEM/skills/$1/SKILL.md"
 }
 
 run() { set +e; out=$(bash "$@" 2>&1); code=$?; set -e; }
 
-seed_skill renovate-manager target-read-only
-seed_skill observability-check target-read-only
-seed_skill fiter-infrastructure-analyzer target-write
-seed_skill brainstorming target-read-only
-seed_skill teach target-read-only
+seed_skill renovate-manager
+seed_skill observability-check
+seed_skill fiter-infrastructure-analyzer
+seed_skill brainstorming
+seed_skill teach
 
 # === apply-partial (marker-derived membership) =============================
 # First injection is an explicit act -> refused without --force, file untouched.
@@ -56,7 +56,7 @@ assert_exit 0 "$code" "--force injects into any skill (membership = marker)"
 assert_contains "$(cat "$MEM/skills/teach/SKILL.md")" "partial:self-rating START" "forced block injected"
 
 # --all re-syncs every carrier, and ONLY carriers.
-seed_skill observability-check target-read-only   # reset -> a non-carrier
+seed_skill observability-check   # reset -> a non-carrier
 run "$AP" --all
 assert_exit 0 "$code" "--all re-syncs carriers"
 assert_contains "$(cat "$MEM/skills/brainstorming/SKILL.md")" "partial:self-rating START" "--all kept carrier brainstorming"
@@ -100,7 +100,7 @@ run "$SR"
 assert_not_contains "$out" "brainstorming " "scoreless log skipped in default view"
 
 # a carrier whose ONLY scores are out-of-range is treated as unrated, not vanished
-seed_skill outofrange target-read-only
+seed_skill outofrange
 run "$AP" --skill outofrange --force >/dev/null
 printf '## bad\n- score: 99\n- improve: x\n' > "$MEM/skills/outofrange/self-rating.md"
 run "$SR"
@@ -115,7 +115,7 @@ assert_contains "$out" "no ratings yet" "--all lists in-loop skills (carrying th
 
 # === multi-root: a cached remote skill is first-class for apply-partial + ratings ===
 mkdir -p "$MEM/.skill-cache/rem-rated"
-printf -- '---\nname: rem-rated\ndescription: remote skill.\nmetadata:\n  tier: target-write\n---\n# rem-rated\n' > "$MEM/.skill-cache/rem-rated/SKILL.md"
+printf -- '---\nname: rem-rated\ndescription: remote skill.\n---\n# rem-rated\n' > "$MEM/.skill-cache/rem-rated/SKILL.md"
 # apply-partial resolves the remote skill across roots (no skills/ copy exists)
 run "$AP" --skill rem-rated --force
 assert_exit 0 "$code" "apply-partial injects into a cached remote skill"
