@@ -199,6 +199,27 @@ semver_sort_asc() {
     fi
 }
 
+stable_release_tags() {
+    git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true
+}
+
+latest_release_tag() {
+    local tag candidate
+    tag=""
+    if sort_v_supported; then
+        tag="$(stable_release_tags | sort -V | tail -1)"
+    else
+        while IFS= read -r candidate; do
+            [ -n "$candidate" ] || continue
+            if [ -z "$tag" ] || semver_gt "$candidate" "$tag"; then
+                tag="$candidate"
+            fi
+        done < <(stable_release_tags)
+    fi
+    [ -n "$tag" ] || return 1
+    printf '%s\n' "$tag"
+}
+
 # detect_active_project — print active project name to stdout, or empty.
 # Walks up from $1 (defaults to cwd) looking for the harness-neutral marker
 # .agents/memory-project, falling back to the legacy .claude/memory-project (pre-
