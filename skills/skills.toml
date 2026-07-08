@@ -20,4 +20,8 @@
 #   ref  = "v1.2.0"
 #   path = "skills/renovate"
 
-# (no generic remote skills declared yet)
+[[skills]]
+name = "renovate-manager"
+url  = "git@github.com:seyio91/agent-skills.git"
+ref  = "main"
+path = "renovate-manager"
