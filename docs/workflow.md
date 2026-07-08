@@ -8,22 +8,25 @@
 | Quick actionable item | one edit, a one-off command, a short fix | Just do it. No plan, no `todo.md` entry. |
 | Large / non-trivial actionable task | multi-step, multiple files, real blast radius | Plan file + `todo.md` step tracking; flows through the role pipeline below. |
 
-`todo.md` tracks **plan execution** — no plan means no `todo.md` entry. Only the third tier flows through the orchestrator/executor/validator roles. The orchestrator is Claude (main session); the executor is selectable (`claude-subagent` by default, or a configured CLI like `codex`); the validator resolves through the **same configured executor**, re-invoked as an independent pass.
+`todo.md` tracks **plan execution** — no plan means no `todo.md` entry. Only the third tier flows through the orchestrator/executor/validator roles. The orchestrator is Claude (main session); the executor is selectable (`claude-subagent` by default, or a configured CLI like `codex`); the validator is its own selectable, **read-only** role that defaults to the orchestrator's agent plane — so a CLI executor is checked **cross-model** by default.
 
 ## Roles
 
 | Role | Tool | Model | Responsibility |
 |------|------|-------|----------------|
 | Orchestrator | Claude main session | Opus | Plans, decomposes into `todo.md` items, delegates non-trivial work. **Handles short tasks directly when delegating would be more overhead than the work. Handles all research/exploration directly — no plan/todo/executor for read-only investigation.** |
-| Executor | selectable via `AI_MEMORY_EXECUTOR` (see [Executor selection](#executor-selection)) | per executor | Writes code/config in the workspace; runs read-only commands; never applies/merges to infra. `claude-subagent` (in-harness Agent tool, `sonnet`/`haiku`) by default; `codex` or another CLI when configured. |
-| Validator | **the same configured executor, re-invoked** (resolve via `executor.sh --which`, same as the executor) | per executor | Independent check on executor output. Whatever backend runs execution also runs validation — **independence comes from it being a separate, fresh invocation** with a validation prompt, not from using a different tool. Invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, GitOps-visible ops, multi-step state. Verifies output against the plan's `## Success criteria` (see [Task Contract](#task-contract)) — each criterion pass/fail with evidence, scope capped to exactly those. |
+| Executor | selectable via `AI_MEMORY_EXECUTOR[_TASK]` (see [Executor selection](#executor-selection)) | per executor | Writes code/config in the workspace; runs read-only commands; never applies/merges to infra. `claude-subagent` (in-harness Agent tool, `sonnet`/`haiku`) by default; `codex` or another CLI when configured. |
+| Validator | selectable via `AI_MEMORY_EXECUTOR_VALIDATE` (resolve via `executor.sh --role validate --which`); **read-only**; defaults to the orchestrator's agent plane | per validator | Independent check on executor output. **Read-only** — it verifies, never repairs — so it resolves through the harness's `exec_readonly` face and degrades to the subagent plane when a harness has no read-only mode. When its var is unset it defaults to `claude-subagent` (the orchestrator's own plane), **not** the executor's value, so validation is **cross-model by default** — a CLI executor is checked by a decorrelated model. Independence still also comes from it being a **separate, fresh invocation** against the plan's `## Success criteria` (see [Task Contract](#task-contract)) — each criterion pass/fail with evidence, scope capped to exactly those. Invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, GitOps-visible ops, multi-step state. |
 
-> **Validator = same backend, separate invocation.** The validator is not pinned to any one
-> tool. The orchestrator runs `scripts/executor.sh --which` again and invokes that backend
-> (`subagent` → Claude `Agent` tool; `cli:<key>` → `executor.sh --run`) with a validation
-> prompt. So if execution ran on `codex`, validation runs on `codex` too — a fresh, independent
-> call. The independence property that makes validation meaningful comes from the **separate
-> invocation against the Success criteria**, not from choosing a different executor.
+> **Validator = read-only, cross-model by default, separate invocation.** The orchestrator runs
+> `scripts/executor.sh --role validate --which` and invokes that backend (`subagent[:model]` →
+> Claude `Agent` tool; `cli:<key>` → `executor.sh --role validate --run`) with a validation
+> prompt. With `AI_MEMORY_EXECUTOR_VALIDATE` unset, that backend is the orchestrator's own agent
+> plane — so if execution ran on `codex`, validation runs on a decorrelated model, catching
+> shared *reasoning* blind spots, not just shared context. Set `AI_MEMORY_EXECUTOR_VALIDATE`
+> explicitly to pin a specific validator (capability floor: auto-selection never picks a weaker
+> model). The independence that makes validation meaningful comes from the **separate invocation
+> against the Success criteria** — now reinforced by model decorrelation.
 
 ## Task Contract
 
@@ -45,20 +48,23 @@ Enforcement is **template-only** — `/new-plan` scaffolds the section; no hook 
 
 ## Executor selection
 
-The orchestrator delegates actionable work to a **selectable executor**, configured in `config.local.sh`. The **validator uses this same resolution** — it is not a separate config knob.
+The orchestrator delegates actionable work to a **selectable executor**, configured in `config.local.sh`. Selection is per **role** (`task`|`explore`|`validate`), each a `harness[:model]` value; the validator is its **own** knob, not the executor's.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `AI_MEMORY_EXECUTOR` | `claude-subagent` | Preferred executor (and validator backend). Built-ins: `claude-subagent` (in-harness Agent tool), `codex` (CLI via `codex-mem.sh --executor`). Any other value names a generic CLI executor. |
+| `AI_MEMORY_EXECUTOR_TASK` | (legacy `AI_MEMORY_EXECUTOR`, else `claude-subagent`) | Write-capable executor for a plan step (`--role task`). |
+| `AI_MEMORY_EXECUTOR_EXPLORE` | (legacy `AI_MEMORY_EXECUTOR`, else `claude-subagent`) | Read-only scouting executor (`--role explore`); a harness with no read-only mode degrades to the subagent plane. |
+| `AI_MEMORY_EXECUTOR_VALIDATE` | `claude-subagent` (does **not** chain to the legacy var) | Read-only validator (`--role validate`). Defaulting to the orchestrator plane makes validation cross-model against any CLI executor; degrades to the subagent plane if a harness lacks a read-only mode. |
+| `AI_MEMORY_EXECUTOR` | `claude-subagent` | Legacy single var — fallback for `task`/`explore` only. Built-ins: `claude-subagent` (in-harness Agent tool), `codex` (CLI via `codex-mem.sh --executor`). Any other value names a generic CLI executor. |
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | Command template for generic CLI executor `<key>` (`{prompt}` substituted, already shell-quoted; `<key>` is `[A-Za-z0-9_]+`). |
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `claude-subagent` | Used when the preferred CLI binary is absent. Empty = hard-fail. |
 
-To delegate (or to validate), the orchestrator runs `scripts/executor.sh --which`, which resolves config + availability and prints `subagent` or `cli:<key>`:
+To delegate (or to validate), the orchestrator runs `scripts/executor.sh --role <role> --which`, which resolves config + availability and prints `subagent[:model]` or `cli:<key>`:
 
 - `subagent` → use the Claude `Agent` tool.
-- `cli:<key>` → run `scripts/executor.sh --run "<prompt>"`, which execs the CLI executor (for `codex`, `codex-mem.sh --executor "<prompt>"`); if it prints `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead.
+- `cli:<key>` → run `scripts/executor.sh --role <role> --run "<prompt>"`, which execs the CLI executor (for `codex`, `codex-mem.sh --executor "<prompt>"`; validation uses the harness's read-only face — e.g. `codex exec --sandbox read-only`); if it prints `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead.
 
-`--show` prints the resolved selection for debugging. A missing CLI binary auto-falls-back to `AI_MEMORY_EXECUTOR_FALLBACK` (default `claude-subagent`), so an unconfigured machine always has a working executor — and therefore a working validator.
+`--show` prints the resolved selection for debugging. A missing CLI binary auto-falls-back to `AI_MEMORY_EXECUTOR_FALLBACK` (default `claude-subagent`), so an unconfigured machine always has a working executor — and, since `validate` defaults to the always-available subagent plane, a working validator.
 
 ## Hard rules
 
@@ -92,4 +98,4 @@ The table deliberately carries **no on-disk path**. A delegate that needs to ins
 
 The orchestrator keeps only the summary in context and re-opens the plan file on demand if it needs the detail — which is how the main thread coordinates a multi-repo sequence without resident sibling memory. Implementation is a separate, explicit delegation later. For a trivial one-line touch, the orchestrator just reads the single relevant file instead of delegating.
 
-**Executing a plan set.** Planning and execution are separate. To *execute* persisted plans (e.g. the set an onboarding produces), the orchestrator walks them in their documented order and delegates **each** plan to an executor — Codex via `codex-mem.sh --executor`, or a Claude `Agent` subagent as fallback — with a self-contained prompt pointing at `identity.md`, the plan file, and the project `memory.md`; the executor implements the edits in the repo and returns a compact summary (changed files + the PR/apply action needed). A validator pass (the same configured executor, re-invoked) optionally checks correctness-sensitive edits (e.g. Terraform). The orchestrator keeps only the summaries, so execution stays context-lean, and it **pauses at human/CI gates** — PR merges and `terraform`/`kubectl` applies, which executors are forbidden to perform — resuming the next phase on the user's confirmation. This is generic: any multi-repo plan set is executed this way.
+**Executing a plan set.** Planning and execution are separate. To *execute* persisted plans (e.g. the set an onboarding produces), the orchestrator walks them in their documented order and delegates **each** plan to an executor — Codex via `codex-mem.sh --executor`, or a Claude `Agent` subagent as fallback — with a self-contained prompt pointing at `identity.md`, the plan file, and the project `memory.md`; the executor implements the edits in the repo and returns a compact summary (changed files + the PR/apply action needed). A validator pass (the read-only `validate` role, cross-model by default) optionally checks correctness-sensitive edits (e.g. Terraform). The orchestrator keeps only the summaries, so execution stays context-lean, and it **pauses at human/CI gates** — PR merges and `terraform`/`kubectl` applies, which executors are forbidden to perform — resuming the next phase on the user's confirmation. This is generic: any multi-repo plan set is executed this way.

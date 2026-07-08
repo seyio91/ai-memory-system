@@ -222,9 +222,10 @@ Non-trivial work flows through three roles (diagram below):
 - **Executor** runs the delegated work. It's *config-driven*, not hardcoded: `executor.sh
   --which` resolves `AI_MEMORY_EXECUTOR` (default `claude-subagent`, or a CLI like `codex`),
   so the same workflow runs whatever backend an instance is configured with.
-- **Validator** checks the result against the plan's `## Success criteria`. Crucially it's a
-  **separate, fresh invocation** of the same executor — independence comes from the clean
-  second pass, not from a different tool.
+- **Validator** checks the result against the plan's `## Success criteria`. It's a **separate,
+  read-only role** (`AI_MEMORY_EXECUTOR_VALIDATE`) that defaults to the orchestrator's own agent
+  plane rather than the executor's — so a CLI executor like `codex` is validated **cross-model**
+  by default. Independence comes from both the clean second pass *and* the decorrelated model.
 
 *Why bother?* Because the guardrails are real, not documentation: the `todo.md`-only rule is
 enforced by a `PreToolUse` hook (`block_task_tools.sh`), and executors are blocked from any
@@ -241,8 +242,8 @@ the knowledge lifecycle made concrete.
 flowchart TB
   subgraph OEV["Orchestrator / Executor / Validator"]
     direction LR
-    O["Orchestrator<br/>plans + delegates"] --> X["Executor<br/>AI_MEMORY_EXECUTOR<br/>(executor.sh --which)"]
-    X --> V["Validator<br/>fresh invocation vs.<br/>plan ## Success criteria"]
+    O["Orchestrator<br/>plans + delegates"] --> X["Executor<br/>AI_MEMORY_EXECUTOR_TASK<br/>(executor.sh --role task)"]
+    X --> V["Validator (read-only)<br/>AI_MEMORY_EXECUTOR_VALIDATE<br/>cross-model vs. ## Success criteria"]
     V -- pass --> O
     V -- fail --> X
   end

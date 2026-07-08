@@ -54,7 +54,9 @@ All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and re
 | `NOTION_TOKEN` | — | `NotionProvider` (integration secret; set in `~/.zshenv`) |
 | `NOTION_DATA_SOURCE_ID` | — | `NotionProvider` (the data-source id, not the database id) |
 | `NOTION_STATUS_KIND` | `status` | `NotionProvider` — set `select` if the board's `Status` is a select property |
-| `AI_MEMORY_EXECUTOR` | `claude-subagent` | `executor.sh` — preferred executor **and validator** backend — see [Workflow › Executor selection](workflow.md#executor-selection) |
+| `AI_MEMORY_EXECUTOR_TASK` / `_EXPLORE` | (legacy `AI_MEMORY_EXECUTOR` → `claude-subagent`) | `executor.sh` — write-capable / read-only executor roles — see [Workflow › Executor selection](workflow.md#executor-selection) |
+| `AI_MEMORY_EXECUTOR_VALIDATE` | `claude-subagent` | `executor.sh` — read-only validator role; defaults to the orchestrator plane (does **not** chain to the legacy var) → cross-model validation by default |
+| `AI_MEMORY_EXECUTOR` | `claude-subagent` | `executor.sh` — legacy single var; fallback for `task`/`explore` only |
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | `executor.sh` — command template for a generic CLI executor |
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `claude-subagent` | `executor.sh` — used when the preferred CLI binary is absent |
 
