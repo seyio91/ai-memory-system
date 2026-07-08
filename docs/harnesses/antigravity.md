@@ -92,7 +92,7 @@ which `executor.sh` sets only for a delegation. Interactive `agy` (no role) is
    install`/`upgrade` — is hard-blocked (`{"decision":"deny"}`). The O/E/V "never
    apply/merge to running infra" rule, **enforced** rather than only restated in
    the prompt.
-2. **Read-only (explore role).** Only a read-tool **allowlist** is permitted
+2. **Read-only (explore/validate roles).** Only a read-tool **allowlist** is permitted
    (`view_file`, `grep_search`, `code_search`, `list_dir`, `read_url_content`, …);
    `run_command` and every write tool are denied. It's an *allowlist*, not
    deny-by-name, because Antigravity's live `toolCall.name` drifts from the
@@ -114,17 +114,17 @@ exec_model_flag = --model {model}
 exec_probe      = agy
 ```
 
-Select it per role with `AI_MEMORY_EXECUTOR_TASK` / `AI_MEMORY_EXECUTOR_EXPLORE`
-(see [Workflow › Executor selection](../workflow.md#executor-selection));
+Select it per role with `AI_MEMORY_EXECUTOR_TASK` / `AI_MEMORY_EXECUTOR_EXPLORE` /
+`AI_MEMORY_EXECUTOR_VALIDATE` (see [Workflow › Executor selection](../workflow.md#executor-selection));
 `executor.sh` substitutes `{prompt}`/`{model}`, exports `AI_MEMORY_ROLE`, and runs
 it headless.
 
 **Read-only is real now.** `agy -p` has no read-only CLI flag, so `exec_readonly`
 is the *same* command — the read-only guarantee comes from the `PreToolUse` guard
-denying every non-read tool when `AI_MEMORY_ROLE=explore`. So Antigravity is a
-genuine **`explore`** executor, not degrading to the Claude `Explore` agent.
-(Enforcement requires the guard installed — i.e. `install.sh --harness antigravity`
-registered the hooks.json entries.)
+denying every non-read tool when `AI_MEMORY_ROLE` is `explore` **or** `validate`. So
+Antigravity is a genuine read-only executor for both roles, not degrading to the
+Claude `Explore`/subagent plane. (Enforcement requires the guard installed — i.e.
+`install.sh --harness antigravity` registered the hooks.json entries.)
 
 ## Skills and commands — the `.agents/` namespace
 

@@ -32,7 +32,7 @@ Upgrade instances with `scripts/sync-system.sh`. It syncs to the latest stable `
 
 - **Context on tap** — active project's memory, hard rules, and index arrive automatically each session; domain knowledge loads lazily when your task matches its triggers.
 - **One memory, every agent** — Claude, Codex, and Antigravity read and write the same tree; `/checkpoint` in any captures state for the others.
-- **A capture→plan→execute workflow** — capture tasks (`/task`), turn them into plans through a design gate (`/start` → `brainstorming`), and run them through an orchestrator/executor/validator loop with a selectable executor backend (write `task` and read-only `explore` roles, resolved per harness).
+- **A capture→plan→execute workflow** — capture tasks (`/task`), turn them into plans through a design gate (`/start` → `brainstorming`), and run them through an orchestrator/executor/validator loop with a selectable executor backend (write `task`, read-only `explore`, and read-only `validate` roles, resolved per harness; `validate` defaults to a different model from the executor for cross-model checking).
 - **Enforced conventions** — the `todo.md`-only rule (a Claude PreToolUse hook) and the executor infra-deny (Codex execpolicy, Antigravity `PreToolUse` guard) are real gates, not just documentation.
 - **Memory-aware statusline** — Claude and Antigravity show the active project + folder + git/model/context state right in the prompt.
 - **Tested, dependency-free scaffolding** — bash-3.2 scripts with a `scripts/tests/` suite, so a rebuild can be verified.

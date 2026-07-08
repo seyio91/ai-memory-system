@@ -53,8 +53,9 @@
 # free when the executor is a CLI harness (e.g. codex executes, a Claude subagent
 # validates) — decorrelating reasoning blind spots, not just context. Set it
 # explicitly only to pin a specific validator (e.g. to match the executor's model,
-# or a stronger reviewer). Capability floor: the auto-default never picks a weaker
-# model — a weak validator must be chosen by hand.
+# or a stronger reviewer). Note there is no enforced capability check: the default
+# simply can't self-select a weak model (claude-subagent carries no :model suffix),
+# so a weak validator only happens if you configure one by hand.
 # export AI_MEMORY_EXECUTOR_VALIDATE="claude:opus"
 #
 # Legacy single-var (still honored as the fallback for any unset role):

@@ -27,6 +27,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   keeping machine-specific lines like `@RTK.md`; merging the body inline freezes a copy
   that silently drifts from the doctrine on every change. (`scripts/drivers/hook.sh`.)
 
+### Fixed
+
+- **A foreign harness model no longer leaks onto the subagent plane when a read-only
+  role degrades.** When `explore` (or `validate`) selects a `harness:model` whose harness
+  has no `exec_readonly`, `executor.sh` degrades to the subagent plane and now clears the
+  model, so `--which` prints `subagent` rather than `subagent:<foreign-model>`. (Surfaced
+  by the 2026-07-09 system review; `explore` shipped with this leak in 1.1.0.)
+
 ## [1.1.0] - 2026-07-08
 
 > **Upgrading from `1.0.0` needs one manual step.** `identity.md` is no longer

@@ -24,9 +24,10 @@
 > prompt. With `AI_MEMORY_EXECUTOR_VALIDATE` unset, that backend is the orchestrator's own agent
 > plane — so if execution ran on `codex`, validation runs on a decorrelated model, catching
 > shared *reasoning* blind spots, not just shared context. Set `AI_MEMORY_EXECUTOR_VALIDATE`
-> explicitly to pin a specific validator (capability floor: auto-selection never picks a weaker
-> model). The independence that makes validation meaningful comes from the **separate invocation
-> against the Success criteria** — now reinforced by model decorrelation.
+> explicitly to pin a specific validator (nothing enforces a capability floor — the default just
+> can't self-select a weak model, as `claude-subagent` carries no `:model` suffix). The
+> independence that makes validation meaningful comes from the **separate invocation against the
+> Success criteria** — now reinforced by model decorrelation.
 
 ## Task Contract
 
