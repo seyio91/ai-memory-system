@@ -91,7 +91,7 @@ detect_project() {
 }
 
 # skill_dir_for <name> — print the invoked skill's dir across ALL skill roots
-# (generic skills/, local skills-local/, remote .skill-cache/) and return 0, else
+# (authored skills/, remote .skill-cache/) and return 0, else
 # return 1. Routes through _lib.sh:resolve_skill_dir (the centralized enumerator) so
 # the boundary hooks agree with the rest of the skills toolchain — a skill is no
 # longer only in skills/. _lib is sourced lazily (only the boundary hooks call this,

@@ -16,13 +16,13 @@ export MEMORY_DIR="$MEM"
 # sandbox memory tree: the real boundary-check engine + a read-only & a write skill.
 # _lib.sh is copied too so the hooks' skill_dir_for resolves across all skill roots.
 mkdir -p "$MEM/scripts" "$MEM/skills/ro-skill" "$MEM/skills/wr-skill" "$MEM/skills/other" \
-    "$MEM/skills-local/ro-local" "$MEM/projects/p"
+    "$MEM/.skill-cache/ro-remote" "$MEM/projects/p"
 cp "$SCRIPTS_DIR/skill-boundary-check.sh" "$MEM/scripts/"; chmod +x "$MEM/scripts/skill-boundary-check.sh"
 cp "$SCRIPTS_DIR/_lib.sh" "$MEM/scripts/"
 printf -- '---\nname: ro-skill\ndescription: r.\nmetadata:\n  tier: target-read-only\n---\n# ro\n' > "$MEM/skills/ro-skill/SKILL.md"
 printf -- '---\nname: wr-skill\ndescription: w.\nmetadata:\n  tier: target-write\n---\n# wr\n' > "$MEM/skills/wr-skill/SKILL.md"
-# a LOCAL read-only skill (skills-local/) — its tier must be read + armed too
-printf -- '---\nname: ro-local\ndescription: rl.\nmetadata:\n  tier: target-read-only\n---\n# rl\n' > "$MEM/skills-local/ro-local/SKILL.md"
+# a cached remote read-only skill — its tier must be read + armed too
+printf -- '---\nname: ro-remote\ndescription: rr.\nmetadata:\n  tier: target-read-only\n---\n# rr\n' > "$MEM/.skill-cache/ro-remote/SKILL.md"
 touch "$MEM/skills/other/.gitkeep" "$MEM/projects/p/.gitkeep"
 printf '.sessions/\n' > "$MEM/.gitignore"   # model production: baselines live in gitignored .sessions/
 git_q "$MEM" init -q; git_q "$MEM" add -A >/dev/null 2>&1; git_q "$MEM" commit -q -m init >/dev/null 2>&1
@@ -42,12 +42,12 @@ arm S2 wr-skill
 set +e; [ -e "$SDIR/S2/wr-skill.marker" ]; e=$?; set -e
 assert_exit 1 "$e" "target-write skill not armed"
 
-# --- marker: a LOCAL (skills-local/) read-only skill is armed (multi-root) ----
+# --- marker: a cached remote read-only skill is armed (multi-root) -----------
 # Regression guard: the marker used to read tier only from skills/<name>/SKILL.md,
-# so local/remote skills were silently never armed (their tier ignored).
-arm SL ro-local
-assert_file "$SDIR/SL/ro-local.marker" "skills-local read-only skill armed (tier read across roots)"
-assert_file "$SDIR/SL/ro-local.mem-base" "local skill baseline captured"
+# so remote skills were silently never armed (their tier ignored).
+arm SR ro-remote
+assert_file "$SDIR/SR/ro-remote.marker" "remote read-only skill armed (tier read across roots)"
+assert_file "$SDIR/SR/ro-remote.mem-base" "remote skill baseline captured"
 
 # --- marker: non-Skill tool is a no-op --------------------------------------
 printf '{"session_id":"S3","tool_name":"Bash","tool_input":{"command":"ls"}}' | bash "$MARKER"

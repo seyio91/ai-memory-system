@@ -23,7 +23,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
 # Legacy single-source override: SKILLS_DIR pins enumeration to one dir. Otherwise
-# validate every root skill_roots yields (generic + per-instance local).
+# validate every root skill_roots yields (authored + remote cache).
 [ -n "${SKILLS_DIR:-}" ] && export AI_MEMORY_SKILL_ROOTS="$SKILLS_DIR"
 
 MAX_LINES="${SKILL_MAX_LINES:-500}"

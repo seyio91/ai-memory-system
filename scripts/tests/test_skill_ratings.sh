@@ -113,21 +113,21 @@ run "$SR" --all
 assert_exit 0 "$code" "--all runs"
 assert_contains "$out" "no ratings yet" "--all lists in-loop skills (carrying the block) with no ratings"
 
-# === multi-root: a LOCAL skill is first-class for both apply-partial + ratings ===
-mkdir -p "$MEM/skills-local/loc-rated"
-printf -- '---\nname: loc-rated\ndescription: local skill.\nmetadata:\n  tier: target-write\n---\n# loc-rated\n' > "$MEM/skills-local/loc-rated/SKILL.md"
-# apply-partial resolves the local skill across roots (no skills/ copy exists)
-run "$AP" --skill loc-rated --force
-assert_exit 0 "$code" "apply-partial injects into a skills-local/ skill"
-assert_contains "$(cat "$MEM/skills-local/loc-rated/SKILL.md")" "partial:self-rating START" "local skill carries the block"
-# its ratings aggregate alongside generic skills
-printf '## d1\n- score: 3\n- improve: local note\n' > "$MEM/skills-local/loc-rated/self-rating.md"
+# === multi-root: a cached remote skill is first-class for apply-partial + ratings ===
+mkdir -p "$MEM/.skill-cache/rem-rated"
+printf -- '---\nname: rem-rated\ndescription: remote skill.\nmetadata:\n  tier: target-write\n---\n# rem-rated\n' > "$MEM/.skill-cache/rem-rated/SKILL.md"
+# apply-partial resolves the remote skill across roots (no skills/ copy exists)
+run "$AP" --skill rem-rated --force
+assert_exit 0 "$code" "apply-partial injects into a cached remote skill"
+assert_contains "$(cat "$MEM/.skill-cache/rem-rated/SKILL.md")" "partial:self-rating START" "remote skill carries the block"
+# its ratings aggregate alongside authored skills
+printf '## d1\n- score: 3\n- improve: remote note\n' > "$MEM/.skill-cache/rem-rated/self-rating.md"
 run "$SR"
-assert_contains "$out" "loc-rated" "skill-ratings aggregates a local skill's log"
-line_loc="$(printf '%s\n' "$out" | awk '$1=="loc-rated"')"
-assert_contains "$line_loc" "3.0" "local skill avg=3.0"
-# --all resolves the local carrier's dir (resolve_skill_dir), no crash
+assert_contains "$out" "rem-rated" "skill-ratings aggregates a remote skill's log"
+line_rem="$(printf '%s\n' "$out" | awk '$1=="rem-rated"')"
+assert_contains "$line_rem" "3.0" "remote skill avg=3.0"
+# --all resolves the remote carrier's dir (resolve_skill_dir), no crash
 run "$SR" --all
-assert_exit 0 "$code" "--all runs with a local carrier present"
+assert_exit 0 "$code" "--all runs with a remote carrier present"
 
 finish

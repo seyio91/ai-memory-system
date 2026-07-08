@@ -11,7 +11,7 @@ python3 -c 'import tomllib' >/dev/null 2>&1 || { printf 'SKIP: need python3.11+ 
 MEM="$(new_sandbox)"; REPO="$(new_sandbox)"
 trap 'rm -rf "$MEM" "$REPO"' EXIT
 export MEMORY_DIR="$MEM"
-mkdir -p "$MEM/skills" "$MEM/skills-local"
+mkdir -p "$MEM/skills"
 
 run() { set +e; out=$(bash "$@" 2>&1); code=$?; set -e; }
 
@@ -35,9 +35,8 @@ assert_contains "$(cat "$ROOT_MF")" 'path = "packs/widget"' "manifest entry has 
 assert_file "$MEM/.skill-cache/widget/SKILL.md" "skill materialized into the cache"
 
 # name derived from path when --name omitted (already 'widget'); explicit --name honored.
-# --local is ignored for remote manifest routing; remote declarations have one root file.
-run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget --name aliased --local
-assert_exit 0 "$code" "install --remote --local --name resolves"
+run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget --name aliased
+assert_exit 0 "$code" "install --remote --name resolves"
 assert_contains "$out" "saved: aliased ->" "wrote a root manifest entry under --name"
 assert_contains "$(cat "$ROOT_MF")" 'name = "aliased"' "aliased entry lives in root manifest"
 assert_file "$MEM/.skill-cache/aliased/SKILL.md" "aliased skill in cache"
@@ -77,32 +76,28 @@ set +e; [ -e "$MEM/.skill-cache/skipme" ]; e=$?; set -e
 assert_exit 1 "$e" "--no-save resolved nothing"
 
 # === list-skills: unified provenance ==========================================
-# add authored skills in both scopes alongside the resolved remotes
-mkdir -p "$MEM/skills/auth-gen" "$MEM/skills-local/auth-loc"
-printf -- '---\nname: auth-gen\nmetadata:\n  tier: target-write\n---\n# g\n' > "$MEM/skills/auth-gen/SKILL.md"
-printf -- '---\nname: auth-loc\nmetadata:\n  tier: target-write\n---\n# l\n' > "$MEM/skills-local/auth-loc/SKILL.md"
+# add an authored skill alongside the resolved remotes
+mkdir -p "$MEM/skills/authored-one"
+printf -- '---\nname: authored-one\nmetadata:\n  tier: target-write\n---\n# a\n' > "$MEM/skills/authored-one/SKILL.md"
 
 run "$LS"
 assert_exit 0 "$code" "list-skills runs"
-gen_row="$(printf '%s\n' "$out" | awk '$1=="auth-gen"')"
-assert_contains "$gen_row" "generic" "authored generic tagged generic"
-assert_contains "$gen_row" "authored" "authored generic tagged authored"
-assert_contains "$gen_row" "yes" "generic is synced=yes"
-loc_row="$(printf '%s\n' "$out" | awk '$1=="auth-loc"')"
-assert_contains "$loc_row" "local" "authored local tagged local"
-assert_contains "$loc_row" "no" "local is synced=no"
+assert_not_contains "$out" "SCOPE" "list-skills has no scope column"
+auth_row="$(printf '%s\n' "$out" | awk '$1=="authored-one"')"
+assert_contains "$auth_row" "authored" "authored skill tagged authored"
+assert_contains "$auth_row" "no" "authored skill is synced=no"
 rem_row="$(printf '%s\n' "$out" | awk '$1=="widget"')"
 assert_contains "$rem_row" "remote" "cached skill tagged remote"
-assert_contains "$rem_row" "instance" "widget's scope derived from the root manifest"
+assert_contains "$rem_row" "yes" "widget is synced from the root manifest"
 alias_row="$(printf '%s\n' "$out" | awk '$1=="aliased"')"
-assert_contains "$alias_row" "instance" "aliased's scope derived from the root manifest"
+assert_contains "$alias_row" "yes" "aliased is synced from the root manifest"
 
 # filters
 run "$LS" --remote
 assert_contains "$out" "widget" "--remote includes the remote skill"
-assert_not_contains "$out" "auth-gen" "--remote excludes authored skills"
+assert_not_contains "$out" "authored-one" "--remote excludes authored skills"
 run "$LS" --local
-assert_contains "$out" "auth-loc" "--local includes a local authored skill"
-assert_not_contains "$out" "auth-gen" "--local excludes generic skills"
+assert_exit 2 "$code" "--local is retired"
+assert_contains "$out" "unknown arg: --local" "--local refusal is explicit"
 
 finish

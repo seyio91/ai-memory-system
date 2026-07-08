@@ -10,7 +10,7 @@ python3 -c 'import tomllib' >/dev/null 2>&1 || { printf 'SKIP: need python3.11+ 
 MEM="$(new_sandbox)"; REPO="$(new_sandbox)"
 trap 'rm -rf "$MEM" "$REPO"' EXIT
 export MEMORY_DIR="$MEM"
-mkdir -p "$MEM/skills" "$MEM/skills-local"
+mkdir -p "$MEM/skills"
 
 run() { set +e; out=$(bash "$@" 2>&1); code=$?; set -e; }
 manifest() { cat > "$MEM/skills.toml"; }

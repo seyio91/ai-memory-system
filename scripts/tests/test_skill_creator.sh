@@ -33,28 +33,12 @@ assert_contains "$(cat "$MEM/skills/mygen/SKILL.md")" "partial:self-rating START
 # a non-workflow (reference/default) skill does NOT get the self-rating block
 assert_not_contains "$(cat "$MEM/skills/myrev/SKILL.md")" "partial:self-rating START" "non-workflow skill has no self-rating block"
 
-# --local scaffolds into skills-local/, not skills/, and still validates + self-rates
-run "$NEW" --name myloc --tier target-write --kind workflow --local
-assert_exit 0 "$code" "new-skill --local creates a local skill"
-assert_file "$MEM/skills-local/myloc/SKILL.md" "local skill written under skills-local/"
-set +e; [ -e "$MEM/skills/myloc" ]; e=$?; set -e
-assert_exit 1 "$e" "--local skill is NOT under skills/"
-assert_contains "$(cat "$MEM/skills-local/myloc/SKILL.md")" "partial:self-rating START" "local workflow skill gets self-rating (apply-partial resolves across roots)"
-assert_contains "$out" "validated: myloc OK" "local scaffold passes validate-skills (multi-root)"
-# a read-only local skill points its own-folder guidance at skills-local/
-run "$NEW" --name mylocro --tier target-read-only --local
-assert_contains "$(cat "$MEM/skills-local/mylocro/SKILL.md")" "(skills-local/mylocro/)" "read-only body names the local own-folder"
-
-# install --local forks an imported skill into skills-local/
-mkdir -p "$SRC/imp-loc"
-printf -- '---\nname: imp-loc\ndescription: imported local.\n---\n# body\n' > "$SRC/imp-loc/SKILL.md"
-run "$INS" --from "$SRC/imp-loc" --tier target-write --local
-assert_exit 0 "$code" "install --local imports into skills-local/"
-assert_file "$MEM/skills-local/imp-loc/SKILL.md" "imported local skill under skills-local/"
-
 # guards
 run "$NEW" --name myrev --tier target-read-only
 assert_exit 1 "$code" "refuses to overwrite without --force"
+run "$NEW" --name myloc --tier target-write --local
+assert_exit 2 "$code" "new-skill rejects retired --local"
+assert_contains "$out" "unknown arg: --local" "new-skill --local refusal is explicit"
 run "$NEW" --name bad --tier nonsense
 assert_exit 2 "$code" "rejects invalid tier"
 run "$NEW" --name "../evil" --tier target-write
@@ -118,6 +102,9 @@ assert_not_contains "$(cat "$MEM/skills/withmeta/SKILL.md")" "self-rating" "no s
 # guards
 run "$INS" --from "$SRC/withmeta"
 assert_exit 2 "$code" "install requires --tier"
+run "$INS" --from "$SRC/withmeta" --tier target-write --local
+assert_exit 2 "$code" "install rejects retired --local"
+assert_contains "$out" "unknown arg: --local" "install --local refusal is explicit"
 run "$INS" --from "$SRC/missing" --tier target-write
 assert_exit 2 "$code" "install rejects missing --from"
 run "$INS" --from "$SRC/withmeta" --tier target-read-only

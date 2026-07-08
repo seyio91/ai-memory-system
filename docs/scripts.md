@@ -40,7 +40,7 @@ All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and re
 | `MEMORY_STALE_DAYS` | `30` | `lint-memory.sh` |
 | `MEMORY_ARCHIVE_RETAIN_DAYS` | `30` | `archive-cleanup.sh` |
 | `MEMORY_SESSIONS_DIR` | `~/.claude/memory_sessions` | `inject_memory.sh` |
-| `AI_MEMORY_SKILL_ROOTS` | `skills:skills-local:.skill-cache` | `_lib.sh:skill_roots` → all skills tools (enumeration roots, colon-separated) |
+| `AI_MEMORY_SKILL_ROOTS` | `skills:.skill-cache` | `_lib.sh:skill_roots` → all skills tools (enumeration roots, colon-separated) |
 | `AI_MEMORY_SKILL_CACHE` | `$MEMORY_DIR/.skill-cache` | `_lib.sh:skill_cache_dir`, `resolve-skills.sh`, `list-skills.sh` (remote-skill cache) |
 | `MEMORY_TASK_PROVIDER` | `local` | task-provider factory (`local`/`notion`) — see [Task-provider layer](task-provider.md) |
 | `NOTION_TOKEN` | — | `NotionProvider` (integration secret; set in `~/.zshenv`) |

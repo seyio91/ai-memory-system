@@ -9,23 +9,23 @@
 #     resolve without recording). The skill declares its own tier in its SKILL.md, so
 #     --tier is not required here.
 #
-#  --from <dir|SKILL.md>  SEED a LOCAL skill from an existing dir (a fork you then own
-#     and edit here). Copies under skills/<name>/ (or skills-local/<name>/ with --local),
+#  --from <dir|SKILL.md>  SEED an authored skill from an existing dir (a fork you then own
+#     and edit here). Copies under skills/<name>/,
 #     normalizes metadata.tier = --tier, validates. This is authoring, not referencing:
-#     it does not touch the manifest. Rule of thumb: modify it -> --from (local); just
+#     it does not touch the manifest. Rule of thumb: modify it -> --from; just
 #     use it -> --remote. --tier is required (classify it; do not guess).
 #
 # Neither mode injects the self-rating block (a first-party concern; add on request).
 #
 # Usage:
 #   install-skill.sh --remote <url> --ref <ref> [--path <p>] [--name <n>] [--no-save] [--link] [--force]
-#   install-skill.sh --from <dir|SKILL.md> --tier <tier> [--name <name>] [--local] [--link] [--force]
+#   install-skill.sh --from <dir|SKILL.md> --tier <tier> [--name <name>] [--link] [--force]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-FROM="" REMOTE="" REF="" RPATH="" TIER="" NAME="" LINK=0 FORCE=0 LOCAL=0 SAVE=1
+FROM="" REMOTE="" REF="" RPATH="" TIER="" NAME="" LINK=0 FORCE=0 SAVE=1
 while [ $# -gt 0 ]; do
     case "$1" in
         --from)    FROM="${2:-}"; shift 2 ;;
@@ -34,7 +34,6 @@ while [ $# -gt 0 ]; do
         --path)    RPATH="${2:-}"; shift 2 ;;
         --tier)    TIER="${2:-}"; shift 2 ;;
         --name)    NAME="${2:-}"; shift 2 ;;
-        --local)   LOCAL=1; shift ;;
         --no-save) SAVE=0; shift ;;
         --link)    LINK=1; shift ;;
         --force)   FORCE=1; shift ;;
@@ -113,7 +112,7 @@ PY
     exit 0
 fi
 
-# ── --from: seed a local skill by copying (authoring, not referencing) ─────────
+# ── --from: seed an authored skill by copying (authoring, not referencing) ────
 [ -n "$FROM" ] || { printf 'install-skill: --from or --remote required\n' >&2; exit 2; }
 case "$TIER" in target-read-only|target-write) : ;; *) printf 'install-skill: --tier required (target-read-only | target-write) — classify the skill, do not guess\n' >&2; exit 2 ;; esac
 
@@ -134,7 +133,7 @@ if [ -z "$NAME" ]; then
 fi
 case "$NAME" in *[!A-Za-z0-9._-]*|.|..) printf 'install-skill: invalid skill name %s\n' "$NAME" >&2; exit 2 ;; esac
 
-STORE="skills"; [ "$LOCAL" = 1 ] && STORE="skills-local"
+STORE="skills"
 TARGET="$MEMORY_DIR/$STORE/$NAME"
 
 # Refuse an in-place re-import: --from resolving to TARGET would be deleted by
