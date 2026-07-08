@@ -126,6 +126,55 @@ count_release_commits() {
     git -C "$repo" log --format=%s | grep -c "^chore(release): $tag$" || true
 }
 
+tag_message_count() {
+    local repo="$1" tag="$2" pattern="$3"
+    git -C "$repo" cat-file tag "$tag" | awk -v pattern="$pattern" '
+        in_message && $0 ~ pattern { count++ }
+        $0 == "" && !in_message { in_message=1; next }
+        END { printf "%d\n", count + 0 }
+    '
+}
+
+changelog_version_count() {
+    local repo="$1" version="$2" pattern="$3"
+    awk -v version="$version" -v pattern="$pattern" '
+        $0 == "## [" version "]" || index($0, "## [" version "] - ") == 1 { in_section=1; next }
+        in_section && $0 ~ /^## / { exit }
+        in_section && $0 ~ pattern { count++ }
+        END { printf "%d\n", count + 0 }
+    ' "$repo/CHANGELOG.md"
+}
+
+blank_lines_before_unreleased() {
+    local repo="$1"
+    awk '
+        { line[NR]=$0 }
+        END {
+            for (i = 1; i <= NR; i++) {
+                if (line[i] == "## [Unreleased]") {
+                    count = 0
+                    for (j = i - 1; j >= 1 && line[j] == ""; j--) count++
+                    printf "%d\n", count
+                    exit
+                }
+            }
+            print "missing"
+        }
+    ' "$repo/CHANGELOG.md"
+}
+
+trailing_blank_lines() {
+    local repo="$1"
+    awk '
+        { line[NR]=$0 }
+        END {
+            count = 0
+            for (i = NR; i >= 1 && line[i] == ""; i--) count++
+            printf "%d\n", count
+        }
+    ' "$repo/CHANGELOG.md"
+}
+
 assert_guard_no_mutation() {
     local repo="$1" before_head="$2" tag="$3" label="$4"
     assert_eq "$before_head" "$(git -C "$repo" rev-parse HEAD)" "$label leaves HEAD unchanged"
@@ -180,6 +229,120 @@ assert_contains "$handwritten_changelog" "- hand-written entry
 assert_contains "$handwritten_changelog" "## [0.9.0] - 2026-01-01" "older changelog sections remain"
 first_heading="$(grep -n '^## ' "$R3/CHANGELOG.md" | head -1 | cut -d: -f2-)"
 assert_eq "## [Unreleased]" "$first_heading" "fresh empty Unreleased is above finalized section"
+
+# --- tag message preserves markdown headings and comment-looking lines ---
+TAG_BODY="$(make_fixture tag-message-body)"
+cat > "$TAG_BODY/CHANGELOG.md" <<'EOF'
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+### Added
+# keep this literal changelog line
+- hand-written entry
+EOF
+git -C "$TAG_BODY" add CHANGELOG.md
+git -C "$TAG_BODY" commit -q -m "seed tag body changelog"
+push_main "$TAG_BODY"
+run_release "$TAG_BODY" 1.0.0 --no-push >/dev/null 2>&1
+tag_body_raw="$(git -C "$TAG_BODY" cat-file tag v1.0.0)"
+assert_contains "$tag_body_raw" "### Added" "normal tag message preserves markdown heading"
+assert_contains "$tag_body_raw" "# keep this literal changelog line" "normal tag message preserves literal hash line"
+assert_eq "$(changelog_version_count "$TAG_BODY" 1.0.0 '^### Added$')" "$(tag_message_count "$TAG_BODY" v1.0.0 '^### Added$')" "normal tag heading count matches changelog section"
+
+# --- resume-at-tag path preserves the same tag message content ---
+TAG_RESUME="$(make_fixture tag-message-resume)"
+TAG_RESUME_BIN="$ROOT/tag-message-resume/bin"
+mkdir -p "$TAG_RESUME_BIN"
+cat > "$TAG_RESUME/CHANGELOG.md" <<'EOF'
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+### Added
+# keep this literal resume line
+- hand-written entry
+EOF
+git -C "$TAG_RESUME" add CHANGELOG.md
+git -C "$TAG_RESUME" commit -q -m "seed resume changelog"
+push_main "$TAG_RESUME"
+cat > "$TAG_RESUME_BIN/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$1" = "tag" ] && [ "\$2" = "-a" ] && [ "\$3" = "v1.0.0" ]; then
+    echo "forced tag creation failure" >&2
+    exit 43
+fi
+exec "$(command -v git)" "\$@"
+EOF
+chmod +x "$TAG_RESUME_BIN/git"
+set +e
+tag_resume_first_out="$(capture_release_path "$TAG_RESUME" "$TAG_RESUME_BIN" 1.0.0 --no-push)"
+tag_resume_first_rc=$?
+set -u
+assert_exit 43 "$tag_resume_first_rc" "tag-message resume setup fails on tag creation"
+assert_tag_absent "$TAG_RESUME" "v1.0.0" "tag-message resume setup leaves no tag"
+tag_resume_out="$(capture_release "$TAG_RESUME" 1.0.0 --no-push)"
+assert_contains "$tag_resume_out" "Created local release commit and tag v1.0.0" "tag-message resume creates missing local tag"
+tag_resume_raw="$(git -C "$TAG_RESUME" cat-file tag v1.0.0)"
+assert_contains "$tag_resume_raw" "### Added" "resume-at-tag message preserves markdown heading"
+assert_contains "$tag_resume_raw" "# keep this literal resume line" "resume-at-tag message preserves literal hash line"
+assert_eq "$(changelog_version_count "$TAG_RESUME" 1.0.0 '^### Added$')" "$(tag_message_count "$TAG_RESUME" v1.0.0 '^### Added$')" "resume-at-tag heading count matches changelog section"
+
+# --- changelog spacing is stable across releases ---
+BLANKS="$(make_fixture changelog-blank-lines)"
+cat > "$BLANKS/CHANGELOG.md" <<'EOF'
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+- first entry
+EOF
+git -C "$BLANKS" add CHANGELOG.md
+git -C "$BLANKS" commit -q -m "seed blank-line changelog"
+push_main "$BLANKS"
+run_release "$BLANKS" 1.0.0 --no-push >/dev/null 2>&1
+assert_eq "1" "$(blank_lines_before_unreleased "$BLANKS")" "one blank line precedes Unreleased after first release"
+assert_eq "0" "$(trailing_blank_lines "$BLANKS")" "no trailing blank line after first release"
+push_main "$BLANKS"
+push_tags "$BLANKS"
+add_commit "$BLANKS" "second release work" "second.txt" "second"
+push_main "$BLANKS"
+run_release "$BLANKS" 1.1.0 --no-push >/dev/null 2>&1
+assert_eq "1" "$(blank_lines_before_unreleased "$BLANKS")" "one blank line precedes Unreleased after second release"
+assert_eq "0" "$(trailing_blank_lines "$BLANKS")" "no trailing blank line after second release"
+
+# --- empty changelog prefix works under set -e ---
+EMPTY_PREFIX="$(make_fixture empty-prefix-changelog)"
+cat > "$EMPTY_PREFIX/CHANGELOG.md" <<'EOF'
+## [Unreleased]
+- entry without prefix
+EOF
+git -C "$EMPTY_PREFIX" add CHANGELOG.md
+git -C "$EMPTY_PREFIX" commit -q -m "seed empty-prefix changelog"
+push_main "$EMPTY_PREFIX"
+empty_prefix_out="$(capture_release "$EMPTY_PREFIX" 1.0.0 --no-push)"
+assert_contains "$empty_prefix_out" "Created local release commit and tag v1.0.0" "empty-prefix changelog releases successfully"
+assert_eq "## [Unreleased]" "$(sed -n '1p' "$EMPTY_PREFIX/CHANGELOG.md")" "empty-prefix changelog starts with Unreleased"
+
+# --- literal hash lines are preserved in CHANGELOG.md too ---
+HASH_CHANGELOG="$(make_fixture changelog-hash-line)"
+cat > "$HASH_CHANGELOG/CHANGELOG.md" <<'EOF'
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+# keep this line in the changelog
+- entry
+EOF
+git -C "$HASH_CHANGELOG" add CHANGELOG.md
+git -C "$HASH_CHANGELOG" commit -q -m "seed hash changelog"
+push_main "$HASH_CHANGELOG"
+run_release "$HASH_CHANGELOG" 1.0.0 --no-push >/dev/null 2>&1
+assert_contains "$(cat "$HASH_CHANGELOG/CHANGELOG.md")" "# keep this line in the changelog" "release preserves literal hash line in CHANGELOG.md"
 
 # --- untracked files do not block ---
 UNTRACKED="$(make_fixture untracked)"
