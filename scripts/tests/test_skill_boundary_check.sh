@@ -36,6 +36,12 @@ run_check target-read-only full
 assert_exit 0 "$code" "own-folder write is clean"
 assert_contains "$out" "myskill OK" "reports OK"
 
+# skill-data folder -> clean
+mkdir -p "$MEM/.skill-data/myskill"
+printf 'notes\n' > "$MEM/.skill-data/myskill/review-1.md"
+run_check target-read-only full
+assert_exit 0 "$code" "skill-data write is clean"
+
 # write into system memory -> violation under full scope
 printf 'x\n' > "$MEM/projects/p/memory.md"
 run_check target-read-only full

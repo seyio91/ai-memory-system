@@ -23,6 +23,7 @@
 # Other tunables (uncomment to override their defaults):
 # export MEMORY_STALE_DAYS=30            # lint-memory.sh working-memory age warning
 # export MEMORY_ARCHIVE_RETAIN_DAYS=30   # archive-cleanup.sh retention threshold
+# export AI_MEMORY_SKILL_DATA="$MEMORY_DIR/.skill-data"  # stateful skill data root
 
 # ── Orchestrator executor selection ──
 # Two roles, each a `harness[:model]` value (harness resolves through its

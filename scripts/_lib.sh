@@ -50,6 +50,21 @@ skill_cache_dir() {
     printf '%s\n' "${AI_MEMORY_SKILL_CACHE:-$MEMORY_DIR/.skill-cache}"
 }
 
+# skill_data_root — per-skill local data root (gitignored). Stateful skills store
+# instance-local data here, decoupled from authored/remote skill content.
+skill_data_root() {
+    printf '%s\n' "${AI_MEMORY_SKILL_DATA:-$MEMORY_DIR/.skill-data}"
+}
+
+# skill_data_dir — print/create the data dir for a skill.
+#   skill_data_dir <name>
+skill_data_dir() {
+    local dir
+    dir="$(skill_data_root)/$1"
+    mkdir -p "$dir"
+    printf '%s\n' "$dir"
+}
+
 # skill_manifest — path to the remote-skill TOML manifest for a scope. `local` ->
 # the gitignored per-instance manifest; anything else -> the tracked generic one.
 # The single place the manifest paths are defined (resolve/install/list agree).

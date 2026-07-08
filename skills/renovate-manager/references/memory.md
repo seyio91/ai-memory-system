@@ -1,16 +1,25 @@
 # Review memory — store layout, templates, keying, discipline
 
 Shared plumbing for the review memory. Loaded when a reviewer produces a
-`memory_payload`. The store is **inside this skill's directory** and **gitignored**
-(`.gitignore` → `renovate-reviews/`), so it travels with the skill and is never
-committed when the skill is copied into a git-tracked harness.
+`memory_payload`. The store is instance-local skill data, outside the skill's
+code directory, so it persists across skill re-resolution.
 
 ## Resolve the store root
 
-The store root is `<skill_dir>/renovate-reviews/`, where `<skill_dir>` is the
-directory containing `SKILL.md` (the path the harness loaded this skill from —
-e.g. `~/.claude/skills/renovate-manager`, which resolves through the symlink to
-the canonical store; writes via either path land in the same real files).
+The store root is `$AI_MEMORY_SKILL_DATA/renovate-manager/renovate-reviews/`
+(default `$MEMORY_DIR/.skill-data/renovate-manager/renovate-reviews/`). Resolve
+it by running:
+
+```
+scripts/skill-data-dir.sh renovate-manager
+```
+
+Then append `/renovate-reviews/`. The Two-Path equivalent is to create and use
+`$MEMORY_DIR/.skill-data/renovate-manager/renovate-reviews/` by hand.
+
+This data lives in the instance-local skill-data root because the skill directory
+may be an ephemeral remote materialization under `.skill-cache/`, wiped on every
+resolve/`--update`.
 
 **Never** write review memory to injected memory files (`projects/*/memory.md`,
 `working.md`), to `identity.md`, or to the system `index.md`. This data is
@@ -19,7 +28,7 @@ skill-private.
 ## Directory layout (split by manager, two tiers each)
 
 ```
-<skill_dir>/renovate-reviews/
+$AI_MEMORY_SKILL_DATA/renovate-manager/renovate-reviews/
   helm/
     charts/<chart>.md                 # package tier
     projects/<project>/<unit>.md      # project tier (helm only)
