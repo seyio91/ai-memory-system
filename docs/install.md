@@ -98,8 +98,7 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 │   └── codex/
 │       └── scripts/                   #   codex-mem.sh (Codex wrapper), codex-mem-checkpoint.sh
 ├── agents/                            # Bundled subagent definitions → ~/.claude/agents (link-agents.sh)
-├── skills/                            # Generic authored skills → ~/.claude/skills (link-skills.sh)
-├── skills-local/                       # Local (per-instance) skills — gitignored wholesale (/skills-local/*)
+├── skills/                            # Authored per-instance skills → ~/.claude/skills (gitignored except .gitkeep)
 ├── skills.toml.example                 # Tracked remote-skill catalog template
 ├── skills.toml                         # Per-instance remote-skill manifest (gitignored)
 ├── .skill-cache/                       # Remote skills materialized here by resolve-skills.sh — gitignored
@@ -157,8 +156,8 @@ After `install.sh`, these `~/.claude/` paths are **symlinks into this repo** (`h
 │   ├── lint-memory.md
 │   ├── task.md                        # /task — capture/manage backlog tasks
 │   └── start.md                       # /start — begin a captured task (gate → brainstorm/plan)
-├── skills/                            # → repo skills/  (auto-discovered via description, symlinked)
-│   └── <name>/SKILL.md                #   e.g. brainstorming, renovate-manager, grafana-oss, …
+├── skills/                            # → repo skills/ and .skill-cache/ (auto-discovered via description, symlinked)
+│   └── <name>/SKILL.md                #   authored or remote materialized skills
 └── agents/                            # → repo agents/  (subagent definitions, symlinked)
 
 ~/.codex/

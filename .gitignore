@@ -59,12 +59,12 @@ __pycache__/
 /skills.toml
 !/skills.toml.example
 
-# Per-instance ("local") skills: authored/installed on THIS instance only, never
-# synced. The whole folder is ignored by one line — drop a skill dir in and it fans
-# out locally (link-skills.sh) without any per-skill gitignore edit. The tracked
-# .gitkeep both documents the convention and keeps the empty folder in git.
-/skills-local/*
-!/skills-local/.gitkeep
+# Per-instance authored skills. The whole folder is ignored by one line — drop a
+# skill dir in and it fans out locally (link-skills.sh) without any per-skill
+# gitignore edit. The tracked .gitkeep both documents the convention and keeps
+# the empty folder in git.
+/skills/*
+!/skills/.gitkeep
 
 # Remote-skill cache: content is materialized per-instance by resolve-skills.sh from
 # root skills.toml and pinned by .skill-cache/skills.lock. Never committed — remote

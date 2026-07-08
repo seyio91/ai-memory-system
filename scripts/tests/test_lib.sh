@@ -163,27 +163,22 @@ rm -rf "$SBLIB"
 SK="$(new_sandbox)"
 export MEMORY_DIR="$SK"
 unset AI_MEMORY_SKILL_ROOTS
-# generic store: one valid skill + one dir missing SKILL.md (a non-skill)
-mkdir -p "$SK/skills/gen-a" "$SK/skills/nomd"
-printf -- '---\nname: gen-a\n---\n' > "$SK/skills/gen-a/SKILL.md"
-# local store: one valid skill
-mkdir -p "$SK/skills-local/loc-a"
-printf -- '---\nname: loc-a\n---\n' > "$SK/skills-local/loc-a/SKILL.md"
+# authored store: one valid skill + one dir missing SKILL.md (a non-skill)
+mkdir -p "$SK/skills/auth-a" "$SK/skills/nomd"
+printf -- '---\nname: auth-a\n---\n' > "$SK/skills/auth-a/SKILL.md"
 
 assert_eq "$SK/skills
-$SK/skills-local
-$SK/.skill-cache" "$(skill_roots)" "skill_roots default = generic + local + remote cache"
+$SK/.skill-cache" "$(skill_roots)" "skill_roots default = authored + remote cache"
 assert_eq "$SK/.skill-cache" "$(skill_cache_dir)" "skill_cache_dir default"
 assert_eq "$SK/skills.toml" "$(skill_manifest)" "skill_manifest default -> root skills.toml"
 assert_eq "$SK/skills.toml" "$(skill_manifest local)" "skill_manifest ignores legacy scope arg"
 assert_eq "$SK/skills.toml.example" "$(skill_manifest_template)" "skill_manifest_template -> root catalog template"
 
 dirs="$(list_skill_dirs)"
-assert_contains "$dirs" "$SK/skills/gen-a" "list_skill_dirs yields generic skill"
-assert_contains "$dirs" "$SK/skills-local/loc-a" "list_skill_dirs yields local skill (second root)"
+assert_contains "$dirs" "$SK/skills/auth-a" "list_skill_dirs yields authored skill"
 assert_not_contains "$dirs" "nomd" "list_skill_dirs skips dir without SKILL.md"
 
-# a materialized remote skill in .skill-cache/ is enumerated as a third root
+# a materialized remote skill in .skill-cache/ is enumerated as the second root
 mkdir -p "$SK/.skill-cache/rem-a"
 printf -- '---\nname: rem-a\n---\n' > "$SK/.skill-cache/rem-a/SKILL.md"
 assert_contains "$(list_skill_dirs)" "$SK/.skill-cache/rem-a" "list_skill_dirs yields cached remote skill"
@@ -192,24 +187,24 @@ assert_eq "$SK/.skill-cache/rem-a" "$(resolve_skill_dir rem-a)" "resolve_skill_d
 # AI_MEMORY_SKILL_ROOTS override pins the roots
 export AI_MEMORY_SKILL_ROOTS="$SK/skills"
 assert_eq "$SK/skills" "$(skill_roots)" "AI_MEMORY_SKILL_ROOTS override -> single root"
-assert_not_contains "$(list_skill_dirs)" "loc-a" "override excludes the local root"
+assert_not_contains "$(list_skill_dirs)" "rem-a" "override excludes the remote cache root"
 unset AI_MEMORY_SKILL_ROOTS
 
-# --- resolve_skill_dir: finds a skill in either root, fails on unknown ---
-assert_eq "$SK/skills/gen-a" "$(resolve_skill_dir gen-a)" "resolve_skill_dir -> generic dir"
-assert_eq "$SK/skills-local/loc-a" "$(resolve_skill_dir loc-a)" "resolve_skill_dir -> local dir"
+# --- resolve_skill_dir: finds authored and remote skills, fails on unknown ---
+assert_eq "$SK/skills/auth-a" "$(resolve_skill_dir auth-a)" "resolve_skill_dir -> authored dir"
+assert_eq "$SK/.skill-cache/rem-a" "$(resolve_skill_dir rem-a)" "resolve_skill_dir -> remote dir"
 out=$(resolve_skill_dir nope); code=$?
 assert_exit 1 "$code" "resolve_skill_dir unknown -> exit 1"
 assert_eq "" "$out" "resolve_skill_dir unknown -> empty"
 
 # --- skills_with_partial: scans all roots by default ---
-printf '\n<!-- partial:self-rating START x -->\n<!-- partial:self-rating END -->\n' >> "$SK/skills/gen-a/SKILL.md"
-printf '\n<!-- partial:self-rating START x -->\n<!-- partial:self-rating END -->\n' >> "$SK/skills-local/loc-a/SKILL.md"
+printf '\n<!-- partial:self-rating START x -->\n<!-- partial:self-rating END -->\n' >> "$SK/skills/auth-a/SKILL.md"
+printf '\n<!-- partial:self-rating START x -->\n<!-- partial:self-rating END -->\n' >> "$SK/.skill-cache/rem-a/SKILL.md"
 carriers="$(skills_with_partial self-rating)"
-assert_contains "$carriers" "gen-a" "skills_with_partial (no dir) finds generic carrier"
-assert_contains "$carriers" "loc-a" "skills_with_partial (no dir) finds local carrier"
+assert_contains "$carriers" "auth-a" "skills_with_partial (no dir) finds authored carrier"
+assert_contains "$carriers" "rem-a" "skills_with_partial (no dir) finds remote carrier"
 # explicit-dir form still scans just that dir (back-compat)
-assert_not_contains "$(skills_with_partial self-rating "$SK/skills")" "loc-a" "explicit dir scopes to that root"
+assert_not_contains "$(skills_with_partial self-rating "$SK/skills")" "rem-a" "explicit dir scopes to that root"
 rm -rf "$SK"
 
 finish

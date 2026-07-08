@@ -4,10 +4,10 @@
 # agent harness's skills directory. LLM/harness-agnostic: point it at any
 # runtime's skills dir and every skill in memory/skills/ gets linked in.
 #
-# Canonical store (source of truth): ~/.claude-memory/skills/ plus the per-instance
-# ~/.claude-memory/skills-local/. Enumeration is centralized in _lib.sh:list_skill_dirs
-# (override the roots via AI_MEMORY_SKILL_ROOTS); the legacy SKILLS_SRC env still pins
-# it to a single dir. Each entry is a skill dir containing a SKILL.md.
+# Skill stores: ~/.claude-memory/skills/ plus ~/.claude-memory/.skill-cache/.
+# Enumeration is centralized in _lib.sh:list_skill_dirs (override the roots via
+# AI_MEMORY_SKILL_ROOTS); the legacy SKILLS_SRC env still pins it to a single
+# dir. Each entry is a skill dir containing a SKILL.md.
 #
 # Usage:
 #   link-skills.sh [TARGET_DIR]        # default: ~/.claude/skills

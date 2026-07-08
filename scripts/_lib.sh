@@ -32,13 +32,13 @@ skills_with_partial() {
 }
 
 # skill_roots — print the skill store roots, one per line, in precedence order:
-# generic authored (skills/, git-tracked, synced) > local authored (skills-local/,
-# gitignored, per-instance) > remote cache (.skill-cache/, gitignored, materialized
-# from the root manifest by resolve-skills.sh). Override the whole list with
-# AI_MEMORY_SKILL_ROOTS (colon-separated). This is the single place roots are declared
-# — every skills tool picks up a new root here. Roots need not exist; callers guard.
+# authored skills (skills/, gitignored, per-instance) > remote cache
+# (.skill-cache/, gitignored, materialized from the root manifest by
+# resolve-skills.sh). Override the whole list with AI_MEMORY_SKILL_ROOTS
+# (colon-separated). This is the single place roots are declared — every skills
+# tool picks up a new root here. Roots need not exist; callers guard.
 skill_roots() {
-    local roots="${AI_MEMORY_SKILL_ROOTS:-$MEMORY_DIR/skills:$MEMORY_DIR/skills-local:$MEMORY_DIR/.skill-cache}"
+    local roots="${AI_MEMORY_SKILL_ROOTS:-$MEMORY_DIR/skills:$MEMORY_DIR/.skill-cache}"
     local IFS=:
     set -- $roots
     printf '%s\n' "$@"
@@ -98,7 +98,7 @@ list_skill_dirs() {
 # resolve_skill_dir — print the absolute dir of the skill named <name>, searching
 # roots in precedence order (first match wins), and return 0; return 1 if no root
 # holds a skill by that name. Lets name-addressed tools (apply-partial, ratings)
-# work regardless of which store — generic or local — a skill lives in.
+# work regardless of whether a skill is authored or remote.
 #   resolve_skill_dir <name>
 resolve_skill_dir() {
     local name="$1" d
