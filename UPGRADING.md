@@ -11,8 +11,13 @@ gitignored `config.local.sh` with `AI_MEMORY_CHANNEL`.
 | dogfood instance | `dev`, or one-shot `--to <ref>` | main / branches on demand |
 | stable instance | `release` (default) | latest stable `v*` tag only; aborts when no stable tag exists |
 
-There are currently no stable `v*` tags, so release-channel instances abort until
-the first release is cut.
+A release-channel instance aborts with an actionable message if no stable `v*` tag
+exists yet.
+
+> **Do not point an instance at a tag earlier than `v1.1.0`.** At `v1.0.0`,
+> `identity.md` was still tracked, so checking it out **silently overwrites** a
+> personalised `identity.md` with the tag's copy — no conflict, no warning, and a
+> clean tree afterwards. See [1.1.0](#110).
 
 Precedence: `config.local.sh` is sourced after the process environment exists, so
 values exported there win over one-off environment prefixes. To change an
@@ -41,6 +46,67 @@ the current dev state, name the remote-tracking ref, for example
 A downgrade with `--to` rolls back code only. Data stays migrated because
 `.applied-version` is a high-water mark and older migrations do not re-run; this
 is safe because of the [N/N+1 rule](#the-two-standing-rules).
+
+A downgrade can still clobber a file that the older tag tracked and the newer one
+does not. `--to v1.0.0` overwrites `identity.md`, because `v1.0.0` tracks it. Back
+it up first.
+
+## Converting an existing instance to the release channel
+
+For an instance that was cloned before releases existed and still tracks `main`.
+Run everything from the instance's own memory tree (`~/.claude-memory` by default;
+`echo "$MEMORY_DIR"` if you are unsure).
+
+```bash
+cd ~/.claude-memory
+```
+
+**1. Confirm what you have.**
+
+```bash
+git branch --show-current          # probably "main"
+git status --porcelain             # must be empty of TRACKED changes
+git fetch --tags origin && git tag -l 'v*' | sort -V | tail -1
+```
+
+A dirty *tracked* file aborts the sync. Untracked and git-ignored files never do —
+your `projects/`, `domain/`, `tasks/`, `config.local.sh`, and `identity.md` are all
+ignored, so they are safe and are **not** touched by any checkout.
+
+**2. Set the channel.** `release` is the default, so an instance with no
+`AI_MEMORY_CHANNEL` is already a release-channel consumer — doing nothing is a
+choice, not a no-op. To be explicit, add to the gitignored `config.local.sh` that
+`install.sh` created:
+
+```bash
+echo 'export AI_MEMORY_CHANNEL="release"' >> config.local.sh
+```
+
+Remember the precedence rule above: a value in `config.local.sh` beats an
+environment prefix. Editing the file is the only way to change an instance's channel.
+
+**3. Preview, then sync.**
+
+```bash
+bash scripts/sync-system.sh --dry-run     # reports channel + target tag, mutates nothing
+bash scripts/sync-system.sh
+```
+
+The sync checks out the latest stable tag, runs any pending migrations, and re-runs
+`install.sh` to rebuild the harness wiring from that version.
+
+**4. Verify.**
+
+```bash
+git describe --tags        # -> v1.1.0
+cat .applied-version       # -> highest migration version applied, if any ran
+```
+
+**Afterwards the instance is on a detached HEAD** at the tag. That is intended.
+Consumer instances never commit, and `git pull` will fail there — use
+`sync-system.sh` to move between versions, not raw git. To return the instance to
+tracking a branch, set `AI_MEMORY_CHANNEL=dev` in `config.local.sh` and sync again;
+the dev path recovers the tracking branch from a detached HEAD automatically.
 
 ## The two standing rules
 

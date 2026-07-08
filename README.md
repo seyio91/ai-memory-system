@@ -26,7 +26,7 @@ cd ~/.claude-memory
 
 `install.sh` is idempotent and backs up anything it overwrites. Two steps it leaves to you (merge hook settings; symlink `CLAUDE.md`) and the full breakdown are in **[docs/install.md](docs/install.md)**. Then edit `identity.md`, pin a repo with `/pin <project>`, and start a session.
 
-Upgrade instances with `scripts/sync-system.sh`; it syncs to the latest stable tag by default and aborts until the first stable `v*` tag exists. Set `AI_MEMORY_CHANNEL=dev` in `config.local.sh` on the source checkout, otherwise that checkout also defaults to `release` and will detach at the latest tag once one exists.
+Upgrade instances with `scripts/sync-system.sh`. It syncs to the latest stable `v*` tag by default (`AI_MEMORY_CHANNEL=release`), runs pending migrations, and re-runs `install.sh`. Set `AI_MEMORY_CHANNEL=dev` in `config.local.sh` on the source checkout, otherwise it too defaults to `release` and will detach at the latest tag. Converting an existing instance: **[UPGRADING.md](UPGRADING.md#converting-an-existing-instance-to-the-release-channel)**.
 
 ## What you get
 
