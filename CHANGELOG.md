@@ -3,7 +3,10 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
 ## [Unreleased]
+
+## [1.1.0] - 2026-07-08
 
 > **Upgrading from `1.0.0` needs one manual step.** `identity.md` is no longer
 > tracked. Back it up first — see [UPGRADING.md](UPGRADING.md#110). Do not point an
@@ -92,4 +95,3 @@ delta from an earlier release.
   never authored.
 - **Harness-neutral project marker** `.agents/memory-project`, with a legacy
   `.claude/memory-project` fallback and `migrate-marker.sh` to bulk-migrate.
-
