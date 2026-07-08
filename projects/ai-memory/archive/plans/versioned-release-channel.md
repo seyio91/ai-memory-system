@@ -1,7 +1,8 @@
 ---
 plan: versioned-release-channel
-status: active
+status: done
 created: 2026-07-08
+completed: 2026-07-08
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 396f6850-c619-8132-bf77-e09e4bd2757e
@@ -105,7 +106,7 @@ Actions later adds only a trigger on the tag, not a second code path.
 
 ## Phases
 
-- [ ] **Phase 1 — Channel + `--to` in `sync-system.sh`.** `AI_MEMORY_CHANNEL`
+- [x] **Phase 1 — Channel + `--to` in `sync-system.sh`.** `AI_MEMORY_CHANNEL`
       resolution (source `config.local.sh` via `_lib.sh`; default `release`… but
       keep the dev checkout's behavior: `dev` = today's ff-pull path unchanged);
       latest-tag discovery (bash-3.2-safe semver sort — verify `sort -V` on target
@@ -113,20 +114,41 @@ Actions later adds only a trigger on the tag, not a second code path.
       (checkout → \[migrations placeholder\] → `install.sh`). Preserve existing
       flags (`--dry-run`, `--no-pull`, `--update`). Tests in
       `scripts/tests/test_sync_channels.sh` (fixture repo with tags).
-- [ ] **Phase 2 — Migration runner + `.applied-version`.** Runner helper (invoked
+- [x] **Phase 2 — Migration runner + `.applied-version`.** Runner helper (invoked
       from the shared tail), `migrations/` dir + README, marker read/write, semver
       compare, ordering, idempotency, downgrade no-op. Gitignore the marker. Tests.
-- [ ] **Phase 3 — `release.sh`.** Guards (dirty/branch/tests/tag-exists/version-
+- [x] **Phase 3 — `release.sh`.** Guards (dirty/branch/tests/tag-exists/version-
       monotonic), CHANGELOG section finalize (drafted from `git log v<prev>..HEAD`),
       annotated tag + push. Tests for every guard refusal (tag/push mocked or
       dry-run flag).
-- [ ] **Phase 4 — Docs.** Seed `CHANGELOG.md` + `UPGRADING.md` (standing rules +
+- [x] **Phase 4 — Docs.** Seed `CHANGELOG.md` + `UPGRADING.md` (standing rules +
       semver rule); update `docs/scripts.md`, install/sync docs, README (channel
       table: dev machine / dogfood / stable); note the deferred zip thread.
-- [ ] **Phase 5 — Cut `v1.0.0` end-to-end.** Run `release.sh 1.0.0` (orchestrator
+- [x] **Phase 5 — Cut `v1.0.0` end-to-end.** Run `release.sh 1.0.0` (orchestrator
       runs the tag-push step), flip one real consumer instance to the release
       channel, verify sync + `git describe`, then dogfood-test `--to main` +
       snap-back on that instance.
+
+## Outcome (2026-07-08)
+
+Shipped across PRs #40–#46, in one day. Two tags cut: `v1.0.0`, then `v1.1.0`.
+
+- **#40** channel + `--to`; **#41** migration runner + `.applied-version`;
+  **#42** `release.sh`; **#43** CHANGELOG/UPGRADING + the enforced per-version test;
+  **#44** `--cleanup=verbatim` (tag messages were silently losing every `#` line);
+  **#45** untrack `identity.md`; **#46** conversion runbook + stale-doc corrections.
+- `v1.0.0` was retagged after #44 restored its stripped headings.
+- **`v1.0.0` is a trap tag** — it predates #45, so checking it out silently overwrites a
+  personalised `identity.md`. `v1.1.0` is the first consumer-safe tag. Warned in
+  `UPGRADING.md` and `/sync-system`.
+- Phase 5b done: a real consumer instance was flipped to the release channel.
+
+What the validator caught that green tests did not: `--to` stranding dev-channel
+instances on a detached HEAD; a hardcoded `main` fallback; duplicate migration versions
+making a failed migration unresumable; a producer failure swallowed inside
+`while ... < <(...)`; and a 4-step release mutation with no recovery. What *nothing*
+caught until it shipped: `git tag -a -m` stripping every `#` line — 107 assertions
+verified a tag was created, none verified what it said.
 
 ## Risks / open questions
 

@@ -17,7 +17,9 @@ Three layers (Karpathy LLM-Wiki pattern):
 Moving parts: one `UserPromptSubmit` hook (`~/.claude/hooks/inject_memory.sh`) emits `<memory:*>` blocks; slash commands in `~/.claude/commands/`; scripts in `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`, `link-skills.sh`, `executor.sh`, `codex-mem.sh`, the `taskprovider/` package + `taskctl`) with dependency-free bash-3.2 tests under `scripts/tests/`.
 
 ## Current State
-Functional and in daily use across the real engagements indexed in `index.md`. This checkout is the distributable **source copy**, attached to `origin = seyio91/ai-memory-system` (private). The repo was reconciled onto a canonical GitHub core via the github-core migration (clone-and-swap; live data rsynced in and kept gitignored) — see `archive/plans/github-core-migration.md`. **The engine is now harness-agnostic** (7-phase plan complete 2026-07-06, PRs #16–#22): `install.sh` is a generic manifest-driven installer; `claude`/`codex`/`antigravity` are registered harnesses; the project marker is harness-neutral (`.agents/memory-project`); the executor resolves task/exploration roles from the manifest — see the Architecture Decisions below.
+Functional and in daily use across the real engagements indexed in `index.md`. This checkout is the distributable **source copy** and the dev instance: `origin = seyio91/ai-memory-system` (private, headed public), `AI_MEMORY_CHANNEL=dev` so a sync never flips it onto a tag.
+
+The engine is **harness-agnostic** (`install.sh` is a generic manifest-driven installer; `claude`/`codex`/`antigravity` are registered harnesses; the marker is `.agents/memory-project`; the executor resolves roles from the manifest) and **versioned**: consumer instances sync to stable `v*` tags, never to a moving `main`. Latest tag `v1.1.0`; `v1.0.0` is a trap tag (see Gotchas). Design records live in Architecture Decisions below.
 
 ## Architecture Decisions
 - **Markdown over a DB** — every editor/diff/grep works; zero infra; git-trackable.
@@ -77,6 +79,12 @@ Functional and in daily use across the real engagements indexed in `index.md`. T
 - **`domain/terraform-module-cache/` convention** — a path-addressed cache keyed on module short name (one file per module). Not in the `index.md` catalog (regenerate-index only globs top-level `domain/*.md`), and `domain/*` is gitignored — local, untracked, looked up by direct path. No reindex when writing them.
 
 ## Current Goal
-Iterate and improve the tooling itself — keep scripts, README/docs, and `identity.md` in sync as conventions evolve. The one open build thread is **`@`-sign on-demand/section-level context loading** (backlog task `38ff6850-c619-810e-93c9-e58480054bf2`): reference and pull a specific memory file or named section instead of injecting whole files. The harness-agnostic engine, Antigravity hook-archetype, and project categories/`/activity` are complete — their design records live in Architecture Decisions above.
+**Prepare to open-source.** The repo goes public with its history intact; content is removed going forward, never scrubbed (see the open-sourcing decision above). `identity.md` and live client references are already out of the tracked tree.
 
-**POS-adoption thread — DONE.** Both deliverables shipped: skill subsystem (PR #8, `archive/plans/skill-subsystem.md`) and derived state snapshot (PR #9, `archive/plans/state-snapshot.md`). The triage docs that drove it (`pos-comparison.md`, `pos-adoption-backlog.md`) were plan references, not system-component wiki, so they were archived to `archive/wikis/` on completion. No remaining POS items.
+Open build threads, all captured as backlog tasks:
+- **Release automation** — replace `release.sh`'s release-time `git log` drafting with per-PR changelog fragments, then let GitHub Actions assemble and publish. Design in `brainstorms/release-automation.md`. Would also make branch protection on `main` possible, which `release.sh` currently forbids by pushing `main` itself.
+- **Task-provider `body` field** — `summary` is the only free-text field, and the two backends disagree about what it is (`local` writes it as a markdown body, `notion` as a 2000-char property). Long designs can't be captured without a pointer file.
+- **`@`-sign section-level context loading** — pull a named file or section instead of injecting whole files.
+- **Cross-model validator** — the current "same executor, fresh invocation" doctrine decorrelates context but not model. Evidence arrived: same-model validation confirmed `v1.0.0`'s tag was *created* and never checked what it *said*.
+
+**Versioned-release-channel thread — DONE** (`archive/plans/versioned-release-channel.md`). Its design record is `archive/wikis/versioned-release-packaging.md`; §7 there holds the deferred external-user zip thread, which untracking personal content would make cheap (`git archive` becomes a valid build primitive once nothing personal is tracked).
