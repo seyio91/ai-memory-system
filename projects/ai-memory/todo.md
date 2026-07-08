@@ -6,7 +6,12 @@
 
 ## Active
 
-_(nothing active)_
+### Versioned release channel (git tags) → [plan](plans/versioned-release-channel.md)
+- [ ] Phase 1 — Channel + `--to` in `sync-system.sh`
+- [ ] Phase 2 — Migration runner + `.applied-version`
+- [ ] Phase 3 — `release.sh`
+- [ ] Phase 4 — Docs (CHANGELOG, UPGRADING, docs/, README)
+- [ ] Phase 5 — Cut `v1.0.0` end-to-end + flip a consumer instance
 
 ## Done
 _(checked items stay above until the file is rolled)_
