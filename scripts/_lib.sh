@@ -116,6 +116,9 @@ _semver_num() {
 }
 
 semver_gt() {
+    # Stable tags sort above prereleases with the same core version, but this
+    # intentionally does not order prerelease identifiers against each other.
+    # Phase 2 migration versions are always stable, so that is sufficient here.
     local a="${1#v}" b="${2#v}" old_ifs
     local a_core b_core a_pre b_pre
     local a1 a2 a3 b1 b2 b3

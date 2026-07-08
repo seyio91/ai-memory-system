@@ -68,6 +68,41 @@ make_fixture() {
     printf '%s\n' "$repo"
 }
 
+make_branch_fixture() {
+    local name="$1" branch="$2"
+    local repo="$ROOT/$name/repo"
+    local origin="$ROOT/$name/origin.git"
+    mkdir -p "$repo"
+    git -C "$repo" init -q
+    git -C "$repo" checkout -q -b "$branch"
+    git_identity "$repo"
+    write_fixture_scripts "$repo"
+    printf 'base\n' > "$repo/VERSION"
+    commit_all "$repo" "base"
+    git clone -q --bare "$repo" "$origin"
+    git -C "$origin" symbolic-ref HEAD "refs/heads/$branch"
+    git -C "$repo" remote add origin "$origin"
+    git -C "$repo" fetch -q origin
+    git -C "$repo" branch --set-upstream-to="origin/$branch" "$branch" >/dev/null
+    printf '%s\n' "$repo"
+}
+
+make_prerelease_fixture() {
+    local name="$1" with_stable_next="${2:-no}"
+    local repo
+    repo="$(make_fixture "$name" no)"
+    git -C "$repo" tag v1.0.0
+    printf 'rc\n' > "$repo/VERSION"
+    commit_all "$repo" "v1.1.0 rc"
+    git -C "$repo" tag v1.1.0-rc.1
+    if [ "$with_stable_next" = "yes" ]; then
+        printf 'stable\n' > "$repo/VERSION"
+        commit_all "$repo" "v1.1.0 stable"
+        git -C "$repo" tag v1.1.0
+    fi
+    printf '%s\n' "$repo"
+}
+
 run_sync_unset() {
     local repo="$1"
     shift
@@ -120,6 +155,26 @@ R3="$(make_fixture release-fallback-sort yes)"
 fallback_out="$(capture_sync_channel_no_sort_v "$R3" release)"
 assert_eq "v0.10.0" "$(git -C "$R3" describe --tags --exact-match 2>/dev/null)" "release latest-tag fallback orders semver tags without sort -V"
 assert_contains "$fallback_out" "Checking out release v0.10.0" "release fallback reports latest semver tag"
+
+R4="$(make_prerelease_fixture release-ignore-prerelease-sort no)"
+prerelease_out="$(capture_sync_channel "$R4" release)"
+assert_eq "v1.0.0" "$(git -C "$R4" describe --tags --exact-match 2>/dev/null)" "release discovery ignores prerelease tags with sort -V"
+assert_contains "$prerelease_out" "Checking out release v1.0.0" "release prerelease-ignore reports stable target with sort -V"
+
+R5="$(make_prerelease_fixture release-ignore-prerelease-fallback no)"
+prerelease_fallback_out="$(capture_sync_channel_no_sort_v "$R5" release)"
+assert_eq "v1.0.0" "$(git -C "$R5" describe --tags --exact-match 2>/dev/null)" "release discovery ignores prerelease tags without sort -V"
+assert_contains "$prerelease_fallback_out" "Checking out release v1.0.0" "release prerelease-ignore reports stable target without sort -V"
+
+R6="$(make_prerelease_fixture release-stable-next-sort yes)"
+stable_next_out="$(capture_sync_channel "$R6" release)"
+assert_eq "v1.1.0" "$(git -C "$R6" describe --tags --exact-match 2>/dev/null)" "release discovery chooses newer stable tag with sort -V"
+assert_contains "$stable_next_out" "Checking out release v1.1.0" "release newer-stable reports target with sort -V"
+
+R7="$(make_prerelease_fixture release-stable-next-fallback yes)"
+stable_next_fallback_out="$(capture_sync_channel_no_sort_v "$R7" release)"
+assert_eq "v1.1.0" "$(git -C "$R7" describe --tags --exact-match 2>/dev/null)" "release discovery chooses newer stable tag without sort -V"
+assert_contains "$stable_next_fallback_out" "Checking out release v1.1.0" "release newer-stable reports target without sort -V"
 
 # --- dev keeps ff-only branch behavior ---
 D1="$(make_fixture dev yes)"
@@ -185,6 +240,23 @@ run_sync_channel "$E2" dev >/dev/null 2>&1
 assert_eq "main" "$(git -C "$E2" rev-parse --abbrev-ref HEAD)" "plain dev sync after --to returns to tracking branch"
 assert_eq "$(git -C "$E2" rev-parse origin/main)" "$(git -C "$E2" rev-parse HEAD)" "plain dev sync after --to fast-forwards tracking branch"
 
+E3="$(make_branch_fixture ephemeral-dev-trunk trunk)"
+git -C "$E3" update-ref -d refs/remotes/origin/HEAD 2>/dev/null || true
+sha="$(git -C "$E3" rev-parse HEAD)"
+run_sync_channel "$E3" dev --to "$sha" >/dev/null 2>&1
+run_sync_channel "$E3" dev >/dev/null 2>&1
+assert_eq "trunk" "$(git -C "$E3" rev-parse --abbrev-ref HEAD)" "plain dev sync after detached HEAD recovers non-main default branch without origin HEAD"
+assert_eq "$(git -C "$E3" rev-parse origin/trunk)" "$(git -C "$E3" rev-parse HEAD)" "non-main detached recovery lands on origin default branch"
+
+E4="$(make_branch_fixture ephemeral-dev-remote-only trunk)"
+git -C "$E4" update-ref -d refs/remotes/origin/HEAD 2>/dev/null || true
+sha="$(git -C "$E4" rev-parse HEAD)"
+git -C "$E4" checkout -q "$sha"
+git -C "$E4" branch -D trunk >/dev/null
+run_sync_channel "$E4" dev >/dev/null 2>&1
+assert_eq "trunk" "$(git -C "$E4" rev-parse --abbrev-ref HEAD)" "dev detached recovery creates missing local branch from origin default"
+assert_eq "origin/trunk" "$(git -C "$E4" rev-parse --abbrev-ref --symbolic-full-name '@{u}')" "recovered local branch tracks origin default"
+
 # --- dirty tracked files abort; untracked files do not ---
 DIRTY="$(make_fixture dirty yes)"
 printf 'dirty\n' > "$DIRTY/VERSION"
@@ -230,6 +302,21 @@ assert_exit 1 "$notags_rc" "release channel without v tags exits nonzero"
 assert_contains "$notags_out" "no release tag yet" "no-tag failure explains next action"
 assert_contains "$notags_out" "set AI_MEMORY_CHANNEL=dev" "no-tag failure suggests dev channel"
 
+ONLY_RC="$(make_fixture only-rc no)"
+git -C "$ONLY_RC" tag v1.1.0-rc.1
+set +e
+only_rc_out="$(capture_sync_channel "$ONLY_RC" release)"
+only_rc_rc=$?
+set -u
+assert_exit 1 "$only_rc_rc" "release channel with only prerelease v tags exits nonzero"
+assert_contains "$only_rc_out" "none are stable release tags matching v<num>.<num>.<num>" "only-prerelease failure uses distinct stable-tag message"
+assert_not_contains "$only_rc_out" "no release tag yet" "only-prerelease failure is distinct from no-tag failure"
+
+TO_RC="$(make_prerelease_fixture to-prerelease-tag no)"
+run_sync_channel "$TO_RC" release --to v1.1.0-rc.1 >/dev/null 2>&1
+assert_eq "v1.1.0-rc.1" "$(git -C "$TO_RC" describe --tags --exact-match 2>/dev/null)" "--to prerelease tag checks out requested prerelease ref"
+assert_eq "rc" "$(cat "$TO_RC/VERSION")" "--to prerelease tag reaches prerelease content"
+
 # --- dry-run changes nothing and reports resolved target ---
 DRY="$(make_fixture dry yes)"
 before_head="$(git -C "$DRY" rev-parse HEAD)"
@@ -254,6 +341,13 @@ dry_fetch_out="$(capture_sync_channel "$DRY_FETCH" release --dry-run)"
 assert_contains "$dry_fetch_out" "target: v0.11.0" "release dry-run fetches tags before resolving latest target"
 assert_eq "main" "$(git -C "$DRY_FETCH" rev-parse --abbrev-ref HEAD)" "release dry-run fetch leaves branch unchanged"
 if [ ! -f "$DRY_FETCH/install-ran.txt" ]; then _ok "release dry-run fetch does not run install"; else _bad "release dry-run fetch does not run install"; fi
+
+DRY_NO_ORIGIN="$(make_fixture dry-no-origin yes)"
+git -C "$DRY_NO_ORIGIN" remote remove origin
+dry_no_origin_out="$(capture_sync_channel "$DRY_NO_ORIGIN" release --dry-run)"
+assert_contains "$dry_no_origin_out" "refs may be stale (offline or no origin)" "dry-run without origin reports stale refs"
+assert_contains "$dry_no_origin_out" "[dry-run] using local refs, not checking out, not installing" "dry-run without origin continues with local refs"
+assert_eq "main" "$(git -C "$DRY_NO_ORIGIN" rev-parse --abbrev-ref HEAD)" "dry-run without origin leaves branch unchanged"
 
 DRY_DEV="$(make_fixture dry-dev yes)"
 PEER="$ROOT/dry-dev/peer"

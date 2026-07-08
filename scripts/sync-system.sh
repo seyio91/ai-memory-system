@@ -13,12 +13,14 @@
 #   release channel:
 #     git status --porcelain --untracked-files=no
 #     git fetch --tags origin
-#     git checkout "<latest v* semver tag>"
+#     git checkout "$(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)"
 #     bash install.sh
 #   dev channel:
 #     git status --porcelain --untracked-files=no
 #     git fetch --tags origin
 #     if [ "$(git rev-parse --abbrev-ref HEAD)" = "HEAD" ]; then
+#       branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's#^origin/##')"
+#       [ -n "$branch" ] || git remote set-head origin --auto
 #       branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD | sed 's#^origin/##')"
 #       git checkout "${branch:-main}"
 #     fi
@@ -96,35 +98,35 @@ dirty_tracked_guard() {
   fi
 }
 
-SORT_V_SUPPORTED=""
 sort_v_supported() {
   local last
   [ "${AI_MEMORY_TEST_NO_SORT_V:-}" = "1" ] && return 1
-  if [ -z "$SORT_V_SUPPORTED" ]; then
-    last="$(printf 'v1.10.0\nv1.9.0\n' | sort -V 2>/dev/null | tail -1 || true)"
-    if [ "$last" = "v1.10.0" ]; then
-      SORT_V_SUPPORTED=1
-    else
-      SORT_V_SUPPORTED=0
-    fi
-  fi
-  [ "$SORT_V_SUPPORTED" = 1 ]
+  last="$(printf 'v1.10.0\nv1.9.0\n' | sort -V 2>/dev/null | tail -1 || true)"
+  [ "$last" = "v1.10.0" ]
+}
+
+stable_release_tags() {
+  git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true
 }
 
 latest_release_tag() {
   local tag candidate
   tag=""
   if sort_v_supported; then
-    tag="$(git tag -l 'v*' | sort -V | tail -1)"
+    tag="$(stable_release_tags | sort -V | tail -1)"
   else
     while IFS= read -r candidate; do
       [ -n "$candidate" ] || continue
       if [ -z "$tag" ] || semver_gt "$candidate" "$tag"; then
         tag="$candidate"
       fi
-    done < <(git tag -l 'v*')
+    done < <(stable_release_tags)
   fi
   if [ -z "$tag" ]; then
+    if [ -n "$(git tag -l 'v*')" ]; then
+      echo "  ABORT: v* tags exist, but none are stable release tags matching v<num>.<num>.<num>." >&2
+      exit 1
+    fi
     echo "  ABORT: no release tag yet — cut one with release.sh, or set AI_MEMORY_CHANNEL=dev." >&2
     exit 1
   fi
@@ -132,10 +134,34 @@ latest_release_tag() {
 }
 
 dev_default_branch() {
-  local branch
+  local branch ref count
   branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
   branch="${branch#origin/}"
-  [ -n "$branch" ] || branch="main"
+  if [ -n "$branch" ]; then
+    printf '%s\n' "$branch"
+    return 0
+  fi
+  git remote set-head origin --auto >/dev/null 2>&1 || true
+  branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+  branch="${branch#origin/}"
+  if [ -n "$branch" ]; then
+    printf '%s\n' "$branch"
+    return 0
+  fi
+  count=0
+  branch=""
+  while IFS= read -r ref; do
+    case "$ref" in
+      refs/remotes/origin/HEAD) continue ;;
+    esac
+    count=$((count + 1))
+    branch="${ref#refs/remotes/origin/}"
+  done < <(git for-each-ref --format='%(refname)' refs/remotes/origin)
+  if [ "$count" -eq 1 ] && [ -n "$branch" ]; then
+    printf '%s\n' "$branch"
+    return 0
+  fi
+  branch="main"
   printf '%s\n' "$branch"
 }
 
@@ -205,7 +231,11 @@ if [ "$DO_PULL" = 1 ]; then
   fi
 
   if [ "$DRY_RUN" = 1 ]; then
-    git fetch --quiet --tags origin
+    FETCH_STATUS="fetched origin"
+    if ! git fetch --quiet --tags origin; then
+      info "could not fetch origin; refs may be stale (offline or no origin)"
+      FETCH_STATUS="using local refs"
+    fi
     step "[dry-run] sync target"
     info "channel: $CHANNEL"
     if [ "$MODE" = "ref" ]; then
@@ -217,7 +247,7 @@ if [ "$DO_PULL" = 1 ]; then
       info "target: @{u} (dev ff-only merge)"
       preview_dev_incoming
     fi
-    info "[dry-run] fetched origin, not checking out, not installing"
+    info "[dry-run] $FETCH_STATUS, not checking out, not installing"
     exit 0
   fi
 
