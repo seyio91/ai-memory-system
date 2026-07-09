@@ -30,12 +30,25 @@ the plan must not be justified on it:
 - That bug is already fixed (v1.2.0) and pinned by a behavioural test (`84a546b`), which is
   the only control that covers the class.
 
-**The honest justification is prospective:** shellcheck finds **zero** real bugs in the tree
-today at any floor, and the gate exists to stop the *next* `SC2086` from landing. Scoping it
-against a real-but-fixed bug it cannot see would ship a gate that proves nothing.
+**The honest justification is prospective:** the gate exists to stop the *next* `SC2086` from
+landing. Scoping it against a real-but-fixed bug it cannot see would ship a gate that proves nothing.
 
 Baseline as of 2026-07-09, excluding `SC1091`/`SC1090`: **0 error, 19 warning, 66 info, 70 style.**
 Of the 19 warnings, 13 are in tests and the 6 in production are false positives or dead locals.
+
+> **OUTCOME 2026-07-10 — the "zero real bugs" claim was wrong, and in the useful direction.**
+> This section originally asserted shellcheck finds *zero* real bugs in the tree at any floor.
+> Executing the plan found **three**, all below the `warning` floor the task first proposed:
+> `SC2086` in the deny-list guard (spec files space-joined → a `$REPO` with a space silently
+> loads fewer rules); `SC2044` in `regenerate-{state,activity}.sh` (a `MEMORY_DIR` with a space
+> corrupted the state snapshot — blank columns plus a phantom project row); and `SC2295` in two
+> scripts (`${f#$MEMORY_DIR/}` treats the prefix as a glob pattern). None had test coverage.
+>
+> The prospective justification still stands on its own, and the *reasoning* that produced it was
+> sound — the bug the task named really is invisible to shellcheck. But "I measured and found
+> nothing" is a claim about a measurement, not about the code. Running the gate **is** the
+> measurement. Estimating its yield at zero without running it repeated, one level down, the exact
+> error this plan exists to document.
 
 ## Design
 
@@ -111,8 +124,11 @@ The stage must **skip with a notice, not fail**, when `shellcheck` is absent, or
 - **Floor = `info`.** `warning` cannot see `SC2086`; `style` is 70 findings of brace-preference noise.
 - **Curated disables over a baseline file.** Exemptions live at the site, not in a rotting ledger.
 - **Skip, don't fail, when shellcheck is absent.** A dev-only tool must not gate a consumer's suite.
-- **The gate catches nothing today, and that is fine.** Its value is prospective; it is *not* the
-  control for the `set -e` last-statement class. That control is a behavioural test.
+- ~~**The gate catches nothing today, and that is fine.**~~ **Falsified on execution: it caught
+  three real defects** (`SC2086` in the deny-list guard, `SC2044` state-snapshot corruption,
+  `SC2295`), none test-covered, all below the originally-proposed `warning` floor. What survives
+  of the decision: the gate's value is *primarily* prospective, and it is *not* the control for
+  the `set -e` last-statement class — that control is a behavioural test.
 - **No `-o all`.** Optional checks add `SC2250`/`SC2292` brace-and-`[[` churn for no defect coverage,
   and still miss the bug that motivated the task.
 
