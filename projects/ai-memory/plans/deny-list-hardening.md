@@ -17,16 +17,17 @@ extend the list without bricking their instance's ability to sync.
 
 ## Success criteria
 
-> **STATUS 2026-07-09: NOT DONE — paused after round 5 at user request. One OPEN bypass
-> remains (see `## Open — round-5 finding` below). Do not mark this plan done or merge the
-> branch until it is closed. The criteria below are ticked for what is *verified closed*; the
-> open item is tracked separately so a tick is never a false "all clear".**
+> **STATUS 2026-07-09: the round-5/6 open bypass is now CLOSED (see `## Open — round-5 finding`,
+> retained as the record). Six adversarial rounds, 23 bypass classes, all with regression tests;
+> 155 assertions; suite green. Ready for a 7th pass and merge into 1.2.0.**
 
-- [x] **Flag interposition is denied** *(direct forms)*. All of these are blocked, verified by
-      test: `terraform -chdir=envs/prod apply`, `kubectl -n foo delete pod x`,
-      `kubectl --context=prod apply -f x.yaml`, `gh --repo o/r pr merge 12`,
-      `az --debug repos pr update --status completed`. **BUT the wrapper∘`sh -c` composition of
-      this class is still OPEN** — see the round-5 finding.
+- [x] **Flag interposition is denied**, including the wrapper∘`sh -c` composition:
+      `terraform -chdir=envs/prod apply`, `kubectl -n foo delete pod x`,
+      `gh --repo o/r pr merge 12`, `az --debug repos pr update --status completed`, **and**
+      `timeout 5 sh -c "terraform apply"`, `sudo -u root sh -c "terraform apply"`,
+      `nice -n 10 ionice -c2 sh -c "…"` — the round-6 fix scans a wrapper's tail for a
+      payload-bearing binary. `timeout 5 eval "terraform apply"` stays **allowed** (a wrapper
+      cannot exec the `eval` builtin, so it runs nothing).
 - [x] **Interposition in the *wrapper* is denied too** (found during execution, not planned):
       `sudo -u root kubectl delete pod x` — `sudo -u` takes a value, so the wrapper-skip loop
       stopped on `root` and called *that* the binary. Same bug class, one level up.
@@ -283,10 +284,11 @@ should express.
 - Malformed JSON on stdin still yields empty `CMDLINE` with a parser present, and for
   `AI_MEMORY_ROLE=task` that reads as "no command line" ⇒ allow. Out of scope; note it.
 
-## Open — round-5 finding (THE RESUME POINT)
+## Round-5/6 finding — CLOSED 2026-07-09 (was the resume point)
 
-**PAUSED here 2026-07-09 at user request, after five adversarial validation rounds. One bypass
-is OPEN. Do not merge or mark done until it is closed.**
+**This bypass is now FIXED** (`_deny_wrapper_reachable_payload` + the wrapper-tail scan in
+`_deny_match_loaded`); 18 regression assertions cover it and its variants. Retained below as the
+record of what it was and why the fix has the shape it does.**
 
 **The bypass — a transparent wrapper with a value/flag argument, then a bundled `sh -c`:**
 

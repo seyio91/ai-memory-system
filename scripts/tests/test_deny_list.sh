@@ -49,6 +49,33 @@ deny_is DENY 'foo & bar & terraform apply'
 deny_is DENY 'echo hi |& terraform apply'
 deny_is ALLOW 'echo a & echo b'
 
+# --- a wrapper (whose flag takes a value) then a bundled sh -c: the composition --
+# of two independently-covered forms. `timeout 5 terraform apply` and `sh -c "…"`
+# each deny; before the round-6 fix their composition slipped through because the
+# wrapper skip landed on the flag value, so the sh -c payload was never extracted.
+deny_is DENY 'timeout 5 sh -c "terraform apply"'
+deny_is DENY 'flock /tmp/l sh -c "terraform apply"'
+deny_is DENY 'nice -n 10 sh -c "terraform apply"'
+deny_is DENY 'sudo -u root sh -c "terraform apply"'
+deny_is DENY 'sudo -u root sh -c "kubectl delete pod x"'
+deny_is DENY 'stdbuf -oL sh -c "terraform apply"'
+deny_is DENY 'xargs -n1 sh -c "terraform apply"'
+deny_is DENY 'watch -n5 sh -c "terraform apply"'
+deny_is DENY 'nice -n 10 ionice -c2 sh -c "terraform apply"'
+deny_is DENY 'time nice -n 10 sh -c "terraform apply"'
+deny_is DENY 'nice -n 10 bash -lc "terraform apply"'
+deny_is DENY 'nice -n 10 su - deploy -c "terraform apply"'
+deny_is DENY 'timeout 5 find . -exec terraform apply \;'
+
+# `eval`/`trap` are shell builtins with NO on-disk executable, so a wrapper cannot
+# exec them: `nice -n 10 eval "…"` errors, runs nothing. Denying these would be a
+# false positive. (Direct `eval terraform apply` still denies — the shell runs that.)
+deny_is ALLOW 'timeout 5 eval "terraform apply"'
+deny_is ALLOW 'nice -n 10 eval "terraform apply"'
+deny_is ALLOW 'timeout 5 trap "terraform apply" EXIT'
+deny_is ALLOW 'timeout 5 sh -c "echo hi"'
+deny_is ALLOW 'sudo -u root sh -c "kubectl get pods"'
+
 # --- transparent exec-wrappers an honest agent actually types ------------------
 deny_is DENY 'timeout 5 terraform apply'
 deny_is DENY 'timeout --signal=9 5 kubectl delete pod x'

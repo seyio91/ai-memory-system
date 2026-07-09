@@ -68,6 +68,19 @@ _deny_takes_c_payload() {
     esac
 }
 
+# Real on-disk binaries that a WRAPPER can exec and that re-enter the shell. This is
+# the set to hunt for in a wrapper's tail (`timeout 5 sh -c "…"`, `sudo -u root sh -c
+# "…"`), because after a wrapper the command head is unreliable — a flag's value can
+# sit there. Deliberately EXCLUDES `eval`/`trap`: they are shell builtins with no
+# executable on disk, so a wrapper cannot run them (`nice eval …` → No such file), and
+# treating `timeout 5 eval "terraform apply"` as a denial would be a false positive.
+_deny_wrapper_reachable_payload() {
+    case "$(_deny_basename "$1")" in
+        sh|bash|zsh|su|runuser|find) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Leading tokens that are shell syntax, not a command: subshells, brace groups,
 # and compound-statement keywords. `if true; then terraform apply; fi` splits on
 # `;` into a segment whose head is `then`.
@@ -480,6 +493,22 @@ _deny_match_loaded() {
         # Collect payloads BEFORE recursing: recursion overwrites the global
         # DENY_TOKENS/DENY_CMD_START/DENY_WRAPPED that the spec loop below reads.
         # And run the spec loop FIRST, so it never reads a clobbered token list.
+        # After a wrapper, `idx` may sit on the wrapper's flag *value* (`timeout 5 …`,
+        # `sudo -u root …`), so `primary` is not the real command. Find the actual
+        # payload-bearing binary by scanning the tail for a wrapper-reachable one.
+        # Without this, `timeout 5 sh -c "terraform apply"` extracts no payload.
+        if [ "$DENY_WRAPPED" -eq 1 ] && ! _deny_takes_c_payload "$primary" \
+           && [ "$primary" != "find" ]; then
+            p="$idx"
+            while [ "$p" -lt "${#DENY_TOKENS[@]}" ]; do
+                if _deny_wrapper_reachable_payload "${DENY_TOKENS[$p]}"; then
+                    primary="$(_deny_basename "${DENY_TOKENS[$p]}")"
+                    break
+                fi
+                p=$((p + 1))
+            done
+        fi
+
         DENY_SEG_PAYLOADS=()
         if _deny_takes_c_payload "$primary"; then
             _deny_shell_payloads
