@@ -6,7 +6,7 @@ A small Python (stdlib-only) subsystem that lets the memory system **capture tas
 
 The memory tree owns all detail: the **plan file** and its `todo.md` checkboxes. The task backend owns only **intent + coarse status** — a thin record of `title + summary + status + project`. Sync is at the **plan level** (one backend task ↔ one plan file), **push-dominant** (the memory system drives status), and **never bidirectional field-by-field**. A genuine conflict is *flagged*, not auto-resolved — the same posture as repo-path drift in lint.
 
-**Nothing is materialized in the memory tree until `start`.** A captured task is backend-resident only (no plan stub, no `todo.md` row, no index entry). The backlog lives in the backend; the memory tree holds only started-or-later work.
+**No plan, no `todo.md` row, and no index entry exists until `start`.** A captured task is backend-resident: nothing that makes work *live* is materialized ahead of it. A **brainstorm may exist before `start`** — it is a design input, not live work, and it is where a long-form design lives while its task summary stays thin (see [Summary is a gate](#summary-is-a-gate)). The backlog lives in the backend; the memory tree holds only started-or-later work plus the design inputs feeding it.
 
 ```
 backlog ──start──▶ started ──▶ done ──▶ archived      (canonical statuses)
@@ -19,10 +19,10 @@ CAPTURED (backend only, no plan yet)   STARTED (plan file exists, linked)
 
 | Member | Role |
 |--------|------|
-| `capture(project, title, summary) -> ref` | Create a backlog task; returns an opaque `ref`. |
+| `capture(project, title, summary) -> ref` | Create a backlog task; returns an opaque `ref`. **`summary` is capped at 500 chars** — see [Summary is a gate](#summary-is-a-gate). |
 | `list(project, status) -> [Task]` | Tasks for a project in a canonical status. |
 | `get(ref) -> Task` | One task, all fields. |
-| `update(ref, *, title=None, summary=None)` | **Title/summary only** — the narrow channel for refining the thin record (e.g. pushing the sharpened summary at `/start`). Deliberately *not* a general field writer. |
+| `update(ref, *, title=None, summary=None)` | **Title/summary only** — the narrow channel for refining the thin record (e.g. pushing the sharpened summary at `/start`). Deliberately *not* a general field writer. A non-`None` `summary` is capped at 500 chars; `summary=None` means *leave unchanged* and is not gated. |
 | `set_status(ref, status)` | Move along the lifecycle; non-canonical status is rejected **before** any provider dispatch. |
 | `ping() -> bool` | Backend reachable? |
 | `status_map` (seam) | canonical ↔ native status. Identity for local; option names for Notion; **workflow transitions** for Jira. |
@@ -32,6 +32,29 @@ CAPTURED (backend only, no plan yet)   STARTED (plan file exists, linked)
 `Task` is an immutable dataclass: `ref, project, title, summary, status, created`. The canonical status set `{backlog, started, done, archived}` is defined once. `task_ref` is **opaque to the core** — never parsed.
 
 The two seams (`status_map`, `resolve_project`) are where backends genuinely differ — near-zero for local, heavy for Jira. Keeping them explicit members is what makes the abstraction real rather than cosmetic.
+
+## Summary is a gate
+
+`summary` is capped at **500 characters**, enforced on write. Over-cap `capture` or `update` raises:
+
+```
+summary is 4824 chars; maximum is 500. Write long-form content to
+projects/<project>/brainstorms/<slug>.md and reference it by path from the summary.
+```
+
+**Long-form goes in the tree, not the backend.** A design, a rationale, a comparison — write it to `projects/<project>/brainstorms/<slug>.md` and point the summary at that path. The brainstorm is git-tracked, diffable, and reviewable; a 4800-character property is none of those.
+
+**Why a cap, and why *there*.** The backend is a projection (see [The model](#the-model--backend-is-a-projection-not-a-co-source-of-truth)): it owns intent + coarse status, and the memory tree owns all detail. Nothing structural enforced that — so designs got crammed into `summary` until Notion rejected one at 4824 chars. The cap makes the thin record *actually* thin.
+
+The gate lives in `contract.py` (`validate_summary`, applied by `__init_subclass__` to `capture` and `update`, exactly as `validate_status` guards `set_status`). Three consequences follow from that placement:
+
+- It is **backend-neutral**. A `local`-only task obeys it too. The rule descends from *our* model, not from Notion's per-element limit — inheriting a constraint from a backend you don't use would be incoherent.
+- It fires **before provider dispatch**, so an over-cap Notion capture never issues an HTTP request.
+- A new provider **cannot forget it**. It is not something each backend re-implements.
+
+**Reads are never gated.** Tasks captured before the cap existed keep loading through `get()` / `list()`; they are only forced into compliance the next time someone writes to them. There is no migration.
+
+**Notion's own limit is a red herring.** Notion caps a `rich_text` *element* at 2000 chars and allows 100 of them per array, so chunking would have made the 4824-char write succeed. That fixes the symptom and keeps the disease. At ≤500 chars a summary always fits one element, so the chunking question never arises.
 
 ## Choosing a backend
 
@@ -104,4 +127,8 @@ Tasks reach the memory tree through two commands above the CLI: **`/task`** capt
 
 ## Testing
 
-`scripts/taskprovider/tests/` (Python `unittest`, temp-dir fixtures) covers the contract, the full local lifecycle (`capture→update→started→done→archived`), and Notion offline (canned fixtures, monkeypatched HTTP). A **gated live Notion smoke** runs the same lifecycle against a real scratch data source only when `NOTION_TOKEN` + `NOTION_TEST_DATA_SOURCE_ID` are set, and is **skipped (not failed)** otherwise. A bash CLI integration test (`scripts/tests/test_taskprovider_cli.sh`) runs in the existing harness. Everything offline passes with **no network and no credentials**.
+`scripts/taskprovider/tests/` (Python `unittest`, temp-dir fixtures) covers the contract, the summary gate, the full local lifecycle (`capture→update→started→done→archived`), and Notion offline (canned fixtures, monkeypatched HTTP). A **gated live Notion smoke** runs the same lifecycle against a real scratch data source only when `NOTION_TOKEN` + `NOTION_TEST_DATA_SOURCE_ID` are set, and is **skipped (not failed)** otherwise. A bash CLI integration test (`scripts/tests/test_taskprovider_cli.sh`) runs in the existing harness. Everything offline passes with **no network and no credentials**.
+
+`scripts/run-tests.sh` runs this Python suite as its own `== taskprovider (python) ==` stage (under the same hermetic env scrub as the bash suite) and **gates its exit code on the result**. Until 2026-07-09 it did not: the runner globbed only `scripts/tests/test_*.sh`, so the Python suite never executed and the reported pass count was bash-only.
+
+The same stage enforces a **provider ↔ test pairing**: every `providers/<name>.py` must have a matching `tests/test_<name>.py`, or the suite fails. Adding a provider needs no factory edit *by design* — so without this check, nothing would ever notice a provider shipping with no tests.

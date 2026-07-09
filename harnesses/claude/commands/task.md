@@ -13,6 +13,7 @@ Argument: `$ARGUMENTS` — `[verb] [@project] [rest...]`.
 
 - **`add <title> — <summary>`** — split title/summary on the first ` — ` (em dash), ` - ` (spaced hyphen), or ` | `. If no separator, the whole string is the title and the summary is empty. Run:
   `"$TASKCTL" capture <project> "<title>" "<summary>"` → report `captured <ref> (project: <project>)`.
+  **`summary` is capped at 500 chars** (enforced by the provider contract — an over-cap capture fails). It is a thin record of *intent*, not a design. If the task needs a long design, write it to `projects/<project>/brainstorms/<slug>.md` and make the summary a one-or-two-sentence goal that points at that path.
 - **`list [<status>]`** — default shows the project's open work: run `"$TASKCTL" list <project> backlog` and `"$TASKCTL" list <project> started`, then present a compact table (ref · status · title). If a `<status>` arg is given (`backlog|started|done|archived`), list just that one.
 - **`show <ref>`** — `"$TASKCTL" get <ref>` → print project, status, title, summary, created.
 - **`done <ref>`** — `"$TASKCTL" set-status <ref> done` → confirm.

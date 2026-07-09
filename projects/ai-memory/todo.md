@@ -6,6 +6,13 @@
 
 ## Active
 
+### Task summary: hard 500-char gate, long-form by pointer → [plan](plans/task-summary-gate.md)
+- [x] Phase 1 — contract gate: `SUMMARY_MAX_CHARS`, `validate_summary()`, wrap `capture`/`update`
+- [x] Phase 2 — CLI surface: verify non-zero exit + JSON `{"error": ...}`
+- [x] Phase 3 — tests: offline reject (local + notion), `update(title=)` unaffected, 500/501 boundary, legacy read
+- [x] Phase 3b — wire the python suite into run-tests.sh; `check-provider-tests.sh` + pairing test
+- [x] Phase 4 — docs: task-provider.md gate section + narrowed invariant, `/task` + `/start`, CHANGELOG
+
 ### Configurable cross-model Validator role → [plan](plans/cross-model-validator.md)
 - [x] Phase 1 — executor.sh: `validate` role (no legacy chaining; exec_readonly path)
 - [x] Phase 2 — Antigravity guard: widen read-only gate to explore|validate
