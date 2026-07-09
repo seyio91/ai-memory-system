@@ -139,11 +139,49 @@ if [ "$DO_LINT" = 1 ]; then
     grep -E '^(WARN|ERROR)' "$LOGDIR/vs.log" | sed 's/^/  /' || true
 fi
 
+# Static analysis. Two floors against the single root .shellcheckrc (a nested rc
+# would REPLACE it, not merge): production at `info` because SC2086 — unquoted
+# expansion — is info-level and a `warning` gate could never fire on it; tests at
+# `warning` because their info-level hits are test idioms (SC2015 `[ c ] && _ok ||
+# _bad`, SC2030/SC2031 deliberate subshells). shellcheck resolves the rc from each
+# file's parent dirs, so cwd is irrelevant.
+#
+# NB: a comment whose line STARTS with "# shellcheck " is parsed as a directive, not
+# prose — hence the "NB:" prefixes here. (SC1072/SC1073, caught by this very stage.)
+#
+# NB: shellcheck is a DEV/CI-only dependency; the system's runtime bet is zero
+# dependencies. If it is absent we SKIP with a notice and do not gate — otherwise a
+# fresh machine (or a consumer instance running the suite) fails for lacking a linter.
+sc_status="skipped"
+sc_rc=0
+printf '\n== shellcheck ==\n'
+if ! command -v shellcheck >/dev/null 2>&1; then
+    sc_status="skipped (not installed; dev/CI only)"
+    printf '  SKIP  shellcheck not on PATH — static analysis not run\n'
+else
+    find "$MEM/scripts" "$MEM/harnesses" -name '*.sh' -type f \
+        ! -path "$MEM/scripts/tests/*" -exec shellcheck -S info -f gcc {} + \
+        >"$LOGDIR/sc.prod" 2>/dev/null
+    find "$MEM/scripts/tests" -name '*.sh' -type f \
+        -exec shellcheck -S warning -f gcc {} + >"$LOGDIR/sc.test" 2>/dev/null
+    sc_prod=$(grep -c . "$LOGDIR/sc.prod" 2>/dev/null); sc_prod=${sc_prod:-0}
+    sc_test=$(grep -c . "$LOGDIR/sc.test" 2>/dev/null); sc_test=${sc_test:-0}
+    if [ "$sc_prod" -gt 0 ] || [ "$sc_test" -gt 0 ]; then
+        sc_rc=1
+        sed "s|^$MEM/||; s/^/  /" "$LOGDIR/sc.prod" "$LOGDIR/sc.test" 2>/dev/null | grep -v '^  ==>' || true
+        sc_status="$((sc_prod + sc_test)) finding(s)"
+    else
+        sc_status="clean (prod @ info, tests @ warning)"
+        printf '  PASS  %-32s %s\n' "shellcheck" "0 findings"
+    fi
+fi
+
 printf '\n== summary ==\n'
 printf '  tests: %d passed, %d failed%s\n' "$pass" "$fail" \
     "$( [ -n "$failed_names" ] && printf ' —%s' "$failed_names" )"
 printf '  python: %s\n' "$py_status"
 [ "$DO_LINT" = 1 ] && printf '  lint:  %s\n' "$lint_status"
 [ "$DO_LINT" = 1 ] && printf '  skills: %s\n' "$vs_status"
+printf '  shellcheck: %s\n' "$sc_status"
 
-[ "$fail" -eq 0 ] && [ "$py_rc" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ]
+[ "$fail" -eq 0 ] && [ "$py_rc" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ] && [ "$sc_rc" -eq 0 ]
