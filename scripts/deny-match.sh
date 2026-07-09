@@ -81,6 +81,19 @@ _deny_wrapper_reachable_payload() {
     esac
 }
 
+# Wrappers that ALSO carry their own `-c`/`--command` shell-command flag:
+# `flock <lock> -c "terraform apply"` is exactly `flock <lock> sh -c "…"`, and
+# `script -c "…"` likewise. They are already in the wrapper list (for their trailing
+# `flock <lock> terraform apply` form), but their `-c` payload needs extracting too.
+# Scoped to these two so we do not extract a `-c` that some unrelated binary defines
+# as a non-shell flag (which would be a false positive).
+_deny_wrapper_has_command_flag() {
+    case "$(_deny_basename "$1")" in
+        flock|script) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Leading tokens that are shell syntax, not a command: subshells, brace groups,
 # and compound-statement keywords. `if true; then terraform apply; fi` splits on
 # `;` into a segment whose head is `then`.
@@ -299,8 +312,11 @@ _deny_shell_payloads() {
     while [ "$i" -lt "${#DENY_TOKENS[@]}" ]; do
         tok="${DENY_TOKENS[$i]}"
         case "$tok" in
-            -c)
+            -c|--command)
                 [ $((i + 1)) -lt "${#DENY_TOKENS[@]}" ] && DENY_PAYLOADS[${#DENY_PAYLOADS[@]}]="${DENY_TOKENS[$((i + 1))]}"
+                ;;
+            --command=*)
+                DENY_PAYLOADS[${#DENY_PAYLOADS[@]}]="${tok#--command=}"
                 ;;
             -*c)
                 # bundled short flags ending in c: -lc, -xc, -ic …
@@ -520,6 +536,19 @@ _deny_match_loaded() {
             _deny_find_payloads
             DENY_SEG_PAYLOADS=(${DENY_PAYLOADS[@]+"${DENY_PAYLOADS[@]}"})
         fi
+
+        # A skipped wrapper may carry its own `-c` shell-command (`flock <lock> -c
+        # "terraform apply"`). Scan the consumed prefix [0, idx) for flock/script and,
+        # if present, extract its -c payload too.
+        p=0
+        while [ "$p" -lt "$idx" ]; do
+            if _deny_wrapper_has_command_flag "${DENY_TOKENS[$p]}"; then
+                _deny_shell_payloads
+                DENY_SEG_PAYLOADS=(${DENY_SEG_PAYLOADS[@]+"${DENY_SEG_PAYLOADS[@]}"} ${DENY_PAYLOADS[@]+"${DENY_PAYLOADS[@]}"})
+                break
+            fi
+            p=$((p + 1))
+        done
 
         for spec in "${DENY_SPECS[@]}"; do
             spec_binary="${spec%% *}"

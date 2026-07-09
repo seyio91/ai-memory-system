@@ -1,7 +1,8 @@
 ---
 plan: deny-list-hardening
-status: active
+status: done
 created: 2026-07-09
+completed: 2026-07-09
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 398f6850-c619-816d-b1f8-e57e2d046df6
@@ -17,9 +18,12 @@ extend the list without bricking their instance's ability to sync.
 
 ## Success criteria
 
-> **STATUS 2026-07-09: the round-5/6 open bypass is now CLOSED (see `## Open — round-5 finding`,
-> retained as the record). Six adversarial rounds, 23 bypass classes, all with regression tests;
-> 155 assertions; suite green. Ready for a 7th pass and merge into 1.2.0.**
+> **STATUS 2026-07-09: DONE. Seven adversarial rounds (rounds 6-7 on a different model family),
+> 24 bypass classes, all with regression tests; 164 assertions; suite green. Round 7 also found a
+> pre-existing `flock <lock> -c "…"` gap (a wrapper's own `-c` command flag), now closed. The
+> user judged this sufficient hardening for a text-matching honest-agent backstop and declined a
+> round 8 — the marginal remaining findings (obscure per-tool command flags) are past the threat
+> model. Merged in the 1.2.0 batch.**
 
 - [x] **Flag interposition is denied**, including the wrapper∘`sh -c` composition:
       `terraform -chdir=envs/prod apply`, `kubectl -n foo delete pod x`,

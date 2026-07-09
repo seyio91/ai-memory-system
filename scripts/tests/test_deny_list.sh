@@ -76,6 +76,18 @@ deny_is ALLOW 'timeout 5 trap "terraform apply" EXIT'
 deny_is ALLOW 'timeout 5 sh -c "echo hi"'
 deny_is ALLOW 'sudo -u root sh -c "kubectl get pods"'
 
+# flock/script are wrappers that ALSO carry their own -c/--command shell-command flag.
+# `flock <lock> -c "terraform apply"` ≡ `flock <lock> sh -c "…"` — both must deny.
+deny_is DENY  'flock /tmp/l -c "terraform apply"'
+deny_is DENY  'flock /tmp/l --command "terraform apply"'
+deny_is DENY  'flock -c "terraform apply" /tmp/l'
+deny_is DENY  'script -c "terraform apply" /dev/null'
+deny_is DENY  'script -qc "terraform apply" /dev/null'
+deny_is DENY  'sudo flock /tmp/l -c "kubectl delete pod x"'
+deny_is ALLOW 'flock /tmp/l -c "kubectl get pods"'
+deny_is ALLOW 'script -c "ls -la" /dev/null'
+deny_is ALLOW 'flock /tmp/l terraform plan'
+
 # --- transparent exec-wrappers an honest agent actually types ------------------
 deny_is DENY 'timeout 5 terraform apply'
 deny_is DENY 'timeout --signal=9 5 kubectl delete pod x'

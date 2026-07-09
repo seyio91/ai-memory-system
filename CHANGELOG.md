@@ -75,16 +75,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   is unaffected. Note `echo terraform apply` is now **allowed** (the binary is `echo`);
   the old substring regex denied it, but it also denied `git commit -m "kubectl delete"`.
 
-  Hardened over six adversarial validation rounds (the sixth on a different model family),
-  which found 23 bypass classes between them — every one *after* the suite was green, and
-  three introduced by a previous round's fix. The last class: a wrapper whose flag takes a
-  value, then a bundled `sh -c` (`timeout 5 sh -c "terraform apply"`,
-  `sudo -u root sh -c "…"`) — the wrapper skip landed on the flag value, so the payload was
-  never extracted; the fix scans the wrapper's tail for a payload-bearing binary. Each class
-  has a named regression test (155 assertions). **This is a backstop against an honest agent,
-  not a sandbox:** it matches command text, so obfuscation (base64, a script file, a remote
-  `ssh host terraform apply`, or `eval "$(…)"` whose danger is only in runtime output) still
-  passes.
+  Hardened over seven adversarial validation rounds (the last two on a different model
+  family), which found 24 bypass classes between them — every one *after* the suite was green,
+  and three introduced by a previous round's fix. The sharpest classes: a wrapper whose flag
+  takes a value then a bundled `sh -c` (`timeout 5 sh -c "terraform apply"`,
+  `sudo -u root sh -c "…"`), closed by scanning the wrapper's tail for a payload-bearing
+  binary; and a wrapper's *own* `-c` command flag (`flock <lock> -c "terraform apply"`, the
+  canonical serialized-infra idiom), closed by extracting `flock`/`script` `-c` payloads.
+  Each class has a named regression test (164 assertions). **This is a backstop against an
+  honest agent, not a sandbox:** it matches command text, so obfuscation (base64, a script
+  file, a remote `ssh host terraform apply`, or `eval "$(…)"` whose danger is only in runtime
+  output) still passes.
 
   Instance rules go in a gitignored `scripts/deny-list.local.txt` (**additive only**);
   `scripts/deny-list.txt` stays tracked and un-hand-edited so new defaults keep reaching

@@ -88,3 +88,8 @@ __pycache__/
 # sync-system.sh's dirty-tracked-file guard then aborts every sync. install.sh seeds
 # it from the tracked identity.template.md whenever it is missing.
 /identity.md
+
+# Stray terraform state from validator probes (echo-PWNED-style tests)
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/

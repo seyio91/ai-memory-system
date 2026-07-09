@@ -105,7 +105,10 @@ which `executor.sh` sets only for a delegation. Interactive `agy` (no role) is
    Segments split on `&&`, `||`, `;`, `|`, newline, **a lone `&`** (`sleep 1 & terraform
    apply` backgrounds `sleep` and runs terraform), and subshell/brace punctuation
    (`( … )`, `{ …; }`). Compound-statement leaders (`then`, `do`, `else`, …) are skipped,
-   so `if true; then terraform apply; fi` is caught. It recurses into shell re-entry
+   so `if true; then terraform apply; fi` is caught. After a wrapper whose flag takes a
+   value (`timeout 5 …`, `sudo -u root …`) the tail is scanned for a payload-bearing binary,
+   so `timeout 5 sh -c "terraform apply"` is caught; and a wrapper's own `-c` command flag
+   is followed (`flock <lock> -c "terraform apply"`, the serialized-infra idiom). It recurses into shell re-entry
    (`sh -c`, `bash -lc`, glued `-c"…"`, `bash <<< "…"`, `eval`, `trap`, and
    `su`/`runuser` `-c` — whose *only* idiom is `-c`, so they are payload binaries, not
    plain wrappers) and into substitutions (`$(…)`, backticks, `<(…)`), with a depth cap
