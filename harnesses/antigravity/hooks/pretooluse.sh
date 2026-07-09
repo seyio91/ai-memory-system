@@ -66,9 +66,13 @@ if ! grep -qE '^[[:space:]]*[^#[:space:]]+[[:space:]]+[^[:space:]]' "$REPO/scrip
     deny "executor deny-list at scripts/deny-list.txt has no usable rules — refusing to run unguarded"
 fi
 if [ -n "$CMDLINE" ]; then
-    DENY_SPEC_FILES="$REPO/scripts/deny-list.txt"
-    [ -f "$REPO/scripts/deny-list.local.txt" ] && DENY_SPEC_FILES="$DENY_SPEC_FILES $REPO/scripts/deny-list.local.txt"
-    if DENY_REASON="$(deny_match "$CMDLINE" $DENY_SPEC_FILES)"; then
+    # Array, not a space-joined string: deny_match takes spec files as "$@", and a
+    # $REPO containing a space would otherwise word-split into bogus paths — the
+    # guard would then load fewer rules than it thinks it has. (Name avoids the
+    # DENY_SPECS deny-match.sh uses internally.)
+    DENY_SPEC_ARGV=( "$REPO/scripts/deny-list.txt" )
+    [ -f "$REPO/scripts/deny-list.local.txt" ] && DENY_SPEC_ARGV+=( "$REPO/scripts/deny-list.local.txt" )
+    if DENY_REASON="$(deny_match "$CMDLINE" "${DENY_SPEC_ARGV[@]}")"; then
         deny "$DENY_REASON"
     fi
 fi
