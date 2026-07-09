@@ -32,6 +32,8 @@ HARNESSES_DIR="${AI_MEMORY_HARNESSES_DIR:-$REPO_ROOT/harnesses}"
 FALLBACK="${AI_MEMORY_EXECUTOR_FALLBACK-claude-subagent}"
 ROLE="task"
 
+# Deliberate first-word split with globbing disabled.
+# shellcheck disable=SC2086
 first_word() { set -f; set -- $1; set +f; printf '%s' "${1:-}"; }
 shq() { local s="${1:-}" sq="'" esc="'\\''"; s="${s//$sq/$esc}"; printf "'%s'" "$s"; }
 expand_memdir() { printf '%s' "${1//\$MEMORY_DIR/$MEMORY_DIR}"; }

@@ -59,6 +59,8 @@ assert_eq "cli:codex" "$OUT" "codex present -> cli:codex"
 assert_exit 0 "$CODE" "codex present --which exits 0"
 
 # --- 3. codex selected + codex ABSENT + default fallback -> subagent ---
+# Masks codex_free_path status while forcing codex absent.
+# shellcheck disable=SC2155
 export PATH="$(codex_free_path "$OLDPATH")"   # codex genuinely unreachable
 run --which
 assert_eq "subagent" "$OUT" "codex absent -> falls back to subagent"

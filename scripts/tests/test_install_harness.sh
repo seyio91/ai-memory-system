@@ -41,7 +41,10 @@ assert_file "$FHOME/.claude/agents/demo-agent.md" "agent fanned out"
 assert_file "$FAKE/skills.toml"                   "root skills.toml seeded from template"
 assert_eq "$(cat "$FAKE/skills.toml.example")" "$(cat "$FAKE/skills.toml")" "skills.toml seeded as an exact template copy"
 assert_contains "$(cat "$SBROOT/log.claude")" "seeded skills.toml from template" "install reports the skills.toml seed step"
-set +e; [ -d "$FAKE/.skill-cache/template-skill" ]; e=$?; set -e
+set +e; [ -d "$FAKE/.skill-cache/template-skill" ]
+# Intentional status capture around a negative assertion.
+# shellcheck disable=SC2319
+e=$?; set -e
 assert_exit 1 "$e" "install seed step does not resolve remote skills"
 assert_eq "$FAKE/harnesses/claude/hooks/inject_memory.sh" \
     "$(readlink "$FHOME/.claude/hooks/inject_memory.sh")" "hook target -> harnesses/claude/hooks"

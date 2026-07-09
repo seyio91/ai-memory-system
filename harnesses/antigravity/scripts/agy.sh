@@ -22,6 +22,8 @@ if ! command -v agy >/dev/null 2>&1; then
 fi
 
 export MEMORY_DIR
+# Masks detect_active_project's unpinned-project status under set -e.
+# shellcheck disable=SC2155
 export AI_MEMORY_PROJECT="$(detect_active_project)"
 export AI_MEMORY_CWD="$PWD"
 

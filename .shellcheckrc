@@ -1,0 +1,8 @@
+# SC1091: source not followed; . "$SCRIPT_DIR/_lib.sh" is resolved at runtime.
+disable=SC1091
+# SC1090: dynamic source paths are resolved by the caller's runtime environment.
+disable=SC1090
+# SC2016: single quotes intentionally suppress shell expansion.
+disable=SC2016
+# SC2034: vars are set for sourced _lib.sh consumers or stdout-swallow captures.
+disable=SC2034

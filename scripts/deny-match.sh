@@ -139,6 +139,8 @@ _deny_ere_escape() {
     i=0
     while [ "$i" -lt "${#s}" ]; do
         ch="${s:$i:1}"
+        # Literal backslash in the case pattern.
+        # shellcheck disable=SC1003
         case "$ch" in
             '\'|'.'|'['|']'|'^'|'$'|'*'|'+'|'?'|'('|')'|'{'|'}'|'|')
                 out="${out}\\${ch}"

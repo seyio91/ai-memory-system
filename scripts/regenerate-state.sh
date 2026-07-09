@@ -73,7 +73,7 @@ UNCAT_SORT='~~~uncategorized'
 
 # $1 = optional category filter (empty = all projects, grouped by category).
 emit() {
-    local filter="$1"
+    local filter="$1" files
     if [ -n "$filter" ]; then
         printf '# In Flight — %s\n\n' "$filter"
     else
@@ -83,7 +83,9 @@ emit() {
     printf '| Category | Project | Last touched | Current goal | Open todos |\n'
     printf '|----------|---------|--------------|--------------|-----------:|\n'
     {
-        for f in $(find "$MEMORY_DIR/projects" -mindepth 2 -maxdepth 2 -type f -name memory.md 2>/dev/null); do
+        files="$(find "$MEMORY_DIR/projects" -mindepth 2 -maxdepth 2 -type f -name memory.md 2>/dev/null)" || files=""
+        while IFS= read -r f; do
+            [ -n "$f" ] || continue
             case "$f" in *"/_template/"*) continue ;; esac
             d="$(dirname "$f")"; name="$(basename "$d")"
             cat="$(extract_fm_field "$f" category)"
@@ -99,7 +101,7 @@ emit() {
             catsort="$cat"; [ -n "$catsort" ] || catsort="$UNCAT_SORT"
             # sort-key | display-category | mtime | name | goal | todos
             printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$catsort" "$catdisp" "$ep" "$name" "$goal" "$todos"
-        done
+        done <<< "$files"
     } | LC_ALL=C sort -t"$TAB" -k1,1 -k3,3rn | while IFS="$TAB" read -r catsort catdisp ep name goal todos; do
         printf '| %s | %s | %s | %s | %s |\n' "$catdisp" "$name" "$(epoch_date "$ep")" "$goal" "$todos"
     done

@@ -14,6 +14,8 @@ _mf_trim() { sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
 # _mf_expand <value> — expand a leading ~ and any $HOME occurrences.
 _mf_expand() {
     local v="$1"
+    # Quoted case pattern "~", not shell tilde expansion.
+    # shellcheck disable=SC2088
     case "$v" in
         "~")   v="$HOME" ;;
         "~/"*) v="$HOME/${v#\~/}" ;;

@@ -1,6 +1,7 @@
 ---
 plan: shellcheck-gate
-status: active
+status: done
+completed: 2026-07-10
 created: 2026-07-09
 owner: claude (orchestrator)
 task_provider: notion
@@ -29,12 +30,25 @@ the plan must not be justified on it:
 - That bug is already fixed (v1.2.0) and pinned by a behavioural test (`84a546b`), which is
   the only control that covers the class.
 
-**The honest justification is prospective:** shellcheck finds **zero** real bugs in the tree
-today at any floor, and the gate exists to stop the *next* `SC2086` from landing. Scoping it
-against a real-but-fixed bug it cannot see would ship a gate that proves nothing.
+**The honest justification is prospective:** the gate exists to stop the *next* `SC2086` from
+landing. Scoping it against a real-but-fixed bug it cannot see would ship a gate that proves nothing.
 
 Baseline as of 2026-07-09, excluding `SC1091`/`SC1090`: **0 error, 19 warning, 66 info, 70 style.**
 Of the 19 warnings, 13 are in tests and the 6 in production are false positives or dead locals.
+
+> **OUTCOME 2026-07-10 — the "zero real bugs" claim was wrong, and in the useful direction.**
+> This section originally asserted shellcheck finds *zero* real bugs in the tree at any floor.
+> Executing the plan found **three**, all below the `warning` floor the task first proposed:
+> `SC2086` in the deny-list guard (spec files space-joined → a `$REPO` with a space silently
+> loads fewer rules); `SC2044` in `regenerate-{state,activity}.sh` (a `MEMORY_DIR` with a space
+> corrupted the state snapshot — blank columns plus a phantom project row); and `SC2295` in two
+> scripts (`${f#$MEMORY_DIR/}` treats the prefix as a glob pattern). None had test coverage.
+>
+> The prospective justification still stands on its own, and the *reasoning* that produced it was
+> sound — the bug the task named really is invisible to shellcheck. But "I measured and found
+> nothing" is a claim about a measurement, not about the code. Running the gate **is** the
+> measurement. Estimating its yield at zero without running it repeated, one level down, the exact
+> error this plan exists to document.
 
 ## Design
 
@@ -80,31 +94,71 @@ The stage must **skip with a notice, not fail**, when `shellcheck` is absent, or
 
 ## Success criteria
 
-1. `.shellcheckrc` exists and disables exactly `SC1091`, `SC1090`, `SC2016`, `SC2034`, each with a comment.
-2. `run-tests.sh` has a `== shellcheck ==` stage whose failure sets a non-zero suite exit code.
-3. With `shellcheck` on PATH, the suite passes on a clean tree at severity `info`.
-4. The stage **skips with a printed notice and exit 0** when `shellcheck` is not installed.
-5. Every remaining `SC2086` site carries an inline `# shellcheck disable=SC2086` with a justification.
-6. A deliberately-introduced `SC2086` (unquoted `$var` in a new prod script) **fails the suite** —
+1. ✅ `.shellcheckrc` exists and disables exactly `SC1091`, `SC1090`, `SC2016`, `SC2034`, each with a comment.
+2. ✅ `run-tests.sh` has a `== shellcheck ==` stage whose failure sets a non-zero suite exit code.
+3. ✅ With `shellcheck` on PATH, the suite passes on a clean tree — prod at `info`, tests at `warning`.
+4. ✅ The stage **skips with a printed notice and exit 0** when `shellcheck` is not installed.
+   *Proved by mirroring `/opt/homebrew/bin` minus `shellcheck`: dropping the whole directory from
+   `PATH` starved `test_antigravity` of `jq`, so the first attempt failed for the wrong reason.*
+5. ✅ Every remaining `SC2086` site carries an inline `# shellcheck disable=SC2086` with a justification.
+6. ✅ A deliberately-introduced `SC2086` (unquoted `$var` in a new prod script) **fails the suite** —
    verified by adding it, running, and reverting. The gate is proven to fire, not assumed to.
-7. No production behaviour changes: `git diff` touches only comments, `.shellcheckrc`, and `run-tests.sh`.
-8. `docs/scripts.md` documents the gate, the floor, and how to justify an inline disable.
+   Also proved: `SC2155` in a test file gates; `SC2086` in a test file does **not** (floors differ).
+7. ⚠️ **RESTATED — the original wording was falsified by the work.** It read: *"No production
+   behaviour changes: `git diff` touches only comments, `.shellcheckrc`, and `run-tests.sh`."*
+   That assumed every finding would be a false positive. Two were real defects, and fixing them
+   **did** change production behaviour:
+   - `SC2044` — `regenerate-{state,activity}.sh` corrupted the state snapshot under a
+     `MEMORY_DIR` containing a space (blank columns + a phantom project row).
+   - `SC2295` — `${f#$MEMORY_DIR/}` treated the prefix as a glob pattern.
+
+   The criterion that actually matters, and the one that was met: **no behaviour change on inputs
+   that worked before.** Held to golden output comparison — `regenerate-state.sh --stdout` and
+   `regenerate-activity.sh --all --stdout` are byte-identical pre- and post-change on the real
+   tree, confirmed independently by the validator.
+8. ✅ `docs/scripts.md` documents the gate, both floors, the inline-disable policy, and — the part
+   that rots — what the gate is *not*.
 
 ## Decisions (locked)
 
 - **Floor = `info`.** `warning` cannot see `SC2086`; `style` is 70 findings of brace-preference noise.
 - **Curated disables over a baseline file.** Exemptions live at the site, not in a rotting ledger.
 - **Skip, don't fail, when shellcheck is absent.** A dev-only tool must not gate a consumer's suite.
-- **The gate catches nothing today, and that is fine.** Its value is prospective; it is *not* the
-  control for the `set -e` last-statement class. That control is a behavioural test.
+- ~~**The gate catches nothing today, and that is fine.**~~ **Falsified on execution: it caught
+  three real defects** (`SC2086` in the deny-list guard, `SC2044` state-snapshot corruption,
+  `SC2295`), none test-covered, all below the originally-proposed `warning` floor. What survives
+  of the decision: the gate's value is *primarily* prospective, and it is *not* the control for
+  the `set -e` last-statement class — that control is a behavioural test.
 - **No `-o all`.** Optional checks add `SC2250`/`SC2292` brace-and-`[[` churn for no defect coverage,
   and still miss the bug that motivated the task.
 
+- **Two floors, one rc: prod at `info`, tests at `warning`.** A nested `scripts/tests/.shellcheckrc`
+  was rejected — probed, and the **nearest rc replaces the root one rather than merging**, so a
+  disable added at the root later would silently stop applying to tests. Instead `run-tests.sh`
+  invokes shellcheck twice against the single root rc, with a different `--severity` each time.
+  Tests stay at `warning` because their 18 info-level findings are test idioms: `SC2015`
+  (`[ cond ] && _ok … || _bad …`, where `_ok` always returns 0) and `SC2030`/`SC2031` (deliberate
+  subshell isolation). Accepted cost: `SC2015` is never gated in tests.
+
+- **`SC2155` in `agy.sh` is NOT fixed by splitting the declaration.** `export X="$(cmd)"` masks
+  `cmd`'s exit status *on purpose*: `agy.sh` runs `set -euo pipefail`, and `detect_active_project`
+  returns nonzero when no project is pinned. Splitting into `X="$(cmd)"; export X` makes the
+  assignment carry that status and **aborts the launcher** — a new instance of the exact silent-abort
+  class this repo just fixed in `drivers/hook.sh`. The masking is deliberate; it gets an inline
+  disable with that reason, not a "fix". Same at `test_executor.sh:62`.
+  **A linter finding is a question, not an instruction.**
+
 ## Phases
 
-- **Phase 1 — `.shellcheckrc` + inline disables.** Create the rc with the 4 disables; annotate the
-  6 `SC2086` sites; fix the `resolve-skills.sh:154` dead `local line`. Tree reaches zero findings
-  at `-S info`.
+- **Phase 1 — `.shellcheckrc` + inline disables + the real fixes.** Create the rc with the 4
+  disables; annotate the deliberate sites; make the genuine fixes. Tree reaches **prod = 0 at
+  `-S info`** and **tests = 0 at `-S warning`**.
+
+  > **SCOPE CORRECTED 2026-07-09 — the first draft of this phase was wrong.** It claimed "~10
+  > annotations, zero findings at `-S info`". Re-measured: with the 4 rc disables applied, the
+  > tree carries **36 findings — 11 in production, 25 in tests.** The original number was an
+  > estimate written before the rc's effect was measured. Recording it here rather than quietly
+  > editing it: this plan already exists because a confidently-recorded number was wrong.
 - **Phase 2 — `run-tests.sh` stage.** Add `== shellcheck ==`, gate the exit code, skip-with-notice
   when the binary is absent. Prove criterion 6 by introducing and reverting a real `SC2086`.
 - **Phase 3 — docs.** `docs/scripts.md` gate section; CHANGELOG `### Added`.
