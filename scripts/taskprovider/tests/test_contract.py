@@ -77,6 +77,40 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(inspect.Parameter.KEYWORD_ONLY, signature.parameters["title"].kind)
         self.assertEqual(inspect.Parameter.KEYWORD_ONLY, signature.parameters["summary"].kind)
 
+    def test_summary_wrappers_preserve_capture_and_update_signatures(self):
+        class Provider(TaskProvider):
+            @property
+            def status_map(self):
+                return {}
+
+            def resolve_project(self, name):
+                return name
+
+            def capture(self, project, title, summary):
+                return "ref"
+
+            def list(self, project, status):
+                return []
+
+            def get(self, ref):
+                return None
+
+            def update(self, ref, *, title=None, summary=None):
+                return None
+
+            def set_status(self, ref, status):
+                return None
+
+            def ping(self):
+                return True
+
+        capture = inspect.signature(Provider.capture)
+        update = inspect.signature(Provider.update)
+        self.assertEqual(["self", "project", "title", "summary"], list(capture.parameters))
+        self.assertEqual(["self", "ref", "title", "summary"], list(update.parameters))
+        self.assertEqual(inspect.Parameter.KEYWORD_ONLY, update.parameters["title"].kind)
+        self.assertEqual(inspect.Parameter.KEYWORD_ONLY, update.parameters["summary"].kind)
+
 
 if __name__ == "__main__":
     unittest.main()

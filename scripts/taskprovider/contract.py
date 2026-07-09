@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 
 CANONICAL_STATUSES = ("backlog", "started", "done", "archived")
+SUMMARY_MAX_CHARS = 500
 
 
 @dataclass(frozen=True)
@@ -22,14 +23,53 @@ def validate_status(status):
     return status
 
 
+def validate_summary(summary):
+    length = len(summary)
+    if length > SUMMARY_MAX_CHARS:
+        raise ValueError(
+            "summary is %d chars; maximum is %d. Write long-form content to "
+            "projects/<project>/brainstorms/<slug>.md and reference it by path "
+            "from the summary." % (length, SUMMARY_MAX_CHARS)
+        )
+    return summary
+
+
 class TaskProvider(ABC):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        method = cls.__dict__.get("capture")
+        if method is not None:
+            def make_checked_capture(wrapped):
+                def checked_capture(self, project, title, summary):
+                    validate_summary(summary)
+                    return wrapped(self, project, title, summary)
+                return checked_capture
+            checked_capture = make_checked_capture(method)
+            checked_capture.__name__ = method.__name__
+            checked_capture.__doc__ = method.__doc__
+            checked_capture.__isabstractmethod__ = getattr(method, "__isabstractmethod__", False)
+            setattr(cls, "capture", checked_capture)
+        method = cls.__dict__.get("update")
+        if method is not None:
+            def make_checked_update(wrapped):
+                def checked_update(self, ref, *, title=None, summary=None):
+                    if summary is not None:
+                        validate_summary(summary)
+                    return wrapped(self, ref, title=title, summary=summary)
+                return checked_update
+            checked_update = make_checked_update(method)
+            checked_update.__name__ = method.__name__
+            checked_update.__doc__ = method.__doc__
+            checked_update.__isabstractmethod__ = getattr(method, "__isabstractmethod__", False)
+            setattr(cls, "update", checked_update)
         method = cls.__dict__.get("set_status")
         if method is not None:
-            def checked(self, ref, status):
-                validate_status(status)
-                return method(self, ref, status)
+            def make_checked_status(wrapped):
+                def checked(self, ref, status):
+                    validate_status(status)
+                    return wrapped(self, ref, status)
+                return checked
+            checked = make_checked_status(method)
             checked.__name__ = method.__name__
             checked.__doc__ = method.__doc__
             checked.__isabstractmethod__ = getattr(method, "__isabstractmethod__", False)

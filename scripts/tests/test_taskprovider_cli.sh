@@ -28,6 +28,17 @@ set -e
 assert_exit 0 "$code" "capture exits 0"
 assert_contains "$out" '"ref": "cli-task"' "capture returns ref"
 
+long_summary="$(python3 -c 'print("x" * 501)')"
+set +e
+out=$(python3 -m taskprovider capture alpha "Too Long" "$long_summary" 2>&1); code=$?
+set -e
+assert_exit 1 "$code" "over-cap capture exits non-zero"
+set +e
+json_error=$(printf '%s' "$out" | python3 -c 'import json, sys; print(json.load(sys.stdin)["error"])' 2>/dev/null); parse_code=$?
+set -e
+assert_exit 0 "$parse_code" "over-cap capture stdout parses as JSON error"
+assert_contains "$json_error" "summary is 501 chars; maximum is 500." "over-cap capture error includes summary cap"
+
 set +e
 out=$(python3 -m taskprovider list alpha backlog 2>&1); code=$?
 set -e

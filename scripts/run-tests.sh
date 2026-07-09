@@ -2,8 +2,9 @@
 #
 # run-tests.sh — end-to-end test runner for the memory system.
 #
-# Runs the full scripts/tests/test_*.sh suite, then the lint-memory.sh content
-# check, in a HERMETIC environment: it scrubs the developer-shell variables that
+# Runs the full scripts/tests/test_*.sh suite, then the scripts/taskprovider/tests/
+# Python unittest suite, then the lint-memory.sh content check, in a HERMETIC
+# environment: it scrubs the developer-shell variables that
 # would otherwise steer a test into a live backend or the real tree
 # (MEMORY_TASK_PROVIDER, NOTION_*, MEMORY_DIR, AI_MEMORY_PROJECTS_ROOT,
 # AI_MEMORY_EXECUTOR*, AI_MEMORY_ROLE). Each test owns its own sandbox + cleanup;
@@ -65,6 +66,42 @@ for t in "$TESTS"/test_*.sh; do
     fi
 done
 
+# Python suite. Lives outside scripts/tests/ (it is a package, not a bash script),
+# so the loop above cannot see it — it went ungated until 2026-07-09. Enforce the
+# provider<->test pairing here too: adding providers/<name>.py needs no factory edit
+# (by design), so nothing else would ever notice a provider shipping with no test.
+PY_TESTS="$MEM/scripts/taskprovider/tests"
+py_status="skipped"
+py_rc=0
+if [ -d "$PY_TESTS" ]; then
+    printf '\n== taskprovider (python) ==\n'
+    if ! command -v python3 >/dev/null 2>&1; then
+        py_status="setup error (no python3)"
+        py_rc=2
+        printf '  ERROR no python3 on PATH; the taskprovider suite cannot run\n'
+    else
+        pair_out="$(bash "$HERE/check-provider-tests.sh" "$MEM/scripts/taskprovider" 2>&1)"
+        if [ $? -ne 0 ]; then
+            py_rc=1
+            printf '%s\n' "$pair_out" | sed 's/^/  /'
+        fi
+        hermetic env PYTHONPATH="$MEM/scripts" python3 -m unittest discover \
+            -s "$PY_TESTS" -t "$MEM/scripts" >"$LOGDIR/py.log" 2>&1
+        unittest_rc=$?
+        ran="$(grep -E '^Ran [0-9]+ test' "$LOGDIR/py.log" | tail -1)"
+        if [ "$unittest_rc" -ne 0 ]; then
+            py_rc=1
+            sed 's/^/        /' "$LOGDIR/py.log"
+        fi
+        if [ "$py_rc" -eq 0 ]; then
+            py_status="clean (${ran:-no tests found})"
+            printf '  PASS  %-32s %s\n' "unittest discover" "$ran"
+        else
+            py_status="failed"
+        fi
+    fi
+fi
+
 lint_status="skipped"
 lint_errors=0
 if [ "$DO_LINT" = 1 ]; then
@@ -105,7 +142,8 @@ fi
 printf '\n== summary ==\n'
 printf '  tests: %d passed, %d failed%s\n' "$pass" "$fail" \
     "$( [ -n "$failed_names" ] && printf ' —%s' "$failed_names" )"
+printf '  python: %s\n' "$py_status"
 [ "$DO_LINT" = 1 ] && printf '  lint:  %s\n' "$lint_status"
 [ "$DO_LINT" = 1 ] && printf '  skills: %s\n' "$vs_status"
 
-[ "$fail" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ]
+[ "$fail" -eq 0 ] && [ "$py_rc" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ]

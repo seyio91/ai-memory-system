@@ -8,6 +8,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Task `summary` is capped at 500 characters**, enforced on write at the
+  `TaskProvider` contract boundary (`validate_summary`, applied by
+  `__init_subclass__` to `capture` and `update` — the same mechanism that already
+  guards `set_status`). The cap is **backend-neutral**: it descends from the
+  projection model, not from Notion's per-element limit, so a `local`-only task
+  obeys it too, and it fires **before provider dispatch** — an over-cap Notion
+  capture never issues an HTTP request. Long-form content belongs in
+  `projects/<project>/brainstorms/<slug>.md`, referenced from the summary by path;
+  the error message says so. **Reads are not gated** — tasks captured before the cap
+  still load, and are corrected on next write. No migration.
+- **`scripts/check-provider-tests.sh`** — enforces that every
+  `taskprovider/providers/<name>.py` ships a matching `tests/test_<name>.py`. Adding
+  a provider needs no factory edit by design, so nothing else would notice one
+  landing without tests.
+
 - **Configurable cross-model Validator role.** A third executor role, `validate`
   (`AI_MEMORY_EXECUTOR_VALIDATE`, `harness[:model]`), resolved via
   `scripts/executor.sh --role validate`. It is **read-only** — it resolves through the
@@ -28,6 +43,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   that silently drifts from the doctrine on every change. (`scripts/drivers/hook.sh`.)
 
 ### Fixed
+
+- **`scripts/run-tests.sh` never ran the `scripts/taskprovider/tests/` Python
+  suite.** The runner globbed only `scripts/tests/test_*.sh`, so the entire Python
+  unittest suite sat outside the test gate — the reported pass count was bash-only,
+  and adding a Python test file did not change it. The runner now executes the suite
+  as its own hermetic stage and gates its exit code on the result.
 
 - **A foreign harness model no longer leaks onto the subagent plane when a read-only
   role degrades.** When `explore` (or `validate`) selects a `harness:model` whose harness
