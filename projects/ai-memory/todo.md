@@ -6,7 +6,14 @@
 
 ## Active
 
-### Task summary: hard 500-char gate, long-form by pointer → [plan](plans/task-summary-gate.md)
+### Harden the executor deny-list → [plan](plans/deny-list-hardening.md)
+- [ ] Phase 1 — `scripts/deny-match.sh`: tokenized + adjacency matchers, `sh -c` recursion
+- [ ] Phase 2 — `json_parser_available()`; `pretooluse.sh` fails closed for guarded roles
+- [ ] Phase 3 — specs + `helm uninstall`/`delete`; gitignored `deny-list.local.txt` overlay
+- [ ] Phase 4 — tests: allow/deny table, fail-closed, overlay, dirty-tracked guard
+- [ ] Phase 5 — docs: antigravity.md §Enforcement, deny-list header, CHANGELOG (Fixed)
+
+### Task summary: hard 500-char gate, long-form by name → [plan](plans/task-summary-gate.md)
 - [x] Phase 1 — contract gate: `SUMMARY_MAX_CHARS`, `validate_summary()`, wrap `capture`/`update`
 - [x] Phase 2 — CLI surface: verify non-zero exit + JSON `{"error": ...}`
 - [x] Phase 3 — tests: offline reject (local + notion), `update(title=)` unaffected, 500/501 boundary, legacy read

@@ -1,19 +1,19 @@
 # Executor deny-list — destructive/additive operations to running infrastructure.
-# The Orchestrator/Executor/Validator hard rule: executors never apply or merge to
-# running infra, on whichever git provider the project uses. Until now this list
-# was only restated in delegation prompts; a hook-capable harness (Antigravity
-# PreToolUse) reads it here to ENFORCE it before the tool runs. A future manifest
-# `guard` capability lets any hook-capable harness plug the same list into its gate.
+# TRACKED DEFAULTS: do not hand-edit this file on an installed instance. Editing
+# it dirties the tracked tree and sync-system.sh:dirty_tracked_guard will refuse
+# to sync. Add instance-local rules to scripts/deny-list.local.txt instead.
+# That file is gitignored and additive-only; there is no un-deny syntax.
 #
-# Format: one extended-regex (grep -E) per line, matched against a tool's shell
-# CommandLine. `#` lines and blanks are ignored. Whitespace is flexible so
-# `terraform   apply -auto-approve` still matches.
-terraform[[:space:]]+apply
-terraform[[:space:]]+destroy
-kubectl[[:space:]]+apply
-kubectl[[:space:]]+delete
-helm[[:space:]]+install
-helm[[:space:]]+upgrade
-gh[[:space:]]+pr[[:space:]]+merge
-bkt[[:space:]]+pr[[:space:]]+merge
-az[[:space:]]+repos[[:space:]]+pr[[:space:]]+update
+# Format: one "<binary> <subcommand...>" spec per line. `#` lines and blanks
+# are ignored.
+terraform apply
+terraform destroy
+kubectl apply
+kubectl delete
+helm install
+helm upgrade
+helm uninstall
+helm delete
+gh pr merge
+bkt pr merge
+az repos pr update

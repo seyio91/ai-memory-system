@@ -18,6 +18,10 @@ json_escape() {
     fi
 }
 
+json_parser_available() {
+    command -v jq >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1
+}
+
 # json_get <key> — read a JSON object from stdin, print the top-level <key> as a
 # scalar (empty if absent or on parse error). jq -> python3; no plain-shell
 # fallback (parsing arbitrary JSON in sed is not worth it — callers default

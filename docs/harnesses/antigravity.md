@@ -87,11 +87,47 @@ which `executor.sh` sets only for a delegation. Interactive `agy` (no role) is
 **unguarded** — the human decides. For a delegation it applies two layers:
 
 1. **Deny-list (both roles).** A tool whose shell `CommandLine` matches the shared
-   `scripts/deny-list.txt` — `terraform`/`kubectl apply`, `terraform destroy`,
-   `kubectl delete`, `gh`/`bkt` `pr merge`, `az repos pr update`, `helm
-   install`/`upgrade` — is hard-blocked (`{"decision":"deny"}`). The O/E/V "never
-   apply/merge to running infra" rule, **enforced** rather than only restated in
-   the prompt.
+   `scripts/deny-list.txt` — `terraform apply`/`destroy`, `kubectl apply`/`delete`,
+   `gh`/`bkt` `pr merge`, `az repos pr update`, `helm install`/`upgrade`/`uninstall`/`delete`
+   — is hard-blocked (`{"decision":"deny"}`). The O/E/V "never apply/merge to running
+   infra" rule, **enforced** rather than only restated in the prompt.
+
+   Matching lives in `scripts/deny-match.sh`. A spec is `<binary> <subcommand…>`, and
+   the matcher **tokenizes** rather than substring-matching. Per command segment it
+   strips `VAR=val` assignments and transparent exec-wrappers (`sudo`, `env`, `timeout`,
+   `nice`, `flock`, `xargs`, `setsid`, `stdbuf`, …), takes the binary's basename, drops
+   flag tokens, and looks for the spec's subcommands as a consecutive run. That catches
+   `terraform -chdir=envs/prod apply` and `kubectl -n foo delete pod x` — an interposed
+   flag used to defeat the old regex — and `timeout 5 terraform apply`, where the wrapper
+   hides the binary. After a wrapper the binary's position is unreliable (`sudo -u root
+   kubectl …` puts a flag *value* at the head), so the tail is scanned instead.
+
+   Segments split on `&&`, `||`, `;`, `|`, newline, **a lone `&`** (`sleep 1 & terraform
+   apply` backgrounds `sleep` and runs terraform), and subshell/brace punctuation
+   (`( … )`, `{ …; }`). Compound-statement leaders (`then`, `do`, `else`, …) are skipped,
+   so `if true; then terraform apply; fi` is caught. After a wrapper whose flag takes a
+   value (`timeout 5 …`, `sudo -u root …`) the tail is scanned for a payload-bearing binary,
+   so `timeout 5 sh -c "terraform apply"` is caught; and a wrapper's own `-c` command flag
+   is followed (`flock <lock> -c "terraform apply"`, the serialized-infra idiom). It recurses into shell re-entry
+   (`sh -c`, `bash -lc`, glued `-c"…"`, `bash <<< "…"`, `eval`, `trap`, and
+   `su`/`runuser` `-c` — whose *only* idiom is `-c`, so they are payload binaries, not
+   plain wrappers) and into substitutions (`$(…)`, backticks, `<(…)`), with a depth cap
+   that **denies** when hit.
+
+   Quote state models the shell. Single quotes suppress substitution, so
+   `echo '$(terraform apply)'` is **allowed** — the shell prints it, it does not run it —
+   while `echo "$(terraform apply)"` is denied. Inside double quotes an apostrophe is a
+   literal, so `echo "it's $(terraform apply)"` is **denied**: a contraction must not mask
+   a live substitution. `find` executes only what follows `-exec`/`-execdir`/`-ok`, never
+   a `-name` value.
+
+   False positives are a real failure mode: a deny-list that blocks legitimate work
+   (`grep -r "terraform apply" docs/`, `git commit -m "kubectl delete"`,
+   `find . -name terraform -o -name apply`) gets switched off, and then it protects nothing.
+
+   Consequence worth knowing: `echo terraform apply` is **allowed** — the binary is
+   `echo`. The pre-2026-07-09 substring regex denied it. Deliberate: an ungated substring
+   match would also deny `git commit -m "kubectl delete"`.
 2. **Read-only (explore/validate roles).** Only a read-tool **allowlist** is permitted
    (`view_file`, `grep_search`, `code_search`, `list_dir`, `read_url_content`, …);
    `run_command` and every write tool are denied. It's an *allowlist*, not
@@ -102,6 +138,27 @@ which `executor.sh` sets only for a delegation. Interactive `agy` (no role) is
 The deny-list is a **shared shipped artifact** (`scripts/deny-list.txt`), read by
 the guard — seeding a future manifest `guard` capability so any hook-capable
 harness can plug the same list into its native gate.
+
+**It fails closed.** Under a delegation (`AI_MEMORY_ROLE` set) the guard denies when
+there is no JSON parser (`jq`/`python3`) to inspect the tool call with, and when
+`scripts/deny-list.txt` is missing **or contains no rules** — an absent *or truncated*
+rules file is indistinguishable from a disarmed guard, and `: > deny-list.txt` disarms
+exactly as well as `rm` does. All these checks sit *after* the role gate, so an
+interactive `agy` on a machine without `jq` is unaffected.
+
+**Customising it without bricking sync.** `scripts/deny-list.txt` holds the tracked
+defaults and **must never be hand-edited on an installed instance**: a modified tracked
+file makes `sync-system.sh:dirty_tracked_guard` refuse to sync (the same trap that
+[`identity.md` used to set](../../UPGRADING.md)). Add instance rules to the gitignored
+`scripts/deny-list.local.txt`, which the guard concatenates. It is **additive only** —
+there is no un-deny syntax, and a leading `-` is just an ordinary entry. Keeping the
+defaults tracked is what lets a new rule (e.g. `helm uninstall`) reach every instance on
+the next sync; a seed-from-`.example` design would freeze each instance's copy forever.
+
+A deny-list is a **backstop, not a sandbox.** It matches command text, so a determined
+process can still obfuscate (base64, a script file, a wrapper binary). Its job is to stop
+an honest agent from doing the obviously-forbidden thing. The destructive-class floor for
+`codex` remains its execpolicy; Claude subagents get the list restated in the prompt only.
 
 ## The executor face
 

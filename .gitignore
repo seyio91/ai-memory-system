@@ -57,6 +57,10 @@ __pycache__/
 # Machine-written migration high-water mark for sync-system.sh.
 /.applied-version
 
+# Instance-local executor deny-list overlay. Tracked defaults live in
+# scripts/deny-list.txt; local entries are additive-only.
+/scripts/deny-list.local.txt
+
 # Per-instance remote-skill choices — ship skills.toml.example as the tracked
 # catalog, then copy/prune it locally as skills.toml.
 /skills.toml
@@ -84,3 +88,8 @@ __pycache__/
 # sync-system.sh's dirty-tracked-file guard then aborts every sync. install.sh seeds
 # it from the tracked identity.template.md whenever it is missing.
 /identity.md
+
+# Stray terraform state from validator probes (echo-PWNED-style tests)
+terraform.tfstate
+terraform.tfstate.backup
+.terraform/

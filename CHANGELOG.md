@@ -45,6 +45,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **The executor deny-list could be bypassed with a single interposed flag, and
+  failed open without a JSON parser.** Its patterns anchored the binary directly to
+  the subcommand (`terraform[[:space:]]+apply`), so `terraform -chdir=envs/prod apply`,
+  `kubectl -n foo delete pod x`, `kubectl --context=prod apply -f x.yaml` and
+  `gh --repo o/r pr merge 12` all reached running infrastructure — verified live.
+  `helm uninstall`/`helm delete` were absent entirely, so the list blocked the additive
+  helm verbs and permitted the destructive ones. Separately, `pretooluse.sh` gated its
+  deny loop on a non-empty `CommandLine`, which is also what a missing `jq`/`python3`
+  produces — so a machine without either ran **unguarded**.
+
+  Matching now lives in `scripts/deny-match.sh`, which tokenizes the command line and
+  recurses into shell re-entry and substitutions. It splits on `&&`, `||`, `;`, `|`,
+  newline, **a lone `&`** (`sleep 1 & terraform apply` runs terraform) and subshell/brace
+  punctuation; skips compound-statement leaders (`then`, `do`, …); strips `VAR=val`
+  assignments and transparent exec-wrappers (`sudo`, `env`, `timeout`, `nice`, `flock`,
+  `setsid`, `stdbuf`, `xargs`, `busybox`, `find`, …) — scanning the tail afterwards,
+  because `sudo -u root kubectl …` puts a flag *value* where the binary should be; and
+  follows `sh -c`, `bash -lc`, glued `-c"…"`, `bash <<< "…"`, `su`/`runuser -c`, `eval`,
+  `trap`, `find -exec` (only what follows `-exec`/`-execdir`/`-ok`, never a `-name`
+  value), `$(…)`, backticks and `<(…)`, with a depth cap that denies. Quote state models
+  the shell: single quotes suppress substitution (`echo '$(terraform apply)'` is allowed),
+  double quotes do not (`echo "$(terraform apply)"` is denied), and an apostrophe inside
+  double quotes is a literal — `echo "it's $(terraform apply)"` is denied.
+
+  The guard denies when no parser is available, and when the spec file is missing **or
+  has no usable rules** — existence is not armed-ness; `: > deny-list.txt` disarms as
+  well as `rm`. Every check sits *after* the `AI_MEMORY_ROLE` gate, so interactive `agy`
+  is unaffected. Note `echo terraform apply` is now **allowed** (the binary is `echo`);
+  the old substring regex denied it, but it also denied `git commit -m "kubectl delete"`.
+
+  Hardened over seven adversarial validation rounds (the last two on a different model
+  family), which found 24 bypass classes between them — every one *after* the suite was green,
+  and three introduced by a previous round's fix. The sharpest classes: a wrapper whose flag
+  takes a value then a bundled `sh -c` (`timeout 5 sh -c "terraform apply"`,
+  `sudo -u root sh -c "…"`), closed by scanning the wrapper's tail for a payload-bearing
+  binary; and a wrapper's *own* `-c` command flag (`flock <lock> -c "terraform apply"`, the
+  canonical serialized-infra idiom), closed by extracting `flock`/`script` `-c` payloads.
+  Each class has a named regression test (164 assertions). **This is a backstop against an
+  honest agent, not a sandbox:** it matches command text, so obfuscation (base64, a script
+  file, a remote `ssh host terraform apply`, or `eval "$(…)"` whose danger is only in runtime
+  output) still passes.
+
+  Instance rules go in a gitignored `scripts/deny-list.local.txt` (**additive only**);
+  `scripts/deny-list.txt` stays tracked and un-hand-edited so new defaults keep reaching
+  every instance on sync, and so editing it can never trip `dirty_tracked_guard`.
+  The `explore`-role bypass shipped in 1.1.0.
+
 - **`scripts/run-tests.sh` never ran the `scripts/taskprovider/tests/` Python
   suite.** The runner globbed only `scripts/tests/test_*.sh`, so the entire Python
   unittest suite sat outside the test gate — the reported pass count was bash-only,
