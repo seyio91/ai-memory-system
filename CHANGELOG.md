@@ -15,9 +15,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   projection model, not from Notion's per-element limit, so a `local`-only task
   obeys it too, and it fires **before provider dispatch** — an over-cap Notion
   capture never issues an HTTP request. Long-form content belongs in
-  `projects/<project>/brainstorms/<slug>.md`, referenced from the summary by path;
-  the error message says so. **Reads are not gated** — tasks captured before the cap
-  still load, and are corrected on next write. No migration.
+  `projects/<project>/brainstorms/<slug>.md`, referenced from the summary **by name,
+  never by path** — a path rots the moment the work is archived, and the task record
+  already carries its `project`. The error message says so. **Reads are not gated** —
+  tasks captured before the cap still load, and are corrected on next write. No migration.
 - **`scripts/check-provider-tests.sh`** — enforces that every
   `taskprovider/providers/<name>.py` ships a matching `tests/test_<name>.py`. Adding
   a provider needs no factory edit by design, so nothing else would notice one

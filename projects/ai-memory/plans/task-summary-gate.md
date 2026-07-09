@@ -7,13 +7,13 @@ task_provider: notion
 task_ref: 397f6850-c619-812b-a4a1-e996df808fbf
 ---
 
-# Task summary: a hard gate, with long-form by pointer
+# Task summary: a hard gate, with long-form by name
 
 ## Goal
 
 Make `summary` a structurally-enforced thin record. Cap it at 500 characters at the
 contract boundary, so a design cannot be crammed into it; long-form content lives in the
-memory tree as a brainstorm and is referenced by pointer. Document the rule where a user
+memory tree as a brainstorm and is referenced by name, never by path. Document the rule where a user
 will actually meet it — the error message first, then `docs/task-provider.md` and the
 `/task` + `/start` command docs.
 
@@ -43,7 +43,7 @@ will actually meet it — the error message first, then `docs/task-provider.md` 
 
 ## Design
 
-**Chosen: a backend-neutral cap enforced at the ABC boundary, long-form by pointer.**
+**Chosen: a backend-neutral cap enforced at the ABC boundary, long-form referenced by name.**
 
 The gate is `validate_summary()` in `contract.py`, mirroring the existing
 `validate_status()`. It is applied through `__init_subclass__`, wrapping `capture` and
@@ -98,7 +98,8 @@ A brainstorm is a design input, not live work. This legalizes the precedent alre
 - Enforcement is **backend-neutral**, at the `TaskProvider` ABC boundary, via the same
   `__init_subclass__` mechanism that already guards `set_status`.
 - Long-form lives at `projects/<project>/brainstorms/<slug>.md` and is referenced from the
-  summary by path.
+  summary **by name (`<slug>`), never by path** (revised 2026-07-09 after the name-not-path
+  rule landed: a stored path rots when the work is archived; the task carries its `project`).
 - The `## The model` invariant is narrowed to "no plan, no `todo.md` row, no index entry",
   explicitly permitting a pre-`/start` brainstorm.
 - **`add_progress` is not dead and is not touched.** `docs/task-provider.md:30` documents it

@@ -38,11 +38,15 @@ The two seams (`status_map`, `resolve_project`) are where backends genuinely dif
 `summary` is capped at **500 characters**, enforced on write. Over-cap `capture` or `update` raises:
 
 ```
-summary is 4824 chars; maximum is 500. Write long-form content to
-projects/<project>/brainstorms/<slug>.md and reference it by path from the summary.
+summary is 4824 chars; maximum is 500. Write the long form to a brainstorm in the
+task's project (projects/<project>/brainstorms/<slug>.md), then reference it from
+the summary by name — <slug>, not a path: paths move when work is archived, and
+the task already carries its project.
 ```
 
-**Long-form goes in the tree, not the backend.** A design, a rationale, a comparison — write it to `projects/<project>/brainstorms/<slug>.md` and point the summary at that path. The brainstorm is git-tracked, diffable, and reviewable; a 4800-character property is none of those.
+**Long-form goes in the tree, not the backend.** A design, a rationale, a comparison — write it to `projects/<project>/brainstorms/<slug>.md`. The brainstorm is git-tracked, diffable, and reviewable; a 4800-character property is none of those.
+
+**Reference it by name, not by path.** A summary says `` design: `release-automation` ``, not `projects/ai-memory/brainstorms/release-automation.md`. A path moves the moment the work is archived, so a stored path is a latent lie with a timer on it; a name survives the move, and the reader resolves it in the live dir, then `archive/`. The task record already carries its `project`, so a bare slug is unambiguous. Durable memory (`projects/<project>/memory.md`) follows the same rule: name the artifact, never store its path.
 
 **Why a cap, and why *there*.** The backend is a projection (see [The model](#the-model--backend-is-a-projection-not-a-co-source-of-truth)): it owns intent + coarse status, and the memory tree owns all detail. Nothing structural enforced that — so designs got crammed into `summary` until Notion rejected one at 4824 chars. The cap makes the thin record *actually* thin.
 
@@ -81,7 +85,7 @@ The first remote backend, same contract, **zero changes** to the contract/CLI/fa
 | `Claude` | checkbox | the **consume tag** — `list` only returns `Claude = true` rows, so your own cards stay invisible to the provider |
 | `Created` | created time | optional — falls back to the page's `created_time` if absent |
 
-**The Notion page *body* is not part of the contract.** The provider reads and writes **properties only** — it never touches page children (no `children` anywhere in `providers/notion.py`). Anything you type into the body of a task page is **silently ignored**: it will not reach `get()`, and it will not reach the plan at `/start`. This is deliberate, not an omission. Reading the body would make the page a second home for detail, which is exactly the split-brain [the projection model](#the-model--backend-is-a-projection-not-a-co-source-of-truth) exists to prevent. When hand-capturing a task with a real design behind it, put the design in `projects/<project>/brainstorms/<slug>.md` and point `Summary` at that path — the same rule `/task` follows (see [Summary is a gate](#summary-is-a-gate)).
+**The Notion page *body* is not part of the contract.** The provider reads and writes **properties only** — it never touches page children (no `children` anywhere in `providers/notion.py`). Anything you type into the body of a task page is **silently ignored**: it will not reach `get()`, and it will not reach the plan at `/start`. This is deliberate, not an omission. Reading the body would make the page a second home for detail, which is exactly the split-brain [the projection model](#the-model--backend-is-a-projection-not-a-co-source-of-truth) exists to prevent. When hand-capturing a task with a real design behind it, put the design in `projects/<project>/brainstorms/<slug>.md` and name it from `Summary` — `` design: `<slug>` `` — the same rule `/task` follows (see [Summary is a gate](#summary-is-a-gate)).
 
 **2. `data_source_id`, not database id.** In the 2025-09-03 API a database is a *container* of data sources; pages live in a data source. Resolve it once:
 ```bash
