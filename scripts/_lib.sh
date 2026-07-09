@@ -40,6 +40,8 @@ skills_with_partial() {
 skill_roots() {
     local roots="${AI_MEMORY_SKILL_ROOTS:-$MEMORY_DIR/skills:$MEMORY_DIR/.skill-cache}"
     local IFS=:
+    # Deliberate colon split with scoped IFS.
+    # shellcheck disable=SC2086
     set -- $roots
     printf '%s\n' "$@"
 }
@@ -134,10 +136,14 @@ semver_gt() {
 
     old_ifs="$IFS"
     IFS=.
+    # Deliberate semver split with scoped IFS.
+    # shellcheck disable=SC2086
     set -- $a_core
     a1="$(_semver_num "${1:-0}")"
     a2="$(_semver_num "${2:-0}")"
     a3="$(_semver_num "${3:-0}")"
+    # Deliberate semver split with scoped IFS.
+    # shellcheck disable=SC2086
     set -- $b_core
     b1="$(_semver_num "${1:-0}")"
     b2="$(_semver_num "${2:-0}")"

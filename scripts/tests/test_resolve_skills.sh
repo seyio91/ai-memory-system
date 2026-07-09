@@ -41,7 +41,10 @@ EOF
 run "$RS"
 assert_exit 0 "$code" "resolve root subpath skill -> exit 0"
 assert_file "$MEM/.skill-cache/remote-sub/SKILL.md" "subpath skill materialized into cache"
-set +e; [ -e "$MEM/.skill-cache/remote-sub/.git" ]; e=$?; set -e
+set +e; [ -e "$MEM/.skill-cache/remote-sub/.git" ]
+# Intentional status capture around a negative assertion.
+# shellcheck disable=SC2319
+e=$?; set -e
 assert_exit 1 "$e" "cache copy carries no nested .git"
 assert_contains "$(cat "$MEM/.skill-cache/skills.lock")" "$HEAD_SHA" "lockfile pins the resolved sha"
 

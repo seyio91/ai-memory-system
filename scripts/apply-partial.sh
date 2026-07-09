@@ -73,7 +73,7 @@ apply_one() {
     } >> "$tmp"
 
     mv "$tmp" "$f"
-    printf 'applied: %s -> %s\n' "$PARTIAL" "${f#$MEMORY_DIR/}"
+    printf 'applied: %s -> %s\n' "$PARTIAL" "${f#"$MEMORY_DIR"/}"
 
     # Validate just this skill (markdown body can't break frontmatter, but the
     # store validator is the contract — isolate this skill's findings by name).

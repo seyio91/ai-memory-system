@@ -65,8 +65,10 @@ CUTOFF_N="$(printf '%s' "$CUTOFF" | tr -d '-')"
 
 # Emit one TSV row per in-window plan: catsort \t catdisp \t project \t plan \t created \t status
 gen_rows() {
-    local f d proj cat catdisp catsort p created created_n plan status
-    for f in $(find "$MEMORY_DIR/projects" -mindepth 2 -maxdepth 2 -type f -name memory.md 2>/dev/null); do
+    local files f d proj cat catdisp catsort p created created_n plan status
+    files="$(find "$MEMORY_DIR/projects" -mindepth 2 -maxdepth 2 -type f -name memory.md 2>/dev/null)" || files=""
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
         case "$f" in *"/_template/"*) continue ;; esac
         d="$(dirname "$f")"; proj="$(basename "$d")"
         cat="$(extract_fm_field "$f" category)"
@@ -85,7 +87,7 @@ gen_rows() {
             status="$(extract_fm_field "$p" status)"; [ -n "$status" ] || status="—"
             printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$catsort" "$catdisp" "$proj" "$plan" "$created" "$status"
         done
-    done
+    done <<< "$files"
 }
 
 emit() {

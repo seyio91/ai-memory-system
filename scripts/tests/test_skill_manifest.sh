@@ -72,7 +72,10 @@ cp "$ROOT_MF" "$MEM/root.before"
 run "$INS" --remote "file://$REPO" --ref "$BRANCH" --path packs/widget --name skipme --no-save
 assert_exit 0 "$code" "--no-save exits 0"
 assert_eq "$(cat "$MEM/root.before")" "$(cat "$ROOT_MF")" "--no-save left the manifest untouched"
-set +e; [ -e "$MEM/.skill-cache/skipme" ]; e=$?; set -e
+set +e; [ -e "$MEM/.skill-cache/skipme" ]
+# Intentional status capture around a negative assertion.
+# shellcheck disable=SC2319
+e=$?; set -e
 assert_exit 1 "$e" "--no-save resolved nothing"
 
 # === list-skills: unified provenance ==========================================

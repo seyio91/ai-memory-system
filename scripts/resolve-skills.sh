@@ -151,7 +151,7 @@ rows="$(_manifest_tsv "$MANIFEST")" || exit 3
 if [ "$LIST" = 1 ]; then
     printf '%-30s %-10s %s\n' "SKILL" "RESOLVED" "SOURCE"
     print_rows() {
-        local line name url ref path sha
+        local name url ref path sha
         while IFS="$(printf '\t')" read -r name url ref path; do
             [ -n "$name" ] || continue
             sha="$(lock_sha "$name" 2>/dev/null || true)"

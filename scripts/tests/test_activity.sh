@@ -27,8 +27,8 @@ mkproj  acme-web acme-corp
 mkplan  acme-web plans          recent-web      "$D0"  active   # today -> in window
 mkplan  acme-web plans          boundary-web    "$D30" active   # exactly cutoff -> inclusive
 mkplan  acme-web plans          justout-web     "$D31" active   # one day before -> excluded
-mkplan  acme-web plans          old-web         "$D200" done    # far past -> excluded at 30d
-mkplan  acme-web archive/plans  archived-web    "$D5"  done      # archived but in window -> counted
+mkplan  acme-web plans          old-web         "$D200" "done"  # far past -> excluded at 30d
+mkplan  acme-web archive/plans  archived-web    "$D5"  "done"    # archived but in window -> counted
 
 mkproj  beta-svc beta-inc
 mkplan  beta-svc plans          beta-one        "$D5"  active
@@ -38,7 +38,7 @@ mkplan  loose    plans          loose-one       "$D5"  active
 
 # gamma has ONLY an out-of-window plan -> empty report for its category
 mkproj  gamma-svc gamma-inc
-mkplan  gamma-svc plans         gamma-old       "$D200" done
+mkplan  gamma-svc plans         gamma-old       "$D200" "done"
 
 run() { set +e; out="$(bash "$@" 2>&1)"; code=$?; set -e; }
 

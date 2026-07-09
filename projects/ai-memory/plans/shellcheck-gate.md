@@ -100,11 +100,33 @@ The stage must **skip with a notice, not fail**, when `shellcheck` is absent, or
 - **No `-o all`.** Optional checks add `SC2250`/`SC2292` brace-and-`[[` churn for no defect coverage,
   and still miss the bug that motivated the task.
 
+- **Two floors, one rc: prod at `info`, tests at `warning`.** A nested `scripts/tests/.shellcheckrc`
+  was rejected — probed, and the **nearest rc replaces the root one rather than merging**, so a
+  disable added at the root later would silently stop applying to tests. Instead `run-tests.sh`
+  invokes shellcheck twice against the single root rc, with a different `--severity` each time.
+  Tests stay at `warning` because their 18 info-level findings are test idioms: `SC2015`
+  (`[ cond ] && _ok … || _bad …`, where `_ok` always returns 0) and `SC2030`/`SC2031` (deliberate
+  subshell isolation). Accepted cost: `SC2015` is never gated in tests.
+
+- **`SC2155` in `agy.sh` is NOT fixed by splitting the declaration.** `export X="$(cmd)"` masks
+  `cmd`'s exit status *on purpose*: `agy.sh` runs `set -euo pipefail`, and `detect_active_project`
+  returns nonzero when no project is pinned. Splitting into `X="$(cmd)"; export X` makes the
+  assignment carry that status and **aborts the launcher** — a new instance of the exact silent-abort
+  class this repo just fixed in `drivers/hook.sh`. The masking is deliberate; it gets an inline
+  disable with that reason, not a "fix". Same at `test_executor.sh:62`.
+  **A linter finding is a question, not an instruction.**
+
 ## Phases
 
-- **Phase 1 — `.shellcheckrc` + inline disables.** Create the rc with the 4 disables; annotate the
-  6 `SC2086` sites; fix the `resolve-skills.sh:154` dead `local line`. Tree reaches zero findings
-  at `-S info`.
+- **Phase 1 — `.shellcheckrc` + inline disables + the real fixes.** Create the rc with the 4
+  disables; annotate the deliberate sites; make the genuine fixes. Tree reaches **prod = 0 at
+  `-S info`** and **tests = 0 at `-S warning`**.
+
+  > **SCOPE CORRECTED 2026-07-09 — the first draft of this phase was wrong.** It claimed "~10
+  > annotations, zero findings at `-S info`". Re-measured: with the 4 rc disables applied, the
+  > tree carries **36 findings — 11 in production, 25 in tests.** The original number was an
+  > estimate written before the rc's effect was measured. Recording it here rather than quietly
+  > editing it: this plan already exists because a confidently-recorded number was wrong.
 - **Phase 2 — `run-tests.sh` stage.** Add `== shellcheck ==`, gate the exit code, skip-with-notice
   when the binary is absent. Prove criterion 6 by introducing and reverting a real `SC2086`.
 - **Phase 3 — docs.** `docs/scripts.md` gate section; CHANGELOG `### Added`.

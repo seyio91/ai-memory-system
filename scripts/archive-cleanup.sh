@@ -82,7 +82,7 @@ for project in "${PROJECTS[@]}"; do
 
     echo "[$project] ${#CANDIDATES[@]} file(s) older than $DAYS day(s):"
     for f in "${CANDIDATES[@]}"; do
-        rel="${f#$MEMORY_DIR/}"
+        rel="${f#"$MEMORY_DIR"/}"
         if [ "$DRY_RUN" -eq 1 ]; then
             echo "  would delete: $rel"
             TOTAL_LISTED=$((TOTAL_LISTED + 1))
