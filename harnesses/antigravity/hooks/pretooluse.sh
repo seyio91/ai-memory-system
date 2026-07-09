@@ -22,6 +22,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 . "$REPO/scripts/jsonutil.sh"
+. "$REPO/scripts/deny-match.sh"
 
 # Read tools permitted for the read-only `explore`/`validate` roles. Names confirmed from the
 # binary tool enum + live transcripts (list_dir/list_permissions are live-verified).
@@ -44,17 +45,32 @@ deny()  { printf '{"decision":"deny","reason":%s}\n' "$(json_escape "$1")"; exit
 # Unguarded outside an executor delegation (interactive agy).
 [ -n "$ROLE" ] || allow
 
+if ! json_parser_available; then
+    deny "no jq/python3, cannot inspect tool call"
+fi
+
 NAME="$(printf '%s' "$INPUT" | json_get_path toolCall name)"
 CMDLINE="$(printf '%s' "$INPUT" | json_get_path toolCall args CommandLine)"
 
 # Layer 1 — shared deny-list (task + explore): block destructive/additive infra.
-if [ -n "$CMDLINE" ] && [ -f "$REPO/scripts/deny-list.txt" ]; then
-    while IFS= read -r pat; do
-        case "$pat" in ''|'#'*) continue ;; esac
-        if printf '%s' "$CMDLINE" | grep -Eq "$pat"; then
-            deny "executor deny-list: command '$CMDLINE' matches forbidden pattern /$pat/ — never apply/merge to running infrastructure"
-        fi
-    done < "$REPO/scripts/deny-list.txt"
+# A missing OR EMPTY spec file must DENY, not skip: an absent (or truncated) rules
+# file is indistinguishable from a disarmed guard, and this hook's own repo is a
+# place an executor can write. Existence is not armed-ness — `: > deny-list.txt`
+# disarms just as effectively as `rm`.
+if [ ! -f "$REPO/scripts/deny-list.txt" ]; then
+    deny "executor deny-list missing at scripts/deny-list.txt — refusing to run unguarded"
+fi
+# A rule needs a binary AND a subcommand; a file of bare words loads zero specs.
+# Match what _deny_load_specs accepts, or "armed" and "has rules" drift apart.
+if ! grep -qE '^[[:space:]]*[^#[:space:]]+[[:space:]]+[^[:space:]]' "$REPO/scripts/deny-list.txt" 2>/dev/null; then
+    deny "executor deny-list at scripts/deny-list.txt has no usable rules — refusing to run unguarded"
+fi
+if [ -n "$CMDLINE" ]; then
+    DENY_SPEC_FILES="$REPO/scripts/deny-list.txt"
+    [ -f "$REPO/scripts/deny-list.local.txt" ] && DENY_SPEC_FILES="$DENY_SPEC_FILES $REPO/scripts/deny-list.local.txt"
+    if DENY_REASON="$(deny_match "$CMDLINE" $DENY_SPEC_FILES)"; then
+        deny "$DENY_REASON"
+    fi
 fi
 
 # Layer 2 — read-only allowlist for the explore/validate roles.
