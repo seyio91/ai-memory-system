@@ -310,13 +310,34 @@ is never extracted. The `DENY_WRAPPED` tail-scan then looks for `terraform` as a
 none of the five rounds touched. `flock /tmp/tf.lock sh -c "cd envs/prod && terraform apply"` is
 a natural honest-agent idiom, so it is in scope for the stated threat model.
 
-**The fix (small, per the validator):** when `DENY_WRAPPED` is set, the tail scan must not only
-look for a spec binary — it must also recognise a payload-bearing binary (`sh`/`bash`/`zsh`/`su`/
-`runuser` with `-c`, or `eval`/`trap`/`find -exec`) anywhere in the tail and extract *its*
-payload. Equivalently: after skipping a wrapper, re-run the per-segment head analysis from the
-first real command token rather than trusting `idx`. Add regression tests:
-`timeout 5 sh -c "terraform apply"`, `flock P sh -c "…"`, `nice -n N bash -lc "…"`,
-`timeout 5 eval "terraform apply"` — plus their benign twins (`timeout 5 sh -c "echo hi"` ALLOW).
+**The fix:** when `DENY_WRAPPED` is set, the tail scan must not only look for a spec binary — it
+must also recognise a payload-bearing binary anywhere in the tail and extract *its* payload.
+Equivalently: after skipping a wrapper, re-run the per-segment head analysis from the first real
+command token rather than trusting `idx`.
+
+**CORRECTED by round 6 (Fable) — the payload-binary set reachable THROUGH a wrapper is
+`sh`/`bash`/`zsh`/`su`/`runuser` (with `-c`) + `find -exec`. It must NOT include `eval`/`trap`.**
+`eval` and `trap` are shell builtins with no on-disk executable, so a wrapper cannot exec them —
+`nice -n 10 eval "…"` errors `nice: eval: No such file or directory` and runs nothing (probe-
+verified). So `timeout 5 eval "terraform apply"` does **not** run terraform, and denying it (as an
+earlier draft of this sketch required) is a **false positive**. Keep `eval`/`trap` only as
+*direct-head* handlers, never in the wrapper-tail set. The "re-run head analysis from the first
+real token" phrasing hits this trap too, because head analysis classifies `eval` and extracts its
+payload — so the re-run must exclude the eval/trap branch when it was reached via a wrapper.
+
+**Regression tests the fix must add** (all currently ALLOW, all must flip to the stated verdict):
+- `sudo -u root sh -c "terraform apply"` → DENY. **HIGHEST VALUE**: `sudo -u` is the canonical
+  run-as-user idiom, and its *bare* form `sudo -u root kubectl delete pod x` already has a passing
+  DENY test — so the composition *looks* covered and is not. The round-5 write-up framed this bug
+  around `timeout/flock/nice` and never named `sudo`, the most natural wrapper of all.
+- `stdbuf -oL sh -c "terraform apply"` → DENY · `xargs -n1 sh -c "terraform apply"` → DENY ·
+  `watch -n5 sh -c "terraform apply"` → DENY (each masked by a passing bare-form sibling test).
+- Stacked wrappers: `nice -n 10 ionice -c2 sh -c "terraform apply"` → DENY ·
+  `time nice -n 10 sh -c "terraform apply"` → DENY.
+- `nice -n 10 bash -lc "terraform apply"` → DENY · `nice -n 10 su - deploy -c "terraform apply"` → DENY.
+- **Benign twins that must stay ALLOW:** `timeout 5 sh -c "echo hi"`, and critically
+  **`timeout 5 eval "terraform apply"` → ALLOW** (locks in that the eval-through-wrapper false
+  positive is never introduced).
 
 **Accepted inherent limitation (do NOT try to fix — document as deliberate, like `echo`):**
 `eval "$(echo terraform apply)"` runs terraform, but the static body `echo terraform apply` is
@@ -324,8 +345,11 @@ benign — the danger is only in echo's *runtime output*. Undecidable for a text
 class as base64 / a script file. The threat model is an honest agent, not an attacker.
 
 ### State at pause
-- Branch `fix/deny-list-hardening`, committed + pushed. NOT merged, NO PR.
-- 137 assertions, full suite 34/34 green — **but green does not mean done**: every one of the 21
-  found bypasses passed a green suite first. This open one has no test yet, by deliberate choice
-  (fixing it is the resume task).
-- Five rounds found 21 bypass classes; 3 were introduced by fixes for earlier findings.
+- Branch `fix/deny-list-hardening`, committed + pushed (`677837e`). NOT merged, NO PR.
+- 137 assertions, full suite 34/34 green — **but green does not mean done**: every one of the
+  found bypasses passed a green suite first. The open ones have no test yet, by deliberate choice
+  (fixing them is the resume task).
+- **Six rounds, 23 bypass classes.** 3 were introduced by fixes for earlier findings. Round 6
+  (Fable — a different model family from the five Opus/Sonnet rounds) found the `sudo -u ∘ sh -c`
+  variant AND caught that this plan's own fix sketch would have introduced a false positive. That
+  is the case for cross-*family* validation, not just cross-model.
