@@ -24,7 +24,7 @@ Classify the pulled `summary` (treat it as the initial request):
 - Fold the approved design in: `## Goal` ← the clarified one-or-two-sentence purpose; `## Success criteria` ← criteria derived with the user; `## Design` ← chosen approach + one-line note per rejected alternative; `## Risks` ← deferred items. (For settled/quick tasks: Goal from the summary, a one-line Design, best-effort Success criteria.) Leave `## Phases` for the normal decomposition step.
 
 ### Step 4 — link, push back, flip status
-- Push the clarified Goal back to the backend as the refined summary: `"$TASKCTL" update <ref> --summary "<the clarified Goal text>"`. **The summary is capped at 500 chars** — a verbose Goal hard-fails this step. Keep the Goal to one or two sentences; if the design needs more room, it belongs in the plan (and, before `/start`, in `projects/<project>/brainstorms/<slug>.md`), referenced by path.
+- Push the clarified Goal back to the backend as the refined summary: `"$TASKCTL" update <ref> --summary "<the clarified Goal text>"`. **The summary is capped at 500 chars** — a verbose Goal hard-fails this step. Keep the Goal to one or two sentences; if the design needs more room, it belongs in the plan (and, before `/start`, in `projects/<project>/brainstorms/<slug>.md`), referenced **by name, never by path** — a path rots the moment the plan is archived, and the task already carries its `project`.
 - Flip the lifecycle: `"$TASKCTL" set-status <ref> started`.
 - Add a todo item in the task's project: append `### <title> → [plan](plans/<slug>.md)` with unchecked Phase boxes to `projects/<task-project>/todo.md` (under `## Active`).
 

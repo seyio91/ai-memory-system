@@ -11,9 +11,10 @@ from taskprovider.providers.notion import NotionProvider
 LONG_SUMMARY = "x" * (SUMMARY_MAX_CHARS + 1)
 MAX_SUMMARY = "x" * SUMMARY_MAX_CHARS
 ERROR_MESSAGE = (
-    "summary is 501 chars; maximum is 500. Write long-form content to "
-    "projects/<project>/brainstorms/<slug>.md and reference it by path "
-    "from the summary."
+    "summary is 501 chars; maximum is 500. Write the long form to a brainstorm "
+    "in the task's project (projects/<project>/brainstorms/<slug>.md), then "
+    "reference it from the summary by name — <slug>, not a path: paths move "
+    "when work is archived, and the task already carries its project."
 )
 
 
