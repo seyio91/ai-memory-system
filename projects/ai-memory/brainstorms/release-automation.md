@@ -121,7 +121,7 @@ Two properties worth noticing:
 
 1. **`release.sh` stays the single implementation.** The Action adds a *trigger*, not a second code
    path — exactly what `plans/versioned-release-channel.md` §Design and
-   `brainstorms/versioned-release-packaging.md` §3.5 already commit to. It needs a `--ci` mode; the
+   `archive/wikis/versioned-release-packaging.md` §3.5 already commit to. It needs a `--ci` mode; the
    guards otherwise hold as-is.
 2. **The `AI_MEMORY_ROLE` executor gate does not block CI.** `release.sh` (Phase 3) refuses when
    that var is set; `executor.sh` exports it on every delegated run. An Action is not an executor,
