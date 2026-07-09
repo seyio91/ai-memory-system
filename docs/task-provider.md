@@ -81,6 +81,8 @@ The first remote backend, same contract, **zero changes** to the contract/CLI/fa
 | `Claude` | checkbox | the **consume tag** — `list` only returns `Claude = true` rows, so your own cards stay invisible to the provider |
 | `Created` | created time | optional — falls back to the page's `created_time` if absent |
 
+**The Notion page *body* is not part of the contract.** The provider reads and writes **properties only** — it never touches page children (no `children` anywhere in `providers/notion.py`). Anything you type into the body of a task page is **silently ignored**: it will not reach `get()`, and it will not reach the plan at `/start`. This is deliberate, not an omission. Reading the body would make the page a second home for detail, which is exactly the split-brain [the projection model](#the-model--backend-is-a-projection-not-a-co-source-of-truth) exists to prevent. When hand-capturing a task with a real design behind it, put the design in `projects/<project>/brainstorms/<slug>.md` and point `Summary` at that path — the same rule `/task` follows (see [Summary is a gate](#summary-is-a-gate)).
+
 **2. `data_source_id`, not database id.** In the 2025-09-03 API a database is a *container* of data sources; pages live in a data source. Resolve it once:
 ```bash
 curl -s https://api.notion.com/v1/databases/<DATABASE_ID> \

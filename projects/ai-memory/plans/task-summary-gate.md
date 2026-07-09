@@ -139,8 +139,13 @@ A brainstorm is a design input, not live work. This legalizes the precedent alre
   is the first live test.
 - **9 of 12 live tasks are over cap.** Any future `update` on them fails until shortened.
   Intended, but it will surprise whoever hits it first; the error message carries the fix.
-- **The intake gap stays open.** A task hand-written in Notion with a page body: `get()` still
-  cannot see the body. Deliberately out of scope. File separately if it bites.
+- ~~**The intake gap stays open.**~~ **RESOLVED 2026-07-09 — won't fix, by design.** A task
+  hand-written in Notion with content in the page *body* is invisible to `get()`. That is not an
+  omission to be closed later: reading the body would make the page a second home for detail,
+  the split-brain the projection model exists to prevent. The page body is **outside the
+  contract** — no reader, no writer. Documented in `docs/task-provider.md` (Notion schema) so a
+  human doesn't type a design there and watch it vanish. Note the gap is *read*-side, so
+  "we didn't build the `body` writer" does not by itself close it — the projection model does.
 - **Enforcing the pointer's existence is not attempted.** Nothing checks that a referenced
   brainstorm path resolves. `lint-memory.sh` is the natural home if it ever matters; a dangling
   pointer is currently a silent lie.
