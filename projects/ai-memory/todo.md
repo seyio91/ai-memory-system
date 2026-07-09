@@ -6,7 +6,10 @@
 
 ## Active
 
-_(no items yet)_
+### Shellcheck static-analysis gate → [plan](plans/shellcheck-gate.md)
+- [ ] Phase 1 — `.shellcheckrc` (4 disables) + inline `SC2086` justifications; zero findings at `-S info`
+- [ ] Phase 2 — `run-tests.sh` `== shellcheck ==` stage; gates exit code; skips-with-notice if absent; prove it fires
+- [ ] Phase 3 — docs: `docs/scripts.md` gate section + CHANGELOG `### Added`
 
 ## Done
 _(checked items stay above until the file is rolled)_
