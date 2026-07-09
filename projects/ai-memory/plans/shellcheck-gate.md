@@ -1,6 +1,7 @@
 ---
 plan: shellcheck-gate
-status: active
+status: done
+completed: 2026-07-10
 created: 2026-07-09
 owner: claude (orchestrator)
 task_provider: notion
@@ -80,15 +81,30 @@ The stage must **skip with a notice, not fail**, when `shellcheck` is absent, or
 
 ## Success criteria
 
-1. `.shellcheckrc` exists and disables exactly `SC1091`, `SC1090`, `SC2016`, `SC2034`, each with a comment.
-2. `run-tests.sh` has a `== shellcheck ==` stage whose failure sets a non-zero suite exit code.
-3. With `shellcheck` on PATH, the suite passes on a clean tree at severity `info`.
-4. The stage **skips with a printed notice and exit 0** when `shellcheck` is not installed.
-5. Every remaining `SC2086` site carries an inline `# shellcheck disable=SC2086` with a justification.
-6. A deliberately-introduced `SC2086` (unquoted `$var` in a new prod script) **fails the suite** —
+1. ✅ `.shellcheckrc` exists and disables exactly `SC1091`, `SC1090`, `SC2016`, `SC2034`, each with a comment.
+2. ✅ `run-tests.sh` has a `== shellcheck ==` stage whose failure sets a non-zero suite exit code.
+3. ✅ With `shellcheck` on PATH, the suite passes on a clean tree — prod at `info`, tests at `warning`.
+4. ✅ The stage **skips with a printed notice and exit 0** when `shellcheck` is not installed.
+   *Proved by mirroring `/opt/homebrew/bin` minus `shellcheck`: dropping the whole directory from
+   `PATH` starved `test_antigravity` of `jq`, so the first attempt failed for the wrong reason.*
+5. ✅ Every remaining `SC2086` site carries an inline `# shellcheck disable=SC2086` with a justification.
+6. ✅ A deliberately-introduced `SC2086` (unquoted `$var` in a new prod script) **fails the suite** —
    verified by adding it, running, and reverting. The gate is proven to fire, not assumed to.
-7. No production behaviour changes: `git diff` touches only comments, `.shellcheckrc`, and `run-tests.sh`.
-8. `docs/scripts.md` documents the gate, the floor, and how to justify an inline disable.
+   Also proved: `SC2155` in a test file gates; `SC2086` in a test file does **not** (floors differ).
+7. ⚠️ **RESTATED — the original wording was falsified by the work.** It read: *"No production
+   behaviour changes: `git diff` touches only comments, `.shellcheckrc`, and `run-tests.sh`."*
+   That assumed every finding would be a false positive. Two were real defects, and fixing them
+   **did** change production behaviour:
+   - `SC2044` — `regenerate-{state,activity}.sh` corrupted the state snapshot under a
+     `MEMORY_DIR` containing a space (blank columns + a phantom project row).
+   - `SC2295` — `${f#$MEMORY_DIR/}` treated the prefix as a glob pattern.
+
+   The criterion that actually matters, and the one that was met: **no behaviour change on inputs
+   that worked before.** Held to golden output comparison — `regenerate-state.sh --stdout` and
+   `regenerate-activity.sh --all --stdout` are byte-identical pre- and post-change on the real
+   tree, confirmed independently by the validator.
+8. ✅ `docs/scripts.md` documents the gate, both floors, the inline-disable policy, and — the part
+   that rots — what the gate is *not*.
 
 ## Decisions (locked)
 
