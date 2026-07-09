@@ -129,7 +129,9 @@ with open(path, "w") as f:
     f.write("\n")
 PY
         info "registered PreInvocation 'ai-memory-inject' -> bash $hs"
-        [ -n "$gs" ] && info "registered PreToolUse  'ai-memory-guard'  -> bash $gs"
+        if [ -n "$gs" ]; then
+            info "registered PreToolUse  'ai-memory-guard'  -> bash $gs"
+        fi
     elif [ ! -e "$hooks_json" ]; then
         {
             printf '{\n  "ai-memory-inject": {\n    "PreInvocation": [\n      { "type": "command", "command": "bash %s" }\n    ]\n  }' "$hs"

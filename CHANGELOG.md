@@ -45,6 +45,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **`install.sh` aborted silently, mid-run, for any `hooks_json` harness that does not
+  declare `guard_script`.** In `scripts/drivers/hook.sh`, the guard-registration notice
+  `[ -n "$gs" ] && info …` was the last statement of `_hook_register_json`, so with no
+  `guard_script` the test failed, the function returned 1, and `set -euo pipefail`
+  killed the installer the moment it returned — after the hooks step, before skills,
+  commands and config stamping, with no error printed. Latent for the shipped harnesses
+  (Antigravity sets `guard_script`) but it broke the advertised extension point: a
+  hook-archetype harness that wants injection **without** enforcement could not install.
+  Now an `if` block, which yields 0 when the branch is not taken. Worth noting that
+  **shellcheck does not detect this**, at default severity or under `-o all` (including
+  `check-set-e-suppressed`) — the control for this class is a behavioural install test,
+  not a linter.
+
 - **The executor deny-list could be bypassed with a single interposed flag, and
   failed open without a JSON parser.** Its patterns anchored the binary directly to
   the subcommand (`terraform[[:space:]]+apply`), so `terraform -chdir=envs/prod apply`,
