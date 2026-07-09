@@ -41,6 +41,14 @@ __pycache__/
 !/projects/ai-memory
 /projects/ai-memory/working.md
 
+# ...except rolled working-memory snapshots. working.md is deliberately local, so
+# archiving it must not be the back door that publishes it: a snapshot is raw
+# session scratch (real names, client paths, half-formed threads) that never went
+# through the redaction a wiki or memory.md entry gets. Keep .gitkeep so the dir
+# still scaffolds for lint-memory.sh and the test fixtures.
+/projects/ai-memory/archive/working/*
+!/projects/ai-memory/archive/working/.gitkeep
+
 # Task backlog and archived artifacts are personal
 /tasks/
 /archive/
