@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **shellcheck is now a gate on `run-tests.sh`**, not a suggestion. A `== shellcheck ==`
+  stage sets a non-zero suite exit code on any finding, running two invocations against a
+  single root `.shellcheckrc`: production code at `-S info` and `scripts/tests/` at
+  `-S warning`. The floor is `info` **because `SC2086` — unquoted expansion — is an
+  info-level check**, so a `warning` gate could never fire on the most consequential shell
+  bug class; tests sit at `warning` because their info-level hits are idioms (`SC2015`
+  assert-pairs, deliberate `SC2030`/`SC2031` subshells). A nested `tests/.shellcheckrc` was
+  rejected: the nearest rc **replaces** the root rather than merging, so a later root disable
+  would silently stop applying there.
+
+  `.shellcheckrc` silences exactly four codes repo-wide (`SC1091`/`SC1090` unfollowable
+  `source`, `SC2016` intentional single quotes, `SC2034` sourced-consumer and
+  stdout-swallow variables). Everything else fires; site exemptions are **inline** with a
+  justification. A `.shellcheck-baseline` of accepted findings was rejected as an artefact
+  that records a verification instead of performing one.
+
+  shellcheck is **dev/CI-only** — the runtime zero-dependency bet is untouched. When the
+  binary is absent the stage prints a notice and skips **without gating**, so a consumer
+  instance running the suite never fails for lacking a linter.
+
+  The gate is proven to fire, not assumed to: an `SC2086` injected into a production script
+  fails the suite; an `SC2155` in a test file fails it; an `SC2086` in a test file does not
+  (by design); and removing shellcheck from `PATH` skips cleanly at exit 0.
+
+### Fixed
+
+- **A `MEMORY_DIR` containing a space silently corrupted the derived state snapshot.**
+  `regenerate-state.sh` and `regenerate-activity.sh` iterated `for f in $(find …)`, so an
+  unquoted command substitution word-split every path: `/state` rendered a row with every
+  column blank (`| — | alpha | — | — | 0 |`) *and* a phantom project invented from the
+  split fragment. Both now materialize the `find` output and read it with
+  `while IFS= read -r` — deliberately not `while … done < <(producer)`, whose non-zero
+  producer exit is silently swallowed. Output is byte-identical on paths without spaces.
+  Surfaced by `SC2044` while installing the shellcheck gate.
+
+- **`${f#$MEMORY_DIR/}` treated `$MEMORY_DIR` as a glob pattern** in `archive-cleanup.sh`
+  and `apply-partial.sh` (`SC2295`); the prefix is now quoted.
+
+- **The executor deny-list guard passed its spec files as a space-joined string.**
+  `pretooluse.sh` word-split `$DENY_SPEC_FILES` under a default `IFS` into paths that do not
+  exist, so a `$REPO` containing a space made the guard load fewer rules than it believed it
+  had — a command the local overlay was meant to deny would be allowed. It now passes an
+  array. Latent (no checkout has a space today), but this is the enforcement guard.
+
 ## [1.2.0] - 2026-07-09
 
 ### Added

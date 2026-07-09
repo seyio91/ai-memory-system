@@ -3,7 +3,8 @@
 # run-tests.sh — end-to-end test runner for the memory system.
 #
 # Runs the full scripts/tests/test_*.sh suite, then the scripts/taskprovider/tests/
-# Python unittest suite, then the lint-memory.sh content check, in a HERMETIC
+# Python unittest suite, then lint-memory.sh, validate-skills.sh, and a shellcheck
+# static-analysis stage — all five gate the exit code — in a HERMETIC
 # environment: it scrubs the developer-shell variables that
 # would otherwise steer a test into a live backend or the real tree
 # (MEMORY_TASK_PROVIDER, NOTION_*, MEMORY_DIR, AI_MEMORY_PROJECTS_ROOT,
