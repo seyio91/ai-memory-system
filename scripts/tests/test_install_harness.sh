@@ -121,6 +121,33 @@ run_install --harness bogus >"$SBROOT/log.bogus" 2>&1; rc=$?
 assert_exit 1 "$rc" "unknown harness: exit 1"
 
 # --- --list ---
+# --- hooks_json harness WITHOUT guard_script: injection, no enforcement ---
+# The advertised extension point. `guard_script` is optional, so _hook_register_json
+# must return 0 when it is absent — a guard notice written as `[ -n "$gs" ] && info …`
+# would be the function's last statement, return 1 on the empty case, and `set -e`
+# would kill install.sh on return: hooks registered, every later step silently
+# skipped, exit code hidden behind the abort. Assert the run REACHES the later steps,
+# not merely that it exits 0. No linter detects this; only driving it does.
+mkdir -p "$FAKE/harnesses/noguard"
+printf '%s\n' \
+    'name = noguard' 'archetype = hook' 'format = xml' \
+    'hooks_json  = ~/.noguard/hooks.json' \
+    'hook_script = $MEMORY_DIR/harnesses/antigravity/hooks/preinvocation.sh' \
+    'skills_dir  = ~/.noguard/skills' 'commands = skill' \
+    > "$FAKE/harnesses/noguard/manifest"
+rm -f "$FAKE/config.local.sh"
+run_install --harness noguard >"$SBROOT/log.noguard" 2>&1; rc=$?
+assert_exit 0 "$rc" "no-guard hook harness install exits 0"
+assert_file "$FHOME/.noguard/hooks.json" "no-guard: hooks.json registered"
+nghj="$(cat "$FHOME/.noguard/hooks.json")"
+assert_contains     "$nghj" "ai-memory-inject" "no-guard: inject hook registered"
+assert_not_contains "$nghj" "ai-memory-guard"  "no-guard: no guard entry without guard_script"
+# The abort landed between the hooks step and everything after it — these are the
+# steps a returning-1 _hook_register_json silently skipped.
+assert_file "$FHOME/.noguard/skills/demo-skill" "no-guard: skills fan-out ran AFTER the hooks step"
+assert_file "$FAKE/config.local.sh"             "no-guard: config.local.sh stamped AFTER the hooks step"
+assert_not_contains "$(cat "$SBROOT/log.noguard")" "Traceback" "no-guard: no python traceback"
+
 out="$(HOME="$FHOME" bash "$FAKE/install.sh" --list 2>&1)"
 assert_contains "$out" "claude"      "--list shows claude"
 assert_contains "$out" "codex"       "--list shows codex"
