@@ -107,6 +107,10 @@ class TaskProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def delete(self, ref):
+        raise NotImplementedError
+
+    @abstractmethod
     def ping(self):
         raise NotImplementedError
 

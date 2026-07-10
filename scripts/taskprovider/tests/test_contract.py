@@ -33,8 +33,41 @@ class ContractTests(unittest.TestCase):
             def set_status(self, ref, status):
                 return None
 
+            def delete(self, ref):
+                return None
+
         with self.assertRaises(TypeError):
             Missing()
+
+    def test_subclass_missing_delete_fails(self):
+        class NoDelete(TaskProvider):
+            @property
+            def status_map(self):
+                return {}
+
+            def resolve_project(self, name):
+                return name
+
+            def capture(self, project, title, summary):
+                return "ref"
+
+            def list(self, project, status):
+                return []
+
+            def get(self, ref):
+                return None
+
+            def update(self, ref, *, title=None, summary=None):
+                return None
+
+            def set_status(self, ref, status):
+                return None
+
+            def ping(self):
+                return True
+
+        with self.assertRaises(TypeError):
+            NoDelete()
 
     def test_set_status_rejects_non_canonical_before_dispatch(self):
         class Provider(TaskProvider):
@@ -62,6 +95,9 @@ class ContractTests(unittest.TestCase):
 
             def set_status(self, ref, status):
                 self.dispatched = True
+
+            def delete(self, ref):
+                return None
 
             def ping(self):
                 return True
@@ -99,6 +135,9 @@ class ContractTests(unittest.TestCase):
                 return None
 
             def set_status(self, ref, status):
+                return None
+
+            def delete(self, ref):
                 return None
 
             def ping(self):

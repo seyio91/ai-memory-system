@@ -38,6 +38,30 @@ class LocalProviderTests(unittest.TestCase):
         self.assertFalse((self.root / "tasks" / (ref + ".md")).exists())
         self.assertTrue((self.root / "archive" / "tasks" / (ref + ".md")).is_file())
 
+    def test_delete_hard_removes_live_task(self):
+        ref = self.provider.capture("alpha", "Delete Me", "summary")
+        self.assertTrue((self.root / "tasks" / (ref + ".md")).is_file())
+
+        self.provider.delete(ref)
+
+        self.assertFalse((self.root / "tasks" / (ref + ".md")).exists())
+        self.assertEqual([], self.provider.list("alpha", "backlog"))
+        with self.assertRaises(ValueError):
+            self.provider.get(ref)
+
+    def test_delete_unknown_ref_raises(self):
+        with self.assertRaises(ValueError):
+            self.provider.delete("does-not-exist")
+
+    def test_delete_ignores_archived_task(self):
+        # delete acts on the live tasks/ file only; an archived task has been
+        # moved to archive/tasks/ and must not be removed by delete.
+        ref = self.provider.capture("alpha", "Archived", "summary")
+        self.provider.set_status(ref, "archived")
+        with self.assertRaises(ValueError):
+            self.provider.delete(ref)
+        self.assertTrue((self.root / "archive" / "tasks" / (ref + ".md")).is_file())
+
     def test_get_round_trips_every_field(self):
         ref = self.provider.capture("alpha", "Round Trip", "body\nline 2")
         task = self.provider.get(ref)

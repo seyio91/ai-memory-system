@@ -41,6 +41,9 @@ def run(argv):
     p.add_argument("ref")
     p.add_argument("status")
 
+    p = sub.add_parser("delete")
+    p.add_argument("ref")
+
     sub.add_parser("ping")
 
     try:
@@ -62,6 +65,9 @@ def run(argv):
             return emit({"ok": True})
         if args.verb == "set-status":
             provider.set_status(args.ref, args.status)
+            return emit({"ok": True})
+        if args.verb == "delete":
+            provider.delete(args.ref)
             return emit({"ok": True})
         if args.verb == "ping":
             return emit({"ok": bool(provider.ping())})

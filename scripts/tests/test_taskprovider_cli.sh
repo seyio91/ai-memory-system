@@ -59,4 +59,20 @@ assert_exit 0 "$code" "started list exits 0"
 assert_contains "$out" '"ref": "cli-task"' "started list includes task"
 assert_contains "$out" '"status": "started"' "started list includes status"
 
+# delete: hard-removes the live task file, returns ok.
+assert_file "$MEM/tasks/cli-task.md" "task file present before delete"
+set +e
+out=$(python3 -m taskprovider delete cli-task 2>&1); code=$?
+set -e
+assert_exit 0 "$code" "delete exits 0"
+assert_contains "$out" '"ok": true' "delete returns JSON ok"
+[ ! -e "$MEM/tasks/cli-task.md" ] && _ok "task file removed by delete" || _bad "task file removed by delete"
+
+# delete of an unknown ref: JSON error, non-zero exit (no silent success).
+set +e
+out=$(python3 -m taskprovider delete cli-task 2>&1); code=$?
+set -e
+assert_exit 1 "$code" "delete of missing ref exits non-zero"
+assert_contains "$out" '"error"' "delete of missing ref returns JSON error"
+
 finish

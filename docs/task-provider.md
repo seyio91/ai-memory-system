@@ -24,6 +24,7 @@ CAPTURED (backend only, no plan yet)   STARTED (plan file exists, linked)
 | `get(ref) -> Task` | One task, all fields. |
 | `update(ref, *, title=None, summary=None)` | **Title/summary only** — the narrow channel for refining the thin record (e.g. pushing the sharpened summary at `/start`). Deliberately *not* a general field writer. A non-`None` `summary` is capped at 500 chars; `summary=None` means *leave unchanged* and is not gated. |
 | `set_status(ref, status)` | Move along the lifecycle; non-canonical status is rejected **before** any provider dispatch. |
+| `delete(ref)` | **Remove** the task — distinct from `set_status(archived)`, which retires it but keeps the record. Notion trashes the page (`PATCH {archived:true}`, recoverable in Notion's trash); local **hard-unlinks** the live `tasks/<ref>.md`. Acts on the live task only — an unknown or already-archived ref raises. |
 | `ping() -> bool` | Backend reachable? |
 | `status_map` (seam) | canonical ↔ native status. Identity for local; option names for Notion; **workflow transitions** for Jira. |
 | `resolve_project(name) -> handle` (seam) | memory project → native handle. Local checks `projects/<name>/`; Notion uses a text property; Jira a pre-existing key that may legitimately fail. |
@@ -68,7 +69,7 @@ The gate lives in `contract.py` (`validate_summary`, applied by `__init_subclass
 
 ## Local store (`FileTaskProvider`)
 
-The always-available default. Tasks are **flat** at `$MEMORY_DIR/tasks/<slug>.md` (not per-project — mirrors one Notion database with a `Project` property), each carrying `project`, `status`, `created` frontmatter and the summary as body. **Status lives only in frontmatter — no status-named subfolders** (encoding status in the path duplicates the fact and invites drift). `done` is an in-place frontmatter flip; **only `archived` moves the file** (to `$MEMORY_DIR/archive/tasks/`) — mirroring `/plan-done` vs `/plan-archive`. `MEMORY_DIR` is the only location knob.
+The always-available default. Tasks are **flat** at `$MEMORY_DIR/tasks/<slug>.md` (not per-project — mirrors one Notion database with a `Project` property), each carrying `project`, `status`, `created` frontmatter and the summary as body. **Status lives only in frontmatter — no status-named subfolders** (encoding status in the path duplicates the fact and invites drift). `done` is an in-place frontmatter flip; **only `archived` moves the file** (to `$MEMORY_DIR/archive/tasks/`) — mirroring `/plan-done` vs `/plan-archive`. **`delete` hard-unlinks the live `tasks/<ref>.md`** (no recoverable trash — `tasks/` is gitignored, so a deleted task is gone; `archive/tasks/` already serves the "retire but keep" case via `archived`). `MEMORY_DIR` is the only location knob.
 
 ## Notion provider (`NotionProvider`)
 
@@ -113,7 +114,7 @@ export NOTION_TOKEN=<integration secret>
 
 ```bash
 PYTHONPATH=$MEMORY_DIR/scripts python3 -m taskprovider <verb> ...
-# verbs: capture | list | get | update | set-status | ping
+# verbs: capture | list | get | update | set-status | delete | ping
 ```
 
 Prints **JSON to stdout**, signals errors via **exit code** (+ a JSON `{"error": ...}` object). This language-agnostic seam means the Python layer is itself swappable later without touching any caller. The `scripts/taskctl` bash wrapper removes the `PYTHONPATH`/`-m` boilerplate (`taskctl <verb> ...`) and is what the `/task` and `/start` commands call — note it sets `PYTHONPATH` to the package dir while `MEMORY_DIR` stays the independent data root, so a temp/synced data root still imports the real package.

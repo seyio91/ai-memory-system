@@ -101,6 +101,22 @@ class NotionProviderOfflineTests(unittest.TestCase):
         self.assertEqual(["Summary"], list(body["properties"].keys()))
         self.assertEqual("updated summary", body["properties"]["Summary"]["rich_text"][0]["text"]["content"])
 
+    def test_delete_trashes_page_at_page_level(self):
+        self.provider.delete("01234567-89ab-cdef-0123-456789abcdef")
+
+        method, url, body = self.calls[-1]
+        self.assertEqual("PATCH", method)
+        self.assertTrue(url.endswith("/v1/pages/01234567-89ab-cdef-0123-456789abcdef"))
+        # Page-level trash, NOT a Status-property write — no "properties" key.
+        self.assertEqual({"archived": True}, body)
+
+    def test_delete_rejects_short_ids_before_api(self):
+        before = len(self.calls)
+        with self.assertRaises(ValueError) as ctx:
+            self.provider.delete("38ef6850")
+        self.assertIn("full page UUID", str(ctx.exception))
+        self.assertEqual(before, len(self.calls), "guard must not hit the API")
+
     def test_page_response_parses_every_task_field(self):
         task = self.provider.get("01234567-89ab-cdef-0123-456789abcdef")
 
