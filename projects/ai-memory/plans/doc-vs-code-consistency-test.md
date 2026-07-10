@@ -174,6 +174,19 @@ Fix every finding so the gate can hard-fail from day one.
 - **RESOLVED — indirection.** Settled by the source-following decision above. The `Used by` cells still
   mix script names with *function* names (`resolve_repo_path`), which the parser must not mistake for
   files: match only tokens ending `.sh` / `.py`.
+- **RESOLVED — the checker must exclude ITSELF from the code roots** (found in Phase 2 by fixture
+  probe, not review). `check-docs.sh` lives in `scripts/`, and its header comments cite
+  `MEMORY_SESSIONS_DIR`, `AI_MEMORY_PROJECTS_ROOT` and `AI_MEMORY_EXECUTOR_CMD_<key>` as worked
+  examples. Before the fix, `MEMORY_SESSIONS_DIR` **passed the forward axis** — the only file in the
+  tree containing it was the checker written to catch it. A deleted var could be re-documented and
+  stay green forever. Fixed with `grep --exclude=check-docs.sh`. **This is the fail-open class the
+  whole plan targets, reproduced inside the control itself.**
+- **RESOLVED — `sed` delimiter collision silently disabled source-following.**
+  `s|...(\.|source)...|` ends the pattern at the alternation's `|`; sed dies with "parentheses not
+  balanced". A `2>/dev/null` on `sources_of` swallowed the error, so every strict check reported
+  "not found in X (nor anything it sources)" — four false positives that *looked* like real drift.
+  Delimiter is now `#` and stderr is deliberately unsuppressed. **Swallowing stderr converted a loud
+  crash into a plausible wrong answer.**
 - **A comment counts as a match, by design.** `AI_MEMORY_EXECUTOR_CMD_<key>` passes the forward axis
   *only* because `executor.sh:19` names the placeholder in a comment — the code builds the real name
   dynamically (`AI_MEMORY_EXECUTOR_CMD_${key//-/_}`). Stripping comments would make that row fail and

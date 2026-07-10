@@ -1,0 +1,19 @@
+# .docscheck-exempt — env vars whose `Used by` cell in the docs/scripts.md table
+# names no script, checked by scripts/check-docs.sh.
+#
+# An unexempted prose cell FAILS. That is the point: it stops prose from
+# silently creeping back into a machine-checked column. Every entry here is a
+# deliberate, reasoned hole in the strict-consumer axis.
+#
+# Before adding an entry, ask the question the deny-list rounds taught: a fix
+# that narrows a matcher to kill a false positive is the likeliest place to
+# create a false negative. What does this line now fail to catch?
+#
+# Format:  VAR  # reason
+# These vars are still checked by the FORWARD axis (they must exist in code).
+
+MEMORY_DIR                 # "All scripts" — no single consumer to name; every script resolves the tree through it.
+MEMORY_TASK_PROVIDER       # Read by the Python task-provider factory, not a shell script. Only a comment mentions it in _lib.sh:8.
+NOTION_TOKEN               # Consumed by the NotionProvider class (scripts/taskprovider/providers/notion.py), not a named script.
+NOTION_DATA_SOURCE_ID      # As above — a class, not a file.
+NOTION_STATUS_KIND         # As above — a class, not a file.
