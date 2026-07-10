@@ -22,6 +22,56 @@ _cs_want() {
     case " $_CS_WANT " in *" $1 "*) return 0 ;; *) return 1 ;; esac
 }
 
+# --- working.md overlay resolver (shared across every harness) ------------------
+# The working scratchpad is per-session: two concurrent sessions on one repo run
+# in two git worktrees, which must not clobber each other's working.md. The key
+# (precedence: explicit marker > git worktree > none) selects working.<key>.md;
+# no key -> the shared working.md, unchanged. Lives here (not _lib.sh) so the
+# Claude hook — which sources content-core but not _lib — gets it too; _lib.sh
+# sources content-core so its callers (checkpoint writers) share this one copy.
+
+# _sanitize_session_key — stdin -> filename-safe [a-z0-9-] token on stdout.
+_sanitize_session_key() {
+    tr '[:upper:]' '[:lower:]' \
+        | sed 's/[^a-z0-9][^a-z0-9]*/-/g; s/^-*//; s/-*$//'
+}
+
+# resolve_session_key <cwd> — print the session key, or empty. Precedence:
+#   1. explicit: nearest .agents/memory-session walking up from cwd (sanitized)
+#   2. auto:     a LINKED git worktree (git-dir != git-common-dir) -> worktree name
+#   3. none:     main checkout, or git absent/error -> empty (fail safe to shared)
+resolve_session_key() {
+    local start_dir="${1:-$PWD}"
+    local dir="$start_dir"
+    local marker git_dir git_common_dir
+    while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+        marker="$dir/.agents/memory-session"
+        if [ -f "$marker" ]; then
+            _sanitize_session_key < "$marker"
+            return 0
+        fi
+        dir=$(dirname "$dir")
+    done
+    git_dir="$(git -C "$start_dir" rev-parse --git-dir 2>/dev/null)" || return 0
+    git_common_dir="$(git -C "$start_dir" rev-parse --git-common-dir 2>/dev/null)" || return 0
+    if [ "$git_dir" != "$git_common_dir" ]; then
+        basename "$git_dir"
+    fi
+    return 0
+}
+
+# resolve_working_file <project> <cwd> — absolute path to the working scratchpad
+# for this session: working.<key>.md when keyed, else the shared working.md.
+resolve_working_file() {
+    local project="$1" cwd="${2:-$PWD}" key
+    key="$(resolve_session_key "$cwd")"
+    if [ -n "$key" ]; then
+        printf '%s\n' "$MEMORY_DIR/projects/$project/working.$key.md"
+    else
+        printf '%s\n' "$MEMORY_DIR/projects/$project/working.md"
+    fi
+}
+
 # content_sections <project> [kind...] — emit present memory sections as
 # tab-separated records `kind<TAB>path<TAB>name`, in canonical order. With no
 # kinds, emits every present section; with kinds, restricts to those (still in
@@ -46,7 +96,8 @@ content_sections() {
                 [ -d "$mdir/domain" ] && printf 'domain\t%s\t\n' "$mdir/domain" ;;
             working)
                 if [ -n "$project" ]; then
-                    local w="$mdir/projects/$project/working.md"
+                    local w
+                    w="$(resolve_working_file "$project" "${AI_MEMORY_CWD:-$PWD}")"
                     [ -f "$w" ] && [ -s "$w" ] && printf 'working\t%s\t\n' "$w"
                 fi ;;
         esac

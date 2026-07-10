@@ -9,6 +9,14 @@ MEMORY_DIR="${MEMORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 # hooks, and subagents that don't inherit your shell rc. See config.local.sh.example.
 [ -f "$MEMORY_DIR/config.local.sh" ] && . "$MEMORY_DIR/config.local.sh"
 
+# Shared content selection + the working.md overlay resolver
+# (resolve_session_key / resolve_working_file) live in content-core.sh so the
+# Claude hook can use them without loading _lib; source it here so _lib callers
+# (e.g. checkpoint writers) share the one definition. Guarded: some tests copy
+# _lib.sh into a minimal sandbox without its companion — degrade rather than abort.
+_MEMLIB_CORE="$(dirname "${BASH_SOURCE[0]}")/content-core.sh"
+[ -f "$_MEMLIB_CORE" ] && . "$_MEMLIB_CORE"
+
 # skills_with_partial — print the names of skills whose SKILL.md carries a
 # managed partial block, one per line. Membership in a partial's loop (e.g.
 # self-rating) is DERIVED from marker presence, not a static list — so a skill

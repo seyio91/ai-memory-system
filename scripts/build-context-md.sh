@@ -22,6 +22,9 @@ OVERLAY="${3:-}"
 
 mkdir -p "$(dirname "$OUT")"
 PROJECT="$(detect_active_project)"
+# working.md overlay resolver (in content-core) reads the session cwd from here;
+# Codex builds from within the checkout, so $PWD is the right worktree.
+export AI_MEMORY_CWD="${AI_MEMORY_CWD:-$PWD}"
 
 {
     if [ -n "$OVERLAY" ]; then

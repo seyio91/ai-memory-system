@@ -68,4 +68,19 @@ assert_contains "$args" "--skip-git-repo-check"          "executor: skip-git-rep
 assert_contains "$args" "sandbox_workspace_write.network_access=true" "executor: network access on"
 assert_contains "$args" "do the thing"                   "executor: passes through the prompt"
 
+# --- per-worktree overlay: building from a linked worktree emits working.<wt>.md ---
+if command -v git >/dev/null 2>&1; then
+    WT="$(new_sandbox)"
+    git -C "$WT" init -q
+    git -C "$WT" -c user.name=T -c user.email=t@e commit --allow-empty -qm init
+    git -C "$WT" worktree add -q -b feat "$WT/wt-feat" 2>/dev/null
+    mkdir -p "$WT/wt-feat/.agents"; printf 'proj\n' > "$WT/wt-feat/.agents/memory-project"
+    printf '# Working\n\nWT-ONLY-SCRATCH\n' > "$MEM/projects/proj/working.wt-feat.md"
+    (cd "$WT/wt-feat" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh") >/dev/null 2>&1
+    wbody="$(cat "$AGENTS")"
+    assert_contains     "$wbody" "WT-ONLY-SCRATCH" "codex worktree: overlay working.<wt>.md built"
+    assert_not_contains "$wbody" "active scratch"  "codex worktree: base working.md NOT built"
+    rm -rf "$WT"
+fi
+
 finish

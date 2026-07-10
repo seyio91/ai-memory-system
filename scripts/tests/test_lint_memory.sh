@@ -182,4 +182,12 @@ assert_exit 1 "$CODE" "hyphenated plan status exits 1"
 assert_contains "$OUT" "in_progress" "warning recommends the underscore form"
 rm -rf "$M7"
 
+# --- stale per-worktree overlay is flagged like a stale working.md ---
+M8="$(new_sandbox)"; export MEMORY_DIR="$M8"; build_clean "$M8"
+printf '# Working — good (overlay)\nstale scratch\n' > "$M8/projects/good/working.wt-old.md"
+touch -t 202001010000 "$M8/projects/good/working.wt-old.md"
+run_lint
+assert_contains "$OUT" "working.wt-old.md stale" "lint flags a stale worktree overlay"
+rm -rf "$M8"
+
 finish

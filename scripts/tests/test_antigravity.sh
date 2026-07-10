@@ -178,4 +178,18 @@ OUT="$(printf '%s' "$PAYLOAD" | AI_MEMORY_PROJECT=proj USE_NERD_FONTS=true bash 
 NF_GLYPH=$'\uf1c0'
 case "$OUT" in *"$NF_GLYPH"*) _ok "statusline: USE_NERD_FONTS=true emits NF glyph (U+F1C0)" ;; *) _bad "statusline: NF glyph missing in nerd mode" ;; esac
 
+# --- per-worktree overlay: a linked-worktree AI_MEMORY_CWD injects working.<wt>.md ---
+if command -v git >/dev/null 2>&1; then
+    WT="$(new_sandbox)"
+    git -C "$WT" init -q
+    git -C "$WT" -c user.name=T -c user.email=t@e commit --allow-empty -qm init
+    git -C "$WT" worktree add -q -b feat "$WT/wt-feat" 2>/dev/null
+    printf '# Working\n\nWT-ONLY-SCRATCH\n' > "$MEM/projects/proj/working.wt-feat.md"
+    OUT="$(printf '{"invocationNum":0}' \
+        | AI_MEMORY_PROJECT=proj AI_MEMORY_CWD="$WT/wt-feat" MEMORY_DIR="$MEM" bash "$HOOK")"
+    assert_contains     "$OUT" "WT-ONLY-SCRATCH" "antigravity worktree: overlay working.<wt>.md injected"
+    assert_not_contains "$OUT" "working note"     "antigravity worktree: base working.md NOT injected"
+    rm -rf "$WT"
+fi
+
 finish
