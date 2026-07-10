@@ -6,13 +6,7 @@
 
 ## Active
 
-- [x] **Task-provider delete interface** — [plan](plans/task-provider-delete.md) (task `38ef6850`) · validator ALL PASS
-  - [x] Contract: abstract `delete(ref)` + update inline test subclasses
-  - [x] Notion: `delete` via `PATCH {archived:true}`, ref-guarded
-  - [x] Local: `delete` hard-unlinks the live `tasks/<ref>.md`
-  - [x] CLI: `delete` verb in `__main__.py`; refresh `taskctl` usage comment
-  - [x] Tests: notion + local units, contract test, shell CLI test
-  - [x] Docs: `docs/task-provider.md` delete verb; full suite green
+_(nothing in flight)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
