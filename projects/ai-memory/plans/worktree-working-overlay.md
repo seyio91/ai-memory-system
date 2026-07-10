@@ -126,6 +126,10 @@ Each is mechanically checkable; the Validator verifies pass/fail with evidence.
   Revisit if a "peek at the other feature's scratchpad (read-only)" need appears.
 - **Stale overlay cleanup** — when a worktree is deleted, its `working.<key>.md` lingers (gitignored,
   harmless). Manual for now; a future `git worktree prune`-style sweep could clear them.
+- **System-managed worktree creation** (follow-up, task `399f6850`, 2026-07-10) — this plan makes the
+  overlay work *given* a worktree, but the user still runs `git worktree add` by hand. The system
+  should provision the worktree (create it, set the session key, seed the overlay) so launching a
+  parallel feature is one action. Deferred to its own task; the cleanup point above folds in there.
 - **Two-Path friction** — an auto-derived overlay name means a human hand-writing a checkpoint must
   read the breadcrumb for the path. The explicit marker mitigates this by making the name visible;
   the docs must state the resolution rule so the manual path stays reproducible.
