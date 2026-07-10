@@ -83,10 +83,23 @@ sources_of() {
 # on disk, so the `| while` subshell below still accumulates correctly.
 # No per-call temp file -- a shared one would be truncated by the recursive
 # call while the caller was still reading it.
+#
+# CLOSURE_MAX makes the cycle guard OBSERVABLE. Without the guard, a cyclic
+# graph recurses until fork() fails; the dead subshells vanish, `seen` already
+# holds the right files, and var_reachable still returns the right answer. The
+# bug is real but invisible from the outside -- so a test cannot pin the guard.
+# Overflowing into a flag file turns "the guard was removed" into a loud exit 2.
+# (`exit` here would only leave the `| while` subshell.)
+CLOSURE_MAX=256
+
 closure() {
     local f="$1" seen="$2" base path
     grep -qxF -- "$f" "$seen" 2>/dev/null && return 0
     printf '%s\n' "$f" >>"$seen"
+    if [ "$(wc -l <"$seen")" -gt "$CLOSURE_MAX" ]; then
+        : >"$TMP/overflow"
+        return 0
+    fi
     sources_of "$f" | while IFS= read -r base; do
         [ -n "$base" ] || continue
         path="$(resolve_script "$base")"
@@ -96,10 +109,19 @@ closure() {
 }
 
 # var_reachable <var> <script-path> -- var appears in the script or its closure.
+# Aborts the whole run if the closure overflowed: a source graph that deep means
+# the cycle guard is broken, and any verdict computed from it is untrustworthy.
+# Fail closed -- never report "clean" from a traversal that did not terminate.
 var_reachable() {
     local var="$1" start="$2" seen="$TMP/seen" f
     : >"$seen"
+    rm -f "$TMP/overflow"
     closure "$start" "$seen"
+    if [ -f "$TMP/overflow" ]; then
+        printf 'check-docs: source closure exceeded %d files from %s — cycle guard broken\n' \
+            "$CLOSURE_MAX" "$start" >&2
+        exit 2
+    fi
     while IFS= read -r f; do
         [ -n "$f" ] || continue
         grep -q -F -- "$var" "$f" 2>/dev/null && return 0

@@ -174,6 +174,16 @@ Fix every finding so the gate can hard-fail from day one.
 - **RESOLVED — indirection.** Settled by the source-following decision above. The `Used by` cells still
   mix script names with *function* names (`resolve_repo_path`), which the parser must not mistake for
   files: match only tokens ending `.sh` / `.py`.
+- **RESOLVED — a passing assertion can be vacuous; mutation-test the test** (Phase 3, 2026-07-10).
+  `test_check_docs.sh` asserted "a source cycle terminates and resolves", and it passed **whether or
+  not `closure()` had its visited-set guard**. Without the guard the recursion nests inside
+  `| while` subshells; `fork()` eventually fails, the dead subshells vanish, and `seen` already holds
+  the right files — so the broken program returned the right answer. The test could not see the bug it
+  existed to pin. Fixed by making the guard *observable*: `CLOSURE_MAX=256` writes an overflow flag,
+  and `var_reachable` aborts with exit 2 rather than reporting a verdict computed from a traversal
+  that never terminated (**fail closed — never report clean from an incomplete walk**). Now deleting
+  the guard fails the suite. **Generalises: green tests prove nothing until you have watched each one
+  fail.** Every assertion here was verified by reintroducing its bug.
 - **RESOLVED — the checker must exclude ITSELF from the code roots** (found in Phase 2 by fixture
   probe, not review). `check-docs.sh` lives in `scripts/`, and its header comments cite
   `MEMORY_SESSIONS_DIR`, `AI_MEMORY_PROJECTS_ROOT` and `AI_MEMORY_EXECUTOR_CMD_<key>` as worked

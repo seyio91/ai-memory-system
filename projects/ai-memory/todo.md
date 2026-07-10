@@ -9,7 +9,7 @@
 ### Doc-vs-code consistency test → [plan](plans/doc-vs-code-consistency-test.md)
 - [x] Phase 1 — clean to floor: expand the shorthand row; `MEMORY_SESSIONS_DIR` → `MEMORY_STATE_DIR`; fix 4 stale `memory_sessions` call-sites + `memory.md:29`; correct the `--dry-run` prose; drop the counts from `system-overview.md`. **Forward axis now clean; strict axis blocked on the indirection question (see plan Risks).**
 - [x] Phase 2 — `scripts/check-docs.sh` + `.docscheck-exempt` (bash 3.2 verified on `/bin/bash` 3.2.57; `find`/`grep`, never `ls`; shellcheck clean at `-S info`). Real tree: **26 rows, 0 findings**. Two self-inflicted fail-open bugs found by fixture probe and fixed (self-reference; `sed` delimiter). Fixture proof is Phase 3's job to make permanent.
-- [ ] Phase 3 — `scripts/tests/test_check_docs.sh`: three fixture defects, each must fail the checker (red before green)
+- [x] Phase 3 — `scripts/tests/test_check_docs.sh`: 23 assertions over a synthetic fixture. All four defect classes fail the checker; indirection, depth-2 and cycles pass. **Every assertion mutation-verified** (reintroduce the bug → the test goes red). Caught one vacuous assertion, fixed by making the cycle guard observable (`CLOSURE_MAX`, fail-closed exit 2). Reached by the runner's glob — confirmed by name, not by count.
 - [ ] Phase 4 — `== doc-vs-code ==` stage in `run-tests.sh`; prove it gates by breaking a row
 - [ ] Phase 5 — docs: `docs/scripts.md` gate section + CHANGELOG `### Added`
 
