@@ -147,8 +147,10 @@ Fix every finding so the gate can hard-fail from day one.
   `docs/knowledge-lifecycle.md:48`, `docs/workflows.md:89`, and
   `projects/ai-memory/memory.md:29` (the project memory carries the drift it warns about).
 - Correct the `--dry-run` prose: `UPGRADING.md:91`, `harnesses/claude/commands/sync-system.md:14`.
-- Drop the counts from `docs/system-overview.md:188-190` (also stale on which stages
-  `run-tests.sh` runs — it now also runs `shellcheck` + `taskprovider`).
+- ~~Drop the counts from `docs/system-overview.md:188-190`~~ — **superseded 2026-07-10: the file was
+  removed entirely.** Claim 6 is closed by deletion rather than correction, which is the stronger
+  outcome: a hand-written count is drift-by-construction, so the durable fix is for the count to have
+  no home. The file was never tracked and has no generator, so no instance ever received it.
 
 ### Phase 2 — The checker
 - `scripts/check-docs.sh`: parse the table, assert forward + forward-strict, honor
@@ -195,5 +197,7 @@ Fix every finding so the gate can hard-fail from day one.
   for a populated directory** during this brainstorm. Anything load-bearing must use `find` /
   `/bin/ls` / porcelain-free git plumbing. A checker built on `ls` would silently pass on an empty
   file list — the exact fail-open class this plan exists to kill.
-- Deleting the count from `system-overview.md` fixes an instance in a **gitignored** file; other
-  instances may carry their own stale copy. Unavoidable and out of scope.
+- ~~Deleting the count from `system-overview.md` fixes an instance in a gitignored file; other
+  instances may carry their own stale copy.~~ **Retired 2026-07-10** — the file was removed, was never
+  tracked, and has no generator, so it was never distributed. The `.gitignore` entry is kept
+  deliberately: it now guards against a recreated personal doc being committed.

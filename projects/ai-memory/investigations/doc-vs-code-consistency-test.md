@@ -74,6 +74,10 @@ and `memory.md:34`. `config.local.sh.example` no longer mentions it at all.
 "calls the shipped release channel backlogged" half is **misstated**: `:184` backlogs the *zip packaging*,
 which remains accurate.
 
+**Resolved 2026-07-10 by deletion.** The file was removed outright rather than corrected. It was never
+tracked and no script generates it, so it was never distributed to any instance. This is the stronger
+close: a count written by hand is drift-by-construction, and the durable fix is to give it no home.
+
 ### The best exemplar was on nobody's list
 
 `MEMORY_SESSIONS_DIR` is documented in two files as an env override "the hook honors", and appears in
