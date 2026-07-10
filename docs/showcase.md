@@ -102,7 +102,9 @@ the whole stack (identity → project memory → index → working) is injected.
 prompt gets only a lightweight `<memory:active>` breadcrumb (project name + file paths), so
 the context that repeats each turn stays tiny and the cache prefix isn't busted.
 
-![injection flow](diagrams/injection-flow.png)
+> **Diagram:** [`diagrams/injection-flow.excalidraw`](diagrams/injection-flow.excalidraw) — open in
+> [Excalidraw](https://excalidraw.com) to view. *(The rendered PNG was removed pending re-export; the
+> old one embedded a real project name.)*
 
 Domain files are the deliberate exception: they are **lazy-loaded** only when your task
 matches their `index.md` triggers, never auto-injected — so cross-project knowledge is
@@ -142,7 +144,7 @@ Reference: [install.md](install.md) (project detection & reverse map)
 
 ## 3. Onboarding + the repo↔project map  ·  *Tier 2*
 
-This is the live onboarding beat — we take a real, never-before-seen repo (`flexo`) and
+This is the live onboarding beat — we take a real, never-before-seen repo (`payments-svc`) and
 wire it into the system from cold.
 
 `/pin` (or `/new-project`) writes the map in **both** directions at once:
@@ -175,7 +177,7 @@ them all.
 - **`/state`** generates an "In Flight" snapshot across *every* project: last-touched,
   current goal, open-todo count — each column **derived** (last-touched from file mtime, not
   `git log`, since most project trees are gitignored), grouped by category
-  (platform / myccv / tpe). It's on-demand only, never auto-injected: it tells you sibling
+  (platform / web-app / billing-svc). It's on-demand only, never auto-injected: it tells you sibling
   work *exists* without pulling any sibling's memory into context.
 - **`/activity`** reports the plans *created* in a time window, grouped by category. The
   billable/reviewable unit is a **plan**, so the report is decoupled from any task backend.
@@ -184,7 +186,7 @@ Both are projections like `index.md` — they can't drift, and their output file
 (`state.md`, `activity.md`) are gitignored and generated live.
 
 **The architectural payoff is Related Projects.** The TPE cluster —
-`tpe` / `tpe-stacks` / `tpe-kubernetes`, which is also the `tpe` category — is a genuine
+`billing-svc` / `billing-stacks` / `billing-kubernetes`, which is also the `billing-svc` category — is a genuine
 related set spanning repos. Two principles make it work:
 
 - **Distributed relationships**: the link lives in the project where the work *starts*
@@ -232,7 +234,7 @@ enforced by a `PreToolUse` hook (`block_task_tools.sh`), and executors are block
 apply/merge/destructive action on running infrastructure (execpolicy + a deny-list restated
 in every delegation prompt).
 
-This section is also where the **killer beat** lands: `/checkpoint` a decision into `flexo`'s
+This section is also where the **killer beat** lands: `/checkpoint` a decision into `payments-svc`'s
 `working.md`, start a fresh session, and watch it recalled on SessionStart — then
 `/promote-memory` graduates that line up into a `domain/<topic>.md` file or the project's
 Decisions Log. That upward path — `working.md` → wiki → (eventually) a packaged skill — is
@@ -314,13 +316,13 @@ companion **[demo-runbook.md](demo-runbook.md)**.
 | 0 | Problem & thesis | — | 5m | — | Excalidraw H1: three-layer model |
 | 1 | Files, injected not retrieved | 1 | 12m | Open real `identity.md` + project `memory.md` + `working.md`; reveal `<memory:*>` via **SessionStart** | Excalidraw H2: injection flow |
 | 2 | Project detection, no collision | 1 | 8m | `.agents/memory-project` in a real repo; `cd` between two repos → breadcrumb switches | Mermaid 1: marker walk-up |
-| 3 | Onboarding + repo↔project map | 2 | 7m | **Onboard `flexo` cold** (`/new-project`/`/pin`); `/reindex` (tie to PR #23) | — |
+| 3 | Onboarding + repo↔project map | 2 | 7m | **Onboard `payments-svc` cold** (`/new-project`/`/pin`); `/reindex` (tie to PR #23) | — |
 | 4 | State · activity · Related Projects | 2/3 | 12m | Live `/state` + `/activity` (category-grouped); TPE cluster `## Related Projects` | Mermaid 2: delegate-don't-load |
-| 5 | O/E/V + promotion | 3 | 10m | `executor.sh --which`; `/checkpoint` then `/promote-memory` on `flexo` | Mermaid 3: O/E/V + promotion |
+| 5 | O/E/V + promotion | 3 | 10m | `executor.sh --which`; `/checkpoint` then `/promote-memory` on `payments-svc` | Mermaid 3: O/E/V + promotion |
 | 6 | Harness-agnostic + rigor | 3 | 6m | `install.sh --list`; Codex `AGENTS.md`; `run-tests.sh` → 27/27 | Mermaid 4: manifest→drivers→targets |
 | — | Try-it-yourself / Q&A | — | ~8m built into beats | pointer to runbook | — |
 
-**Killer beat** (folds into §1 or §5): `/checkpoint` on `flexo` → **start a new session** → the checkpoint is recalled on SessionStart → "the memory is just a file you can read and diff."
+**Killer beat** (folds into §1 or §5): `/checkpoint` on `payments-svc` → **start a new session** → the checkpoint is recalled on SessionStart → "the memory is just a file you can read and diff."
 
 ---
 

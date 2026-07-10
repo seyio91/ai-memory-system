@@ -1,11 +1,23 @@
 # Demo runbook — the 60-minute live tour
 
-> Presenter script for the live demo. Runs against the **real system and real projects**.
-> Each beat: **commands** (copy-paste), **say** (the point to make), **reveal** (what to
-> show on screen), **time**. Concepts and the "why" live in the companion
-> **[showcase.md](showcase.md)** — this is the operational script.
+> Presenter script for the live demo. Runs against **your real system and your real projects** —
+> the demo's whole point is that nothing is staged. Each beat: **commands** (copy-paste), **say**
+> (the point to make), **reveal** (what to show on screen), **time**. Concepts and the "why" live
+> in the companion **[showcase.md](showcase.md)** — this is the operational script.
 >
 > Audience: technical adopters. Format: live, interactive. Budget: ~60 min.
+
+> **Substitute your own names before presenting.** The repos below are placeholders; the commands
+> only work against repos you have actually pinned.
+>
+> | Placeholder | Means |
+> |---|---|
+> | `<you>` | your macOS username |
+> | `<org>` | the parent directory your repos live under (e.g. `~/Projects/<org>/…`) |
+> | `payments-svc` | a **cold** repo — never pinned, no `.agents/memory-project`. Beat 3 onboards it live. |
+> | `web-app`, `billing-svc` | warm repos: already pinned, with real `memory.md` and history |
+> | `platform-eks` | a second warm repo, used to show the breadcrumb switching projects |
+> | `platform`, `web-app`, `billing-svc` | the project **categories** the grouping beats rely on |
 
 ## Before the audience arrives (pre-flight)
 
@@ -15,12 +27,12 @@ Run these once; they set up real state without spoiling any live beat.
 # 1. Confirm categories are set (grouping beats depend on this)
 cd ~/.claude-memory && for f in projects/*/memory.md; do
   c=$(awk -F': ' '/^category:/{print $2;exit}' "$f"); [ -n "$c" ] && echo "$(basename $(dirname $f)): $c"; done
-# expect: platform (eks, k8s-addons, services) · myccv (…) · tpe (tpe, tpe-stacks, tpe-kubernetes)
+# expect: platform (platform-eks, k8s-addons, services) · web-app (…) · billing-svc (billing-svc, billing-stacks, billing-kubernetes)
 
-# 2. Confirm flexo is still COLD (the onboarding beat depends on this)
-ls /Users/sobaweya/Projects/ccv-terraform/flexo/.agents/memory-project 2>/dev/null \
-  && echo "ALREADY PINNED — pick another cold repo" || echo "flexo is cold ✔"
-test -d ~/.claude-memory/projects/flexo && echo "projects/flexo exists — remove before demo" || echo "no projects/flexo ✔"
+# 2. Confirm payments-svc is still COLD (the onboarding beat depends on this)
+ls /Users/<you>/Projects/<org>/payments-svc/.agents/memory-project 2>/dev/null \
+  && echo "ALREADY PINNED — pick another cold repo" || echo "payments-svc is cold ✔"
+test -d ~/.claude-memory/projects/payments-svc && echo "projects/payments-svc exists — remove before demo" || echo "no projects/payments-svc ✔"
 
 # 3. Two terminals ready: T1 = ~/.claude-memory (or any pinned repo), T2 = a second pinned repo
 # 4. Do NOT pre-generate state.md / activity.md — generating them live is a beat
@@ -49,18 +61,18 @@ cd ~/.claude-memory && ls          # "this whole thing is a git repo of markdown
 - **Reveal (files):**
 ```bash
 sed -n '1,30p' identity.md                          # schema — hard rules
-sed -n '1,25p' projects/myccv-terraform/memory.md   # wiki — a real project
-sed -n '1,20p' projects/myccv-terraform/working.md  # scratchpad (may be short/empty)
+sed -n '1,25p' projects/web-app-terraform/memory.md   # wiki — a real project
+sed -n '1,20p' projects/web-app-terraform/working.md  # scratchpad (may be short/empty)
 ```
 - **Reveal (injection, via SessionStart):** in **T-claude**, start a fresh session inside a
   pinned repo and point at the injected block at the top of the transcript:
 ```bash
-cd ~/Projects/ccv-terraform/myccv/myccv && claude
+cd ~/Projects/<org>/web-app/web-app && claude
 ```
   Point out the full payload: `identity` → `project` → `index` → `working`. Then note that
   the *next* prompts only carry the lightweight `<memory:active>` breadcrumb.
-- **Reveal (diagram):** `docs/diagrams/injection-flow.png` — the full-vs-breadcrumb fork and
-  the domain exception.
+- **Reveal (diagram):** `docs/diagrams/injection-flow.excalidraw` (open in Excalidraw) — the
+  full-vs-breadcrumb fork and the domain exception. *(PNG pending re-export.)*
 
 ## Beat 2 — Project detection, no collision · 8 min
 
@@ -68,37 +80,37 @@ cd ~/Projects/ccv-terraform/myccv/myccv && claude
   "current project", so concurrent repos never collide.
 - **Commands:**
 ```bash
-cat ~/Projects/ccv-terraform/myccv/myccv/.agents/memory-project   # the marker (one line)
+cat ~/Projects/<org>/web-app/web-app/.agents/memory-project   # the marker (one line)
 ```
 - **Reveal:** in **T-present**, note the `<memory:active project="…">` breadcrumb this very
   session is showing. Then in **T-claude** open a session in a *different* pinned repo and
   show the breadcrumb names a different project:
 ```bash
-cd ~/Projects/ccv-terraform/eks && claude     # breadcrumb now says project="eks"
+cd ~/Projects/<org>/platform-eks && claude     # breadcrumb now says project="platform-eks"
 ```
 - **Reveal (diagram):** Mermaid 1 in showcase §2 (walk-up resolution).
 
-## Beat 3 — Onboard `flexo` cold · 7 min
+## Beat 3 — Onboard `payments-svc` cold · 7 min
 
 - **Say:** watch a brand-new repo get wired in from scratch — both directions of the map at
   once.
 - **Commands (guided, from inside the repo):**
 ```bash
-cd /Users/sobaweya/Projects/ccv-terraform/flexo
-# In a Claude session here, run:  /new-project flexo
-#   → scaffolds projects/flexo/memory.md, asks for the repo path (writes the marker),
+cd /Users/<you>/Projects/<org>/payments-svc
+# In a Claude session here, run:  /new-project payments-svc
+#   → scaffolds projects/payments-svc/memory.md, asks for the repo path (writes the marker),
 #     asks for a category (suggest: platform)
 ```
   One-shot equivalent (marker + reverse map + category in one call), run from inside the repo:
 ```bash
-bash ~/.claude-memory/scripts/memory-pin.sh flexo --category platform
+bash ~/.claude-memory/scripts/memory-pin.sh payments-svc --category platform
 ```
 - **Reveal:** the two sides of the map, then regenerate the catalog:
 ```bash
-cat /Users/sobaweya/Projects/ccv-terraform/flexo/.agents/memory-project     # forward
-grep -E '^(repo|repo_path|category):' ~/.claude-memory/projects/flexo/memory.md  # reverse
+cat /Users/<you>/Projects/<org>/payments-svc/.agents/memory-project     # forward
+grep -E '^(repo|repo_path|category):' ~/.claude-memory/projects/payments-svc/memory.md  # reverse
 # /reindex   (or:)
-bash ~/.claude-memory/scripts/regenerate-index.sh && grep flexo ~/.claude-memory/index.md
+bash ~/.claude-memory/scripts/regenerate-index.sh && grep payments-svc ~/.claude-memory/index.md
 ```
 - **Say:** the index is a *projection* — it can't lag the files. (Tie to PR #23: a stale
   hand-kept block had drifted; the fix made regeneration the only writer.)
@@ -113,13 +125,13 @@ bash ~/.claude-memory/scripts/regenerate-state.sh && sed -n '1,40p' ~/.claude-me
 # /activity   (or, note the required scope arg — <category> or --all:)
 bash ~/.claude-memory/scripts/regenerate-activity.sh --all && sed -n '1,40p' ~/.claude-memory/activity.md
 ```
-  **Reveal:** category grouping — platform / myccv / tpe, uncategorized last. `flexo` now
+  **Reveal:** category grouping — platform / web-app / billing-svc, uncategorized last. `payments-svc` now
   appears (you just onboarded it).
 - **Related Projects (the payoff):**
 ```bash
-awk '/## Related Projects/,/^## /' ~/.claude-memory/projects/tpe/memory.md
+awk '/## Related Projects/,/^## /' ~/.claude-memory/projects/billing-svc/memory.md
 ```
-  **Say:** the TPE cluster (`tpe` / `tpe-stacks` / `tpe-kubernetes`) — the link lives in the
+  **Say:** the TPE cluster (`billing-svc` / `billing-stacks` / `billing-kubernetes`) — the link lives in the
   project where work *starts*, not an umbrella. When a task touches a sibling, it's
   **delegated to a subagent**; the sibling's `memory.md` is never loaded into the main
   thread. Only a summary returns.
@@ -134,15 +146,15 @@ awk '/## Related Projects/,/^## /' ~/.claude-memory/projects/tpe/memory.md
 bash ~/.claude-memory/scripts/executor.sh --which   # shows the configured executor
 ```
 - **Killer beat (capture → recall):**
-  1. In a Claude session inside `flexo`, run `/checkpoint` (jot a decision first, e.g. a
+  1. In a Claude session inside `payments-svc`, run `/checkpoint` (jot a decision first, e.g. a
      naming choice). It writes `working.md`:
 ```bash
-cat ~/.claude-memory/projects/flexo/working.md      # the checkpoint, as plain markdown
+cat ~/.claude-memory/projects/payments-svc/working.md      # the checkpoint, as plain markdown
 ```
-  2. **Exit that session. Start a NEW one in `flexo`** (T-claude). On SessionStart the
+  2. **Exit that session. Start a NEW one in `payments-svc`** (T-claude). On SessionStart the
      checkpoint is injected — point at it: *"fresh session, it already knows."*
   3. Graduate it: run `/promote-memory` → move the line into a `domain/<topic>.md` file or
-     `flexo`'s Decisions Log. Show the destination file.
+     `payments-svc`'s Decisions Log. Show the destination file.
 - **Reveal (diagram):** Mermaid 3 in showcase §5 (O/E/V + promotion).
 
 ## Beat 6 — Harness-agnostic + rigor · 6 min
@@ -168,16 +180,16 @@ bash scripts/run-tests.sh --no-lint                  # hermetic suite → 27/27 
 
 ## What this demo leaves behind (kept, by decision)
 
-`flexo` is **kept** as a real project — no teardown:
+`payments-svc` is **kept** as a real project — no teardown:
 
-- `/Users/sobaweya/Projects/ccv-terraform/flexo/.agents/memory-project` (forward marker)
-- `~/.claude-memory/projects/flexo/` (scaffolded project; `repo`/`repo_path`/`category` set)
-- any `/promote-memory` destination edited in Beat 5 (domain file or `flexo` Decisions Log)
+- `/Users/<you>/Projects/<org>/payments-svc/.agents/memory-project` (forward marker)
+- `~/.claude-memory/projects/payments-svc/` (scaffolded project; `repo`/`repo_path`/`category` set)
+- any `/promote-memory` destination edited in Beat 5 (domain file or `payments-svc` Decisions Log)
 - regenerated `~/.claude-memory/index.md`, `state.md`, `activity.md` (all gitignored)
 
 Nothing above enters git (all under `.gitignore`), and nothing touched the tracked
 `ai-memory` project. If you ever *do* want to undo the onboarding:
-`rm ~/Projects/ccv-terraform/flexo/.agents/memory-project && rm -rf ~/.claude-memory/projects/flexo`.
+`rm ~/Projects/<org>/payments-svc/.agents/memory-project && rm -rf ~/.claude-memory/projects/payments-svc`.
 
 ## Timing sheet
 
@@ -186,7 +198,7 @@ Nothing above enters git (all under `.gitignore`), and nothing touched the track
 | 0 Problem & thesis | 5m | 5m |
 | 1 Files, injected not retrieved | 12m | 17m |
 | 2 Project detection | 8m | 25m |
-| 3 Onboard flexo | 7m | 32m |
+| 3 Onboard payments-svc | 7m | 32m |
 | 4 State · activity · Related Projects | 12m | 44m |
 | 5 Workflow + killer beat | 10m | 54m |
 | 6 Harness-agnostic + rigor | 6m | 60m |
