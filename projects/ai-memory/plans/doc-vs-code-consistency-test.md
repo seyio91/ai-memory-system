@@ -76,6 +76,18 @@ empirically; a linter, a type checker and a test are not interchangeable.*
   makes the check permanently red), and all gitignored per-instance files
   (`docs/system-overview.md`, `identity.md`, `projects/*/memory.md`) so the suite's result does
   not vary per machine. `archive/**` excluded as audit trail.
+- **The strict axis follows `source` edges, transitively** (decided 2026-07-10, Phase 1). A var
+  satisfies the strict check if it appears in the named script **or in any file that script sources,
+  transitively**. "Used by" means *whose behavior the var affects*, not *which file holds the string* —
+  the useful reading, and the one the table already uses. Verified: `AI_MEMORY_PROJECTS_ROOT` is read
+  at `_lib.sh:255` and `AI_MEMORY_SKILL_CACHE` at `_lib.sh:52`, so both indirected rows validate
+  honestly rather than needing an exemption.
+  **One hop is NOT enough** — `inject_memory.sh` → `memory_common.sh` → `_lib.sh` (a *conditional*
+  source at `memory_common.sh:102`) is a depth-2 chain. The closure needs a visited-set cycle guard.
+  The source-line parser must also survive `source "$(dirname "$0")/memory_common.sh"`: a naive
+  `\s+(\S+)` regex captures `"$(dirname` because of the space inside `$( )`. Match the trailing
+  `/<basename>.sh` instead. *(Both facts cost a wrong assumption to find — the option chosen said
+  "one level is enough today.")*
 - **The two non-symbol survivors are fixed at source, not tested.** No mechanical control matches
   a semantic prose promise or a hand-written count.
 - **`--dry-run` genuinely fetches; Phase 1 corrects the prose, not the code.** Making it truly
@@ -157,15 +169,15 @@ Fix every finding so the gate can hard-fail from day one.
 
 ## Risks / open questions
 
-- **OPEN — indirection defeats a naive strict-consumer check** (found in Phase 1, 2026-07-10). Two
-  table rows are semantically correct yet contain no literal match in the script they name:
-  `AI_MEMORY_PROJECTS_ROOT` → `lint-memory.sh` / `memory-pin.sh` (they call `projects_root()` in
-  `_lib.sh`), and `AI_MEMORY_SKILL_CACHE` → `list-skills.sh` / `resolve-skills.sh` (they call
-  `skill_cache_dir()`). "Used by" means *whose behavior the var affects*, not *which file holds the
-  string*. Phase 2 must resolve this before the strict axis can hard-fail — the leading option is to
-  accept a match in the named script **or in any file it sources** (`_lib.sh` in every case here).
-  The `Used by` cells also mix script names with *function* names (`resolve_repo_path`), which the
-  parser must not mistake for files.
+- **RESOLVED — indirection.** Settled by the source-following decision above. The `Used by` cells still
+  mix script names with *function* names (`resolve_repo_path`), which the parser must not mistake for
+  files: match only tokens ending `.sh` / `.py`.
+- **A comment counts as a match, by design.** `AI_MEMORY_EXECUTOR_CMD_<key>` passes the forward axis
+  *only* because `executor.sh:19` names the placeholder in a comment — the code builds the real name
+  dynamically (`AI_MEMORY_EXECUTOR_CMD_${key//-/_}`). Stripping comments would make that row fail and
+  need an exemption. Keeping comments means a var deleted from code but left in a comment would still
+  pass. Chosen: **match anywhere**, because the true positive we care about (`MEMORY_SESSIONS_DIR`) had
+  **zero** occurrences of any kind. Revisit only if a comment-only ghost actually appears.
 - **A doc that documents drift contains the drift's name.** Any "grep finds zero occurrences" criterion
   must be scoped to the doc surfaces and code roots, never the whole tree — otherwise the plan and its
   investigation fail their own check. Cost one wrong success criterion to learn (criterion 7, corrected).
