@@ -114,6 +114,18 @@ if command -v git >/dev/null 2>&1; then
     bash "$HOOK" > "$out" <<<"{\"prompt\":\"hi\",\"cwd\":\"$WT_MAIN/wt-fresh\"}"
     assert_contains "$(cat "$out")" 'working: '"$MEM"'/projects/proj/working.wt-fresh.md' \
         "breadcrumb names the overlay write target with no overlay file yet"
+
+    # Real harness topology (Claude EnterWorktree): worktree NESTED under
+    # .claude/worktrees/<name>, project marker only at the repo root (found by
+    # walking up — the worktree has none of its own), and the memory tree ($MEM)
+    # is a SEPARATE dir from the code repo ($WT_MAIN). Overlay must still route
+    # into the memory tree, keyed by the worktree name.
+    git -C "$WT_MAIN" worktree add -q -b billing "$WT_MAIN/.claude/worktrees/billing" 2>/dev/null
+    printf '# Working\n\nBILLING-OVERLAY\n' > "$MEM/projects/proj/working.billing.md"
+    bash "$HOOK" > "$out" <<<"{\"prompt\":\"reload @memory\",\"cwd\":\"$WT_MAIN/.claude/worktrees/billing\"}"
+    b="$(cat "$out")"
+    assert_contains     "$b" 'BILLING-OVERLAY' "nested .claude worktree + root marker + separate memory dir: overlay injected"
+    assert_not_contains "$b" 'SCRATCH-LINE'    "…and the base working.md is not"
     rm -rf "$WT_MAIN"
 fi
 
