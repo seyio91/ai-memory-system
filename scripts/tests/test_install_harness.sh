@@ -156,4 +156,58 @@ assert_contains "$out" "claude"      "--list shows claude"
 assert_contains "$out" "codex"       "--list shows codex"
 assert_contains "$out" "antigravity" "--list shows antigravity"
 
+# --- hooks.json merge must never destroy a config it cannot parse -------------
+# `except Exception: data = {}` followed by a rewrite silently replaced a JSONC /
+# trailing-comma hooks.json with our two keys, no backup — contradicting
+# install.sh's "backs up anything it would overwrite". An unparseable file is one
+# we do not understand: touch nothing, say so, fail. Verified by driving install,
+# not by reading the merge.
+mkdir -p "$FAKE/harnesses/jsonmerge"
+printf '%s\n' \
+    'name = jsonmerge' 'archetype = hook' 'format = xml' \
+    'hooks_json  = ~/.jsonmerge/hooks.json' \
+    'hook_script = $MEMORY_DIR/harnesses/antigravity/hooks/preinvocation.sh' \
+    > "$FAKE/harnesses/jsonmerge/manifest"
+JM="$FHOME/.jsonmerge/hooks.json"
+mkdir -p "$FHOME/.jsonmerge"
+
+# (1) unparseable (JSONC comment + trailing comma): refuse, preserve, no backup.
+cat > "$JM" <<'EOF'
+{
+  // a real editor writes these
+  "userHook": {"PreInvocation": [{"type": "command", "command": "echo mine"}]},
+}
+EOF
+set +e
+run_install --harness jsonmerge >"$SBROOT/log.jm1" 2>&1; rc=$?
+set -e
+assert_exit 1 "$rc" "unparseable hooks.json: install fails rather than clobbering"
+assert_contains "$(cat "$JM")" "userHook" "unparseable hooks.json: the user's file is untouched"
+assert_not_contains "$(cat "$JM")" "ai-memory-inject" "unparseable hooks.json: nothing was written"
+assert_contains "$(cat "$SBROOT/log.jm1")" "not a JSON object" "unparseable hooks.json: says why it refused"
+assert_eq "0" "$(find "$FHOME/.jsonmerge" -name 'hooks.json.bak-*' | grep -c .)" \
+    "unparseable hooks.json: no backup written (nothing was overwritten)"
+
+# (2) valid JSON carrying a foreign key: merge, preserve it, and BACK UP first.
+printf '%s\n' '{"userHook": {"PreInvocation": [{"type": "command", "command": "echo mine"}]}}' > "$JM"
+run_install --harness jsonmerge >"$SBROOT/log.jm2" 2>&1; rc=$?
+assert_exit 0 "$rc" "valid hooks.json: install succeeds"
+assert_contains "$(cat "$JM")" "userHook"         "valid hooks.json: foreign key preserved"
+assert_contains "$(cat "$JM")" "ai-memory-inject" "valid hooks.json: our entry merged in"
+bak="$(find "$FHOME/.jsonmerge" -name 'hooks.json.bak-*' | head -1)"
+assert_file "$bak" "valid hooks.json: a backup was written before the rewrite"
+assert_contains "$(cat "$bak")" "userHook" "backup holds the ORIGINAL content"
+assert_not_contains "$(cat "$bak")" "ai-memory-inject" "backup predates our merge"
+
+# (3) a top-level JSON array parses fine but is not an object: also refuse.
+rm -f "$FHOME/.jsonmerge"/hooks.json.bak-*
+printf '%s\n' '[1, 2, 3]' > "$JM"
+set +e
+run_install --harness jsonmerge >"$SBROOT/log.jm3" 2>&1; rc=$?
+set -e
+assert_exit 1 "$rc" "top-level array hooks.json: install fails"
+assert_contains "$(cat "$JM")" "1" "top-level array hooks.json: file untouched"
+assert_eq "0" "$(find "$FHOME/.jsonmerge" -name 'hooks.json.bak-*' | grep -c .)" \
+    "top-level array hooks.json: no backup written"
+
 finish

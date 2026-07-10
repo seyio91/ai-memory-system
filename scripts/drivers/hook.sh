@@ -32,6 +32,32 @@ driver_install() {
     fi
 }
 
+# _hook_ts — timestamp for .bak-<ts> names. install.sh exports TS; fall back so the
+# driver stays usable (and testable) standalone.
+_hook_ts() { printf '%s' "${TS:-$(date +%Y%m%d-%H%M%S)}"; }
+
+# _hook_merge_rc <rc> <path> — interpret a merge helper's exit status.
+#
+# FAIL CLOSED. The old code did `except Exception: data = {}` and then rewrote the
+# file, so a JSONC / trailing-comma settings.json or hooks.json was silently
+# destroyed — with no backup, contradicting install.sh's promise to back up what it
+# overwrites. An unparseable file is a file we do not understand; the only safe move
+# is to touch nothing and say so loudly. Returning 1 aborts the install under
+# `set -e`, which is intended: a half-registered harness nobody noticed is exactly
+# the fail-open outcome this replaces.
+_hook_merge_rc() {
+    local rc="$1" path="$2"
+    [ "$rc" -eq 0 ] && return 0
+    if [ "$rc" -eq 3 ]; then
+        printf '  ERROR %s exists but is not a JSON object.\n' "$path" >&2
+        printf '        Refusing to overwrite it. Nothing was written and nothing was backed up.\n' >&2
+        printf '        Fix or move the file, then re-run install.\n' >&2
+    else
+        printf '  ERROR merging into %s failed (exit %s).\n' "$path" "$rc" >&2
+    fi
+    return 1
+}
+
 # _hook_register_statusline <settings_json> — merge a "statusLine" entry pointing
 # at statusline_script into the harness's JSON settings file, idempotently and
 # WITHOUT clobbering existing keys (colorScheme, trustedWorkspaces, …).
@@ -44,22 +70,38 @@ _hook_register_statusline() {
     step "Statusline -> $settings"
     mkdir -p "$(dirname "$settings")"
     if command -v python3 >/dev/null 2>&1; then
-        AIM_SL_SETTINGS="$settings" AIM_SL_CMD="bash $ss" python3 - <<'PY'
-import json, os
+        local rc=0 bak
+        bak="$settings.bak-$(_hook_ts)"   # resolve ONCE: two calls can straddle a second
+        AIM_SL_SETTINGS="$settings" AIM_SL_CMD="bash $ss" AIM_BAK="$bak" python3 - <<'PY' || rc=$?
+import json, os, shutil, sys
 path = os.environ["AIM_SL_SETTINGS"]
 cmd  = os.environ["AIM_SL_CMD"]
-try:
+bak  = os.environ["AIM_BAK"]
+data = {}
+if os.path.exists(path):
     with open(path) as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        data = {}
-except Exception:
-    data = {}
+        raw = f.read()
+    # An empty/whitespace-only file carries no user config: treat as {} and proceed.
+    if raw.strip():
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            sys.stderr.write("not valid JSON: %s\n" % e)
+            sys.exit(3)
+        if not isinstance(data, dict):
+            sys.stderr.write("top-level JSON is %s, expected an object\n" % type(data).__name__)
+            sys.exit(3)
+    # Back up BEFORE rewriting — install.sh promises to back up what it overwrites.
+    shutil.copy2(path, bak)
 data["statusLine"] = {"type": "", "command": cmd, "enabled": True}
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
+        _hook_merge_rc "$rc" "$settings" || return 1
+        if [ -f "$bak" ]; then
+            info "backed up existing -> $bak"
+        fi
         info "registered statusLine -> bash $ss"
     else
         info "python3 absent — add \"statusLine\": {\"command\": \"bash $ss\", \"enabled\": true} to $settings by hand"
@@ -107,18 +149,31 @@ _hook_register_json() {
     step "Hooks -> $hooks_json"
     mkdir -p "$(dirname "$hooks_json")"
     if command -v python3 >/dev/null 2>&1; then
-        AIM_HOOKS_JSON="$hooks_json" AIM_INJECT_CMD="bash $hs" AIM_GUARD_CMD="${gs:+bash $gs}" python3 - <<'PY'
-import json, os
+        local rc=0 bak
+        bak="$hooks_json.bak-$(_hook_ts)"   # resolve ONCE: two calls can straddle a second
+        AIM_HOOKS_JSON="$hooks_json" AIM_INJECT_CMD="bash $hs" AIM_GUARD_CMD="${gs:+bash $gs}" \
+            AIM_BAK="$bak" python3 - <<'PY' || rc=$?
+import json, os, shutil, sys
 path = os.environ["AIM_HOOKS_JSON"]
 inject = os.environ["AIM_INJECT_CMD"]
 guard  = os.environ.get("AIM_GUARD_CMD", "")
-try:
+bak  = os.environ["AIM_BAK"]
+data = {}
+if os.path.exists(path):
     with open(path) as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        data = {}
-except Exception:
-    data = {}
+        raw = f.read()
+    # An empty/whitespace-only file carries no user config: treat as {} and proceed.
+    if raw.strip():
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            sys.stderr.write("not valid JSON: %s\n" % e)
+            sys.exit(3)
+        if not isinstance(data, dict):
+            sys.stderr.write("top-level JSON is %s, expected an object\n" % type(data).__name__)
+            sys.exit(3)
+    # Back up BEFORE rewriting — install.sh promises to back up what it overwrites.
+    shutil.copy2(path, bak)
 data["ai-memory-inject"] = {"PreInvocation": [{"type": "command", "command": inject}]}
 if guard:
     data["ai-memory-guard"] = {"PreToolUse": [
@@ -128,6 +183,12 @@ with open(path, "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PY
+        _hook_merge_rc "$rc" "$hooks_json" || return 1
+        # NB: an `[ -f x ] && info …` one-liner here would be the `set -e`
+        # last-statement trap that once aborted install.sh mid-run. Use an if.
+        if [ -f "$bak" ]; then
+            info "backed up existing -> $bak"
+        fi
         info "registered PreInvocation 'ai-memory-inject' -> bash $hs"
         if [ -n "$gs" ]; then
             info "registered PreToolUse  'ai-memory-guard'  -> bash $gs"

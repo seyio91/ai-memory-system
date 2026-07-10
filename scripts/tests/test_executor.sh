@@ -290,4 +290,38 @@ unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_VALIDATE
 
 export PATH="$OLDPATH"
 
+# ============ arg parsing: `--role` as the trailing argument ============
+# `shift 2` with one arg left is a NO-OP that returns 1. executor.sh runs
+# `set -uo pipefail` (no -e), so the failure was ignored, $1 stayed "--role",
+# and the while-loop spun forever. Reproduced before the fix: the process only
+# died on SIGXCPU under `ulimit -t`.
+#
+# A regression here would HANG the suite rather than fail it, and a hanging test
+# is worse than a failing one — nobody can tell it from a slow machine. Bound the
+# CPU so a reverted fix dies (SIGXCPU) and the exit-2 assertion fails loudly.
+# The spin is CPU-bound, so a cpu-seconds limit catches it; a wall clock would
+# not distinguish it from a slow fork.
+run_bounded() { # run_bounded <args...> ; sets OUT/ERR/CODE, cannot hang
+    local tmp_out tmp_err
+    tmp_out="$BIN/.o"; tmp_err="$BIN/.e"
+    set +e
+    ( ulimit -t 5; exec bash "$EXE" "$@" ) >"$tmp_out" 2>"$tmp_err"; CODE=$?
+    set -e
+    OUT="$(cat "$tmp_out")"; ERR="$(cat "$tmp_err")"
+}
+
+run_bounded --role
+assert_exit 2 "$CODE" "trailing --role exits 2 instead of looping forever"
+assert_contains "$ERR" "needs a value" "trailing --role explains the missing value"
+assert_contains "$ERR" "task|explore|validate" "trailing --role lists the valid roles"
+
+# The value-taking forms must still work (a fix that narrows a matcher is the
+# likeliest place to break the happy path).
+run --role explore --which
+assert_exit 0 "$CODE" "--role explore --which still resolves"
+run --role=validate --which
+assert_exit 0 "$CODE" "--role=validate --which still resolves"
+run --which
+assert_exit 0 "$CODE" "bare --which (default role) still resolves"
+
 finish

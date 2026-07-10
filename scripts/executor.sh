@@ -155,7 +155,15 @@ plane_token() {
 # --- arg parse: optional --role, then the mode ---
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --role) ROLE="${2:-task}"; shift 2 ;;
+        # NB: `shift 2` with only one arg left is a NO-OP that returns 1, and this
+        # script runs `set -uo pipefail` (no -e) — so a trailing `--role` used to
+        # leave $1 == "--role" and spin this loop forever. Demand the value first.
+        --role)
+            [ "$#" -ge 2 ] || {
+                printf 'executor: --role needs a value (task|explore|validate)\n' >&2
+                exit 2
+            }
+            ROLE="$2"; shift 2 ;;
         --role=*) ROLE="${1#*=}"; shift ;;
         *) break ;;
     esac
