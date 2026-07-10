@@ -1,6 +1,7 @@
 ---
 plan: doc-vs-code-consistency-test
-status: active
+status: done
+completed: 2026-07-10
 created: 2026-07-10
 owner: claude (orchestrator)
 task_provider: notion

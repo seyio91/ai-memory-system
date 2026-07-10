@@ -27,6 +27,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **A doc-vs-code consistency gate on `run-tests.sh`** (`scripts/check-docs.sh`). Doc rot recurs
+  because nothing tests a doc against the code it describes. The env-var table in `docs/scripts.md`
+  is structured (`Var | Default | Used by`), so it yields two mechanical assertions: **forward** —
+  every documented var exists somewhere in the code roots; **strict** — every documented var appears
+  in the script its `Used by` names, *or in any file that script sources, transitively*. A
+  `== doc-vs-code ==` stage gates the suite's exit code (0 clean / 1 findings / 2 setup error — an
+  unparseable table can never read as clean).
+  - Source-following is required, not a nicety: `lint-memory.sh` never mentions
+    `AI_MEMORY_PROJECTS_ROOT`, it calls `projects_root()` in `_lib.sh`. One hop is not enough either
+    — `inject_memory.sh` → `memory_common.sh` → `_lib.sh` is depth 2, and the inner source is
+    conditional. The closure has a visited-set cycle guard; a runaway graph aborts (`CLOSURE_MAX`)
+    rather than reporting a verdict from a traversal that never terminated.
+  - A `Used by` cell naming no script **fails** unless listed in the new `.docscheck-exempt` with a
+    reason, so prose cannot creep back into a machine-checked column.
+  - **Scope is deliberately narrow.** It catches symbol drift. It cannot catch a semantic prose
+    promise (`--dry-run` "mutates nothing" while running `git fetch --tags`), a hand-written count,
+    a var documented outside the table, or a contradiction with a remote skill in another repo. Those
+    are stated as non-goals in `docs/scripts.md`, not left as an implied stronger claim.
+- **`MEMORY_STATE_DIR` is documented**, replacing `MEMORY_SESSIONS_DIR` — which was documented in two
+  files and existed in **zero** code files. It was not a renamed var: the mechanism it described (a
+  per-session marker at `~/.claude/memory_sessions/<session_id>`) no longer exists. `SessionStart`
+  fires once per session and injects inline; the only per-session artifact is a
+  `<session_id>.recompact` sentinel under `$MEMORY_DIR/.sessions`. Four doc call-sites were rewritten
+  against the hooks. This is the drift the new gate would have caught, and the reason it exists.
+
 - **shellcheck is now a gate on `run-tests.sh`**, not a suggestion. A `== shellcheck ==`
   stage sets a non-zero suite exit code on any finding, running two invocations against a
   single root `.shellcheckrc`: production code at `-S info` and `scripts/tests/` at

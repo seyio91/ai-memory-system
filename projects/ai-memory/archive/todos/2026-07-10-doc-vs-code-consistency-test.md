@@ -1,0 +1,21 @@
+# Todo snapshot — ai-memory — 2026-07-10
+
+Rolled after the doc-vs-code consistency gate shipped. Plan archived to
+`archive/plans/doc-vs-code-consistency-test.md`; task `397f6850-c619-818c-a0ee-e17736b1bfe6` closed `done`.
+All ten success criteria verified mechanically.
+
+> Single source of truth for executable work on this project.
+> Large items link to a plan under `plans/`.
+> Tick boxes in place when done. When all items here are checked (or the orchestrator decides to roll), snapshot this file to `archive/todos/YYYY-MM-DD-<slug>.md` and reset.
+
+## Active
+
+### Doc-vs-code consistency test → [plan](plans/doc-vs-code-consistency-test.md)
+- [x] Phase 1 — clean to floor: expand the shorthand row; `MEMORY_SESSIONS_DIR` → `MEMORY_STATE_DIR`; fix 4 stale `memory_sessions` call-sites + `memory.md:29`; correct the `--dry-run` prose; drop the counts from `system-overview.md`. **Forward axis now clean; strict axis blocked on the indirection question (see plan Risks).**
+- [x] Phase 2 — `scripts/check-docs.sh` + `.docscheck-exempt` (bash 3.2 verified on `/bin/bash` 3.2.57; `find`/`grep`, never `ls`; shellcheck clean at `-S info`). Real tree: **26 rows, 0 findings**. Two self-inflicted fail-open bugs found by fixture probe and fixed (self-reference; `sed` delimiter). Fixture proof is Phase 3's job to make permanent.
+- [x] Phase 3 — `scripts/tests/test_check_docs.sh`: 23 assertions over a synthetic fixture. All four defect classes fail the checker; indirection, depth-2 and cycles pass. **Every assertion mutation-verified** (reintroduce the bug → the test goes red). Caught one vacuous assertion, fixed by making the cycle guard observable (`CLOSURE_MAX`, fail-closed exit 2). Reached by the runner's glob — confirmed by name, not by count.
+- [x] Phase 4 — `== doc-vs-code ==` stage in `run-tests.sh`, gating the exit code. **Proven, not assumed:** broke a real row → suite exit 1; a zero-row table → `setup error (exit 2)` → suite exit 1; restored → green.
+- [x] Phase 5 — docs: `docs/scripts.md` gate section (incl. an explicit **what it does not catch**) + CHANGELOG `### Added`. Fixed doc rot in the runner row itself ("gates on all five" → six).
+
+## Done
+_(checked items stay above until the file is rolled)_

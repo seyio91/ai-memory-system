@@ -25,7 +25,8 @@
 | `_lib.sh` | Shared helpers (sourced) | `detect_active_project`, `extract_fm_field`, `projects_root`, `resolve_repo_path` |
 | `taskctl` | Bash wrapper for the task-provider CLI (used by `/task`, `/start`) | `taskctl <capture\|list\|get\|update\|set-status\|ping> ...` |
 | `taskprovider/` | Python (stdlib-only) task-provider CLI — see [Task-provider layer](task-provider.md) | `PYTHONPATH=$MEMORY_DIR/scripts python3 -m taskprovider <verb>`; tests: `cd scripts && python3 -m unittest discover -s taskprovider/tests -t .` |
-| `run-tests.sh` | Suite runner: shell tests → python tests → lint → skills → shellcheck. Gates on all five | `run-tests.sh [--no-lint] [-v]` (exit 0 clean, 1 otherwise) |
+| `check-docs.sh` | Assert the env-var table below matches the code (forward + strict-consumer axes) | `check-docs.sh [root]` (exit 0 clean, 1 findings, 2 setup error) |
+| `run-tests.sh` | Suite runner: shell tests → python tests → lint → skills → doc-vs-code → shellcheck. Gates on all six | `run-tests.sh [--no-lint] [-v]` (exit 0 clean, 1 otherwise) |
 | `tests/*` | Dependency-free shell tests (bash 3.2) | `for t in scripts/tests/test_*.sh; do bash "$t"; done` |
 
 All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and resolve the memory tree via `MEMORY_DIR`. Each test sets `MEMORY_DIR` to a `mktemp -d` sandbox so the suite never touches real memory; the hook's state dir derives from it (`$MEMORY_DIR/.sessions`).
@@ -85,7 +86,63 @@ shellcheck is **dev/CI-only**; the runtime bet is zero dependencies. When the bi
 absent the stage prints a notice and **skips without gating**, so a fresh machine or a
 consumer instance running the suite never fails for lacking a linter.
 
+## Doc-vs-code consistency (check-docs.sh)
+
+`run-tests.sh` has a `== doc-vs-code ==` stage that gates the suite's exit code. Nothing else
+tests a doc against the code it describes, and doc rot here is a recorded, recurring gotcha.
+
+The **Environment overrides** table below is the input. Being structured
+(`Var | Default | Used by`), it yields two mechanical assertions:
+
+| Axis | Assertion | Catches |
+|------|-----------|---------|
+| **forward** | every documented var appears somewhere in the code roots | a var renamed or deleted but left documented |
+| **strict** | every documented var appears in the script its `Used by` names — **or in any file that script sources, transitively** | a var documented against the wrong consumer |
+
+Source-following is required, not a nicety. `lint-memory.sh` never mentions
+`AI_MEMORY_PROJECTS_ROOT`; it calls `projects_root()` in `_lib.sh`. "Used by" means *whose
+behaviour the var affects*, not *which file holds the string*. One hop is not enough either:
+`inject_memory.sh` → `memory_common.sh` → `_lib.sh` is depth 2, and that inner source is
+conditional. The closure carries a visited-set cycle guard; a runaway graph (`CLOSURE_MAX`)
+aborts with exit 2 rather than reporting a verdict from a traversal that never terminated.
+
+**A `Used by` cell that names no script fails**, unless it is listed in `.docscheck-exempt` with a
+reason. Five entries today (`MEMORY_DIR`, `MEMORY_TASK_PROVIDER`, three `NOTION_*`). That keeps
+prose from silently creeping back into a machine-checked column. Every exemption is a deliberate
+hole — before adding one, ask what it now fails to catch.
+
+Write **one full var name per row**. The old shorthand row
+`` `AI_MEMORY_EXECUTOR_TASK` / `_EXPLORE` `` was split into two rows rather than taught to a
+parser: fix the data, not the reader.
+
+### What it does not catch
+
+Deliberate, and stated so nobody mistakes a green stage for a stronger claim:
+
+- **Semantic prose promises.** `/sync-system --dry-run` once documented "mutates nothing" while
+  running `git fetch --tags`. The flag *exists*, so no symbol check can see it.
+- **Counts.** A hand-written "27 test files" is drift by construction. Delete the count; don't pin it.
+- **Anything outside this table.** `AI_MEMORY_SKILL_DATA` is documented in
+  [Claude harness](harnesses/claude.md) but has no row here, so it is unchecked.
+- **Cross-repo contradictions.** A remote skill in `.skill-cache/` is *referenced, not forked*; its
+  `SKILL.md` cannot be seen from this tree.
+- **Comments count as matches.** `AI_MEMORY_EXECUTOR_CMD_<key>` passes the forward axis only because
+  `executor.sh` names the placeholder in a comment (the code builds the name dynamically).
+
+The checker excludes **itself** from the code roots. Its comments cite real var names as worked
+examples; without the exclusion a deleted var could be re-documented and pass forever on the
+strength of a comment inside the control written to catch it.
+
+### Dev-only, and enumerated with `find`
+
+No dependency beyond coreutils, `grep`, `awk`, `sed`, `find`. It never uses `ls`: a wrapper that
+degrades `ls` to empty output would turn the check into a silent pass — the exact fail-open class
+it exists to prevent.
+
 ## Environment overrides
+
+Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full var name per row; a
+`Used by` cell naming no script must be exempted in `.docscheck-exempt`.
 
 | Var | Default | Used by |
 |-----|---------|---------|

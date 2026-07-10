@@ -3,8 +3,9 @@
 # run-tests.sh — end-to-end test runner for the memory system.
 #
 # Runs the full scripts/tests/test_*.sh suite, then the scripts/taskprovider/tests/
-# Python unittest suite, then lint-memory.sh, validate-skills.sh, and a shellcheck
-# static-analysis stage — all five gate the exit code — in a HERMETIC
+# Python unittest suite, then lint-memory.sh, validate-skills.sh, a doc-vs-code
+# consistency check (check-docs.sh), and a shellcheck static-analysis stage —
+# all six gate the exit code — in a HERMETIC
 # environment: it scrubs the developer-shell variables that
 # would otherwise steer a test into a live backend or the real tree
 # (MEMORY_TASK_PROVIDER, NOTION_*, MEMORY_DIR, AI_MEMORY_PROJECTS_ROOT,
@@ -140,6 +141,27 @@ if [ "$DO_LINT" = 1 ]; then
     grep -E '^(WARN|ERROR)' "$LOGDIR/vs.log" | sed 's/^/  /' || true
 fi
 
+# Doc-vs-code. Nothing else tests a doc against the code it describes, and doc
+# rot here is a recorded, recurring gotcha. Gate on the exit code, not on output:
+# check-docs.sh exits 0 clean / 1 findings / 2 setup error, and an exit-2 (table
+# format changed, so zero rows parsed) must NOT masquerade as clean — that is the
+# fail-open shape this stage exists to prevent.
+dvc_status="skipped"
+dvc_rc=0
+printf '\n== doc-vs-code ==\n'
+hermetic bash "$HERE/check-docs.sh" >"$LOGDIR/dvc.log" 2>&1; dvc_rc=$?
+if [ "$dvc_rc" -eq 0 ]; then
+    dvc_status="clean ($(tail -1 "$LOGDIR/dvc.log"))"
+    printf '  PASS  %-32s %s\n' "check-docs" "$(tail -1 "$LOGDIR/dvc.log")"
+else
+    sed 's/^/  /' "$LOGDIR/dvc.log" || true
+    if [ "$dvc_rc" -eq 1 ]; then
+        dvc_status="$(grep -c '^FAIL' "$LOGDIR/dvc.log" 2>/dev/null || printf '0') finding(s)"
+    else
+        dvc_status="setup error (exit $dvc_rc)"
+    fi
+fi
+
 # Static analysis. Two floors against the single root .shellcheckrc (a nested rc
 # would REPLACE it, not merge): production at `info` because SC2086 — unquoted
 # expansion — is info-level and a `warning` gate could never fire on it; tests at
@@ -183,6 +205,8 @@ printf '  tests: %d passed, %d failed%s\n' "$pass" "$fail" \
 printf '  python: %s\n' "$py_status"
 [ "$DO_LINT" = 1 ] && printf '  lint:  %s\n' "$lint_status"
 [ "$DO_LINT" = 1 ] && printf '  skills: %s\n' "$vs_status"
+printf '  doc-vs-code: %s\n' "$dvc_status"
 printf '  shellcheck: %s\n' "$sc_status"
 
-[ "$fail" -eq 0 ] && [ "$py_rc" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ] && [ "$sc_rc" -eq 0 ]
+[ "$fail" -eq 0 ] && [ "$py_rc" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ] \
+    && [ "$dvc_rc" -eq 0 ] && [ "$sc_rc" -eq 0 ]
