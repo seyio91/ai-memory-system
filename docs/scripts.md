@@ -28,7 +28,7 @@
 | `run-tests.sh` | Suite runner: shell tests → python tests → lint → skills → shellcheck. Gates on all five | `run-tests.sh [--no-lint] [-v]` (exit 0 clean, 1 otherwise) |
 | `tests/*` | Dependency-free shell tests (bash 3.2) | `for t in scripts/tests/test_*.sh; do bash "$t"; done` |
 
-All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and resolve the memory tree via `MEMORY_DIR`. Each test sets `MEMORY_DIR` (and, for the hook, `MEMORY_SESSIONS_DIR`) to a `mktemp -d` sandbox so the suite never touches real memory.
+All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and resolve the memory tree via `MEMORY_DIR`. Each test sets `MEMORY_DIR` to a `mktemp -d` sandbox so the suite never touches real memory; the hook's state dir derives from it (`$MEMORY_DIR/.sessions`).
 
 ## Static analysis (shellcheck)
 
@@ -98,7 +98,7 @@ consumer instance running the suite never fails for lacking a linter.
 | `CODEX_HISTORY_LINES` | `20` | `codex-mem-checkpoint.sh` |
 | `MEMORY_STALE_DAYS` | `30` | `lint-memory.sh` |
 | `MEMORY_ARCHIVE_RETAIN_DAYS` | `30` | `archive-cleanup.sh` |
-| `MEMORY_SESSIONS_DIR` | `~/.claude/memory_sessions` | `inject_memory.sh` |
+| `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `memory_common.sh` (per-session `<session_id>.recompact` sentinels) |
 | `AI_MEMORY_CHANNEL` | `release` | `sync-system.sh` channel selection: `release` checks out the latest stable `v*` tag; `dev` ff-pulls the tracking branch |
 | `AI_MEMORY_MIGRATIONS_DIR` | `$REPO_ROOT/migrations` | `sync-system.sh`, `test_upgrading_doc.sh` (migration directory override) |
 | `AI_MEMORY_APPLIED_VERSION_FILE` | `$REPO_ROOT/.applied-version` | `sync-system.sh` (migration high-water marker override) |
@@ -110,7 +110,8 @@ consumer instance running the suite never fails for lacking a linter.
 | `NOTION_TOKEN` | — | `NotionProvider` (integration secret; set in `~/.zshenv`) |
 | `NOTION_DATA_SOURCE_ID` | — | `NotionProvider` (the data-source id, not the database id) |
 | `NOTION_STATUS_KIND` | `status` | `NotionProvider` — set `select` if the board's `Status` is a select property |
-| `AI_MEMORY_EXECUTOR_TASK` / `_EXPLORE` | (legacy `AI_MEMORY_EXECUTOR` → `claude-subagent`) | `executor.sh` — write-capable / read-only executor roles — see [Workflow › Executor selection](workflow.md#executor-selection) |
+| `AI_MEMORY_EXECUTOR_TASK` | (legacy `AI_MEMORY_EXECUTOR` → `claude-subagent`) | `executor.sh` — write-capable executor role — see [Workflow › Executor selection](workflow.md#executor-selection) |
+| `AI_MEMORY_EXECUTOR_EXPLORE` | (legacy `AI_MEMORY_EXECUTOR` → `claude-subagent`) | `executor.sh` — read-only executor role — see [Workflow › Executor selection](workflow.md#executor-selection) |
 | `AI_MEMORY_EXECUTOR_VALIDATE` | `claude-subagent` | `executor.sh` — read-only validator role; defaults to the orchestrator plane (does **not** chain to the legacy var) → cross-model validation by default |
 | `AI_MEMORY_EXECUTOR` | `claude-subagent` | `executor.sh` — legacy single var; fallback for `task`/`explore` only |
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | `executor.sh` — command template for a generic CLI executor |

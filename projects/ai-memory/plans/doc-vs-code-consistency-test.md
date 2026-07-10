@@ -113,8 +113,12 @@ Each is checkable; the Validator verifies these and nothing beyond them.
    `taskprovider/tests` gap).
 6. `MEMORY_SESSIONS_DIR` no longer appears anywhere outside `archive/`; `MEMORY_STATE_DIR` is
    documented in the table with default `$MEMORY_DIR/.sessions` and consumer `memory_common.sh`.
-7. `grep -rn "memory_sessions"` returns hits only under `archive/` and
-   `projects/ai-memory/wikis/2026-07-09-system-review.md` (a historical record).
+7. `MEMORY_SESSIONS_DIR` and `memory_sessions` return **zero hits across the declared doc surfaces and
+   the code roots** (`docs/**`, `README.md`, `UPGRADING.md`, `harnesses/*/commands/*.md`,
+   `harnesses/*/CLAUDE.md`; `scripts/**`, `harnesses/**`, `install.sh`).
+   **Not** "zero hits in the tree" — `archive/`, `wikis/`, and this plan and its investigation all
+   necessarily name the bug they document. A criterion that forbids naming the defect can never pass.
+   *(Corrected 2026-07-10 during Phase 1: the original wording was exactly that unpassable form.)*
 8. Neither `UPGRADING.md` nor `harnesses/claude/commands/sync-system.md` claims `--dry-run`
    mutates nothing.
 9. `.docscheck-exempt` carries a one-line reason per entry.
@@ -153,6 +157,21 @@ Fix every finding so the gate can hard-fail from day one.
 
 ## Risks / open questions
 
+- **OPEN — indirection defeats a naive strict-consumer check** (found in Phase 1, 2026-07-10). Two
+  table rows are semantically correct yet contain no literal match in the script they name:
+  `AI_MEMORY_PROJECTS_ROOT` → `lint-memory.sh` / `memory-pin.sh` (they call `projects_root()` in
+  `_lib.sh`), and `AI_MEMORY_SKILL_CACHE` → `list-skills.sh` / `resolve-skills.sh` (they call
+  `skill_cache_dir()`). "Used by" means *whose behavior the var affects*, not *which file holds the
+  string*. Phase 2 must resolve this before the strict axis can hard-fail — the leading option is to
+  accept a match in the named script **or in any file it sources** (`_lib.sh` in every case here).
+  The `Used by` cells also mix script names with *function* names (`resolve_repo_path`), which the
+  parser must not mistake for files.
+- **A doc that documents drift contains the drift's name.** Any "grep finds zero occurrences" criterion
+  must be scoped to the doc surfaces and code roots, never the whole tree — otherwise the plan and its
+  investigation fail their own check. Cost one wrong success criterion to learn (criterion 7, corrected).
+- **A placeholder row passes on a comment.** `AI_MEMORY_EXECUTOR_CMD_<key>` satisfies the forward axis
+  only because `executor.sh` names the placeholder in a comment. Confirmed, not theoretical — the
+  comment-only caveat below is load-bearing.
 - **The table is not the only doc surface.** `AI_MEMORY_SKILL_DATA` is documented in
   `docs/harnesses/claude.md` but absent from the table, so a table-anchored check never sees it.
   Accepted consequence of declining the reverse axis.

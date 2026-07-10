@@ -11,7 +11,7 @@ A value exported in `config.local.sh` **overrides an environment prefix**, so `A
 
 Argument: `$ARGUMENTS` — optional flags forwarded to the script:
 
-- `--dry-run` — report the resolved channel, the target ref, and the pending migrations; mutate nothing.
+- `--dry-run` — report the resolved channel, the target ref, and the pending migrations. It **does** run `git fetch --tags origin` to resolve the target (falling back to local refs when offline); it does not check out, run migrations, or touch the working tree.
 - `--to <ref>` — one-shot checkout of a tag, branch, or sha. **Ephemeral**: it does not change the channel, so the next plain sync snaps back to the channel default. `--to <branch>` checks out that ref *as-is* and does not fast-forward it — to dogfood current `main`, use `--to origin/main`.
 - `--no-pull` — skip the fetch/checkout; just relink features from the current tree. Cannot be combined with `--to` (usage error, exit 2).
 - `--update` — additionally re-resolve remote skills against their pinned refs.

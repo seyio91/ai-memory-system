@@ -86,7 +86,7 @@ For deeper cleanup (dedup, merge, split files): tell Claude "reorganize memory" 
 | Symptom | Cause / Fix |
 |---------|-------------|
 | Memory not injected in Claude session | Hook didn't fire. Check `~/.claude/settings.json` registers it and `~/.claude/hooks/inject_memory.sh` is executable. Confirm output is `hookSpecificOutput.additionalContext` JSON. Working memory only injects when non-empty. |
-| Identity re-injected every prompt | The per-session marker isn't being written. Confirm `~/.claude/memory_sessions/` is writable and the hook can parse `session_id` from stdin. |
+| Identity re-injected every prompt | The post-compaction sentinel isn't being cleared, so every prompt takes the full-payload branch. Confirm `$MEMORY_DIR/.sessions/` is writable (the hook `rm -f`s the sentinel after consuming it) and that the hook can parse `session_id` from stdin. Also check the prompt isn't carrying the `@memory` trigger (`MEMORY_RELOAD_TRIGGER`). |
 | Codex doesn't see project memory | `codex-mem.sh` couldn't resolve the project. Pin the repo with `.agents/memory-project` (launch from inside the repo tree). |
 | Cross-project delegate (Codex) sees the wrong project | A `codex-mem.sh` executor resolves `AGENTS.md` from the *active* project. Pin the sibling repo before launching, or pass the sibling `memory.md` path in the prompt. |
 | `~/.codex/AGENTS.md` looks stale | It's only regenerated when you launch via `codex-mem.sh`. Plain `codex` reads the existing file as-is. |

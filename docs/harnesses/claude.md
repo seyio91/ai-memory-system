@@ -22,7 +22,9 @@ printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalCon
 
 Claude never has to "remember to read" memory — it arrives in-band. Domain files are *not* auto-injected; Claude reads them on demand when the index entry matches the task.
 
-**Per-session markers.** "First prompt" is the absence of a per-session marker file at `~/.claude/memory_sessions/<session_id>` — not a single shared `memory_last_session` file. Concurrent sessions don't clobber each other's once-per-session injection. On the first-prompt branch the hook writes the marker (`: > "$marker"`) and opportunistically sweeps markers older than 2 days (`find "$MARKDIR" -type f -mtime +2 -delete`), keeping `memory_sessions/` self-maintaining off the hot path. The hook honors `MEMORY_DIR` and `MEMORY_SESSIONS_DIR` env overrides (used by the test suite to sandbox).
+**Once-per-session injection.** There is no per-session marker file. The full payload is emitted inline by the `SessionStart` hook (`session_start_memory.sh`), which by definition fires once per session — so nothing needs tracking. Concurrent sessions cannot collide, because no shared state is written on the hot path.
+
+**Post-compaction sentinels.** The one piece of per-session state is a compaction sentinel. `SessionStart` with `source=compact` cannot inject reliably, so instead it writes `<session_id>.recompact` under `$MEMORY_DIR/.sessions` and prunes sentinels older than 2 days (`find "$STATE_DIR" -name '*.recompact' -mtime +2 -delete`) — for sessions that compacted but never resumed. The next `UserPromptSubmit` (`inject_memory.sh`) consumes the sentinel, re-injects the full payload once, and removes it. The state dir honors the `MEMORY_STATE_DIR` override (`memory_common.sh`); the test suite sandboxes it implicitly by setting `MEMORY_DIR`.
 
 ## Hooks
 

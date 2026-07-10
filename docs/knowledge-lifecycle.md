@@ -45,7 +45,7 @@ Not every skill graduates from a domain file, either. The `brainstorming` skill 
 
 - **Markdown over a DB:** every editor, every diff tool, every grep works on it. No infra.
 - **Hook-injected, not retrieved:** Claude doesn't need to "remember to look" — context arrives in-band via `additionalContext` on the first prompt of each session. Codex gets the equivalent via a generated `AGENTS.md`.
-- **Per-session injection markers:** once-per-session blocks are tracked per `session_id` under `memory_sessions/`, so concurrent Claude sessions don't re-inject, and dead markers self-expire after 2 days.
+- **Once-per-session injection:** the full payload rides the `SessionStart` hook, which fires once per session — no marker file, no shared state, so concurrent Claude sessions never collide. The only per-session artifact is a post-compaction sentinel under `.sessions/`, which self-expires after 2 days.
 - **Distributed cross-project relationships:** a relationship lives in the project where the work starts (`## Related Projects`), and siblings are delegated to executors, never preloaded — so a multi-repo sequence is coordinated without resident sibling memory.
 - **Enforced, not just documented, where it matters:** the task-tool block is a real `PreToolUse` deny and the executor infra-deny is a real codex execpolicy rule — load-bearing conventions are backed by mechanism.
 - **Tested scaffolding:** the `scripts/tests/` suite pins script behavior (index-regen idempotence, lint failure modes, scaffold-only new-project, hook output contract, AGENTS.md build order) so a rebuild can be verified, not assumed.

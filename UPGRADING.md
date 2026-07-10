@@ -88,7 +88,7 @@ environment prefix. Editing the file is the only way to change an instance's cha
 **3. Preview, then sync.**
 
 ```bash
-bash scripts/sync-system.sh --dry-run     # reports channel + target tag, mutates nothing
+bash scripts/sync-system.sh --dry-run     # fetches tags, then reports channel + target tag; no checkout, no migrations
 bash scripts/sync-system.sh
 ```
 
