@@ -2,7 +2,7 @@
 # taskctl â thin wrapper around the Python task-provider CLI so callers (slash
 # commands, the shell) don't repeat the PYTHONPATH / -m boilerplate.
 #
-#   taskctl <capture|list|get|update|set-status|ping> ...
+#   taskctl <capture|list|get|update|set-status|delete|ping> ...
 #
 # Honors MEMORY_DIR (the single location knob) and MEMORY_TASK_PROVIDER
 # (default local, set in the Python factory). Prints JSON to stdout; errors via

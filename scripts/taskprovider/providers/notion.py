@@ -125,6 +125,13 @@ class NotionProvider(TaskProvider):
         }
         self._request("PATCH", self.API_ROOT + "/pages/" + ref, body)
 
+    def delete(self, ref):
+        # Page-level trash (recoverable in Notion's trash), distinct from the
+        # Status="Archived" property that set_status writes — a trashed page
+        # drops out of data_source queries, so it leaves list().
+        _require_full_ref(ref)
+        self._request("PATCH", self.API_ROOT + "/pages/" + ref, {"archived": True})
+
     def ping(self):
         try:
             self._request("GET", self.API_ROOT + "/users/me")

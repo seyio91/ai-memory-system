@@ -79,6 +79,13 @@ class FileTaskProvider(TaskProvider):
         else:
             self._write_task(path, fields, body)
 
+    def delete(self, ref):
+        # Hard delete of the live task file (decision A). archive/tasks/ already
+        # covers "retire but keep" via set_status(archived); delete removes.
+        # _live_path raises on unknown/absent-or-archived refs, so delete fails
+        # loudly rather than silently succeeding.
+        self._live_path(ref).unlink()
+
     def ping(self):
         return True
 
