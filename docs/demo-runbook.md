@@ -71,8 +71,8 @@ cd ~/Projects/<org>/web-app/web-app && claude
 ```
   Point out the full payload: `identity` → `project` → `index` → `working`. Then note that
   the *next* prompts only carry the lightweight `<memory:active>` breadcrumb.
-- **Reveal (diagram):** `docs/diagrams/injection-flow.excalidraw` (open in Excalidraw) — the
-  full-vs-breadcrumb fork and the domain exception. *(PNG pending re-export.)*
+- **Reveal (diagram):** `docs/diagrams/injection-flow.png` (source:
+  `injection-flow.excalidraw`) — the full-vs-breadcrumb fork and the domain exception.
 
 ## Beat 2 — Project detection, no collision · 8 min
 

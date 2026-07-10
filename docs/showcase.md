@@ -102,9 +102,10 @@ the whole stack (identity → project memory → index → working) is injected.
 prompt gets only a lightweight `<memory:active>` breadcrumb (project name + file paths), so
 the context that repeats each turn stays tiny and the cache prefix isn't busted.
 
-> **Diagram:** [`diagrams/injection-flow.excalidraw`](diagrams/injection-flow.excalidraw) — open in
-> [Excalidraw](https://excalidraw.com) to view. *(The rendered PNG was removed pending re-export; the
-> old one embedded a real project name.)*
+![How memory reaches the model](diagrams/injection-flow.png)
+
+> Source: [`diagrams/injection-flow.excalidraw`](diagrams/injection-flow.excalidraw) — open in
+> [Excalidraw](https://excalidraw.com) to edit.
 
 Domain files are the deliberate exception: they are **lazy-loaded** only when your task
 matches their `index.md` triggers, never auto-injected — so cross-project knowledge is
