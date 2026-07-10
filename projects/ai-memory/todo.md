@@ -6,10 +6,12 @@
 
 ## Active
 
-### Shellcheck static-analysis gate → [plan](plans/shellcheck-gate.md)
-- [x] Phase 1 — `.shellcheckrc` (4 disables) + inline `SC2086` justifications; zero findings at `-S info`
-- [x] Phase 2 — `run-tests.sh` `== shellcheck ==` stage; gates exit code; skips-with-notice if absent; prove it fires
-- [x] Phase 3 — docs: `docs/scripts.md` gate section + CHANGELOG `### Added`
+### Doc-vs-code consistency test → [plan](plans/doc-vs-code-consistency-test.md)
+- [ ] Phase 1 — clean to floor: expand the shorthand row; `MEMORY_SESSIONS_DIR` → `MEMORY_STATE_DIR`; fix 4 stale `memory_sessions` call-sites + `memory.md:29`; correct the `--dry-run` prose; drop the counts from `system-overview.md`
+- [ ] Phase 2 — `scripts/check-docs.sh` + `.docscheck-exempt` (bash 3.2; `find`/`grep`, never `ls`)
+- [ ] Phase 3 — `scripts/tests/test_check_docs.sh`: three fixture defects, each must fail the checker (red before green)
+- [ ] Phase 4 — `== doc-vs-code ==` stage in `run-tests.sh`; prove it gates by breaking a row
+- [ ] Phase 5 — docs: `docs/scripts.md` gate section + CHANGELOG `### Added`
 
 ## Done
 _(checked items stay above until the file is rolled)_

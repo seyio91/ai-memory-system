@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`projects/<project>/brainstorms/` is now `projects/<project>/investigations/`.** An
+  *investigation* is an artifact; a *brainstorm* is an activity. The old name conflated them and
+  split the doctrine: this repo said long-form design belongs in `brainstorms/<slug>.md`, while the
+  `brainstorming` skill said "do not create a separate spec document — the design lives in the plan
+  file, in the memory tree." Both were right about **different files**. An investigation is the
+  findings artifact written while exploring, *before a task exists*; it is conditional (only when an
+  investigation was done and its output exceeds the 500-char `summary` cap), and it has two readers —
+  the task summary names it, and `/start` hands it to the brainstorming skill as the seed. The
+  brainstorm's only output is the **plan**. The tell: `release-automation.md` lived in `brainstorms/`
+  carrying `kind: brainstorm-input` and `status: open (investigation only)`, and its task summary
+  said "`/start` should skip the brainstorm gate."
+  - The `validate_summary()` `ValueError` text in `scripts/taskprovider/contract.py` — the primary
+    doc surface for this rule — now names `investigations/`. `docs/task-provider.md`, `/task` and
+    `/start` follow.
+  - The corresponding fix to the remote `brainstorming` skill lives in the `agent-skills` repo
+    (this tree can only *reference* remote skills, never fork them), tracked as a PR there.
+
 ### Added
 
 - **shellcheck is now a gate on `run-tests.sh`**, not a suggestion. A `== shellcheck ==`

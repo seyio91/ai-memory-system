@@ -1,12 +1,12 @@
 ---
 doc: release-automation
-kind: brainstorm-input
-status: open (investigation only — no code, no plan)
+kind: investigation
+status: open — no code, no plan
 created: 2026-07-08
 owner: claude (orchestrator)
 ---
 
-# Brainstorm input — Automate the release pipeline (changelog fragments + GitHub Actions)
+# Investigation — Automate the release pipeline (changelog fragments + GitHub Actions)
 
 **Status:** investigation, 2026-07-08. No code written, no plan filed. Backlog task captured
 against this doc. When a plan eventually ships from it, archive to `archive/wikis/`.

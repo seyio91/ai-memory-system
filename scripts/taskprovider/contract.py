@@ -27,8 +27,8 @@ def validate_summary(summary):
     length = len(summary)
     if length > SUMMARY_MAX_CHARS:
         raise ValueError(
-            "summary is %d chars; maximum is %d. Write the long form to a brainstorm "
-            "in the task's project (projects/<project>/brainstorms/<slug>.md), then "
+            "summary is %d chars; maximum is %d. Write the long form to an investigation "
+            "in the task's project (projects/<project>/investigations/<slug>.md), then "
             "reference it from the summary by name — <slug>, not a path: paths move "
             "when work is archived, and the task already carries its project."
             % (length, SUMMARY_MAX_CHARS)
