@@ -68,6 +68,20 @@ An `agy` session is single-workspace for its lifetime, so launch-time resolution
 is equivalent to per-invocation — and env-scoping per process sidesteps the
 global-single-file clobber a materialized `~/.gemini/config/AGENTS.md` would have.
 
+## Concurrent features — git worktrees
+
+Antigravity has no in-session worktree switch, but the single-workspace-per-session
+model composes with git worktrees for isolating concurrent features:
+
+1. `git worktree add ../<repo>-<feature> -b <feature>` — a second checkout on its own branch.
+2. **Open that directory as a workspace** (Agent Manager → "Open Workspace"); `agy.sh` exports
+   `AI_MEMORY_CWD="$PWD"` at launch, so the worktree becomes the session's resolved cwd.
+
+Because `preinvocation.sh` reads `AI_MEMORY_CWD`, the injected memory then routes to
+`working.<worktree-name>.md` — the [per-worktree overlay](../file-formats.md#per-worktree-overlays-workingkeymd) —
+with no extra config; the other workspace's `working.md` is untouched. This process is
+regression-tested (`scripts/tests/test_worktree_feature_process.sh`).
+
 ## Static base — your permanent Antigravity instructions
 
 Antigravity has **no `AGENTS.local.md`**. The static, always-on workflow-rules base

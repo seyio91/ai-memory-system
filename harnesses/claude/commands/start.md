@@ -1,6 +1,6 @@
 Begin work on a captured task: pull it from the backlog, run the design gate (brainstorm for feature-with-open-design, else straight to plan), create the linked plan in the task's own project, push the refined summary back, and flip the task to `started`. This is the `/start` half of the task-provider ↔ brainstorming integration.
 
-Argument: `$ARGUMENTS` — a task `<ref>` (optional).
+Argument: `$ARGUMENTS` — a task `<ref>` (optional), plus an optional `--worktree` / `--no-worktree` flag. Parse a `--worktree` or `--no-worktree` token out of `$ARGUMENTS`; the remaining token is the `<ref>`. The flag governs Step 4.5 (feature-isolation worktree); absent, Step 4.5 asks.
 
 **Binary:** `TASKCTL="$HOME/.claude-memory/scripts/taskctl"` (JSON to stdout, errors via exit code). Run with Bash.
 
@@ -28,8 +28,18 @@ Classify the pulled `summary` (treat it as the initial request):
 - Flip the lifecycle: `"$TASKCTL" set-status <ref> started`.
 - Add a todo item in the task's project: append `### <title> → [plan](plans/<slug>.md)` with unchecked Phase boxes to `projects/<task-project>/todo.md` (under `## Active`).
 
+### Step 4.5 — enter a feature-isolation worktree (optional, Claude-only)
+Applies **only when Step 2 classified the task as a Tier-3 feature** (brainstorm ran). Skip entirely for quick/settled tasks — they don't warrant an isolated checkout.
+
+- **Decide whether to enter a worktree:** `--worktree` → yes; `--no-worktree` → skip; neither → ask the user once ("Start this feature in a fresh git worktree so it doesn't collide with other in-progress work? [y/N]"). Default no.
+- **Guards — check before entering, and skip (do not error) if any holds:**
+  - Already in a worktree session this session → skip and say so ("already in a worktree — not nesting; the current one isolates this work").
+  - Not in a git repository and no `WorktreeCreate` hook configured → skip and note the flow needs one.
+- **Enter:** call the `EnterWorktree` tool with `name=<slug>` (the plan slug from Step 3, truncated to 64 chars — it is already kebab-case, inside the allowed charset). This switches the session's working directory into `.claude/worktrees/<slug>` on a fresh branch.
+- **Why last:** Steps 0-4 wrote the plan/todo into the memory tree (`~/.claude-memory`, an absolute path unaffected by the code-repo cwd) and did the backend bookkeeping from the main checkout. Entering now means only the *execution* runs in the worktree. The per-session scratchpad then auto-resolves to `working.<slug>.md` (the overlay resolver keys off the worktree — no extra wiring; see `docs/file-formats.md` → Per-worktree overlays). `worktree.baseRef` defaults to `fresh` (branches from `origin/<default>`), so the worktree does **not** carry uncommitted local work — mention this when you report.
+
 ### Step 5 — report
-State: the plan path, that the task is linked (`task_ref`) and now `started`, and whether brainstorming ran. If the design produced phases, offer to begin executing Phase 1 (the normal orchestrator/executor flow).
+State: the plan path, that the task is linked (`task_ref`) and now `started`, and whether brainstorming ran. **If Step 4.5 entered a worktree,** name it and note the scratchpad is now `working.<slug>.md` (and that the branch was cut fresh from the default). If the design produced phases, offer to begin executing Phase 1 (the normal orchestrator/executor flow).
 
 **Notes**
 - `/start` owns plan placement (into the task's project) rather than calling `/new-plan`, because `/new-plan` targets the *active* project and a task can belong to a different one. A same-project `/start` and a direct `/new-plan` still yield the same plan shape.
