@@ -1,7 +1,8 @@
 ---
 plan: worktree-feature-routing
-status: in_progress
+status: done
 created: 2026-07-11
+completed: 2026-07-11
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 399f6850-c619-812d-be9c-df01bce8ea1f
