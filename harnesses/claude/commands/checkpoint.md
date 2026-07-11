@@ -1,8 +1,8 @@
 Capture this session's salient state as a checkpoint in the active project's working memory. Do NOT ask the user questions — synthesize the four fields directly from this session's context (what's been discussed, decisions made, files touched, next steps, blockers).
 
-Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`).
+Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`). Also read the **working-file path** from the `working:` line of the `<memory:active>` breadcrumb — this is the exact file to read and append to below. It may be a per-worktree overlay (`working.<key>.md`) when you are in a linked git worktree; use that path verbatim, do **not** hand-build `projects/<active>/working.md` (that would write a concurrent session's file). If the breadcrumb has no `working:` line, fall back to `~/.claude-memory/projects/<active>/working.md`.
 
-Step 2 — read `~/.claude-memory/projects/<active>/working.md`. Identify:
+Step 2 — read the working file resolved in Step 1 (create it if it does not exist yet — a fresh worktree overlay starts empty). Identify:
 - Whether a `## Checkpoints` section exists. If not, you'll create one at the end of the file.
 - The order of existing checkpoints (chronological, oldest at top, newest at bottom). New entries append at the bottom of the `## Checkpoints` section.
 - Whether a `## Cross-project learnings (pending promotion)` section exists above `## Checkpoints` — leave it untouched.
@@ -39,7 +39,7 @@ Step 4 — append the new checkpoint to the end of the `## Checkpoints` section 
 
 If the day already has a checkpoint and the work is a continuation, you may append a fresh `### YYYY-MM-DD — <new framing>` entry rather than mutating the existing one. Never delete or overwrite a prior checkpoint — they form a chronological record.
 
-If `## Checkpoints` doesn't exist, create it at the end of the file with this checkpoint as its first entry. If `working.md` is empty entirely, also add a top-level `# Working — <active>` heading and a `## Cross-project learnings (pending promotion)` section above the new `## Checkpoints` (with a `_(none yet)_` placeholder under it).
+If `## Checkpoints` doesn't exist, create it at the end of the file with this checkpoint as its first entry. If the working file is empty entirely, also add a top-level `# Working — <active>` heading and a `## Cross-project learnings (pending promotion)` section above the new `## Checkpoints` (with a `_(none yet)_` placeholder under it).
 
 Step 5 — report back, three lines max:
 - Path written.

@@ -90,3 +90,13 @@ Just `## Knowledge`. Entries append as `**[YYYY-MM-DD]** what — why it matters
 ```
 
 New checkpoints append at the bottom of `## Checkpoints` (newest last). `/checkpoint` synthesizes all four fields from the current session's context — it does not interview you. If a session produced no artifacts, the entry should say so honestly (e.g. `**Done:** Discussion only — no artifacts produced`).
+
+### Per-worktree overlays (`working.<key>.md`)
+
+Two concurrent sessions on one repo run in separate git worktrees (a checkout has one HEAD, so concurrency *requires* it). They would otherwise share one `working.md` and clobber each other's checkpoints. To prevent that, the scratchpad is resolved per session: in a **linked git worktree** the working file becomes `working.<worktree-name>.md`; in the main checkout it stays `working.md`. `memory.md`, `todo.md`, `index`, and `plans/` are always shared — only the volatile scratchpad splits.
+
+The key is chosen with precedence **explicit marker > worktree > none**:
+- Drop a `.agents/memory-session` file in the checkout (sibling to `.agents/memory-project`) to name the overlay explicitly — its content is sanitized to `[a-z0-9-]`, so `feature-x` → `working.feature-x.md`. Use this to label a split, or to force one without a worktree.
+- Otherwise a linked worktree auto-keys on its own name; the main checkout gets the base file.
+
+The resolver (`resolve_working_file` in `scripts/content-core.sh`) is shared by every harness's read and write path, so the injected `<memory:active>` breadcrumb, the full payload, and `/checkpoint` all agree on the same file. Overlays are gitignored (`working*.md`) like the base scratchpad.

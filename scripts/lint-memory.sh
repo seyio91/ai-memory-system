@@ -143,7 +143,7 @@ done
 # 6. Stale working memory.
 NOW=$(date +%s)
 SECONDS_THRESHOLD=$((STALE_DAYS * 86400))
-for f in "$MEMORY_DIR"/projects/*/working.md; do
+for f in "$MEMORY_DIR"/projects/*/working.md "$MEMORY_DIR"/projects/*/working.*.md; do
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
     [ -s "$f" ] || continue

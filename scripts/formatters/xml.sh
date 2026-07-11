@@ -48,9 +48,16 @@ xml_render_breadcrumb() {
             identity) out+="identity: $path"$'\n' ;;
             project)  out+="project: $path"$'\n' ;;
             index)    out+="index: $path"$'\n' ;;
-            working)  out+="working: $path"$'\n' ;;
+            working)  ;;  # emitted below as the always-present write target
         esac
     done
+    # working.md is the checkpoint WRITE target: advertise the resolved overlay
+    # path unconditionally (even before the file exists — the first checkpoint in
+    # a fresh worktree must land in working.<key>.md, not the base), so /checkpoint
+    # writes to the right file. The read side (full payload) stays presence-gated.
+    if command -v resolve_working_file >/dev/null 2>&1; then
+        out+="working: $(resolve_working_file "$project" "$cwd")"$'\n'
+    fi
     out+="If these are not already in context (e.g. after compaction), read them before proceeding."
     printf '%s' "$out"
 }

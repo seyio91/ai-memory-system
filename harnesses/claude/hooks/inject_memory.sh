@@ -18,6 +18,9 @@ PROMPT=$(json_field "$INPUT" "prompt")
 CWD=$(json_field "$INPUT" "cwd")
 SESSION_ID=$(json_field "$INPUT" "session_id")
 PROJECT=$(detect_project "$CWD")
+# content-core's working.md overlay resolver reads the session cwd from here (the
+# hook's process cwd is not the user's repo — the payload cwd is).
+export AI_MEMORY_CWD="$CWD"
 
 emit() { # emit <payload-string> ; exits
     [ -z "$1" ] && exit 0

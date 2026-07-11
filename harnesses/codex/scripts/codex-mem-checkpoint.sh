@@ -34,10 +34,20 @@ if [ -z "$PROJECT" ]; then
     exit 1
 fi
 
-WORKING="$MEMORY_DIR/projects/$PROJECT/working.md"
+# Per-session overlay: in a linked worktree this resolves to working.<key>.md so
+# concurrent sessions don't clobber each other (same resolver the read path uses).
+WORKING="$(resolve_working_file "$PROJECT" "$PWD")"
 if [ ! -f "$WORKING" ]; then
-    echo "codex-mem-checkpoint: working.md not found at $WORKING" >&2
-    exit 1
+    # A fresh overlay may not exist yet; seed it so the checkpoint has somewhere to
+    # land. The base working.md is never auto-created here (its absence is a real
+    # "project not initialized" signal), so only seed an overlay (working.<key>.md).
+    case "$WORKING" in
+        */working.md)
+            echo "codex-mem-checkpoint: working.md not found at $WORKING" >&2
+            exit 1 ;;
+        *)
+            printf '# Working — %s (worktree overlay)\n' "$PROJECT" > "$WORKING" ;;
+    esac
 fi
 
 TODAY=$(date +%Y-%m-%d)

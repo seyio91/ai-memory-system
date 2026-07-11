@@ -39,7 +39,9 @@ __pycache__/
 # durable artifacts AND its archive (past work stays visible in git; the memory
 # system just never loads archive/). Only the volatile live scratch is local.
 !/projects/ai-memory
-/projects/ai-memory/working.md
+# working.md and its per-worktree overlays (working.<key>.md) are volatile local
+# scratch — never tracked, even for the meta-project.
+/projects/ai-memory/working*.md
 
 # ...except rolled working-memory snapshots. working.md is deliberately local, so
 # archiving it must not be the back door that publishes it: a snapshot is raw
