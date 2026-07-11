@@ -51,6 +51,15 @@ Either path runs:
 
 Net effect: typing `/checkpoint` or simply ending a session with "let's save state" captures the work back into memory. Same memory is visible to Claude next session.
 
+## Concurrent features — git worktrees
+
+Codex has no in-session worktree switch (Claude's `EnterWorktree`), but the memory system still isolates concurrent features per worktree. The process is manual and one-time:
+
+1. `git worktree add ../<repo>-<feature> -b <feature>` — a second checkout on its own branch.
+2. `cd ../<repo>-<feature> && codex` — launch Codex **in** the worktree.
+
+Because Codex resolves the project and builds `AGENTS.md` from `$PWD`, launching inside the worktree routes both the injected context *and* `/checkpoint` to `working.<worktree-name>.md` — the [per-worktree overlay](../file-formats.md#per-worktree-overlays-workingkeymd) — with no config. The other checkout's `working.md` is untouched. (First-class `--worktree`/`--tmux` flags are only a proposed Codex feature; until then, the manual `git worktree add` above is the flow.) This process is regression-tested end-to-end (`scripts/tests/test_worktree_feature_process.sh`).
+
 ## Adding a new domain topic (Codex picks it up automatically)
 
 1. Drop a new file `domain/postgres.md` with frontmatter:
