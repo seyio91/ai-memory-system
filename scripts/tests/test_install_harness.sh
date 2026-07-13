@@ -137,6 +137,7 @@ printf '%s\n' \
     'hooks_json  = ~/.noguard/hooks.json' \
     'hook_script = $MEMORY_DIR/harnesses/antigravity/hooks/preinvocation.sh' \
     'skills_dir  = ~/.noguard/skills' 'commands = skill' \
+    '[hooks]' 'per_turn_inject = PreInvocation' \
     > "$FAKE/harnesses/noguard/manifest"
 rm -f "$FAKE/config.local.sh"
 run_install --harness noguard >"$SBROOT/log.noguard" 2>&1; rc=$?
@@ -167,6 +168,7 @@ printf '%s\n' \
     'name = jsonmerge' 'archetype = hook' 'format = xml' \
     'hooks_json  = ~/.jsonmerge/hooks.json' \
     'hook_script = $MEMORY_DIR/harnesses/antigravity/hooks/preinvocation.sh' \
+    '[hooks]' 'per_turn_inject = PreInvocation' \
     > "$FAKE/harnesses/jsonmerge/manifest"
 JM="$FHOME/.jsonmerge/hooks.json"
 mkdir -p "$FHOME/.jsonmerge"

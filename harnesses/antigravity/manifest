@@ -48,3 +48,7 @@ exec_cmd        = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} -
 exec_readonly   = $MEMORY_DIR/harnesses/antigravity/scripts/agy.sh -p {prompt} --dangerously-skip-permissions
 exec_model_flag = --model {model}
 exec_probe      = agy
+
+[hooks]
+per_turn_inject = PreInvocation
+infra_guard     = PreToolUse:*

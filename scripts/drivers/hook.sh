@@ -133,18 +133,46 @@ _hook_install_scripts() {
 }
 
 # _hook_register_json <hooks_json> — Antigravity style: register namespaced hook
-# entries into the JSON hooks file — a PreInvocation entry (hook_script, memory
-# injection) and, if the manifest declares guard_script, a PreToolUse entry (the
-# executor-only enforcement guard, matcher "*"). Idempotent merge via python3
-# (preserves any other hooks + only touches our two keys); if python3 is absent,
-# write a new file wholesale, or (file already exists) defer to a manual merge note.
+# entries into the JSON hooks file from the manifest's [hooks] role map.
+# Idempotent merge via python3 (preserves any other hooks + only touches our
+# namespaced keys); if python3 is absent, write a new file wholesale, or (file
+# already exists) defer to a manual merge note.
 _hook_register_json() {
-    local hooks_json="$1" hs gs
+    local hooks_json="$1" hs gs role spec event matcher
+    local inject_event="" inject_matcher="" guard_event="" guard_matcher="" hook_count=0
     hs="$(manifest_get "$MANIFEST" hook_script)"; hs="${hs//\$MEMORY_DIR/$MEMORY_DIR}"
     gs="$(manifest_get "$MANIFEST" guard_script)"; gs="${gs//\$MEMORY_DIR/$MEMORY_DIR}"
     [ -n "$hs" ] || { info "hooks_json set but no hook_script in manifest — nothing to register"; return; }
     chmod +x "$hs" 2>/dev/null || true
     [ -n "$gs" ] && chmod +x "$gs" 2>/dev/null || true
+
+    while IFS=$'\t' read -r role spec; do
+        [ -n "$role" ] || continue
+        event="${spec%%:*}"
+        matcher=""
+        case "$spec" in *:*) matcher="${spec#*:}" ;; esac
+        case "$role" in
+            per_turn_inject)
+                inject_event="$event"
+                inject_matcher="$matcher"
+                hook_count=$((hook_count + 1))
+                ;;
+            infra_guard)
+                [ -n "$gs" ] || continue
+                guard_event="$event"
+                guard_matcher="$matcher"
+                hook_count=$((hook_count + 1))
+                ;;
+            *)
+                info "hook role '$role' has no hooks_json script association — skipping"
+                ;;
+        esac
+    done < <(manifest_hooks "$MANIFEST")
+
+    if [ "$hook_count" -eq 0 ]; then
+        info "hooks_json set but [hooks] has no registerable roles — nothing to register"
+        return
+    fi
 
     step "Hooks -> $hooks_json"
     mkdir -p "$(dirname "$hooks_json")"
@@ -152,11 +180,17 @@ _hook_register_json() {
         local rc=0 bak
         bak="$hooks_json.bak-$(_hook_ts)"   # resolve ONCE: two calls can straddle a second
         AIM_HOOKS_JSON="$hooks_json" AIM_INJECT_CMD="bash $hs" AIM_GUARD_CMD="${gs:+bash $gs}" \
+            AIM_INJECT_EVENT="$inject_event" AIM_INJECT_MATCHER="$inject_matcher" \
+            AIM_GUARD_EVENT="$guard_event" AIM_GUARD_MATCHER="$guard_matcher" \
             AIM_BAK="$bak" python3 - <<'PY' || rc=$?
 import json, os, shutil, sys
 path = os.environ["AIM_HOOKS_JSON"]
 inject = os.environ["AIM_INJECT_CMD"]
 guard  = os.environ.get("AIM_GUARD_CMD", "")
+inject_event = os.environ.get("AIM_INJECT_EVENT", "")
+inject_matcher = os.environ.get("AIM_INJECT_MATCHER", "")
+guard_event = os.environ.get("AIM_GUARD_EVENT", "")
+guard_matcher = os.environ.get("AIM_GUARD_MATCHER", "")
 bak  = os.environ["AIM_BAK"]
 data = {}
 if os.path.exists(path):
@@ -174,11 +208,15 @@ if os.path.exists(path):
             sys.exit(3)
     # Back up BEFORE rewriting — install.sh promises to back up what it overwrites.
     shutil.copy2(path, bak)
-data["ai-memory-inject"] = {"PreInvocation": [{"type": "command", "command": inject}]}
-if guard:
-    data["ai-memory-guard"] = {"PreToolUse": [
-        {"matcher": "*", "hooks": [{"type": "command", "command": guard}]}
-    ]}
+def entry(event, matcher, cmd):
+    if matcher:
+        return {event: [{"matcher": matcher, "hooks": [{"type": "command", "command": cmd}]}]}
+    return {event: [{"type": "command", "command": cmd}]}
+
+if inject_event:
+    data["ai-memory-inject"] = entry(inject_event, inject_matcher, inject)
+if guard and guard_event:
+    data["ai-memory-guard"] = entry(guard_event, guard_matcher, guard)
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
@@ -189,15 +227,36 @@ PY
         if [ -f "$bak" ]; then
             info "backed up existing -> $bak"
         fi
-        info "registered PreInvocation 'ai-memory-inject' -> bash $hs"
-        if [ -n "$gs" ]; then
-            info "registered PreToolUse  'ai-memory-guard'  -> bash $gs"
+        if [ -n "$inject_event" ]; then
+            info "registered $inject_event 'ai-memory-inject' -> bash $hs"
+        fi
+        if [ -n "$guard_event" ]; then
+            info "registered $guard_event  'ai-memory-guard'  -> bash $gs"
         fi
     elif [ ! -e "$hooks_json" ]; then
         {
-            printf '{\n  "ai-memory-inject": {\n    "PreInvocation": [\n      { "type": "command", "command": "bash %s" }\n    ]\n  }' "$hs"
-            if [ -n "$gs" ]; then
-                printf ',\n  "ai-memory-guard": {\n    "PreToolUse": [\n      { "matcher": "*", "hooks": [ { "type": "command", "command": "bash %s" } ] }\n    ]\n  }' "$gs"
+            if [ -n "$inject_event" ]; then
+                printf '{\n  "ai-memory-inject": {\n    "%s": [\n' "$inject_event"
+                if [ -n "$inject_matcher" ]; then
+                    printf '      { "matcher": "%s", "hooks": [ { "type": "command", "command": "bash %s" } ] }\n' "$inject_matcher" "$hs"
+                else
+                    printf '      { "type": "command", "command": "bash %s" }\n' "$hs"
+                fi
+                printf '    ]\n  }'
+            fi
+            if [ -n "$guard_event" ]; then
+                if [ -n "$inject_event" ]; then
+                    printf ','
+                else
+                    printf '{'
+                fi
+                printf '\n  "ai-memory-guard": {\n    "%s": [\n' "$guard_event"
+                if [ -n "$guard_matcher" ]; then
+                    printf '      { "matcher": "%s", "hooks": [ { "type": "command", "command": "bash %s" } ] }\n' "$guard_matcher" "$gs"
+                else
+                    printf '      { "type": "command", "command": "bash %s" }\n' "$gs"
+                fi
+                printf '    ]\n  }'
             fi
             printf '\n}\n'
         } > "$hooks_json"

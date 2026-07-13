@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # manifest.sh — read declarative per-harness manifests. A manifest is a flat
-# `key = value` file (│ `#` comments, blank lines ignored). Values may use `~`
-# and `$HOME`, expanded at read time. Manifests are DATA, not code — never
-# sourced/executed — so a manifest can declare a harness without granting it
-# shell in the installer. Sourced by install.sh, validate-manifest.sh, the
-# archetype drivers, and (later) executor.sh.
+# `key = value` file (│ `#` comments, blank lines ignored), optionally followed
+# by named sections. Values may use `~` and `$HOME`, expanded at read time.
+# Manifests are DATA, not code — never sourced/executed — so a manifest can
+# declare a harness without granting it shell in the installer. Sourced by
+# install.sh, validate-manifest.sh, the archetype drivers, and executor.sh.
 #
 #   manifest_get <file> <key>   -> value (trimmed, ~/$HOME expanded), empty if absent
 #   manifest_keys <file>        -> all declared keys, one per line
+#   manifest_hooks <file>       -> [hooks] role/event lines, role<TAB>event[:matcher]
 
 _mf_trim() { sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
 
@@ -23,12 +24,25 @@ _mf_expand() {
     printf '%s' "${v//\$HOME/$HOME}"
 }
 
-# Emit "key<TAB>value" for every declared line (comments/blanks stripped, trimmed).
+# Emit "key<TAB>value" for every top-level declared line (comments/blanks
+# stripped, trimmed). Keys inside named sections are intentionally hidden from
+# the flat-reader API.
 _mf_pairs() {
-    local file="$1" line k v
+    local file="$1" line t k v section
+    section=""
     [ -f "$file" ] || return 0
     while IFS= read -r line || [ -n "$line" ]; do
         line="${line%%#*}"                 # strip trailing/whole-line comment
+        t="$(printf '%s' "$line" | _mf_trim)"
+        case "$t" in
+            \[*\])
+                section="${t#\[}"
+                section="${section%\]}"
+                section="$(printf '%s' "$section" | _mf_trim)"
+                continue
+                ;;
+        esac
+        [ -z "$section" ] || continue
         case "$line" in *=*) ;; *) continue ;; esac
         k="$(printf '%s' "${line%%=*}" | _mf_trim)"
         v="$(printf '%s' "${line#*=}" | _mf_trim)"
@@ -48,4 +62,28 @@ manifest_get() {
 manifest_keys() {
     local k v
     while IFS=$'\t' read -r k v; do printf '%s\n' "$k"; done < <(_mf_pairs "$1")
+}
+
+manifest_hooks() {
+    local file="$1" line t k v section
+    section=""
+    [ -f "$file" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%%#*}"                 # strip trailing/whole-line comment
+        t="$(printf '%s' "$line" | _mf_trim)"
+        case "$t" in
+            \[*\])
+                section="${t#\[}"
+                section="${section%\]}"
+                section="$(printf '%s' "$section" | _mf_trim)"
+                continue
+                ;;
+        esac
+        [ "$section" = hooks ] || continue
+        case "$line" in *=*) ;; *) continue ;; esac
+        k="$(printf '%s' "${line%%=*}" | _mf_trim)"
+        v="$(printf '%s' "${line#*=}" | _mf_trim)"
+        [ -n "$k" ] || continue
+        printf '%s\t%s\n' "$k" "$v"
+    done < "$file"
 }

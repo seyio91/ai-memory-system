@@ -18,3 +18,8 @@ agents_dir   = ~/.claude/agents
 
 # execute face: in-harness Agent tool — no external headless command
 exec         = subagent
+
+[hooks]
+session_bootstrap = SessionStart
+per_turn_inject   = UserPromptSubmit
+task_tool_block   = PreToolUse:TaskCreate|TaskUpdate
