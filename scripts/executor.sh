@@ -10,6 +10,8 @@
 #   executor.sh [--role task|explore|validate] --which          -> 'subagent[:model]' | 'cli:<name>'
 #   executor.sh [--role task|explore|validate] --run "<prompt>" -> execs the CLI executor, or prints
 #                                                                   EXECUTOR_USE_SUBAGENT (exit 3)
+#     NB: a cli: --run runs a minutes-long, one-shot agentic loop — the caller must dispatch it as a
+#     background task (the orchestrator's run_in_background), never a foreground timeout-bound Bash call.
 #   executor.sh [--role ...] --show                    -> human-readable diagnostics
 #
 # A registered harness resolves through its manifest: exec=subagent -> subagent

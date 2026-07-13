@@ -63,7 +63,7 @@ The orchestrator delegates actionable work to a **selectable executor**, configu
 To delegate (or to validate), the orchestrator runs `scripts/executor.sh --role <role> --which`, which resolves config + availability and prints `subagent[:model]` or `cli:<key>`:
 
 - `subagent` → use the Claude `Agent` tool.
-- `cli:<key>` → run `scripts/executor.sh --role <role> --run "<prompt>"`, which execs the CLI executor (for `codex`, `codex-mem.sh --executor "<prompt>"`; validation uses the harness's read-only face — e.g. `codex exec --sandbox read-only`); if it prints `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead.
+- `cli:<key>` → run `scripts/executor.sh --role <role> --run "<prompt>"`, which execs the CLI executor (for `codex`, `codex-mem.sh --executor "<prompt>"`; validation uses the harness's read-only face — e.g. `codex exec --sandbox read-only`); if it prints `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead. **Dispatch a `cli:` `--run` as a background task** (in Claude, `run_in_background: true`): the CLI runs a minutes-long agentic loop, so a foreground call is killed by the harness tool timeout (in Claude, 2 min → SIGTERM / exit 143) mid-run. It is one-shot and self-terminating — read its output when the task completes. The `subagent` plane runs in-harness and has no such timeout.
 
 `--show` prints the resolved selection for debugging. A missing CLI binary auto-falls-back to `AI_MEMORY_EXECUTOR_FALLBACK` (default `claude-subagent`), so an unconfigured machine always has a working executor — and, since `validate` defaults to the always-available subagent plane, a working validator.
 
