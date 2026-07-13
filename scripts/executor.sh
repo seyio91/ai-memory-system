@@ -8,8 +8,13 @@
 # Task/explore fall back to the legacy single AI_MEMORY_EXECUTOR, then to claude-subagent.
 #
 #   executor.sh [--role task|explore|validate] --which          -> 'subagent[:model]' | 'cli:<name>'
-#   executor.sh [--role task|explore|validate] --run "<prompt>" -> execs the CLI executor, or prints
-#                                                                   EXECUTOR_USE_SUBAGENT (exit 3)
+#   executor.sh [--role task|explore|validate] --run [--clean] "<prompt>" -> execs the CLI executor, or
+#                                                                   prints EXECUTOR_USE_SUBAGENT (exit 3)
+#     NB: a cli: --run runs a minutes-long, one-shot agentic loop — the caller must dispatch it as a
+#     background task (the orchestrator's run_in_background), never a foreground timeout-bound Bash call.
+#     --clean: emit ONLY the final agent message (uniform across harnesses) for a cli: executor that
+#     declares exec_last_message (e.g. codex `-o {file}`); a harness without it passes its raw stream
+#     through unchanged (e.g. agy `-p`, already just the final message).
 #   executor.sh [--role ...] --show                    -> human-readable diagnostics
 #
 # A registered harness resolves through its manifest: exec=subagent -> subagent
@@ -65,14 +70,16 @@ cmd_template() {
 }
 
 # resolve_value <harness[:model]> — sets R_PLANE (subagent|cli), R_NAME, R_MODEL,
-# R_CMD (cli command template, {prompt} unsubstituted). Returns:
+# R_CMD (cli command template, {prompt} unsubstituted), R_LASTMSG (the harness's
+# exec_last_message flag template with {file} unsubstituted, or "" if it declares
+# none — see the --run --clean handler). Returns:
 #   0 resolved | 1 CLI unavailable | 2 unknown / no execute face
-R_PLANE="" R_NAME="" R_MODEL="" R_CMD=""
+R_PLANE="" R_NAME="" R_MODEL="" R_CMD="" R_LASTMSG=""
 resolve_value() {
     local value="$1" harness model mf cmd mflag probe
     harness="${value%%:*}"; model=""
     case "$value" in *:*) model="${value#*:}" ;; esac
-    R_PLANE="" R_NAME="$harness" R_MODEL="$model" R_CMD=""
+    R_PLANE="" R_NAME="$harness" R_MODEL="$model" R_CMD="" R_LASTMSG=""
 
     # subagent plane: legacy sentinel or a manifest exec=subagent.
     if [ "$harness" = "claude-subagent" ]; then R_PLANE=subagent; return 0; fi
@@ -108,6 +115,8 @@ resolve_value() {
             printf 'executor: %s unavailable (%s not found)\n' "$harness" "$probe" >&2
             return 1
         fi
+        # optional clean-output flag template (e.g. codex `-o {file}`); "" if absent.
+        R_LASTMSG="$(expand_memdir "$(manifest_get "$mf" exec_last_message)")"
         R_PLANE=cli; R_CMD="$cmd"; return 0
     fi
 
@@ -177,8 +186,21 @@ case "$MODE" in
         plane_token
         ;;
     --run)
-        PROMPT="${2:-}"
-        if [ -z "$PROMPT" ]; then
+        # Parse the remaining args: an optional --clean flag (either side of the
+        # prompt) plus exactly one prompt. --clean makes a cli: executor emit ONLY
+        # the final agent message, uniform across harnesses (see below).
+        shift  # drop --run
+        CLEAN=0; PROMPT=""; HAVE_PROMPT=0
+        while [ "$#" -gt 0 ]; do
+            case "$1" in
+                --clean) CLEAN=1 ;;
+                *)
+                    if [ "$HAVE_PROMPT" -eq 0 ]; then PROMPT="$1"; HAVE_PROMPT=1
+                    else printf 'executor --run: unexpected extra argument: %s\n' "$1" >&2; exit 2; fi ;;
+            esac
+            shift
+        done
+        if [ "$HAVE_PROMPT" -eq 0 ]; then
             printf 'executor --run: missing prompt argument\n' >&2; exit 2
         fi
         resolve || exit $?
@@ -192,6 +214,29 @@ case "$MODE" in
         # applies the deny-list for both roles and denies writes when explore. Unset
         # for interactive sessions, which stay unguarded.
         export AI_MEMORY_ROLE="$ROLE"
+        # --clean + a harness that declares exec_last_message (e.g. codex `-o {file}`):
+        # can't `exec` here (process replacement leaves nothing to post-process), so run
+        # the CLI writing its final message to a temp file, then emit only that file and
+        # propagate the CLI's exit code. A harness with no exec_last_message (e.g. agy,
+        # whose `-p` output is already just the final message) falls through to the plain
+        # exec path — --clean is a no-op pass-through there.
+        if [ "$CLEAN" -eq 1 ] && [ -n "$R_LASTMSG" ]; then
+            tmp="$(mktemp)" || { printf 'executor --run: mktemp failed\n' >&2; exit 1; }
+            errlog="$(mktemp)" || { rm -f "$tmp"; printf 'executor --run: mktemp failed\n' >&2; exit 1; }
+            trap 'rm -f "$tmp" "$errlog"' EXIT
+            lastflag="${R_LASTMSG//\{file\}/$(shq "$tmp")}"
+            # The CLI writes its final message to $tmp (exec_last_message flag). Discard
+            # its stdout, and capture its stderr — codex puts its human transcript there,
+            # verified — to $errlog rather than letting it pollute our output. On SUCCESS
+            # we emit ONLY the final message (with exactly one trailing newline); on
+            # FAILURE we additionally replay the captured stderr so the caller can debug,
+            # and always propagate the CLI's exit code.
+            eval "${cmd} ${lastflag} </dev/null >/dev/null 2>$(shq "$errlog")"
+            rc=$?
+            [ -s "$tmp" ] && printf '%s\n' "$(cat "$tmp")"
+            [ "$rc" -ne 0 ] && cat "$errlog" >&2
+            exit "$rc"
+        fi
         eval "exec ${cmd} </dev/null"
         ;;
     --show)
@@ -210,7 +255,7 @@ case "$MODE" in
         fi
         ;;
     *)
-        printf 'usage: executor.sh [--role task|explore|validate] --which | --run "<prompt>" | --show\n' >&2
+        printf 'usage: executor.sh [--role task|explore|validate] --which | --run [--clean] "<prompt>" | --show\n' >&2
         exit 2
         ;;
 esac

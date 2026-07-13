@@ -324,4 +324,101 @@ assert_exit 0 "$CODE" "--role=validate --which still resolves"
 run --which
 assert_exit 0 "$CODE" "bare --which (default role) still resolves"
 
+# ============ --run --clean: uniform final-message output ============
+# A `cc` harness emulates codex: it declares exec_last_message (`-o {file}`), writes
+# its final message to that file, dumps NOISE to stdout and a TRANSCRIPT to stderr,
+# and its exit code / whether-it-writes-the-file are env-driven so we can exercise
+# success, hard failure (empty file), and partial-file failure deterministically.
+unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_EXPLORE AI_MEMORY_EXECUTOR_VALIDATE
+CLEANMARK="$BIN/clean-ofile.txt"   # records the -o path the CLI saw (for the cleanup assertion)
+PPMARK="$BIN/pp-args.txt"          # records the args the pass-through CLI saw
+cat > "$BIN/cleanbin" <<EOF
+#!/usr/bin/env bash
+outfile=""; prev=""
+for a in "\$@"; do [ "\$prev" = "-o" ] && outfile="\$a"; prev="\$a"; done
+printf '%s' "\$outfile" > "$CLEANMARK"
+printf 'STDOUT-NOISE\n'
+printf 'STDERR-TRANSCRIPT\n' >&2
+if [ -n "\${CLEANBIN_MSG:-}" ] && [ -n "\$outfile" ]; then printf 'CLEAN-MSG' > "\$outfile"; fi
+exit "\${CLEANBIN_RC:-0}"
+EOF
+cat > "$BIN/ppbin" <<EOF
+#!/usr/bin/env bash
+printf '%s' "\$*" > "$PPMARK"
+printf 'PASSTHRU-OUT\n'
+exit 0
+EOF
+chmod +x "$BIN/cleanbin" "$BIN/ppbin"
+mk_manifest cc 'name = cc' 'archetype = file' 'format = md' \
+    'exec_cmd = cleanbin --do {prompt}' 'exec_readonly = cleanbin --ro {prompt}' \
+    'exec_last_message = -o {file}' 'exec_probe = cleanbin'
+mk_manifest pp 'name = pp' 'archetype = file' 'format = md' \
+    'exec_cmd = ppbin {prompt}' 'exec_probe = ppbin'
+export PATH="$BIN:$PATH"
+export AI_MEMORY_EXECUTOR_TASK=cc
+
+# success: emit ONLY the final message, discard stdout noise, suppress stderr, exit 0
+export CLEANBIN_MSG=1 CLEANBIN_RC=0
+run --run --clean "hello"
+assert_exit 0 "$CODE" "--run --clean success exits 0"
+assert_eq "CLEAN-MSG" "$OUT" "--run --clean emits ONLY the final message"
+assert_not_contains "$OUT" "STDOUT-NOISE" "--run --clean discards the CLI's stdout"
+assert_eq "" "$ERR" "--run --clean suppresses the CLI's stderr on success"
+assert_eq "0a" "$(tail -c1 "$BIN/.o" | od -An -tx1 | tr -d ' \n')" "--run --clean output ends in exactly one newline"
+
+# temp-file cleanup: the -o file the CLI wrote no longer exists (trap EXIT removed it)
+ofile="$(cat "$CLEANMARK")"
+if [ -n "$ofile" ] && [ ! -e "$ofile" ]; then cleaned=yes; else cleaned=no; fi
+assert_eq "yes" "$cleaned" "--run --clean removes its temp file after the run"
+unset CLEANBIN_MSG CLEANBIN_RC
+
+# hard failure (CLI writes no message, exits non-zero): empty stdout, exit propagated,
+# stderr surfaced for debugging
+export CLEANBIN_RC=7
+run --run --clean "boom"
+assert_exit 7 "$CODE" "--run --clean propagates a non-zero CLI exit code"
+assert_eq "" "$OUT" "--run --clean emits nothing when the message file is empty"
+assert_eq "0" "$(wc -c < "$BIN/.o" | tr -d ' ')" "--run --clean writes zero bytes (not a stray newline) on an empty message file"
+assert_contains "$ERR" "STDERR-TRANSCRIPT" "--run --clean surfaces the CLI's stderr on failure"
+unset CLEANBIN_RC
+
+# partial failure (CLI wrote a message but still exited non-zero): message is emitted,
+# exit code propagated, stderr still surfaced
+export CLEANBIN_MSG=1 CLEANBIN_RC=5
+run --run --clean "partial"
+assert_exit 5 "$CODE" "--run --clean failure still propagates the exit code (5)"
+assert_eq "CLEAN-MSG" "$OUT" "--run --clean emits the partial message on failure"
+assert_contains "$ERR" "STDERR-TRANSCRIPT" "--run --clean surfaces stderr on a partial failure"
+unset CLEANBIN_MSG CLEANBIN_RC
+
+# pass-through: a harness with NO exec_last_message ignores --clean (raw stdout, no -o flag)
+export AI_MEMORY_EXECUTOR_TASK=pp
+run --run --clean "x"
+assert_exit 0 "$CODE" "--run --clean pass-through exits 0"
+assert_contains "$OUT" "PASSTHRU-OUT" "--clean on a harness without exec_last_message passes stdout through"
+assert_not_contains "$(cat "$PPMARK")" "-o" "--clean pass-through appends no -o flag"
+
+# regression: --run WITHOUT --clean is unchanged — streams the CLI's stdout, appends no -o
+export AI_MEMORY_EXECUTOR_TASK=cc CLEANBIN_MSG=1
+run --run "verbose"
+assert_exit 0 "$CODE" "--run without --clean exits 0"
+assert_contains "$OUT" "STDOUT-NOISE" "--run without --clean streams the CLI's stdout (verbose, unchanged)"
+assert_eq "" "$(cat "$CLEANMARK")" "--run without --clean appends no -o flag"
+unset AI_MEMORY_EXECUTOR_TASK CLEANBIN_MSG
+
+# --clean is role-agnostic: the explore role (exec_readonly path) is also cleaned
+export AI_MEMORY_EXECUTOR_EXPLORE=cc CLEANBIN_MSG=1
+run --role explore --run --clean "scout"
+assert_exit 0 "$CODE" "--run --clean (explore role) exits 0"
+assert_eq "CLEAN-MSG" "$OUT" "--run --clean cleans the explore role (exec_readonly) too"
+unset AI_MEMORY_EXECUTOR_EXPLORE CLEANBIN_MSG
+
+# --clean on the subagent plane is a no-op: still prints the sentinel and exits 3
+export AI_MEMORY_EXECUTOR_VALIDATE=claude-subagent
+run --role validate --run --clean "check"
+assert_eq "EXECUTOR_USE_SUBAGENT" "$OUT" "--run --clean on the subagent plane still prints the sentinel"
+assert_exit 3 "$CODE" "--run --clean on the subagent plane exits 3 (--clean is a no-op)"
+unset AI_MEMORY_EXECUTOR_VALIDATE
+export PATH="$OLDPATH"
+
 finish
