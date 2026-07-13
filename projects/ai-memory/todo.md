@@ -6,7 +6,11 @@
 
 ## Active
 
-_(nothing in flight)_
+### Standardize the hook layer across harnesses (+ move Codex onto native hooks) → [plan](plans/hook-standardization.md)
+- [ ] P1 — roles + data-driven driver (`[hooks]` map, no hardcoded event names; behavior-preserving)
+- [ ] P2 — shared `scripts/hooks/` + Codex onto hooks (hybrid, requirements.toml trust, version floor)
+- [ ] P3 — migrate Claude + fail-closed `settings.json` auto-merge; Antigravity adapter
+- [ ] P4 — compaction_recovery + docs/consumers (close guard task 396f6850; on-demand-project-load #4; codex docs)
 
 ## Done
 _(checked items stay above until the file is rolled)_
