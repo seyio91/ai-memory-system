@@ -99,7 +99,7 @@ The engine is **harness-agnostic** (`install.sh` is a generic manifest-driven in
 
 Open build threads, all captured as backlog tasks:
 - **Release automation** — replace `release.sh`'s release-time `git log` drafting with per-PR changelog fragments, then let GitHub Actions assemble and publish. Design in the `release-automation` investigation. Would also make branch protection on `main` possible, which `release.sh` currently forbids by pushing `main` itself.
-- **Task-provider `body` field** — `summary` is the only free-text field, and the two backends disagree about what it is (`local` writes it as a markdown body, `notion` as a 2000-char property). Long designs can't be captured without a pointer file.
+- **Task-provider `summary` divergence** — a dedicated `body` field is **decided-against** (see the task-`summary` Architecture Decision: a `body` writer is a push path for long-form into a store defined as a projection — the split-brain the model exists to prevent; long-form lives in `investigations/<slug>.md`, referenced by name). The live residue is narrower: the two backends disagree about what `summary` physically *is* — `local` writes it as a markdown body, `notion` as a rich_text property — an unreconciled representation gap, not a missing feature.
 - **`@`-sign section-level context loading** — pull a named file or section instead of injecting whole files.
 
 **Versioned-release-channel thread — DONE** (the `versioned-release-channel` plan). Its design record is the `versioned-release-packaging` wiki; §7 there holds the deferred external-user zip thread, which untracking personal content would make cheap (`git archive` becomes a valid build primitive once nothing personal is tracked).
