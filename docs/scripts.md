@@ -11,6 +11,7 @@
 | `codex-mem.sh` | Build AGENTS.md + run codex (calls `build-context-md.sh`) | `codex-mem.sh`, `codex-mem.sh exec --sandbox read-only "..."` |
 | `codex-mem-checkpoint.sh` | Emit checkpoint scaffold | TTY → opens `$EDITOR`; `--for-codex` → stdout for Codex to consume |
 | `agy.sh` | Antigravity launch wrapper (build context + `exec agy`) | `agy.sh [agy args...]` (alias `agy` to it) |
+| `executor.sh` | Resolve + dispatch the configured executor/validator (manifest-driven) | `executor.sh [--role task\|explore\|validate] --which \| --run [--clean] "<prompt>" \| --show`; `--clean` emits only the final agent message (needs the harness's `exec_last_message`) |
 | `regenerate-index.sh` | Rebuild `index.md` AUTOGEN block | `regenerate-index.sh` (idempotent) |
 | `regenerate-state.sh` | Derive the on-demand **In Flight** snapshot (`/state`), grouped by category | `regenerate-state.sh [--stdout]`, `regenerate-state.sh <category> --stdout` → `state.md` (gitignored) |
 | `regenerate-activity.sh` | **Activity report** (`/activity`) — plans created in a window, grouped by category | `regenerate-activity.sh (<category>\|--all) [--since <N>[d]] [--stdout]` → `activity.md` (gitignored) |

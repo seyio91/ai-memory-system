@@ -37,6 +37,7 @@ registration differ.
 | `exec_cmd` | headless command, `{prompt}` placeholder (e.g. `codex exec {prompt}`) |
 | `exec_model_flag` | model flag template, `{model}` (e.g. `--model {model}`) |
 | `exec_readonly` | optional read-only headless command; omit → the harness is a task-role executor only |
+| `exec_last_message` | optional flag template writing ONLY the final agent message to a file, `{file}` placeholder (e.g. codex `-o {file}`); enables `executor.sh --run --clean` for this harness |
 
 `executor.sh` exports `AI_MEMORY_ROLE` (`task`/`explore`) before running the command,
 so a **hook-capable** harness can *enforce* read-only rather than rely on a CLI flag:
@@ -44,6 +45,14 @@ Antigravity's `exec_readonly` is the same command as `exec_cmd`, and its `PreToo
 guard (see `guard_script`) denies every non-read tool when `AI_MEMORY_ROLE=explore`,
 plus the shared `scripts/deny-list.txt` for both roles. Interactive sessions (no role)
 stay unguarded.
+
+`--run --clean` gives uniform output: for a harness that declares `exec_last_message`,
+`executor.sh` runs the command with the flag pointed at a temp file, then emits **only**
+that file (the final agent message) and propagates the CLI's exit code (surfacing the
+CLI's stderr only on failure). A harness that omits the key passes its raw stdout through
+unchanged — correct when that stdout is already just the final message (e.g. Antigravity's
+`agy -p`). codex writes its transcript to *stderr*, so `exec_last_message` (`-o {file}`) is
+how it becomes clean.
 
 ## 2a. (file archetype) add a launch wrapper
 
