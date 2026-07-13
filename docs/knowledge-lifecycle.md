@@ -7,7 +7,7 @@ projects/<active>/working.md  ─/promote-──┤    [+ index.md regen]
                                                project-specific
 ```
 
-- **Working memory** — per-project scratchpad. Injected on every prompt while non-empty. Each project has its own — concurrent sessions on different projects don't collide.
+- **Working memory** — per-project scratchpad. Injected with the full payload at session start (and on `@memory`/after compaction) while non-empty — **not** on every prompt (ordinary prompts carry only the `<memory:active>` breadcrumb, which points at the working file). Each project has its own — concurrent sessions on different projects don't collide.
 - **Direct project memory updates** — for engagement-specific decisions, edit `projects/<active>/memory.md` directly (Architecture Decisions / Known Constraints / Current State / Current Goal).
 - **Checkpoint discipline** — before pauses, tool switches, or session end. `/checkpoint` in Claude; `/checkpoint` in Codex. Both write to the same `working.md`.
 - **Promotion** — `/promote-memory` reads `working.md`, asks domain-or-project, captures a one-line summary, archives the old `working.md`, regenerates `index.md`.

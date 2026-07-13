@@ -15,10 +15,11 @@ printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalCon
 
 | Block | When |
 |-------|------|
-| `<memory:identity>` | First prompt of a session |
-| `<memory:project name="...">` | First prompt of a session, if active project resolved |
-| `<memory:index>` | First prompt of a session |
-| `<memory:working>` | **Every prompt** if `projects/<active>/working.md` is non-empty |
+| `<memory:identity>` | Full payload — session start, `@memory`, or post-compaction |
+| `<memory:project name="...">` | Full payload (as above), if active project resolved |
+| `<memory:index>` | Full payload (as above) |
+| `<memory:working>` | Full payload (as above), if `projects/<active>/working.md` is non-empty — **not** every prompt |
+| `<memory:active>` | **Every prompt** — the lightweight breadcrumb: project pointer + memory-file paths (including the `working:` write-target) + a re-read directive. This is the only per-prompt injection; the full-payload blocks above ride it only on session start / `@memory` / post-compaction. |
 
 Claude never has to "remember to read" memory — it arrives in-band. Domain files are *not* auto-injected; Claude reads them on demand when the index entry matches the task.
 
