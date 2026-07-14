@@ -79,6 +79,12 @@ the `session_id` match.
 - **No driver generalization** — add a 5th hardcoded role, consistent with the existing 4.
 - **Event string is manifest config**, set from the spike; the driver stays event-agnostic, so
   the arm script + driver wiring can land before the event name is pinned.
+- **The arm SCRIPT is event-agnostic too (corrected post-P3, validator finding).** Its gate is
+  `[ -z "$SOURCE" ] || [ "$SOURCE" = "compact" ] || exit 0` — it arms on SessionStart(source=compact)
+  AND on PreCompact/PostCompact (which carry `trigger`, no `source`), rejecting only an explicit
+  non-compact source (SessionStart source=startup). The original strict `source=compact` gate would
+  have silently no-op'd if the manifest were flipped to Pre/PostCompact — so the fallback is a real
+  manifest one-liner ONLY because of this relaxation. Primary event stays `SessionStart` (Claude parity).
 
 ## P1 spike findings (2026-07-14) — VERDICT: GO ✅
 
