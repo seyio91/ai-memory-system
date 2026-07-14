@@ -22,7 +22,13 @@ if ! json_parser_available; then
     deny "no jq/python3, cannot inspect tool call"
 fi
 
-CMDLINE="$(printf '%s' "$INPUT" | json_get_path toolCall args CommandLine)"
+# The shell command lives at different JSON paths per harness's PreToolUse stdin:
+# Codex/Claude family use tool_input.command (verified against real codex 0.144.1
+# stdin); Antigravity uses toolCall.args.CommandLine. Read the Codex/Claude path
+# first (guard.sh's actual consumers), then fall back to the Antigravity shape so
+# a wrong path can never silently read empty and fail OPEN.
+CMDLINE="$(printf '%s' "$INPUT" | json_get_path tool_input command)"
+[ -n "$CMDLINE" ] || CMDLINE="$(printf '%s' "$INPUT" | json_get_path toolCall args CommandLine)"
 
 if [ ! -f "$REPO/scripts/deny-list.txt" ]; then
     deny "executor deny-list missing at scripts/deny-list.txt — refusing to run unguarded"

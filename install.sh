@@ -20,6 +20,7 @@ MEMORY_DIR="${MEMORY_DIR:-$HOME/.claude-memory}"
 TS="$(date +%Y%m%d-%H%M%S)"
 
 . "$REPO_ROOT/scripts/manifest.sh"
+. "$REPO_ROOT/scripts/_lib.sh"
 
 info() { printf '  %s\n' "$1"; }
 step() { printf '\n==> %s\n' "$1"; }
@@ -44,6 +45,11 @@ list_harnesses() {
         arch="$(manifest_get "$mf" archetype)"
         printf '  %-10s (%s)\n' "$name" "$arch"
     done
+}
+
+codex_hooks_version() {
+    command -v codex >/dev/null 2>&1 || return 1
+    codex --version 2>/dev/null | awk '{print $NF; exit}'
 }
 
 # detect_harness — pick a harness whose manifest exists AND whose runtime dir is
@@ -118,6 +124,26 @@ fi
 # ---- archetype driver (hooks/statusline for hook; context prep for file) --
 . "$REPO_ROOT/scripts/drivers/$ARCHETYPE.sh"
 driver_install
+
+# Codex hybrid: its manifest remains file-archetype (static AGENTS.md base) but
+# declares native hooks_json for dynamic per-turn memory and the executor guard.
+# Codex's hooks.json schema is not Antigravity's, so this is a narrow
+# per-harness registration branch rather than the generic hook-archetype driver.
+HOOKS_JSON="$(manifest_get "$MANIFEST" hooks_json)"
+if [ "$ARCHETYPE" = file ] && [ -n "$HOOKS_JSON" ]; then
+    HOOKS_MIN_VERSION="$(manifest_get "$MANIFEST" hooks_min_version)"
+    CODEX_HOOKS_VERSION="$(codex_hooks_version || true)"
+    if [ -n "$HOOKS_MIN_VERSION" ] && [ -z "$CODEX_HOOKS_VERSION" ]; then
+        info "codex not found — skipping native hook registration; $HARNESS stays file-archetype-only (AGENTS.md)"
+    elif [ -n "$HOOKS_MIN_VERSION" ] && semver_gt "$HOOKS_MIN_VERSION" "$CODEX_HOOKS_VERSION"; then
+        info "codex $CODEX_HOOKS_VERSION is below hooks_min_version $HOOKS_MIN_VERSION — skipping native hook registration; $HARNESS stays file-archetype-only (AGENTS.md)"
+    else
+        (
+            . "$REPO_ROOT/scripts/drivers/hook.sh"
+            _hook_register_codex_json "$HOOKS_JSON"
+        )
+    fi
+fi
 
 # ---- skills + agents fan-out (any harness that declares a target) ---------
 # Phase 4 lifts the Phase-3 archetype gate: skills fan out into whatever

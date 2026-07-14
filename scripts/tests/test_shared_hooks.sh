@@ -65,7 +65,15 @@ md_out="$(json_payload "reload @memory" "$WORK" "s3" | AI_MEMORY_HOOK_FORMAT=md 
 assert_contains "$md_out" "# === IDENTITY ===" "shared md inject: full md identity heading"
 assert_contains "$md_out" "# === PROJECT: proj ===" "shared md inject: full md project heading"
 
+# Codex's REAL PreToolUse stdin shape (verified against codex 0.144.1): the shell
+# command lives at tool_input.command. Using the actual schema is the point — an
+# earlier version of this test used Antigravity's {"toolCall":{"args":{"CommandLine"}}}
+# shape and passed while the guard read empty and failed OPEN for Codex.
 guard_payload() {
+    printf '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"%s"},"tool_use_id":"call_x"}' "$1"
+}
+# Antigravity's shape — exercises the guard's fallback path.
+guard_payload_agy() {
     printf '{"toolCall":{"name":"run_command","args":{"CommandLine":"%s"}}}' "$1"
 }
 
@@ -75,8 +83,14 @@ set +e
 guard_payload "terraform apply -auto-approve" | AI_MEMORY_ROLE=task bash "$SHARED_GUARD" >/dev/null 2>"$ERR"
 code=$?
 set -e
-assert_exit 2 "$code" "shared guard: executor denied command exits 2"
+assert_exit 2 "$code" "shared guard: Codex-shape denied command exits 2"
 assert_contains "$(cat "$ERR")" "terraform apply" "shared guard: denied command explains reason"
+
+set +e
+guard_payload_agy "terraform apply -auto-approve" | AI_MEMORY_ROLE=task bash "$SHARED_GUARD" >/dev/null 2>"$ERR"
+code=$?
+set -e
+assert_exit 2 "$code" "shared guard: Antigravity-shape denied command exits 2 (fallback path)"
 
 set +e
 guard_payload "terraform apply -auto-approve" | env -u AI_MEMORY_ROLE bash "$SHARED_GUARD" >/dev/null 2>"$ERR"

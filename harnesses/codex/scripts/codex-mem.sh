@@ -33,6 +33,7 @@ case "${1:-}" in
         EXECUTOR_MODE=true
         EXECUTOR_FLAGS=(
             exec
+            --dangerously-bypass-hook-trust
             --sandbox workspace-write
             --skip-git-repo-check
             -c sandbox_workspace_write.network_access=true

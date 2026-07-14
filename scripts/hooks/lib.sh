@@ -18,6 +18,8 @@ _hook_resolve() {
 
 _hook_self="$(_hook_resolve "${BASH_SOURCE[0]}")"
 _HOOK_REPO="$(cd "$(dirname "$_hook_self")/../.." && pwd)"
+: "${MEMORY_DIR:=$_HOOK_REPO}"
+export MEMORY_DIR
 
 . "$_HOOK_REPO/scripts/_lib.sh"
 . "$_HOOK_REPO/scripts/content-core.sh"

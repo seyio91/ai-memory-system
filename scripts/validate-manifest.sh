@@ -15,7 +15,7 @@ ERRORS=0
 err()  { printf 'ERROR: %s\n' "$1"; ERRORS=$((ERRORS + 1)); }
 warn() { printf 'WARN:  %s\n' "$1"; }
 
-KNOWN_KEYS=" name archetype format hooks_dir hooks_json hook_script guard_script statusline statusline_settings statusline_script commands commands_dir commands_doc skills_dir agents_dir context_target refresh exec exec_cmd exec_model_flag exec_readonly exec_probe "
+KNOWN_KEYS=" name archetype format hooks_dir hooks_json hook_script guard_script hooks_min_version statusline statusline_settings statusline_script commands commands_dir commands_doc skills_dir agents_dir context_target refresh exec exec_cmd exec_model_flag exec_readonly exec_last_message exec_probe "
 
 in_set() { case "$2" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
@@ -47,6 +47,8 @@ validate_one() {
             ;;
         file)
             [ -n "$(manifest_get "$mf" context_target)" ] || err "$label: file archetype requires 'context_target'"
+            [ -z "$(manifest_get "$mf" hooks_json)" ] || [ -n "$(manifest_get "$mf" hook_script)" ] \
+                || err "$label: hooks_json requires 'hook_script'"
             local rf; rf="$(manifest_get "$mf" refresh)"
             in_set "$rf" " launch hook " || err "$label: file archetype 'refresh' must be launch|hook (got '${rf:-<empty>}')"
             ;;

@@ -65,6 +65,10 @@ run_vm "$mf"; assert_contains "$OUT" "statusline_settings requires 'statusline_s
 mf="$(write_manifest codex 'name = codex' 'archetype = file' 'format = md' 'refresh = launch')"
 run_vm "$mf"; assert_contains "$OUT" "requires 'context_target'" "file w/o context_target: message"
 
+# --- file archetype hybrid hooks_json needs hook_script ---
+mf="$(write_manifest codex 'name = codex' 'archetype = file' 'format = md' 'context_target = ~/.codex/AGENTS.md' 'refresh = launch' 'hooks_json = ~/.codex/hooks.json')"
+run_vm "$mf"; assert_contains "$OUT" "hooks_json requires 'hook_script'" "file hooks_json w/o hook_script: message"
+
 # --- file archetype bad refresh ---
 mf="$(write_manifest codex 'name = codex' 'archetype = file' 'format = md' 'context_target = ~/.codex/AGENTS.md' 'refresh = poll')"
 run_vm "$mf"; assert_contains "$OUT" "refresh' must be launch|hook" "file bad refresh: message"
