@@ -124,7 +124,9 @@ Real Codex compaction forced via live TTY (`/compact`), 8 events captured, all s
   asserts the SessionStart arm entry (once, correct cmd) + legacy sweep. Suite green 42/42;
   re-sync idempotent. Committed `3b4329d`. (SC3) ✅
 - [ ] **P4 — E2E verify + close:** real compaction -> full `<memory:identity>` payload on next
-  prompt; validator gate; fix `docs/harnesses/codex.md` if stale; mark plan done. (SC4)
+  prompt; confirm auto-compaction emits `SessionStart(compact)`; validator gate; mark plan done. (SC4)
+  - [x] Doc sub-item: `docs/harnesses/codex.md` compaction-recovery section updated (commit `bb8a4ee`,
+    check-docs clean). Remaining P4 is the live-TTY E2E + validator + PR-to-main.
 
 ## Risks / open questions
 
