@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # content-core.sh — the single source of "what memory sections, in what order,
-# and whether present". Sourced by every context consumer (the Claude hook via
-# memory_common.sh, the Codex adapter via codex-mem.sh). It performs NO rendering:
+# and whether present". Sourced by every context consumer (the shared hook lib,
+# the Codex adapter via codex-mem.sh). It performs NO rendering:
 # it emits a format-neutral, ordered list of the present sections as records, and
 # the per-format serializers (formatters/xml.sh, formatters/md.sh) turn those into
 # bytes. This replaces the duplicated selection walks that used to live in both
-# memory_common.sh (assemble_full_memory/assemble_breadcrumb) and codex-mem.sh.
+# the old Claude hook helper and codex-mem.sh.
 #
-# Depends only on $MEMORY_DIR (set by the caller: memory_common.sh resolves it,
+# Depends only on $MEMORY_DIR (set by the caller: scripts/hooks/lib.sh resolves it,
 # _lib.sh defaults it). No dependency on _lib.sh helpers, so it is safe to source
 # from the Claude hook context which does not load _lib.sh.
 
@@ -27,7 +27,7 @@ _cs_want() {
 # in two git worktrees, which must not clobber each other's working.md. The key
 # (precedence: explicit marker > git worktree > none) selects working.<key>.md;
 # no key -> the shared working.md, unchanged. Lives here (not _lib.sh) so the
-# Claude hook — which sources content-core but not _lib — gets it too; _lib.sh
+# hook library — which sources content-core before most _lib helpers — gets it too; _lib.sh
 # sources content-core so its callers (checkpoint writers) share this one copy.
 
 # _sanitize_session_key — stdin -> filename-safe [a-z0-9-] token on stdout.

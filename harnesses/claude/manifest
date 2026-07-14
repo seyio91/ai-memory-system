@@ -4,9 +4,14 @@ name         = claude
 archetype    = hook
 format       = xml
 
-# hook archetype wiring (symlink targets under the harness runtime dir)
-hooks_dir    = ~/.claude/hooks
-statusline   = ~/.claude/statusline.sh
+# hook archetype wiring. hooks_dir stays for the statusline/runtime root, but
+# hook commands are registered into settings.json by absolute path.
+hooks_dir      = ~/.claude/hooks
+settings_json = ~/.claude/settings.json
+hook_script    = $MEMORY_DIR/scripts/hooks/inject.sh
+session_script = $MEMORY_DIR/harnesses/claude/hooks/session_start_memory.sh
+block_script   = $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh
+statusline     = ~/.claude/statusline.sh
 
 # commands surface: native = symlink command .md bodies into the harness command dir
 commands     = native

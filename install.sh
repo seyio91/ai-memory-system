@@ -127,8 +127,8 @@ driver_install
 
 # Codex hybrid: its manifest remains file-archetype (static AGENTS.md base) but
 # declares native hooks_json for dynamic per-turn memory and the executor guard.
-# Codex's hooks.json schema is not Antigravity's, so this is a narrow
-# per-harness registration branch rather than the generic hook-archetype driver.
+# Codex shares the Claude native hook schema, so this calls the native JSON writer
+# even though Codex remains file-archetype for its AGENTS.md base.
 HOOKS_JSON="$(manifest_get "$MANIFEST" hooks_json)"
 if [ "$ARCHETYPE" = file ] && [ -n "$HOOKS_JSON" ]; then
     HOOKS_MIN_VERSION="$(manifest_get "$MANIFEST" hooks_min_version)"

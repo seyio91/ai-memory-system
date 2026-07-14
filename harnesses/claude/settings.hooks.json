@@ -1,17 +1,17 @@
 {
-  "_comment": "Merge the hook entries and the statusLine below into ~/.claude/settings.json. install.sh symlinks the hook scripts into ~/.claude/hooks/ and statusline.sh into ~/.claude/. Paths assume the default install location ~/.claude-memory; adjust if you set MEMORY_DIR elsewhere.",
+  "_comment": "Reference shape only. install.sh now auto-merges these hook entries into ~/.claude/settings.json using absolute paths from the active MEMORY_DIR, preserving sibling settings keys. statusLine remains shown here as the runtime shape for the separately installed ~/.claude/statusline.sh.",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/hooks/session_start_memory.sh" }
+          { "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/session_start_memory.sh" }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/hooks/inject_memory.sh" }
+          { "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash $MEMORY_DIR/scripts/hooks/inject.sh" }
         ]
       }
     ],
@@ -19,7 +19,7 @@
       {
         "matcher": "TaskCreate|TaskUpdate",
         "hooks": [
-          { "type": "command", "command": "$HOME/.claude/hooks/block_task_tools.sh" }
+          { "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh" }
         ]
       }
     ]

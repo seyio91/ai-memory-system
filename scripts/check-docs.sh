@@ -17,8 +17,8 @@
 # Source-following is required, not a nicety: "Used by" means whose BEHAVIOUR
 # the var affects, not which file holds the string. lint-memory.sh never
 # mentions AI_MEMORY_PROJECTS_ROOT -- it calls projects_root() in _lib.sh. And
-# one hop is not enough: inject_memory.sh -> memory_common.sh -> _lib.sh is a
-# depth-2 chain whose inner source is conditional. Hence a transitive closure
+# one hop is not enough: scripts/hooks/inject.sh -> scripts/hooks/lib.sh ->
+# _lib.sh is a depth-2 chain. Hence a transitive closure
 # with a visited-set cycle guard.
 #
 # A `Used by` cell that names no script (e.g. "All scripts", "NotionProvider")
@@ -66,7 +66,7 @@ resolve_script() {
 
 # sources_of <file> -> basenames of .sh files it sources.
 # Matches the trailing /<basename>.sh rather than the token after `.`/`source`:
-# `source "$(dirname "$0")/memory_common.sh"` contains a space inside $( ), so a
+# `source "$(dirname "$0")/../shared/lib.sh"` contains a space inside $( ), so a
 # naive \s+(\S+) capture grabs `"$(dirname` and silently finds nothing.
 #
 # NB: the s### delimiter is '#', NOT '|'. The alternation (\.|source) contains a

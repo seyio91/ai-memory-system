@@ -5,7 +5,7 @@ slash commands, and skills (including the self-rating loop).
 
 ## Auto-injection
 
-`~/.claude/hooks/inject_memory.sh` runs on every prompt as a `UserPromptSubmit` hook. It reads the hook's stdin JSON (for `session_id` and `cwd`) and emits the `<memory:*>` blocks via the `hookSpecificOutput.additionalContext` contract — **not** by appending to the user message:
+`scripts/hooks/inject.sh` runs on every prompt as a `UserPromptSubmit` hook. It reads the hook's stdin JSON (for `session_id` and `cwd`) and emits the `<memory:*>` blocks via the `hookSpecificOutput.additionalContext` contract — **not** by appending to the user message:
 
 ```bash
 printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":%s}}\n' "$esc"
@@ -25,31 +25,31 @@ Claude never has to "remember to read" memory — it arrives in-band. Domain fil
 
 **Once-per-session injection.** There is no per-session marker file. The full payload is emitted inline by the `SessionStart` hook (`session_start_memory.sh`), which by definition fires once per session — so nothing needs tracking. Concurrent sessions cannot collide, because no shared state is written on the hot path.
 
-**Post-compaction sentinels.** The one piece of per-session state is a compaction sentinel. `SessionStart` with `source=compact` cannot inject reliably, so instead it writes `<session_id>.recompact` under `$MEMORY_DIR/.sessions` and prunes sentinels older than 2 days (`find "$STATE_DIR" -name '*.recompact' -mtime +2 -delete`) — for sessions that compacted but never resumed. The next `UserPromptSubmit` (`inject_memory.sh`) consumes the sentinel, re-injects the full payload once, and removes it. The state dir honors the `MEMORY_STATE_DIR` override (`memory_common.sh`); the test suite sandboxes it implicitly by setting `MEMORY_DIR`.
+**Post-compaction sentinels.** The one piece of per-session state is a compaction sentinel. `SessionStart` with `source=compact` cannot inject reliably, so instead it writes `<session_id>.recompact` under `$MEMORY_DIR/.sessions` and prunes sentinels older than 2 days (`find "$STATE_DIR" -name '*.recompact' -mtime +2 -delete`) — for sessions that compacted but never resumed. The next `UserPromptSubmit` (`scripts/hooks/inject.sh`) consumes the sentinel, re-injects the full payload once, and removes it. The state dir honors the `MEMORY_STATE_DIR` override (`scripts/hooks/lib.sh`); the test suite sandboxes it implicitly by setting `MEMORY_DIR`.
 
 ## Hooks
 
-Three hooks, registered in `~/.claude/settings.json`. The scripts are symlinked from `harnesses/claude/hooks/` by `install.sh`; `memory_common.sh` is sourced by the others, not registered.
+Three hooks, registered in `~/.claude/settings.json` by `install.sh`. The injection hook runs the shared `scripts/hooks/inject.sh`; the Claude-specific session and task-block hooks run by absolute path from the repo.
 
 | Hook | Event | Script | Effect |
 |------|-------|--------|--------|
-| Memory injection | `UserPromptSubmit` | `hooks/inject_memory.sh` | Emits the `<memory:*>` blocks above as `hookSpecificOutput.additionalContext`; otherwise the per-prompt breadcrumb. |
-| Session start | `SessionStart` | `hooks/session_start_memory.sh` | Full injection once on session load; on `source=compact` arms a sentinel so the next prompt re-injects (compaction recovery). |
-| Task-tool block | `PreToolUse` (matcher `TaskCreate\|TaskUpdate`) | `hooks/block_task_tools.sh` | Consumes stdin, writes the tier-classification reminder to stderr, `exit 2` — blocking the call. Forces all executable-work tracking into `projects/<active>/todo.md`. |
+| Memory injection | `UserPromptSubmit` | `scripts/hooks/inject.sh` | Emits the `<memory:*>` blocks above as `hookSpecificOutput.additionalContext`; otherwise the per-prompt breadcrumb. |
+| Session start | `SessionStart` | `harnesses/claude/hooks/session_start_memory.sh` | Full injection once on session load; on `source=compact` arms a sentinel so the next prompt re-injects (compaction recovery). |
+| Task-tool block | `PreToolUse` (matcher `TaskCreate\|TaskUpdate`) | `harnesses/claude/hooks/block_task_tools.sh` | Consumes stdin, writes the tier-classification reminder to stderr, `exit 2` — blocking the call. Forces all executable-work tracking into `projects/<active>/todo.md`. |
 
-The three entries to merge into `settings.json` ship in `harnesses/claude/settings.hooks.json`:
+The three entries are auto-merged into `settings.json`; `harnesses/claude/settings.hooks.json` is the reference shape:
 
 ```json
 {
   "SessionStart": [
-    { "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/session_start_memory.sh" }] }
+    { "hooks": [{ "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/session_start_memory.sh" }] }
   ],
   "UserPromptSubmit": [
-    { "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/inject_memory.sh" }] }
+    { "hooks": [{ "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash $MEMORY_DIR/scripts/hooks/inject.sh" }] }
   ],
   "PreToolUse": [
     { "matcher": "TaskCreate|TaskUpdate",
-      "hooks": [{ "type": "command", "command": "$HOME/.claude/hooks/block_task_tools.sh" }] }
+      "hooks": [{ "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh" }] }
   ]
 }
 ```

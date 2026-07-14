@@ -103,8 +103,8 @@ The **Environment overrides** table below is the input. Being structured
 Source-following is required, not a nicety. `lint-memory.sh` never mentions
 `AI_MEMORY_PROJECTS_ROOT`; it calls `projects_root()` in `_lib.sh`. "Used by" means *whose
 behaviour the var affects*, not *which file holds the string*. One hop is not enough either:
-`inject_memory.sh` → `memory_common.sh` → `_lib.sh` is depth 2, and that inner source is
-conditional. The closure carries a visited-set cycle guard; a runaway graph (`CLOSURE_MAX`)
+`scripts/hooks/inject.sh` → `scripts/hooks/lib.sh` → `_lib.sh` is depth 2. The closure
+carries a visited-set cycle guard; a runaway graph (`CLOSURE_MAX`)
 aborts with exit 2 rather than reporting a verdict from a traversal that never terminated.
 
 **A `Used by` cell that names no script fails**, unless it is listed in `.docscheck-exempt` with a
@@ -156,7 +156,7 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `CODEX_HISTORY_LINES` | `20` | `codex-mem-checkpoint.sh` |
 | `MEMORY_STALE_DAYS` | `30` | `lint-memory.sh` |
 | `MEMORY_ARCHIVE_RETAIN_DAYS` | `30` | `archive-cleanup.sh` |
-| `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `memory_common.sh` (per-session `<session_id>.recompact` sentinels) |
+| `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `lib.sh` (per-session `<session_id>.recompact` sentinels) |
 | `AI_MEMORY_CHANNEL` | `release` | `sync-system.sh` channel selection: `release` checks out the latest stable `v*` tag; `dev` ff-pulls the tracking branch |
 | `AI_MEMORY_MIGRATIONS_DIR` | `$REPO_ROOT/migrations` | `sync-system.sh`, `test_upgrading_doc.sh` (migration directory override) |
 | `AI_MEMORY_APPLIED_VERSION_FILE` | `$REPO_ROOT/.applied-version` | `sync-system.sh` (migration high-water marker override) |
