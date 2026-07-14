@@ -39,6 +39,15 @@ payload startup "$WORK" cx-start | MEMORY_STATE_DIR="$STATE2" bash "$ARM" >/dev/
 [ ! -e "$STATE2/cx-start.recompact" ] && _ok "arm: startup does not write sentinel" \
     || _bad "arm: startup does not write sentinel"
 
+# 2b. no `source` field (PreCompact/PostCompact shape) -> sentinel written. Keeps the
+# event choice pure manifest config: the script arms regardless of which compaction
+# event the manifest wires, rejecting only an explicit non-compact source.
+STATE_NS="$MEM/state-nosource"
+out_ns="$(printf '{"trigger":"auto","cwd":"%s","session_id":"cx-precompact"}' "$WORK" \
+    | MEMORY_STATE_DIR="$STATE_NS" bash "$ARM")"
+assert_eq "" "$out_ns" "arm: no-source event emits no inline output"
+assert_file "$STATE_NS/cx-precompact.recompact" "arm: no-source (Pre/PostCompact) writes sentinel"
+
 # 3. source=compact but cwd has no project -> no sentinel.
 STATE3="$MEM/state-noproj"
 NOPROJ="$(new_sandbox)"

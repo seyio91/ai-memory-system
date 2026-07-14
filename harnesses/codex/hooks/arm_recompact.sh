@@ -27,8 +27,12 @@ SESSION_ID=$(json_field "$INPUT" "session_id")
 CWD=$(json_field "$INPUT" "cwd")
 PROJECT=$(detect_project "$CWD")
 
-# Only arm on a post-compaction restart; a normal startup must not trigger a re-inject.
-[ "$SOURCE" = "compact" ] || exit 0
+# Arm on a compaction event, staying agnostic to which one the manifest wires:
+#   - SessionStart carries source=compact (Claude parity; the current default)
+#   - PreCompact / PostCompact carry a `trigger` field and NO `source`
+# Reject only an explicit non-compact source (e.g. SessionStart source=startup), which
+# must not trigger a re-inject. This keeps the event choice pure manifest config.
+[ -z "$SOURCE" ] || [ "$SOURCE" = "compact" ] || exit 0
 [ -n "$PROJECT" ] || exit 0
 
 SENT=$(recompact_sentinel "$SESSION_ID")
