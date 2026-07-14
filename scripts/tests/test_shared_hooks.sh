@@ -36,14 +36,17 @@ assert_contains "$crumb" "$MEM/projects/proj/working.md" "md breadcrumb: adverti
 
 printf '# Working\n\nSHARED-HOOK-SCRATCH\n' > "$MEM/projects/proj/working.md"
 
+# The parity oracle uses FROZEN pre-migration copies vendored under
+# scripts/tests/fixtures/claude-legacy-hooks/ — NOT `git show HEAD:...`, which
+# only resolves the old files while the migration is uncommitted (once P3 is
+# committed/merged, HEAD no longer carries them and the oracle would silently
+# read empty and the parity tests would fail on committed code / in CI).
+LEGACY="$REPO/scripts/tests/fixtures/claude-legacy-hooks"
 stage_old_claude_hooks() {
     mkdir -p "$OLD_REPO/harnesses/claude/hooks" "$OLD_REPO/scripts/formatters"
-    git -C "$REPO" show HEAD:harnesses/claude/hooks/inject_memory.sh \
-        > "$OLD_REPO/harnesses/claude/hooks/inject_memory.sh"
-    git -C "$REPO" show HEAD:harnesses/claude/hooks/session_start_memory.sh \
-        > "$OLD_REPO/harnesses/claude/hooks/session_start_memory.sh"
-    git -C "$REPO" show HEAD:harnesses/claude/hooks/memory_common.sh \
-        > "$OLD_REPO/harnesses/claude/hooks/memory_common.sh"
+    cp "$LEGACY/inject_memory.sh"        "$OLD_REPO/harnesses/claude/hooks/inject_memory.sh"
+    cp "$LEGACY/session_start_memory.sh" "$OLD_REPO/harnesses/claude/hooks/session_start_memory.sh"
+    cp "$LEGACY/memory_common.sh"        "$OLD_REPO/harnesses/claude/hooks/memory_common.sh"
     cp "$REPO/scripts/content-core.sh" "$OLD_REPO/scripts/content-core.sh"
     cp "$REPO/scripts/formatters/xml.sh" "$OLD_REPO/scripts/formatters/xml.sh"
     chmod +x "$OLD_REPO/harnesses/claude/hooks/"*.sh

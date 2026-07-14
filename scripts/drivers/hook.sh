@@ -488,7 +488,10 @@ EOF
     sj="$(manifest_get "$MANIFEST" settings_json)"
     [ -n "$sj" ] || sj="$sd/settings.json"
     cat <<EOF
-  1. Hook entries were auto-merged into $sj.
+  1. Hook entries were auto-merged into $sj. The statusline script is symlinked to
+     $sd/statusline.sh, but the statusLine ENTRY is not auto-merged (optional +
+     user-owned). To enable the memory-aware statusline, add to $sj:
+       "statusLine": { "type": "command", "command": "\$HOME/.claude/statusline.sh", "padding": 0 }
 
   2. Workflow rules: review $HARNESS_DIR/CLAUDE.md, then wire it into $sd/CLAUDE.md.
      PREFERRED — a thin shim that @-imports the versioned copy, so it never drifts and
