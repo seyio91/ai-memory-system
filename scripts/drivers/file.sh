@@ -26,11 +26,19 @@ driver_install() {
 }
 
 driver_notes() {
-    local ctx; ctx="$(manifest_get "$MANIFEST" context_target)"
+    local ctx hooks_json; ctx="$(manifest_get "$MANIFEST" context_target)"
+    hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
     cat <<EOF
   1. Launch this harness through its wrapper so $ctx is rebuilt from memory
      each session (e.g. alias it: see docs/harnesses/$HARNESS.md).
   2. A local overlay (e.g. ~/.codex/AGENTS.local.md) is never overwritten —
      put permanent per-harness instructions there.
 EOF
+    if [ -n "$hooks_json" ]; then
+        cat <<EOF
+  3. Native hooks: Run /hooks in codex once and trust the ai-memory hooks.
+     Headless executor runs bypass trust automatically. Codex will ask again if
+     a hook command changes.
+EOF
+    fi
 }

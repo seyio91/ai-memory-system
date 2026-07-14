@@ -63,7 +63,7 @@ set +e
 set -e
 assert_exit 0 "$CODE" "executor mode exits 0 via stub"
 args="$(cat "$CAPTURE")"
-assert_contains "$args" "exec --sandbox workspace-write" "executor: exec + workspace-write"
+assert_contains "$args" "exec --dangerously-bypass-hook-trust --sandbox workspace-write" "executor: exec + workspace-write + hook-trust bypass"
 assert_contains "$args" "--skip-git-repo-check"          "executor: skip-git-repo-check"
 assert_contains "$args" "sandbox_workspace_write.network_access=true" "executor: network access on"
 assert_contains "$args" "do the thing"                   "executor: passes through the prompt"

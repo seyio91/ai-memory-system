@@ -5,6 +5,8 @@
 #                 registration into settings.json is a manual note.
 #   - hooks_json (Antigravity): register a namespaced PreInvocation entry that runs
 #                 hook_script into the harness's JSON hooks file.
+# Codex is a sanctioned hybrid: file archetype plus a Codex-shaped hooks_json
+# registration branch called directly by install.sh after the file driver.
 # Sourced by install.sh, which provides HARNESS, HARNESS_DIR, MANIFEST, MEMORY_DIR
 # and the helpers step/info/link plus manifest_get. Exposes driver_install +
 # driver_notes.
@@ -263,6 +265,179 @@ PY
         info "wrote $hooks_json (no python3 — new file)"
     else
         info "python3 absent and $hooks_json exists — merge the 'ai-memory-inject'/'ai-memory-guard' entries by hand (see notes)"
+    fi
+}
+
+# _hook_register_codex_json <hooks_json> — Codex hybrid style: register shared
+# Claude/Codex-contract hook scripts into Codex's top-level {"hooks": ...}
+# schema. This is intentionally separate from _hook_register_json: Antigravity's
+# hooks.json shape is namespaced and not compatible with Codex's event arrays.
+_hook_register_codex_json() {
+    local hooks_json="$1" hs gs fmt role spec event matcher
+    local inject_event="" guard_event="" guard_matcher="" hook_count=0
+    local inject_cmd="" guard_cmd=""
+    hs="$(manifest_get "$MANIFEST" hook_script)"; hs="${hs//\$MEMORY_DIR/$MEMORY_DIR}"
+    gs="$(manifest_get "$MANIFEST" guard_script)"; gs="${gs//\$MEMORY_DIR/$MEMORY_DIR}"
+    fmt="$(manifest_get "$MANIFEST" format)"
+    [ -n "$fmt" ] || fmt=md
+    [ -n "$hs" ] || { info "hooks_json set but no hook_script in manifest — nothing to register"; return; }
+    chmod +x "$hs" 2>/dev/null || true
+    [ -n "$gs" ] && chmod +x "$gs" 2>/dev/null || true
+
+    while IFS=$'\t' read -r role spec; do
+        [ -n "$role" ] || continue
+        event="${spec%%:*}"
+        matcher=""
+        case "$spec" in *:*) matcher="${spec#*:}" ;; esac
+        case "$role" in
+            per_turn_inject)
+                inject_event="$event"
+                hook_count=$((hook_count + 1))
+                ;;
+            infra_guard)
+                [ -n "$gs" ] || continue
+                guard_event="$event"
+                guard_matcher="$matcher"
+                hook_count=$((hook_count + 1))
+                ;;
+            *)
+                info "hook role '$role' has no codex hooks_json script association — skipping"
+                ;;
+        esac
+    done < <(manifest_hooks "$MANIFEST")
+
+    if [ "$hook_count" -eq 0 ]; then
+        info "hooks_json set but [hooks] has no registerable Codex roles — nothing to register"
+        return
+    fi
+
+    if [ -n "$inject_event" ]; then
+        inject_cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$inject_event bash $hs"
+    fi
+    if [ -n "$guard_event" ]; then
+        guard_cmd="env MEMORY_DIR=$MEMORY_DIR bash $gs"
+    fi
+
+    step "Codex hooks -> $hooks_json"
+    mkdir -p "$(dirname "$hooks_json")"
+    if command -v python3 >/dev/null 2>&1; then
+        local rc=0 bak
+        bak="$hooks_json.bak-$(_hook_ts)"
+        AIM_HOOKS_JSON="$hooks_json" AIM_INJECT_CMD="$inject_cmd" AIM_GUARD_CMD="$guard_cmd" \
+            AIM_INJECT_EVENT="$inject_event" AIM_GUARD_EVENT="$guard_event" \
+            AIM_GUARD_MATCHER="$guard_matcher" AIM_BAK="$bak" python3 - <<'PY' || rc=$?
+import json, os, shutil, sys
+path = os.environ["AIM_HOOKS_JSON"]
+inject = os.environ.get("AIM_INJECT_CMD", "")
+guard = os.environ.get("AIM_GUARD_CMD", "")
+inject_event = os.environ.get("AIM_INJECT_EVENT", "")
+guard_event = os.environ.get("AIM_GUARD_EVENT", "")
+guard_matcher = os.environ.get("AIM_GUARD_MATCHER", "")
+bak = os.environ["AIM_BAK"]
+ours = ("scripts/hooks/inject.sh", "scripts/hooks/guard.sh")
+data = {}
+if os.path.exists(path):
+    with open(path) as f:
+        raw = f.read()
+    # Empty/whitespace-only is equivalent to an absent hooks file.
+    if raw.strip():
+        try:
+            data = json.loads(raw)
+        except Exception as e:
+            sys.stderr.write("not valid JSON: %s\n" % e)
+            sys.exit(3)
+        if not isinstance(data, dict):
+            sys.stderr.write("top-level JSON is %s, expected an object\n" % type(data).__name__)
+            sys.exit(3)
+    shutil.copy2(path, bak)
+
+hooks = data.get("hooks", {})
+if hooks is None:
+    hooks = {}
+if not isinstance(hooks, dict):
+    sys.stderr.write("hooks key is %s, expected an object\n" % type(hooks).__name__)
+    sys.exit(3)
+data["hooks"] = hooks
+
+def is_ours(cmd):
+    return any(marker in cmd for marker in ours)
+
+def clean_event(event):
+    if not event:
+        return
+    groups = hooks.get(event, [])
+    if groups is None:
+        groups = []
+    if not isinstance(groups, list):
+        sys.stderr.write("hooks.%s is %s, expected an array\n" % (event, type(groups).__name__))
+        sys.exit(3)
+    cleaned = []
+    for group in groups:
+        if not isinstance(group, dict):
+            cleaned.append(group)
+            continue
+        entries = group.get("hooks")
+        if isinstance(entries, list):
+            entries = [
+                h for h in entries
+                if not (isinstance(h, dict) and is_ours(str(h.get("command", ""))))
+            ]
+            if entries:
+                new_group = dict(group)
+                new_group["hooks"] = entries
+                cleaned.append(new_group)
+            elif "hooks" not in group:
+                cleaned.append(group)
+        else:
+            cmd = str(group.get("command", ""))
+            if not is_ours(cmd):
+                cleaned.append(group)
+    hooks[event] = cleaned
+
+clean_event(inject_event)
+clean_event(guard_event)
+
+if inject_event and inject:
+    hooks.setdefault(inject_event, []).append({
+        "hooks": [{"type": "command", "command": inject}]
+    })
+if guard_event and guard:
+    hooks.setdefault(guard_event, []).append({
+        "matcher": guard_matcher,
+        "hooks": [{"type": "command", "command": guard}]
+    })
+
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PY
+        if ! _hook_merge_rc "$rc" "$hooks_json"; then
+            return "$rc"
+        fi
+        if [ -f "$bak" ]; then
+            info "backed up existing -> $bak"
+        fi
+        if [ -n "$inject_event" ]; then
+            info "registered Codex $inject_event -> $inject_cmd"
+        fi
+        if [ -n "$guard_event" ]; then
+            info "registered Codex $guard_event -> $guard_cmd"
+        fi
+    elif [ ! -e "$hooks_json" ]; then
+        {
+            printf '{\n  "hooks": {'
+            if [ -n "$inject_event" ]; then
+                printf '\n    "%s": [\n      { "hooks": [ { "type": "command", "command": "%s" } ] }\n    ]' "$inject_event" "$inject_cmd"
+            fi
+            if [ -n "$guard_event" ]; then
+                [ -n "$inject_event" ] && printf ','
+                printf '\n    "%s": [\n      { "matcher": "%s", "hooks": [ { "type": "command", "command": "%s" } ] }\n    ]' "$guard_event" "$guard_matcher" "$guard_cmd"
+            fi
+            printf '\n  }\n}\n'
+        } > "$hooks_json"
+        info "wrote $hooks_json (no python3 — new file)"
+    else
+        info "python3 absent and $hooks_json exists — merge the Codex hooks.UserPromptSubmit/PreToolUse entries by hand (see notes)"
     fi
 }
 

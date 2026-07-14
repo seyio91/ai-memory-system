@@ -7,6 +7,12 @@ format         = md
 context_target = ~/.codex/AGENTS.md
 refresh        = launch
 
+# hybrid: file-archetype AGENTS.md base + native Codex hooks for the dynamic roles
+hooks_json        = ~/.codex/hooks.json
+hook_script       = $MEMORY_DIR/scripts/hooks/inject.sh
+guard_script      = $MEMORY_DIR/scripts/hooks/guard.sh
+hooks_min_version = 0.135.0
+
 # Forward-declared delivery surfaces. The generic per-manifest fan-out (skills
 # into ~/.agents/skills; command bodies delivered AS skills) lands in Phase 4;
 # the Phase-3 engine reports them deferred rather than wiring them.
@@ -17,10 +23,14 @@ commands       = skill
 # flags), so a delegated run sees fresh memory. {prompt}/{model} substituted by
 # executor.sh; $MEMORY_DIR expanded. exec_probe gates availability on the codex bin.
 exec_cmd        = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh --executor {prompt}
-exec_readonly   = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh exec --sandbox read-only {prompt}
+exec_readonly   = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh exec --dangerously-bypass-hook-trust --sandbox read-only {prompt}
 exec_model_flag = --model {model}
 # clean-output flag for `executor.sh --run --clean`: `codex exec -o <file>` writes ONLY the final
 # agent message to <file>, so the caller gets a uniform, transcript-free result (probe-verified the
 # flag parses after the positional prompt). {file} is substituted by executor.sh.
 exec_last_message = -o {file}
 exec_probe      = codex
+
+[hooks]
+per_turn_inject = UserPromptSubmit
+infra_guard     = PreToolUse:^Bash$|apply_patch

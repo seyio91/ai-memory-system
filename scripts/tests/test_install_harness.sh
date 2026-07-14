@@ -7,9 +7,9 @@
 . "$(dirname "$0")/_assert.sh"
 
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
-SBROOT="$(new_sandbox)"; FAKE="$SBROOT/repo"; FHOME="$SBROOT/home"
+SBROOT="$(new_sandbox)"; FAKE="$SBROOT/repo"; FHOME="$SBROOT/home"; FBIN="$SBROOT/bin"
 trap 'rm -rf "$SBROOT"' EXIT
-mkdir -p "$FAKE" "$FHOME"
+mkdir -p "$FAKE" "$FHOME" "$FBIN"
 # install.sh resolves its repo root with `pwd -P`; match that physical path so the
 # symlink-target string assertions below compare equal (macOS /var -> /private/var).
 FAKE="$(cd "$FAKE" && pwd -P)"
@@ -25,6 +25,16 @@ mkdir -p "$FAKE/skills/demo-skill"
 printf -- '---\nname: demo-skill\ndescription: demo\n---\n# demo\n' > "$FAKE/skills/demo-skill/SKILL.md"
 mkdir -p "$FAKE/agents"
 printf -- '---\nname: demo-agent\ndescription: demo\n---\nbody\n' > "$FAKE/agents/demo-agent.md"
+
+cat > "$FBIN/codex" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version) printf 'codex-cli 0.144.1\n'; exit 0 ;;
+esac
+exit 0
+EOF
+chmod +x "$FBIN/codex"
+export PATH="$FBIN:$PATH"
 
 run_install() { HOME="$FHOME" MEMORY_DIR="$FAKE" bash "$FAKE/install.sh" "$@"; }
 
@@ -65,6 +75,16 @@ run_install --harness codex >"$SBROOT/log.codex" 2>&1; rc=$?
 assert_exit 0 "$rc" "codex install exits 0"
 assert_file "$FHOME/.codex" "codex context dir prepared"
 if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then _ok "codex: no AGENTS.md symlink (built at launch)"; else _bad "codex: unexpected AGENTS.md symlink"; fi
+assert_file "$FHOME/.codex/hooks.json" "codex: native hooks.json registered"
+chj="$(cat "$FHOME/.codex/hooks.json")"
+assert_contains "$chj" '"hooks"' "codex: hooks.json has top-level hooks object"
+assert_contains "$chj" '"UserPromptSubmit"' "codex: UserPromptSubmit hook registered"
+assert_contains "$chj" '"PreToolUse"' "codex: PreToolUse hook registered"
+assert_contains "$chj" "AI_MEMORY_HOOK_FORMAT=md" "codex: inject command renders md"
+assert_contains "$chj" "scripts/hooks/inject.sh" "codex: inject command -> shared inject.sh"
+assert_contains "$chj" '"matcher": "^Bash$|apply_patch"' "codex: guard matcher registered"
+assert_contains "$chj" "scripts/hooks/guard.sh" "codex: guard command -> shared guard.sh"
+assert_contains "$(cat "$SBROOT/log.codex")" "Run /hooks in codex once" "codex: manual /hooks trust note printed"
 # Phase 4: canonical skills fan into the manifest skills_dir (~/.agents/skills)...
 assert_file "$FHOME/.agents/skills/demo-skill" "codex: canonical skill fanned to ~/.agents/skills"
 # ...and command bodies are delivered AS skills (commands=skill).
@@ -151,6 +171,27 @@ assert_not_contains "$nghj" "ai-memory-guard"  "no-guard: no guard entry without
 assert_file "$FHOME/.noguard/skills/demo-skill" "no-guard: skills fan-out ran AFTER the hooks step"
 assert_file "$FAKE/config.local.sh"             "no-guard: config.local.sh stamped AFTER the hooks step"
 assert_not_contains "$(cat "$SBROOT/log.noguard")" "Traceback" "no-guard: no python traceback"
+
+# --- codex hybrid version floor: too-old/absent-compatible path skips hooks ---
+mkdir -p "$FAKE/harnesses/codexfloor"
+printf '%s\n' \
+    'name = codexfloor' 'archetype = file' 'format = md' \
+    'context_target = ~/.codexfloor/AGENTS.md' 'refresh = launch' \
+    'hooks_json = ~/.codexfloor/hooks.json' \
+    'hook_script = $MEMORY_DIR/scripts/hooks/inject.sh' \
+    'guard_script = $MEMORY_DIR/scripts/hooks/guard.sh' \
+    'hooks_min_version = 999.0.0' \
+    '[hooks]' 'per_turn_inject = UserPromptSubmit' 'infra_guard = PreToolUse:^Bash$|apply_patch' \
+    > "$FAKE/harnesses/codexfloor/manifest"
+run_install --harness codexfloor >"$SBROOT/log.codexfloor" 2>&1; rc=$?
+assert_exit 0 "$rc" "codex hybrid version floor: install exits 0"
+if [ ! -e "$FHOME/.codexfloor/hooks.json" ]; then
+    _ok "codex hybrid version floor: hook registration skipped"
+else
+    _bad "codex hybrid version floor: unexpected hooks.json"
+fi
+assert_contains "$(cat "$SBROOT/log.codexfloor")" "below hooks_min_version 999.0.0" \
+    "codex hybrid version floor: skip reason reported"
 
 out="$(HOME="$FHOME" bash "$FAKE/install.sh" --list 2>&1)"
 assert_contains "$out" "claude"      "--list shows claude"
