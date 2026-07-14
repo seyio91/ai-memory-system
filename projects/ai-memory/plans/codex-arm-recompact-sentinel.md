@@ -149,7 +149,10 @@ hook (22:33:10) → prompt-processing hooks → `.sessions/` mtime bumped (senti
   - [x] Doc sub-item: `docs/harnesses/codex.md` compaction-recovery section updated (commit `bb8a4ee`).
   - [x] SC4 manual `/compact` E2E — marker echoed, arm→inject chain proven (commit `7fb1661`).
   - [x] SC4 auto-compaction E2E — marker echoed on auto-resume; `auto_compact` in log; recovery works.
-  - [ ] Validator gate (SC1–SC5) → `/plan-done` → `/plan-archive`.
+  - [x] Validator gate (SC1–SC5) — **GO** (read-only subagent, 2026-07-14): SC1–SC4 PASS with
+        file:line + test evidence, SC5 N/A (closed via GO branch), full suite green (42 tests, python/
+        lint/doc-vs-code/shellcheck clean; 2 lint warns are worktree-local, won't follow the merge).
+  - [ ] `/plan-done` + `/plan-archive` (after merge).
   - [ ] PR `worktree-codex-arm-recompact-sentinel` → main → canonical `install.sh --harness codex`
         (driver's `ours` marker auto-replaces the surgical worktree-path arm entry with the main-path one).
 
