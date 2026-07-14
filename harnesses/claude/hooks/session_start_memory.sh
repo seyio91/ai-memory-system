@@ -3,7 +3,21 @@
 # when the session loads.
 set -euo pipefail
 
-source "$(dirname "$0")/memory_common.sh"
+_ss_resolve() {
+    local p="$1" t
+    while [ -L "$p" ]; do
+        t="$(readlink "$p")"
+        case "$t" in
+            /*) p="$t" ;;
+            *)  p="$(dirname "$p")/$t" ;;
+        esac
+    done
+    ( cd "$(dirname "$p")" && printf '%s/%s\n' "$(pwd)" "$(basename "$p")" )
+}
+
+_ss_self="$(_ss_resolve "${BASH_SOURCE[0]}")"
+_SS_REPO="$(cd "$(dirname "$_ss_self")/../../.." && pwd)"
+. "$_SS_REPO/scripts/hooks/lib.sh"
 
 INPUT=$(cat)
 CWD=$(json_field "$INPUT" "cwd")
@@ -27,7 +41,7 @@ if [ "$SOURCE" = "compact" ]; then
     exit 0
 fi
 
-OUTPUT=$(assemble_full_memory "$PROJECT")
+OUTPUT=$(render_full "$PROJECT")
 [ -z "$OUTPUT" ] && exit 0
 
 ESC=$(json_escape "$OUTPUT")

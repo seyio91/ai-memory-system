@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
-# memory_common.sh resolves MEMORY_DIR from its own (symlinked) location and then
-# lets config.local.sh override it — the mechanism that makes the install dir the
-# memory dir, and a re-run after a move repoint it.
+# scripts/hooks/lib.sh resolves MEMORY_DIR from its own (symlinked) location and
+# then lets config.local.sh override it — the mechanism that makes the install dir
+# the memory dir, and a re-run after a move repoint it.
 #
-# Each case stages a fake tree <root>/harnesses/claude/hooks/memory_common.sh (a
-# real copy of the hook) and sources it through a symlink in a *separate* dir,
-# mimicking the ~/.claude/hooks symlink install.sh creates. Resolution must land
-# on <root> — the hook self-locates its repo root three levels up.
+# Each case stages a fake tree <root>/scripts/hooks/lib.sh (a real copy of the
+# shared hook lib) and sources it through a symlink in a *separate* dir. Resolution
+# must land on <root> — the lib self-locates its repo root two levels up.
 . "$(dirname "$0")/_assert.sh"
 
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
-COMMON="$REPO/harnesses/claude/hooks/memory_common.sh"
+LIB="$REPO/scripts/hooks/lib.sh"
 
 stage_tree() {
-    # stage_tree <root> — real hook copy at <root>/harnesses/claude/hooks + a
-    # symlink to it under <root>/link, plus the shared engine the hook sources
-    # (content-core + xml formatter) under <root>/scripts, mirroring a real
+    # stage_tree <root> — real hook lib copy at <root>/scripts/hooks + a symlink
+    # to it under <root>/link, plus the shared engine it sources, mirroring a real
     # install. Prints the symlink path to source.
     local root="$1"
-    mkdir -p "$root/harnesses/claude/hooks" "$root/link" "$root/scripts/formatters"
-    cp "$COMMON" "$root/harnesses/claude/hooks/memory_common.sh"
+    mkdir -p "$root/scripts/hooks" "$root/link" "$root/scripts/formatters"
+    cp "$LIB" "$root/scripts/hooks/lib.sh"
+    cp "$REPO/scripts/_lib.sh" "$root/scripts/_lib.sh"
     cp "$REPO/scripts/content-core.sh" "$root/scripts/content-core.sh"
     cp "$REPO/scripts/formatters/xml.sh" "$root/scripts/formatters/xml.sh"
-    ln -s "$root/harnesses/claude/hooks/memory_common.sh" "$root/link/memory_common.sh"
-    printf '%s/link/memory_common.sh' "$root"
+    cp "$REPO/scripts/formatters/md.sh" "$root/scripts/formatters/md.sh"
+    ln -s "$root/scripts/hooks/lib.sh" "$root/link/lib.sh"
+    printf '%s/link/lib.sh' "$root"
 }
 
 # --- symlinked hook resolves MEMORY_DIR to the real tree root (no env, no config) ---

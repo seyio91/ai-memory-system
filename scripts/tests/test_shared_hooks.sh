@@ -5,12 +5,12 @@
 
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
 SHARED_INJECT="$REPO/scripts/hooks/inject.sh"
-CLAUDE_INJECT="$REPO/harnesses/claude/hooks/inject_memory.sh"
 SHARED_GUARD="$REPO/scripts/hooks/guard.sh"
 
 MEM="$(new_sandbox)"
 WORK="$(new_sandbox)"
-trap 'rm -rf "$MEM" "$WORK"' EXIT
+OLD_REPO="$(new_sandbox)"
+trap 'rm -rf "$MEM" "$WORK" "$OLD_REPO"' EXIT
 export MEMORY_DIR="$MEM"
 
 seed_min_tree "$MEM"
@@ -36,6 +36,24 @@ assert_contains "$crumb" "$MEM/projects/proj/working.md" "md breadcrumb: adverti
 
 printf '# Working\n\nSHARED-HOOK-SCRATCH\n' > "$MEM/projects/proj/working.md"
 
+stage_old_claude_hooks() {
+    mkdir -p "$OLD_REPO/harnesses/claude/hooks" "$OLD_REPO/scripts/formatters"
+    git -C "$REPO" show HEAD:harnesses/claude/hooks/inject_memory.sh \
+        > "$OLD_REPO/harnesses/claude/hooks/inject_memory.sh"
+    git -C "$REPO" show HEAD:harnesses/claude/hooks/session_start_memory.sh \
+        > "$OLD_REPO/harnesses/claude/hooks/session_start_memory.sh"
+    git -C "$REPO" show HEAD:harnesses/claude/hooks/memory_common.sh \
+        > "$OLD_REPO/harnesses/claude/hooks/memory_common.sh"
+    cp "$REPO/scripts/content-core.sh" "$OLD_REPO/scripts/content-core.sh"
+    cp "$REPO/scripts/formatters/xml.sh" "$OLD_REPO/scripts/formatters/xml.sh"
+    chmod +x "$OLD_REPO/harnesses/claude/hooks/"*.sh
+}
+
+stage_old_claude_hooks
+CLAUDE_INJECT="$OLD_REPO/harnesses/claude/hooks/inject_memory.sh"
+OLD_SESSION="$OLD_REPO/harnesses/claude/hooks/session_start_memory.sh"
+NEW_SESSION="$REPO/harnesses/claude/hooks/session_start_memory.sh"
+
 json_payload() {
     local prompt="$1" cwd="$2" session="${3:-}"
     printf '{"prompt":"%s","cwd":"%s","session_id":"%s"}' "$prompt" "$cwd" "$session"
@@ -57,6 +75,22 @@ compare_xml_context() {
 if command -v python3 >/dev/null 2>&1; then
     compare_xml_context "shared xml inject: breadcrumb matches Claude payload" "$(json_payload "hi" "$WORK/sub" "s1")"
     compare_xml_context "shared xml inject: @memory full matches Claude payload" "$(json_payload "reload @memory" "$WORK" "s2")"
+
+    old_session="$(printf '{"cwd":"%s","session_id":"ss-normal"}' "$WORK" | bash "$OLD_SESSION")"
+    new_session="$(printf '{"cwd":"%s","session_id":"ss-normal"}' "$WORK" | bash "$NEW_SESSION")"
+    assert_eq "$old_session" "$new_session" "session_start: normal full payload matches pre-migration bytes"
+    assert_contains "$(printf '%s' "$new_session" | additional_context)" "SHARED-HOOK-SCRATCH" \
+        "session_start: normal payload contains working memory"
+
+    OLD_STATE="$MEM/old-state"; NEW_STATE="$MEM/new-state"
+    old_compact="$(printf '{"source":"compact","cwd":"%s","session_id":"ss-compact"}' "$WORK" \
+        | MEMORY_STATE_DIR="$OLD_STATE" bash "$OLD_SESSION")"
+    new_compact="$(printf '{"source":"compact","cwd":"%s","session_id":"ss-compact"}' "$WORK" \
+        | MEMORY_STATE_DIR="$NEW_STATE" bash "$NEW_SESSION")"
+    assert_eq "$old_compact" "$new_compact" "session_start: compact emits same bytes as pre-migration"
+    assert_eq "" "$new_compact" "session_start: compact emits no inline injection"
+    assert_file "$OLD_STATE/ss-compact.recompact" "session_start: old compact writes sentinel"
+    assert_file "$NEW_STATE/ss-compact.recompact" "session_start: migrated compact writes sentinel"
 else
     printf '  SKIP python3 absent; shared/Claude JSON payload comparison not run\n'
 fi

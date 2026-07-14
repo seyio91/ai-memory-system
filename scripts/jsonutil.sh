@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # jsonutil.sh — minimal JSON helpers for hook I/O (the Antigravity PreInvocation
-# injector, and later the PreToolUse guard). Kept separate from the Claude
-# memory_common.sh copies so the Claude hook path stays byte-for-byte untouched.
+# injector, and later the PreToolUse guard). Kept separate so hook scripts can
+# share JSON behavior without depending on the full memory loader.
 # Strategy: jq -> python3 -> (escape-only) sed/awk fallback, so hooks work even
 # without jq installed.
 

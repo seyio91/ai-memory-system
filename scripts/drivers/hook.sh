@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # drivers/hook.sh — install driver for the `hook` archetype (in-band, live
 # per-prompt injection). Two registration styles, chosen by the manifest:
-#   - hooks_dir  (Claude): symlink the harness's hook scripts into a runtime dir;
-#                 registration into settings.json is a manual note.
+#   - hooks_dir/settings_json (Claude): install runtime assets and merge hook
+#                 entries into the harness's native settings JSON.
 #   - hooks_json (Antigravity): register a namespaced PreInvocation entry that runs
 #                 hook_script into the harness's JSON hooks file.
-# Codex is a sanctioned hybrid: file archetype plus a Codex-shaped hooks_json
+# Codex is a sanctioned hybrid: file archetype plus the same native hooks schema
 # registration branch called directly by install.sh after the file driver.
 # Sourced by install.sh, which provides HARNESS, HARNESS_DIR, MANIFEST, MEMORY_DIR
 # and the helpers step/info/link plus manifest_get. Exposes driver_install +
@@ -13,12 +13,17 @@
 
 # driver_install — dispatch on which registration style the manifest declares.
 driver_install() {
-    local hooks_dir hooks_json sl_settings
+    local hooks_dir hooks_json settings_json sl_settings
     hooks_dir="$(manifest_get "$MANIFEST" hooks_dir)"
     hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
+    settings_json="$(manifest_get "$MANIFEST" settings_json)"
 
     if [ -n "$hooks_dir" ]; then
         _hook_install_scripts "$hooks_dir"
+        if [ -z "$settings_json" ]; then
+            settings_json="${hooks_dir%/hooks}/settings.json"
+        fi
+        _hook_register_native_json "$settings_json"
     elif [ -n "$hooks_json" ]; then
         _hook_register_json "$hooks_json"
     else
@@ -110,17 +115,13 @@ PY
     fi
 }
 
-# _hook_install_scripts <hooks_dir> — Claude style: symlink the harness's hook
-# scripts (and statusline, if any) into the runtime dirs named by the manifest.
+# _hook_install_scripts <hooks_dir> — Claude style: keep the runtime root around
+# and symlink the statusline, if any. Hook scripts run by absolute path from
+# settings.json, so harnesses/claude/hooks/*.sh is no longer fanned into HOME.
 _hook_install_scripts() {
-    local hooks_dir="$1" statusline h
-    step "Hooks -> $hooks_dir"
+    local hooks_dir="$1" statusline
+    step "Hook runtime -> $hooks_dir"
     mkdir -p "$hooks_dir"
-    for h in "$HARNESS_DIR"/hooks/*.sh; do
-        [ -e "$h" ] || continue
-        chmod +x "$h"
-        link "$h" "$hooks_dir/$(basename "$h")"
-    done
 
     statusline="$(manifest_get "$MANIFEST" statusline)"
     if [ -n "$statusline" ]; then
@@ -268,78 +269,93 @@ PY
     fi
 }
 
-# _hook_register_codex_json <hooks_json> — Codex hybrid style: register shared
-# Claude/Codex-contract hook scripts into Codex's top-level {"hooks": ...}
-# schema. This is intentionally separate from _hook_register_json: Antigravity's
-# hooks.json shape is namespaced and not compatible with Codex's event arrays.
-_hook_register_codex_json() {
-    local hooks_json="$1" hs gs fmt role spec event matcher
-    local inject_event="" guard_event="" guard_matcher="" hook_count=0
-    local inject_cmd="" guard_cmd=""
-    hs="$(manifest_get "$MANIFEST" hook_script)"; hs="${hs//\$MEMORY_DIR/$MEMORY_DIR}"
-    gs="$(manifest_get "$MANIFEST" guard_script)"; gs="${gs//\$MEMORY_DIR/$MEMORY_DIR}"
+# _hook_register_native_json <settings_or_hooks_json> — register Claude/Codex
+# native hook schema: top-level {"hooks": {"Event": [{matcher?, hooks:[...]}]}}.
+# Only ai-memory hook commands are removed/replaced; sibling top-level settings
+# and unrelated hook groups are preserved.
+_hook_register_native_json() {
+    local hooks_json="$1" fmt role spec event matcher key script hook_count=0
+    local inject_event="" inject_matcher="" inject_cmd=""
+    local guard_event="" guard_matcher="" guard_cmd=""
+    local session_event="" session_matcher="" session_cmd=""
+    local block_event="" block_matcher="" block_cmd=""
     fmt="$(manifest_get "$MANIFEST" format)"
-    [ -n "$fmt" ] || fmt=md
-    [ -n "$hs" ] || { info "hooks_json set but no hook_script in manifest — nothing to register"; return; }
-    chmod +x "$hs" 2>/dev/null || true
-    [ -n "$gs" ] && chmod +x "$gs" 2>/dev/null || true
+    [ -n "$fmt" ] || fmt=xml
 
     while IFS=$'\t' read -r role spec; do
         [ -n "$role" ] || continue
         event="${spec%%:*}"
         matcher=""
         case "$spec" in *:*) matcher="${spec#*:}" ;; esac
+        key=""
         case "$role" in
-            per_turn_inject)
-                inject_event="$event"
-                hook_count=$((hook_count + 1))
-                ;;
-            infra_guard)
-                [ -n "$gs" ] || continue
-                guard_event="$event"
-                guard_matcher="$matcher"
-                hook_count=$((hook_count + 1))
-                ;;
+            per_turn_inject)   key=hook_script ;;
+            infra_guard)       key=guard_script ;;
+            session_bootstrap) key=session_script ;;
+            task_tool_block)   key=block_script ;;
             *)
-                info "hook role '$role' has no codex hooks_json script association — skipping"
+                info "hook role '$role' has no native JSON script association — skipping"
+                continue
                 ;;
         esac
+        script="$(manifest_get "$MANIFEST" "$key")"; script="${script//\$MEMORY_DIR/$MEMORY_DIR}"
+        if [ -z "$script" ]; then
+            info "hook role '$role' missing $key — skipping"
+            continue
+        fi
+        chmod +x "$script" 2>/dev/null || true
+        case "$role" in
+            per_turn_inject)
+                inject_event="$event"; inject_matcher="$matcher"
+                inject_cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event bash $script"
+                ;;
+            infra_guard)
+                guard_event="$event"; guard_matcher="$matcher"
+                guard_cmd="env MEMORY_DIR=$MEMORY_DIR bash $script"
+                ;;
+            session_bootstrap)
+                session_event="$event"; session_matcher="$matcher"
+                session_cmd="bash $script"
+                ;;
+            task_tool_block)
+                block_event="$event"; block_matcher="$matcher"
+                block_cmd="bash $script"
+                ;;
+        esac
+        hook_count=$((hook_count + 1))
     done < <(manifest_hooks "$MANIFEST")
 
     if [ "$hook_count" -eq 0 ]; then
-        info "hooks_json set but [hooks] has no registerable Codex roles — nothing to register"
+        info "native hook target set but [hooks] has no registerable roles — nothing to register"
         return
     fi
 
-    if [ -n "$inject_event" ]; then
-        inject_cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$inject_event bash $hs"
-    fi
-    if [ -n "$guard_event" ]; then
-        guard_cmd="env MEMORY_DIR=$MEMORY_DIR bash $gs"
-    fi
-
-    step "Codex hooks -> $hooks_json"
+    step "Native hooks -> $hooks_json"
     mkdir -p "$(dirname "$hooks_json")"
     if command -v python3 >/dev/null 2>&1; then
         local rc=0 bak
         bak="$hooks_json.bak-$(_hook_ts)"
-        AIM_HOOKS_JSON="$hooks_json" AIM_INJECT_CMD="$inject_cmd" AIM_GUARD_CMD="$guard_cmd" \
-            AIM_INJECT_EVENT="$inject_event" AIM_GUARD_EVENT="$guard_event" \
-            AIM_GUARD_MATCHER="$guard_matcher" AIM_BAK="$bak" python3 - <<'PY' || rc=$?
+        AIM_HOOKS_JSON="$hooks_json" AIM_BAK="$bak" \
+            AIM_INJECT_EVENT="$inject_event" AIM_INJECT_MATCHER="$inject_matcher" AIM_INJECT_CMD="$inject_cmd" \
+            AIM_GUARD_EVENT="$guard_event" AIM_GUARD_MATCHER="$guard_matcher" AIM_GUARD_CMD="$guard_cmd" \
+            AIM_SESSION_EVENT="$session_event" AIM_SESSION_MATCHER="$session_matcher" AIM_SESSION_CMD="$session_cmd" \
+            AIM_BLOCK_EVENT="$block_event" AIM_BLOCK_MATCHER="$block_matcher" AIM_BLOCK_CMD="$block_cmd" \
+            python3 - <<'PY' || rc=$?
 import json, os, shutil, sys
+
 path = os.environ["AIM_HOOKS_JSON"]
-inject = os.environ.get("AIM_INJECT_CMD", "")
-guard = os.environ.get("AIM_GUARD_CMD", "")
-inject_event = os.environ.get("AIM_INJECT_EVENT", "")
-guard_event = os.environ.get("AIM_GUARD_EVENT", "")
-guard_matcher = os.environ.get("AIM_GUARD_MATCHER", "")
 bak = os.environ["AIM_BAK"]
-ours = ("scripts/hooks/inject.sh", "scripts/hooks/guard.sh")
+ours = (
+    "scripts/hooks/inject.sh",
+    "scripts/hooks/guard.sh",
+    "session_start_memory.sh",
+    "block_task_tools.sh",
+)
+
 data = {}
 if os.path.exists(path):
     with open(path) as f:
         raw = f.read()
-    # Empty/whitespace-only is equivalent to an absent hooks file.
     if raw.strip():
         try:
             data = json.loads(raw)
@@ -362,9 +378,7 @@ data["hooks"] = hooks
 def is_ours(cmd):
     return any(marker in cmd for marker in ours)
 
-def clean_event(event):
-    if not event:
-        return
+for event in list(hooks.keys()):
     groups = hooks.get(event, [])
     if groups is None:
         groups = []
@@ -378,34 +392,34 @@ def clean_event(event):
             continue
         entries = group.get("hooks")
         if isinstance(entries, list):
-            entries = [
+            kept = [
                 h for h in entries
                 if not (isinstance(h, dict) and is_ours(str(h.get("command", ""))))
             ]
-            if entries:
+            if kept:
                 new_group = dict(group)
-                new_group["hooks"] = entries
+                new_group["hooks"] = kept
                 cleaned.append(new_group)
-            elif "hooks" not in group:
-                cleaned.append(group)
         else:
             cmd = str(group.get("command", ""))
             if not is_ours(cmd):
                 cleaned.append(group)
     hooks[event] = cleaned
 
-clean_event(inject_event)
-clean_event(guard_event)
+def add(event, matcher, cmd):
+    if not event or not cmd:
+        return
+    group = {"hooks": [{"type": "command", "command": cmd}]}
+    if matcher:
+        group["matcher"] = matcher
+    hooks.setdefault(event, []).append(group)
 
-if inject_event and inject:
-    hooks.setdefault(inject_event, []).append({
-        "hooks": [{"type": "command", "command": inject}]
-    })
-if guard_event and guard:
-    hooks.setdefault(guard_event, []).append({
-        "matcher": guard_matcher,
-        "hooks": [{"type": "command", "command": guard}]
-    })
+for prefix in ("INJECT", "GUARD", "SESSION", "BLOCK"):
+    add(
+        os.environ.get("AIM_%s_EVENT" % prefix, ""),
+        os.environ.get("AIM_%s_MATCHER" % prefix, ""),
+        os.environ.get("AIM_%s_CMD" % prefix, ""),
+    )
 
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
@@ -417,32 +431,41 @@ PY
         if [ -f "$bak" ]; then
             info "backed up existing -> $bak"
         fi
-        if [ -n "$inject_event" ]; then
-            info "registered Codex $inject_event -> $inject_cmd"
-        fi
-        if [ -n "$guard_event" ]; then
-            info "registered Codex $guard_event -> $guard_cmd"
-        fi
+        [ -z "$session_event" ] || info "registered $session_event -> $session_cmd"
+        [ -z "$inject_event" ] || info "registered $inject_event -> $inject_cmd"
+        [ -z "$block_event" ] || info "registered $block_event -> $block_cmd"
+        [ -z "$guard_event" ] || info "registered $guard_event -> $guard_cmd"
     elif [ ! -e "$hooks_json" ]; then
         {
             printf '{\n  "hooks": {'
-            if [ -n "$inject_event" ]; then
-                printf '\n    "%s": [\n      { "hooks": [ { "type": "command", "command": "%s" } ] }\n    ]' "$inject_event" "$inject_cmd"
-            fi
-            if [ -n "$guard_event" ]; then
-                [ -n "$inject_event" ] && printf ','
-                printf '\n    "%s": [\n      { "matcher": "%s", "hooks": [ { "type": "command", "command": "%s" } ] }\n    ]' "$guard_event" "$guard_matcher" "$guard_cmd"
-            fi
+            local wrote=0
+            _hook_native_print_group() {
+                local ev="$1" mt="$2" cm="$3"
+                [ -n "$ev" ] && [ -n "$cm" ] || return 0
+                [ "$wrote" -eq 0 ] || printf ','
+                printf '\n    "%s": [\n      { ' "$ev"
+                [ -z "$mt" ] || printf '"matcher": "%s", ' "$mt"
+                printf '"hooks": [ { "type": "command", "command": "%s" } ] }\n    ]' "$cm"
+                wrote=1
+            }
+            _hook_native_print_group "$session_event" "$session_matcher" "$session_cmd"
+            _hook_native_print_group "$inject_event" "$inject_matcher" "$inject_cmd"
+            _hook_native_print_group "$block_event" "$block_matcher" "$block_cmd"
+            _hook_native_print_group "$guard_event" "$guard_matcher" "$guard_cmd"
             printf '\n  }\n}\n'
         } > "$hooks_json"
         info "wrote $hooks_json (no python3 — new file)"
     else
-        info "python3 absent and $hooks_json exists — merge the Codex hooks.UserPromptSubmit/PreToolUse entries by hand (see notes)"
+        info "python3 absent and $hooks_json exists — merge native hook entries by hand (see notes)"
     fi
 }
 
-# driver_notes — manual steps the installer cannot fully do (settings/JSON
-# registration it won't clobber, global-rules placement). Printed at the end.
+_hook_register_codex_json() {
+    _hook_register_native_json "$1"
+}
+
+# driver_notes — manual steps the installer cannot fully do (global-rules
+# placement, trust prompts). Printed at the end.
 driver_notes() {
     local hooks_json; hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
     if [ -n "$hooks_json" ]; then
@@ -461,10 +484,11 @@ EOF
         return
     fi
 
-    local sd; sd="$(manifest_get "$MANIFEST" hooks_dir)"; sd="${sd%/hooks}"
+    local sd sj; sd="$(manifest_get "$MANIFEST" hooks_dir)"; sd="${sd%/hooks}"
+    sj="$(manifest_get "$MANIFEST" settings_json)"
+    [ -n "$sj" ] || sj="$sd/settings.json"
     cat <<EOF
-  1. Settings must be registered in $sd/settings.json. Merge the hook
-     entries and the statusLine from $HARNESS_DIR/settings.hooks.json into it.
+  1. Hook entries were auto-merged into $sj.
 
   2. Workflow rules: review $HARNESS_DIR/CLAUDE.md, then wire it into $sd/CLAUDE.md.
      PREFERRED — a thin shim that @-imports the versioned copy, so it never drifts and

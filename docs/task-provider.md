@@ -1,6 +1,6 @@
 # Task-provider layer
 
-A small Python (stdlib-only) subsystem that lets the memory system **capture tasks, track coarse status, and execute them later**, with a swappable storage backend behind a fixed, backend-neutral interface. It lives at `scripts/taskprovider/` and is reached only through a JSON CLI, so bash and future slash commands call it without knowing the implementation language. **It is opt-in: nothing runs it unless invoked** — `inject_memory.sh` and the offline hot path never touch it.
+A small Python (stdlib-only) subsystem that lets the memory system **capture tasks, track coarse status, and execute them later**, with a swappable storage backend behind a fixed, backend-neutral interface. It lives at `scripts/taskprovider/` and is reached only through a JSON CLI, so bash and future slash commands call it without knowing the implementation language. **It is opt-in: nothing runs it unless invoked** — `scripts/hooks/inject.sh` and the offline hot path never touch it.
 
 ## The model — backend is a projection, not a co-source-of-truth
 

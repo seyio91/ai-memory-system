@@ -39,15 +39,53 @@ export PATH="$FBIN:$PATH"
 run_install() { HOME="$FHOME" MEMORY_DIR="$FAKE" bash "$FAKE/install.sh" "$@"; }
 
 # --- claude (hook archetype) ---
+mkdir -p "$FHOME/.claude"
+cat > "$FHOME/.claude/settings.json" <<'EOF'
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash /custom/statusline.sh",
+    "enabled": true
+  },
+  "permissions": {
+    "allow": ["Bash(git status:*)"]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "echo user-stop-hook" }
+        ]
+      }
+    ]
+  }
+}
+EOF
 run_install --harness claude >"$SBROOT/log.claude" 2>&1; rc=$?
 assert_exit 0 "$rc" "claude install exits 0"
-for h in inject_memory.sh session_start_memory.sh memory_common.sh block_task_tools.sh; do
-    assert_file "$FHOME/.claude/hooks/$h" "hook present: $h"
-done
+assert_file "$FHOME/.claude/settings.json"       "claude settings.json present"
 assert_file "$FHOME/.claude/statusline.sh"        "statusline linked"
 assert_file "$FHOME/.claude/commands/pin.md"      "native command linked (pin)"
 assert_file "$FHOME/.claude/skills/demo-skill"    "skill fanned out"
 assert_file "$FHOME/.claude/agents/demo-agent.md" "agent fanned out"
+for h in inject_memory.sh memory_common.sh session_start_memory.sh block_task_tools.sh; do
+    if [ ! -e "$FHOME/.claude/hooks/$h" ]; then _ok "claude: hook script not symlinked: $h"; else _bad "claude: unexpected hook symlink: $h"; fi
+done
+csj="$(cat "$FHOME/.claude/settings.json")"
+assert_contains "$csj" "SessionStart" "claude settings: SessionStart hook registered"
+assert_contains "$csj" "UserPromptSubmit" "claude settings: UserPromptSubmit hook registered"
+assert_contains "$csj" "PreToolUse" "claude settings: PreToolUse hook registered"
+assert_contains "$csj" "scripts/hooks/inject.sh" "claude settings: inject command -> shared inject.sh"
+assert_contains "$csj" "AI_MEMORY_HOOK_FORMAT=xml" "claude settings: inject command renders xml"
+assert_contains "$csj" "session_start_memory.sh" "claude settings: SessionStart command -> migrated script"
+assert_contains "$csj" "block_task_tools.sh" "claude settings: task-tool block command -> block script"
+assert_contains "$csj" '"matcher": "TaskCreate|TaskUpdate"' "claude settings: task-tool matcher registered"
+assert_contains "$csj" "statusLine" "claude settings: existing statusLine preserved"
+assert_contains "$csj" "bash /custom/statusline.sh" "claude settings: existing statusLine command preserved"
+assert_contains "$csj" "permissions" "claude settings: permissions preserved"
+assert_contains "$csj" "Stop" "claude settings: user Stop hook preserved"
+assert_contains "$csj" "echo user-stop-hook" "claude settings: user hook command preserved"
+assert_contains "$(cat "$SBROOT/log.claude")" "Hook entries were auto-merged" "claude notes: settings auto-merge reported"
 assert_file "$FAKE/skills.toml"                   "root skills.toml seeded from template"
 assert_eq "$(cat "$FAKE/skills.toml.example")" "$(cat "$FAKE/skills.toml")" "skills.toml seeded as an exact template copy"
 assert_contains "$(cat "$SBROOT/log.claude")" "seeded skills.toml from template" "install reports the skills.toml seed step"
@@ -56,8 +94,6 @@ set +e; [ -d "$FAKE/.skill-cache/template-skill" ]
 # shellcheck disable=SC2319
 e=$?; set -e
 assert_exit 1 "$e" "install seed step does not resolve remote skills"
-assert_eq "$FAKE/harnesses/claude/hooks/inject_memory.sh" \
-    "$(readlink "$FHOME/.claude/hooks/inject_memory.sh")" "hook target -> harnesses/claude/hooks"
 assert_eq "$FAKE/harnesses/claude/commands/pin.md" \
     "$(readlink "$FHOME/.claude/commands/pin.md")" "command target -> harnesses/claude/commands"
 assert_contains "$(cat "$FAKE/config.local.sh")" "export MEMORY_DIR=" "config.local.sh stamped in FAKE repo"
@@ -69,6 +105,49 @@ assert_exit 0 "$rc" "claude re-run exits 0"
 assert_contains "$(cat "$SBROOT/log.claude2")" "ok (already linked)" "re-run: already-linked (no churn)"
 assert_eq "# keep local choices" "$(cat "$FAKE/skills.toml")" "existing skills.toml is not overwritten"
 assert_not_contains "$(cat "$SBROOT/log.claude2")" "seeded skills.toml from template" "existing skills.toml skips seed step"
+if command -v python3 >/dev/null 2>&1; then
+    CLAUDE_SETTINGS="$FHOME/.claude/settings.json" FAKE_REPO="$FAKE" python3 - <<'PY' >"$SBROOT/claude-settings-check.out" 2>&1
+import json, os, sys
+path = os.environ["CLAUDE_SETTINGS"]
+repo = os.environ["FAKE_REPO"]
+with open(path) as f:
+    data = json.load(f)
+hooks = data.get("hooks", {})
+expected = {
+    "SessionStart": ("", "bash %s/harnesses/claude/hooks/session_start_memory.sh" % repo),
+    "UserPromptSubmit": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash %s/scripts/hooks/inject.sh" % (repo, repo)),
+    "PreToolUse": ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo),
+}
+for event, (matcher, command) in expected.items():
+    groups = hooks.get(event, [])
+    matches = [
+        g for g in groups
+        if isinstance(g, dict)
+        and (not matcher or g.get("matcher") == matcher)
+        and any(isinstance(h, dict) and h.get("command") == command for h in g.get("hooks", []))
+    ]
+    if len(matches) != 1:
+        sys.stderr.write("%s expected one ai-memory hook, got %d\n" % (event, len(matches)))
+        sys.exit(1)
+stop = hooks.get("Stop", [])
+if not stop or "user-stop-hook" not in json.dumps(stop):
+    sys.stderr.write("user Stop hook was not preserved\n")
+    sys.exit(1)
+if data.get("statusLine", {}).get("command") != "bash /custom/statusline.sh":
+    sys.stderr.write("statusLine command was not preserved\n")
+    sys.exit(1)
+if "permissions" not in data:
+    sys.stderr.write("permissions missing\n")
+    sys.exit(1)
+PY
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        _ok "claude settings: re-run is idempotent and preserves siblings"
+    else
+        _bad "claude settings: re-run is idempotent and preserves siblings"
+        cat "$SBROOT/claude-settings-check.out"
+    fi
+fi
 
 # --- codex (file archetype): context prep + skills + commands-as-skills ---
 run_install --harness codex >"$SBROOT/log.codex" 2>&1; rc=$?
@@ -197,6 +276,20 @@ out="$(HOME="$FHOME" bash "$FAKE/install.sh" --list 2>&1)"
 assert_contains "$out" "claude"      "--list shows claude"
 assert_contains "$out" "codex"       "--list shows codex"
 assert_contains "$out" "antigravity" "--list shows antigravity"
+
+# --- claude settings.json merge must fail closed on a non-object ------------
+rm -f "$FHOME/.claude"/settings.json.bak-*
+printf '[1, 2, 3]\n' > "$FHOME/.claude/settings.json"
+set +e
+run_install --harness claude >"$SBROOT/log.claude-bad-settings" 2>&1; rc=$?
+set -e
+assert_exit 3 "$rc" "claude non-object settings.json: install exits 3"
+assert_eq "[1, 2, 3]" "$(cat "$FHOME/.claude/settings.json")" \
+    "claude non-object settings.json: file untouched"
+assert_eq "0" "$(find "$FHOME/.claude" -name 'settings.json.bak-*' | grep -c .)" \
+    "claude non-object settings.json: no backup written"
+assert_contains "$(cat "$SBROOT/log.claude-bad-settings")" "not a JSON object" \
+    "claude non-object settings.json: says why it refused"
 
 # --- hooks.json merge must never destroy a config it cannot parse -------------
 # `except Exception: data = {}` followed by a rewrite silently replaced a JSONC /

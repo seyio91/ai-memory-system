@@ -17,7 +17,7 @@ column points to where each capability is toured.
 | Feature | What it gives you | Entry point | § |
 |---|---|---|---|
 | Three-layer store | Schema / wiki / scratchpad on disk — rules, durable knowledge, in-flight notes | `identity.md` · `memory.md` · `working.md` | 1 |
-| Hook injection (not retrieval) | Context pushed in-band into the prompt — no vector DB, no similarity search | `inject_memory.sh` | 1 |
+| Hook injection (not retrieval) | Context pushed in-band into the prompt — no vector DB, no similarity search | `scripts/hooks/inject.sh` | 1 |
 | Cost-aware injection | Full payload at SessionStart / `@memory` / post-compaction; lightweight breadcrumb otherwise | hook logic | 1 |
 | Lazy domain knowledge | Cross-project knowledge loaded only on index trigger-match, never auto-injected | `domain/*.md` | 1 |
 
@@ -95,7 +95,7 @@ graduates into the wiki). Separating "rules" from "durable knowledge" from "scra
 each injection cheap and each layer's lifecycle distinct.
 
 **The differentiator is *how* it arrives.** A `UserPromptSubmit` hook
-(`~/.claude/hooks/inject_memory.sh`) emits `<memory:*>` blocks straight into the prompt —
+(`scripts/hooks/inject.sh`) emits `<memory:*>` blocks straight into the prompt —
 the model never issues a retrieval call. There are three "full payload" moments —
 **SessionStart**, an explicit `@memory`, and the first prompt after **compaction** — where
 the whole stack (identity → project memory → index → working) is injected. Every *other*

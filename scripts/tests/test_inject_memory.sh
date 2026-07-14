@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# inject_memory.sh (UserPromptSubmit) contract:
+# scripts/hooks/inject.sh (UserPromptSubmit) contract:
 #   - project resolves ONLY by walking cwd up to a .agents/memory-project marker
 #     (legacy .claude/memory-project still resolves via fallback; no .active_project global).
 #   - plain prompt + project  -> tiny <memory:active ...> breadcrumb
@@ -7,11 +7,8 @@
 #   - no marker (any prompt)   -> silent (generic Claude, memory system dormant)
 . "$(dirname "$0")/_assert.sh"
 
-HOOK="$HOOKS_DIR/inject_memory.sh"
-if [ ! -f "$HOOK" ]; then
-    printf '  SKIP %s not found\n' "$HOOK"
-    finish
-fi
+REPO_ROOT="$(cd "$SCRIPTS_DIR/.." && pwd)"
+HOOK="$REPO_ROOT/scripts/hooks/inject.sh"
 
 MEM="$(new_sandbox)"
 REPO="$(new_sandbox)"
@@ -130,7 +127,7 @@ if command -v git >/dev/null 2>&1; then
 fi
 
 # --- post-compaction flow: SessionStart(compact) sets sentinel, next prompt reloads full ---
-SS="$HOOKS_DIR/session_start_memory.sh"
+SS="$REPO_ROOT/harnesses/claude/hooks/session_start_memory.sh"
 if [ -f "$SS" ]; then
     SENT="$MEM/.sessions/s2.recompact"
     bash "$SS" >/dev/null <<<"{\"source\":\"compact\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
