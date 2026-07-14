@@ -11,6 +11,7 @@ refresh        = launch
 hooks_json        = ~/.codex/hooks.json
 hook_script       = $MEMORY_DIR/scripts/hooks/inject.sh
 guard_script      = $MEMORY_DIR/scripts/hooks/guard.sh
+arm_script        = $MEMORY_DIR/harnesses/codex/hooks/arm_recompact.sh
 hooks_min_version = 0.135.0
 
 # Forward-declared delivery surfaces. The generic per-manifest fan-out (skills
@@ -34,3 +35,4 @@ exec_probe      = codex
 [hooks]
 per_turn_inject = UserPromptSubmit
 infra_guard     = PreToolUse:^Bash$|apply_patch
+compaction_arm  = SessionStart
