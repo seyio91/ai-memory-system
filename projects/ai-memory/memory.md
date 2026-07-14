@@ -14,7 +14,7 @@ Three layers (Karpathy LLM-Wiki pattern):
 - **Wiki** — `domain/*.md` (cross-project) + `projects/*/memory.md` (engagement-specific). Durable.
 - **Scratchpad** — `projects/*/working.md`, injected with the full payload at session start (re-injected on `@memory`/after compaction) while non-empty — **not** every prompt; matures into the wiki via `/promote-memory`.
 
-Moving parts: one `UserPromptSubmit` hook (`~/.claude/hooks/inject_memory.sh`) emits `<memory:*>` blocks; slash commands in `~/.claude/commands/`; scripts in `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`, `link-skills.sh`, `executor.sh`, `codex-mem.sh`, the `taskprovider/` package + `taskctl`) with dependency-free bash-3.2 tests under `scripts/tests/`.
+Moving parts: one `UserPromptSubmit` hook (the shared `scripts/hooks/inject.sh`, format-parameterized) emits `<memory:*>` blocks; slash commands in `~/.claude/commands/`; scripts in `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`, `link-skills.sh`, `executor.sh`, `codex-mem.sh`, the `taskprovider/` package + `taskctl`) with dependency-free bash-3.2 tests under `scripts/tests/`.
 
 ## Current State
 Functional and in daily use across the real engagements indexed in `index.md`. This checkout is the distributable **source copy** and the dev instance: `origin = seyio91/ai-memory-system` (private, headed public), `AI_MEMORY_CHANNEL=dev` so a sync never flips it onto a tag.
