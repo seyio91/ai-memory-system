@@ -6,12 +6,7 @@
 
 ## Active
 
-### skills.toml recurse field → [plan](plans/skill-recurse-field.md)
-- [x] Phase 1 — schema + parser: `_manifest_tsv` emits `recurse`/`prefix`/`exclude`; `name` optional when recurse; loops don't skip nameless recurse rows (validated PASS)
-- [x] Phase 2 — resolver recurse branch: find-walk (prune-on-match) + exclude globs + identity (frontmatter/basename+prefix) + per-skill cache copy (validated PASS)
-- [x] Phase 3 — lockfile expanded set + 6th `origin` column; plain resolve replays as cache-hits (validated PASS — offline replay 70ms, zero fetch)
-- [x] Phase 4 — `--update`-only prune (origin-keyed) + `--dry-run` preview; collision hard-error (validated PASS — 9 criteria + dry-run accuracy + no temp leak)
-- [x] Phase 5 — `--list`/`--dry-run` recurse output; fixture-repo test suite (a–f) (validated PASS — test_skill_recurse.sh 41/0, shellcheck clean; runner green modulo env-only locale artifact in test_executor.sh)
+_(no active items)_
 
 ## Done
 _(checked items stay above until the file is rolled)_

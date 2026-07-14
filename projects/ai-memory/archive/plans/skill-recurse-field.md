@@ -1,7 +1,8 @@
 ---
 plan: skill-recurse-field
-status: active
+status: done
 created: 2026-07-14
+completed: 2026-07-15
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 39df6850-c619-8156-827e-ef548175f277
@@ -95,7 +96,19 @@ share a repo at different `path`s — hence the `origin = url#path` column).
 
 ## Phases
 
-_(decomposition — fill during execution)_
+All 5 shipped in PR #61 (`fd9a2d3`); each executed by codex, independently cross-model validated PASS.
+
+1. **Schema + parser** — `_manifest_tsv` emits 7 cols (`recurse`/`prefix`/`exclude`); `split_manifest_row`
+   preserves the empty leading field so nameless recurse rows survive; recurse routed to a Phase-2 stub.
+2. **Resolver recurse branch** — shared `_fetch_ref`; find-walk with outermost-wins prune; `\x1f`-split
+   `exclude` case-globs; identity frontmatter→basename→`+prefix`; per-skill cache copy; dry-run/zero-match.
+3. **Lockfile + replay** — 6th `origin` column (`url#path`); `lock_names_for_origin`; plain resolve replays
+   from lock as an offline cache-hit (verified 70ms, zero fetch); expansion only on first-resolve/`--update`.
+4. **Collision + prune** — run-global `SEEN_FILE` (pre-seeded with authored skills) → `_claim_name`
+   hard-errors naming both origins; `RESOLVED_FILE` + `lock_drop` + `prune_stale_locked` (`--update`-only,
+   origin-keyed, `--dry-run`-accurate, EXIT-trap cleanup).
+5. **`--list` + docs + tests** — `--list` enumerates expanded children from the lock; `skills.toml.example`
+   documents the new fields; hermetic `scripts/tests/test_skill_recurse.sh` (41 assertions); shellcheck-clean.
 
 ## Risks / open questions
 
