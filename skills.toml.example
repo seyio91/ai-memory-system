@@ -9,6 +9,9 @@
 #   url   (required) — git remote (https/ssh/file)
 #   ref   (required) — branch, tag, or sha to pin (reproducibility)
 #   path  (optional) — subdir within the repo that holds SKILL.md
+#   recurse (optional bool) — expand every SKILL.md under path as its own skill
+#   prefix  (optional) — prepend to recursed skill names; collision escape hatch
+#   exclude (optional list) — container-relative globs to omit from recurse
 
 [[skills]]
 name = "bkt"
@@ -45,6 +48,15 @@ name = "prometheus"
 url  = "https://github.com/grafana/skills.git"
 ref  = "main"
 path = "skills/grafana-lgtm/prometheus"
+
+# Example — recurse over every skill under a repo subpath:
+#
+# [[skills]]
+# url     = "https://github.com/grafana/skills.git"
+# ref     = "main"
+# path    = "skills"
+# recurse = true
+# prefix  = "grafana-"
 
 # Example — first-party skills from a private repo; uncomment + point at your own:
 #
