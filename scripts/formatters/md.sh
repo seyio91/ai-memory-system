@@ -29,6 +29,29 @@ md_render() {
     done
 }
 
+# md_render_breadcrumb <project> <cwd> — read records on stdin, print the
+# lightweight active-memory pointer used by per-turn hook injection.
+md_render_breadcrumb() {
+    local project="$1" cwd="$2" kind path name
+    echo "# === ACTIVE MEMORY ==="
+    echo
+    echo "project: $project"
+    echo "cwd: $cwd"
+    while IFS=$'\t' read -r kind path name; do
+        case "$kind" in
+            identity) echo "identity: $path" ;;
+            project)  echo "project memory: $path" ;;
+            index)    echo "index: $path" ;;
+            working)  ;;  # emitted below as the always-present write target
+        esac
+    done
+    if command -v resolve_working_file >/dev/null 2>&1; then
+        echo "working: $(resolve_working_file "$project" "$cwd")"
+    fi
+    echo
+    echo "If these are not already in context (e.g. after compaction), read them before proceeding."
+}
+
 # _md_render_domain <domain-dir> — the frontmatter-driven Domain Index table.
 # Stable (sorted) file ordering so the generated output is reproducible.
 _md_render_domain() {
