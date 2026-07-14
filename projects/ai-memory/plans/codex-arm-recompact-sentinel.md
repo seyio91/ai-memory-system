@@ -110,9 +110,13 @@ Real Codex compaction forced via live TTY (`/compact`), 8 events captured, all s
   writes `$STATE_DIR/<session_id>.recompact`) + `scripts/tests/test_codex_arm_recompact.sh` (4
   assertions: compact→sentinel + no stdout, startup no-op, no-project no-op). Full suite green
   (42 tests, shellcheck clean). Committed `37b8514`. (SC2) ✅
-- [ ] **P3 — Manifest + driver wiring:** codex `[hooks]` `compaction_arm` role + `arm_script`
-  key; `_hook_register_native_json` 5th role + `ARM` prefix + `ours` marker; verify idempotent
-  re-sync. (SC3)
+- [x] **P3 — Manifest + driver wiring:** codex `[hooks]` `compaction_arm = SessionStart` +
+  `arm_script` key; `_hook_register_native_json` 5th role (`compaction_arm → arm_script`) + `ARM`
+  prefix + `arm_recompact.sh` in the `ours` marker tuple; `validate-manifest` KNOWN_KEYS gains
+  `arm_script`. **Folded in the adjacent orphan bug**: legacy `inject_memory.sh` added to `ours`
+  so pre-P3 symlink-in-HOME entries are swept on re-sync (double-injection fix). `test_codex_hooks`
+  asserts the SessionStart arm entry (once, correct cmd) + legacy sweep. Suite green 42/42;
+  re-sync idempotent. Committed `3b4329d`. (SC3) ✅
 - [ ] **P4 — E2E verify + close:** real compaction -> full `<memory:identity>` payload on next
   prompt; validator gate; fix `docs/harnesses/codex.md` if stale; mark plan done. (SC4)
 
