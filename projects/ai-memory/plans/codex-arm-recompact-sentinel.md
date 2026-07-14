@@ -153,7 +153,7 @@ hook (22:33:10) → prompt-processing hooks → `.sessions/` mtime bumped (senti
         file:line + test evidence, SC5 N/A (closed via GO branch), full suite green (42 tests, python/
         lint/doc-vs-code/shellcheck clean; 2 lint warns are worktree-local, won't follow the merge).
   - [ ] `/plan-done` + `/plan-archive` (after merge).
-  - [ ] PR `worktree-codex-arm-recompact-sentinel` → main → canonical `install.sh --harness codex`
+  - [~] PR opened: https://github.com/seyio91/ai-memory-system/pull/60 (awaiting your merge). Then canonical `install.sh --harness codex`
         (driver's `ours` marker auto-replaces the surgical worktree-path arm entry with the main-path one).
 
 ## Risks / open questions
