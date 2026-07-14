@@ -1,7 +1,8 @@
 ---
 plan: codex-arm-recompact-sentinel
-status: active
+status: done
 created: 2026-07-14
+completed: 2026-07-14
 owner: claude (orchestrator)
 task_provider: local
 task_ref: 39df6850-c619-81d9-a020-f7bd74344efe
@@ -144,17 +145,17 @@ hook (22:33:10) → prompt-processing hooks → `.sessions/` mtime bumped (senti
   so pre-P3 symlink-in-HOME entries are swept on re-sync (double-injection fix). `test_codex_hooks`
   asserts the SessionStart arm entry (once, correct cmd) + legacy sweep. Suite green 42/42;
   re-sync idempotent. Committed `3b4329d`. (SC3) ✅
-- [~] **P4 — E2E verify + close:** SC4 CONFIRMED both branches (manual `/compact` + auto). Remaining:
-  validator gate → mark done → PR → canonical install from main.
+- [x] **P4 — E2E verify + close:** SC4 CONFIRMED both branches (manual `/compact` + auto); validator GO;
+  PR #60 merged (`f8b179a`); canonical install done. ✅
   - [x] Doc sub-item: `docs/harnesses/codex.md` compaction-recovery section updated (commit `bb8a4ee`).
   - [x] SC4 manual `/compact` E2E — marker echoed, arm→inject chain proven (commit `7fb1661`).
   - [x] SC4 auto-compaction E2E — marker echoed on auto-resume; `auto_compact` in log; recovery works.
-  - [x] Validator gate (SC1–SC5) — **GO** (read-only subagent, 2026-07-14): SC1–SC4 PASS with
-        file:line + test evidence, SC5 N/A (closed via GO branch), full suite green (42 tests, python/
-        lint/doc-vs-code/shellcheck clean; 2 lint warns are worktree-local, won't follow the merge).
-  - [ ] `/plan-done` + `/plan-archive` (after merge).
-  - [~] PR opened: https://github.com/seyio91/ai-memory-system/pull/60 (awaiting your merge). Then canonical `install.sh --harness codex`
-        (driver's `ours` marker auto-replaces the surgical worktree-path arm entry with the main-path one).
+  - [x] Validator gate (SC1–SC5) — **GO** (read-only subagent): SC1–SC4 PASS with file:line + test
+        evidence, SC5 N/A (closed via GO branch), full suite green (42 tests).
+  - [x] PR #60 merged (`f8b179a`) → origin/main merged into local main (`fc43898`); arm code on main.
+  - [x] Canonical `install.sh --harness codex` — SessionStart arm entry repointed to the main path,
+        idempotent on re-run (exactly 1 arm entry, no worktree path); surgical entry auto-swept by the
+        `ours` marker. NOTE: arm command hash changed → one-time `/hooks` re-trust on next interactive Codex.
 
 ## Risks / open questions
 
