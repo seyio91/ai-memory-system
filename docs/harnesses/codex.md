@@ -1,6 +1,8 @@
 # Codex CLI
 
-Codex has no native memory hook. The bridge is `harnesses/codex/scripts/codex-mem.sh`, a wrapper that rebuilds `~/.codex/AGENTS.md` from the memory tree (via the shared `scripts/build-context-md.sh`) and then `exec codex "$@"`. At install (`install.sh --harness codex`) the bundled skills **and** the slash-commands-as-skills fan into the cross-agent `~/.agents/skills` (Codex's command mechanism is skills).
+Codex runs a **hybrid** memory model: a static `~/.codex/AGENTS.md` base **plus native Codex hooks** for the dynamic layer. The base is rebuilt from the memory tree on every launch by `harnesses/codex/scripts/codex-mem.sh` (via the shared `scripts/build-context-md.sh`), which then `exec codex "$@"`; the hooks (see [Native hooks](#native-hooks-hybrid) below) add live per-turn memory injection and an executor infra guard. At install (`install.sh --harness codex`) the bundled skills **and** the slash-commands-as-skills fan into the cross-agent `~/.agents/skills` (Codex's command mechanism is skills).
+
+> **Codex has stable native hooks** (`codex features list` → `hooks`), verified against codex 0.144.1. The earlier "Codex has no native memory hook" model is retired — it is now a file+hook hybrid, not file-only.
 
 ## Daily use
 
@@ -15,6 +17,21 @@ alias codex='~/.claude-memory/harnesses/codex/scripts/codex-mem.sh'
 codex-mem.sh exec --sandbox read-only "what does our terraform domain file say?"
 codex-mem.sh review
 ```
+
+## Native hooks (hybrid)
+
+Beyond the `AGENTS.md` base, `install.sh --harness codex` writes a user-level `~/.codex/hooks.json` (Codex's own schema — a top-level `hooks` object keyed by event, distinct from Antigravity's shape) registering two roles from the manifest `[hooks]` map:
+
+| Role | Event | Script | Effect |
+|------|-------|--------|--------|
+| `per_turn_inject` | `UserPromptSubmit` | shared `scripts/hooks/inject.sh` (`AI_MEMORY_HOOK_FORMAT=md`) | Live per-turn memory injection via `hookSpecificOutput.additionalContext` — so interactive Codex gets fresh active-project memory each prompt (and mid-session project switch), not just the launch-time `AGENTS.md`. |
+| `infra_guard` | `PreToolUse` (matcher `^Bash$\|apply_patch`) | shared `scripts/hooks/guard.sh` | Under an executor role (`AI_MEMORY_ROLE` set), denies the shared infra deny-list via `exit 2` — Codex honors it as a tool block. Interactive sessions (no role) pass through. |
+
+**Trust.** Codex hash-pins hook trust by design, so there is no install-writable auto-trust on a personal machine (`requirements.toml` is MDM-only). Interactive Codex needs a **one-time `/hooks` trust** (re-prompts only if a hook's command changes); the headless executor path (`codex-mem.sh --executor`) passes `--dangerously-bypass-hook-trust`.
+
+**Version floor.** Hook registration is gated at install time on `codex --version ≥ hooks_min_version` (0.135.0). Below the floor, Codex falls back to the `AGENTS.md`-only file model with no error.
+
+**Not yet wired: `compaction_recovery`.** The shared `inject.sh` already consumes a `.recompact` sentinel, but *arming* it on a Codex compaction (a `PreCompact`/`PostCompact` or `SessionStart source=compact` hook) is a tracked follow-up — verifying it requires forcing a real compaction. Until then, post-compaction Codex relies on the per-turn breadcrumb + `AGENTS.md`.
 
 ## What lands in `~/.codex/AGENTS.md`
 

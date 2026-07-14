@@ -1,11 +1,14 @@
 ---
 plan: hook-standardization
-status: active
+status: done
 created: 2026-07-14
+completed: 2026-07-14
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 39bf6850-c619-817d-88a5-e32f529496fe
 ---
+
+> **DONE 2026-07-14.** P1 (#57), P2 (#58), P3 (#59) merged. P4 = docs + consumers + task closure (direct to main). **`compaction_recovery` for Codex was deferred** to its own task (`39df6850-c619-81d9-a020-f7bd74344efe`) — it needs a real-compaction spike disproportionate to P4; the shared `inject.sh` already consumes the sentinel, only Codex-side *arming* is unwired. Guard task `396f6850-…-81b2` closed (subsumed as `infra_guard`). Codex hook reference lives in `domain/codex.md`; the standardized-hook-layer decision is in `memory.md`.
 
 # Standardize the hook layer across harnesses (+ move Codex onto native hooks)
 

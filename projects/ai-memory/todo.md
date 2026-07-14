@@ -10,7 +10,7 @@
 - [x] P1 — roles + data-driven driver (`[hooks]` map, no hardcoded event names; behavior-preserving) — PR #57 merged (main c818f0b)
 - [x] P2 — shared `scripts/hooks/` + Codex onto hooks (hybrid; Fork-4 reversed to /hooks trust; version floor) — PR #58 merged
 - [x] P3 — migrate Claude onto shared scripts + fail-closed `settings.json` auto-merge (validator: SHIP) — PR #59 merged (main 8006bc9)
-- [ ] P4 — compaction_recovery + docs/consumers (close guard task 396f6850; on-demand-project-load #4; codex docs)
+- [x] P4 — docs/consumers + task closure (codex.md hybrid; on-demand-project-load #4; memory.md decision; closed guard task 396f6850). **compaction_recovery deferred** → task 39df6850 (needs a real-compaction spike)
 
 ## Done
 _(checked items stay above until the file is rolled)_
