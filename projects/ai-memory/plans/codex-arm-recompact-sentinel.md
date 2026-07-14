@@ -108,6 +108,23 @@ Real Codex compaction forced via live TTY (`/compact`), 8 events captured, all s
 - **Residual risk (P4):** confirm auto-compaction (context-full) also emits `SessionStart(compact)`;
   only manual `/compact` was spiked.
 
+## P4 E2E findings (2026-07-14 ~22:35) — SC4 CONFIRMED (manual /compact) ✅
+
+Surgical live test (worktree arm script, `MEMORY_DIR=/Users/seyi/Downloads/personal/claude/memory` so
+its `STATE_DIR` matches the live `inject.sh`). Behavioral proof: planted `P4-RECOMPACT-PROOF-7Z9Q` in the
+full payload only (grep=1 full / grep=0 breadcrumb), ran `/compact`, sent one resume prompt → **Codex
+echoed the token**. Since that token reaches a prompt ONLY via the arm→sentinel→`inject.sh` full re-inject,
+this proves the whole chain end to end. Log corroboration: `thread/status/changed` → lone SessionStart
+hook (22:33:10) → prompt-processing hooks → `.sessions/` mtime bumped (sentinel written+consumed same turn).
+
+- **Timing finding:** in-place `/compact` does NOT fire `SessionStart(source=compact)` at compaction time —
+  it fires on the **resume (next prompt)**, in the same turn as `UserPromptSubmit`. Matches the P1 order.
+- **Ordering resolved:** the arm (SessionStart) ran BEFORE inject (UserPromptSubmit) on the resume turn —
+  the marker reached the FIRST post-compaction prompt, so no dangling-sentinel / deferred-inject problem.
+- **Trust:** the SessionStart arm hook fired without a separate `/hooks` prompt (project already trusted).
+- **Still open (SC4 auto branch):** only manual `/compact` tested. Auto (context-full) compaction not yet
+  exercised — breadcrumb fallback covers any gap; documented residual.
+
 ## Phases
 
 - [x] **P1 — Spike [GATE]:** forced a real Codex compaction; captured events, payload shapes, and
