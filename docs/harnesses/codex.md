@@ -20,18 +20,19 @@ codex-mem.sh review
 
 ## Native hooks (hybrid)
 
-Beyond the `AGENTS.md` base, `install.sh --harness codex` writes a user-level `~/.codex/hooks.json` (Codex's own schema — a top-level `hooks` object keyed by event, distinct from Antigravity's shape) registering two roles from the manifest `[hooks]` map:
+Beyond the `AGENTS.md` base, `install.sh --harness codex` writes a user-level `~/.codex/hooks.json` (Codex's own schema — a top-level `hooks` object keyed by event, distinct from Antigravity's shape) registering three roles from the manifest `[hooks]` map:
 
 | Role | Event | Script | Effect |
 |------|-------|--------|--------|
 | `per_turn_inject` | `UserPromptSubmit` | shared `scripts/hooks/inject.sh` (`AI_MEMORY_HOOK_FORMAT=md`) | Live per-turn memory injection via `hookSpecificOutput.additionalContext` — so interactive Codex gets fresh active-project memory each prompt (and mid-session project switch), not just the launch-time `AGENTS.md`. |
 | `infra_guard` | `PreToolUse` (matcher `^Bash$\|apply_patch`) | shared `scripts/hooks/guard.sh` | Under an executor role (`AI_MEMORY_ROLE` set), denies the shared infra deny-list via `exit 2` — Codex honors it as a tool block. Interactive sessions (no role) pass through. |
+| `compaction_arm` | `SessionStart` (arms on `source=compact`) | `harnesses/codex/hooks/arm_recompact.sh` | On a compaction, writes the `<session_id>.recompact` sentinel so the next `UserPromptSubmit` re-injects the full payload through the shared `inject.sh` channel (compaction recovery). Standalone mirror of Claude's `session_start_memory.sh` compact branch. |
 
 **Trust.** Codex hash-pins hook trust by design, so there is no install-writable auto-trust on a personal machine (`requirements.toml` is MDM-only). Interactive Codex needs a **one-time `/hooks` trust** (re-prompts only if a hook's command changes); the headless executor path (`codex-mem.sh --executor`) passes `--dangerously-bypass-hook-trust`.
 
 **Version floor.** Hook registration is gated at install time on `codex --version ≥ hooks_min_version` (0.135.0). Below the floor, Codex falls back to the `AGENTS.md`-only file model with no error.
 
-**Not yet wired: `compaction_recovery`.** The shared `inject.sh` already consumes a `.recompact` sentinel, but *arming* it on a Codex compaction (a `PreCompact`/`PostCompact` or `SessionStart source=compact` hook) is a tracked follow-up — verifying it requires forcing a real compaction. Until then, post-compaction Codex relies on the per-turn breadcrumb + `AGENTS.md`.
+**Compaction recovery.** The shared `inject.sh` consumes a `.recompact` sentinel; the `compaction_arm` role (`arm_recompact.sh`, above) is the Codex half that *arms* it. A spike against codex 0.144.1 confirmed the `session_id` is **stable across a compaction** (`SessionStart source=compact` shares it with `UserPromptSubmit`), so a sentinel keyed on `session_id` survives into the resumed session and the next prompt re-injects the full payload once. The script's gate — `[ -z "$SOURCE" ] || [ "$SOURCE" = "compact" ]` — arms on `SessionStart(source=compact)` **and** on the sourceless `PreCompact`/`PostCompact` events, rejecting only an explicit non-compact source (a normal `SessionStart source=startup`); so which compaction event fires the arm is pure manifest config (`compaction_arm = SessionStart`, swappable to `PreCompact`/`PostCompact` with no script change). The spike exercised manual `/compact`; whether auto (context-full) compaction emits the same `SessionStart(source=compact)` is confirmed by end-to-end testing before the arm is relied on as the sole channel — the per-turn breadcrumb remains the always-on fallback.
 
 ## What lands in `~/.codex/AGENTS.md`
 
