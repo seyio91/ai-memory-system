@@ -279,6 +279,7 @@ _hook_register_native_json() {
     local guard_event="" guard_matcher="" guard_cmd=""
     local session_event="" session_matcher="" session_cmd=""
     local block_event="" block_matcher="" block_cmd=""
+    local arm_event="" arm_matcher="" arm_cmd=""
     fmt="$(manifest_get "$MANIFEST" format)"
     [ -n "$fmt" ] || fmt=xml
 
@@ -293,6 +294,7 @@ _hook_register_native_json() {
             infra_guard)       key=guard_script ;;
             session_bootstrap) key=session_script ;;
             task_tool_block)   key=block_script ;;
+            compaction_arm)    key=arm_script ;;
             *)
                 info "hook role '$role' has no native JSON script association — skipping"
                 continue
@@ -321,6 +323,10 @@ _hook_register_native_json() {
                 block_event="$event"; block_matcher="$matcher"
                 block_cmd="bash $script"
                 ;;
+            compaction_arm)
+                arm_event="$event"; arm_matcher="$matcher"
+                arm_cmd="env MEMORY_DIR=$MEMORY_DIR bash $script"
+                ;;
         esac
         hook_count=$((hook_count + 1))
     done < <(manifest_hooks "$MANIFEST")
@@ -340,6 +346,7 @@ _hook_register_native_json() {
             AIM_GUARD_EVENT="$guard_event" AIM_GUARD_MATCHER="$guard_matcher" AIM_GUARD_CMD="$guard_cmd" \
             AIM_SESSION_EVENT="$session_event" AIM_SESSION_MATCHER="$session_matcher" AIM_SESSION_CMD="$session_cmd" \
             AIM_BLOCK_EVENT="$block_event" AIM_BLOCK_MATCHER="$block_matcher" AIM_BLOCK_CMD="$block_cmd" \
+            AIM_ARM_EVENT="$arm_event" AIM_ARM_MATCHER="$arm_matcher" AIM_ARM_CMD="$arm_cmd" \
             python3 - <<'PY' || rc=$?
 import json, os, shutil, sys
 
@@ -348,8 +355,13 @@ bak = os.environ["AIM_BAK"]
 ours = (
     "scripts/hooks/inject.sh",
     "scripts/hooks/guard.sh",
+    "arm_recompact.sh",
     "session_start_memory.sh",
     "block_task_tools.sh",
+    # Legacy pre-P3 delivery name (symlink-in-HOME era). Kept in the marker set so a
+    # re-sync sweeps the stale ~/.claude/hooks/inject_memory.sh entry instead of
+    # orphaning it (dangling symlink -> /bin/sh error + double-injection every prompt).
+    "inject_memory.sh",
 )
 
 data = {}
@@ -414,7 +426,7 @@ def add(event, matcher, cmd):
         group["matcher"] = matcher
     hooks.setdefault(event, []).append(group)
 
-for prefix in ("INJECT", "GUARD", "SESSION", "BLOCK"):
+for prefix in ("INJECT", "GUARD", "SESSION", "BLOCK", "ARM"):
     add(
         os.environ.get("AIM_%s_EVENT" % prefix, ""),
         os.environ.get("AIM_%s_MATCHER" % prefix, ""),
@@ -435,6 +447,7 @@ PY
         [ -z "$inject_event" ] || info "registered $inject_event -> $inject_cmd"
         [ -z "$block_event" ] || info "registered $block_event -> $block_cmd"
         [ -z "$guard_event" ] || info "registered $guard_event -> $guard_cmd"
+        [ -z "$arm_event" ] || info "registered $arm_event -> $arm_cmd"
     elif [ ! -e "$hooks_json" ]; then
         {
             printf '{\n  "hooks": {'
@@ -452,6 +465,7 @@ PY
             _hook_native_print_group "$inject_event" "$inject_matcher" "$inject_cmd"
             _hook_native_print_group "$block_event" "$block_matcher" "$block_cmd"
             _hook_native_print_group "$guard_event" "$guard_matcher" "$guard_cmd"
+            _hook_native_print_group "$arm_event" "$arm_matcher" "$arm_cmd"
             printf '\n  }\n}\n'
         } > "$hooks_json"
         info "wrote $hooks_json (no python3 — new file)"

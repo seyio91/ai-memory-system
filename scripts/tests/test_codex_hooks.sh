@@ -80,6 +80,26 @@ if inject_cmd != expected_inject:
 if guard_cmd != expected_guard:
     sys.stderr.write("guard command mismatch\nexpected=%r\nactual=%r\n" % (expected_guard, guard_cmd))
     sys.exit(1)
+# compaction_arm: SessionStart entry registered exactly once, correct command, no matcher.
+ss = hooks.get("SessionStart")
+if not isinstance(ss, list) or not ss:
+    sys.stderr.write("missing SessionStart array\n")
+    sys.exit(1)
+arm_entries = [
+    g for g in ss
+    if any("arm_recompact.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
+]
+if len(arm_entries) != 1:
+    sys.stderr.write("idempotency failure: arm=%d\n" % len(arm_entries))
+    sys.exit(1)
+if "matcher" in arm_entries[0]:
+    sys.stderr.write("SessionStart arm group unexpectedly has matcher\n")
+    sys.exit(1)
+arm_cmd = arm_entries[0]["hooks"][0]["command"]
+expected_arm = "env MEMORY_DIR=%s bash %s/harnesses/codex/hooks/arm_recompact.sh" % (repo, repo)
+if arm_cmd != expected_arm:
+    sys.stderr.write("arm command mismatch\nexpected=%r\nactual=%r\n" % (expected_arm, arm_cmd))
+    sys.exit(1)
 PY
 rc=$?
 if [ "$rc" -eq 0 ]; then
@@ -88,6 +108,25 @@ else
     _bad "codex hooks_json schema and idempotency"
     cat "$PYOUT"
 fi
+
+# Legacy orphan sweep: a pre-P3 hooks.json carrying a stale inject_memory.sh entry
+# (symlink-in-HOME era) must be swept on re-sync, not left dangling. Guards the
+# `ours`-tuple fix for the double-injection bug hit live 2026-07-14.
+LEGACY="$TMP/legacy-hooks.json"
+cat > "$LEGACY" <<'JSON'
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "bash /Users/x/.claude/hooks/inject_memory.sh" } ] }
+    ]
+  }
+}
+JSON
+_hook_register_codex_json "$LEGACY"
+assert_eq "0" "$(grep -c 'inject_memory.sh' "$LEGACY")" \
+    "codex hooks_json: legacy inject_memory.sh entry swept on re-sync"
+assert_eq "1" "$(grep -c 'scripts/hooks/inject.sh' "$LEGACY")" \
+    "codex hooks_json: current inject.sh entry present after sweep"
 
 BAD="$TMP/bad-hooks.json"
 printf '[1, 2, 3]\n' > "$BAD"
