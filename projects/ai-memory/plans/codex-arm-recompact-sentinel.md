@@ -122,8 +122,12 @@ hook (22:33:10) → prompt-processing hooks → `.sessions/` mtime bumped (senti
 - **Ordering resolved:** the arm (SessionStart) ran BEFORE inject (UserPromptSubmit) on the resume turn —
   the marker reached the FIRST post-compaction prompt, so no dangling-sentinel / deferred-inject problem.
 - **Trust:** the SessionStart arm hook fired without a separate `/hooks` prompt (project already trusted).
-- **Still open (SC4 auto branch):** only manual `/compact` tested. Auto (context-full) compaction not yet
-  exercised — breadcrumb fallback covers any gap; documented residual.
+- **SC4 auto branch — CONFIRMED (2026-07-14 ~22:50):** forced a real AUTO compaction via
+  `codex -c model_auto_compact_token_limit=40000` + context fill (log shows `auto_compact` +
+  `op.dispatch.compact`, distinct from manual). Fresh marker `P4-AUTO-PROOF-3K8M` planted post-launch
+  (absent from `AGENTS.md` build; full=1/breadcrumb=0) → Codex echoed it on the auto-resume prompt;
+  `.sessions/` mtime bumped (sentinel write+consume). **Auto-compaction recovery works identically to
+  manual.** No PreCompact/PostCompact pivot needed. SC4 fully closed.
 
 ## Phases
 
@@ -140,10 +144,14 @@ hook (22:33:10) → prompt-processing hooks → `.sessions/` mtime bumped (senti
   so pre-P3 symlink-in-HOME entries are swept on re-sync (double-injection fix). `test_codex_hooks`
   asserts the SessionStart arm entry (once, correct cmd) + legacy sweep. Suite green 42/42;
   re-sync idempotent. Committed `3b4329d`. (SC3) ✅
-- [ ] **P4 — E2E verify + close:** real compaction -> full `<memory:identity>` payload on next
-  prompt; confirm auto-compaction emits `SessionStart(compact)`; validator gate; mark plan done. (SC4)
-  - [x] Doc sub-item: `docs/harnesses/codex.md` compaction-recovery section updated (commit `bb8a4ee`,
-    check-docs clean). Remaining P4 is the live-TTY E2E + validator + PR-to-main.
+- [~] **P4 — E2E verify + close:** SC4 CONFIRMED both branches (manual `/compact` + auto). Remaining:
+  validator gate → mark done → PR → canonical install from main.
+  - [x] Doc sub-item: `docs/harnesses/codex.md` compaction-recovery section updated (commit `bb8a4ee`).
+  - [x] SC4 manual `/compact` E2E — marker echoed, arm→inject chain proven (commit `7fb1661`).
+  - [x] SC4 auto-compaction E2E — marker echoed on auto-resume; `auto_compact` in log; recovery works.
+  - [ ] Validator gate (SC1–SC5) → `/plan-done` → `/plan-archive`.
+  - [ ] PR `worktree-codex-arm-recompact-sentinel` → main → canonical `install.sh --harness codex`
+        (driver's `ours` marker auto-replaces the surgical worktree-path arm entry with the main-path one).
 
 ## Risks / open questions
 
