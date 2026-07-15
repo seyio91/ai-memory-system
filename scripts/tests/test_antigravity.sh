@@ -171,11 +171,11 @@ assert_contains "$OUT" "proj" "statusline: no-jq fallback still renders the proj
 
 # default glyphs are emoji (like Claude) \u2014 \ud83e\udde0 memory, renders in any terminal
 OUT="$(printf '%s' "$PAYLOAD" | AI_MEMORY_PROJECT=proj bash "$SL")"
-MEM_EMOJI=$'\U0001F9E0'
+MEM_EMOJI=$(printf '\360\237\247\240')   # U+1F9E0 brain — printf octal (bash 3.2 has no $'\U')
 case "$OUT" in *"$MEM_EMOJI"*) _ok "statusline: default emoji glyph present (brain)" ;; *) _bad "statusline: missing default emoji glyph" ;; esac
 # opt-in Nerd Font mode emits the pinned glyph codepoints (U+F1C0 database)
 OUT="$(printf '%s' "$PAYLOAD" | AI_MEMORY_PROJECT=proj USE_NERD_FONTS=true bash "$SL")"
-NF_GLYPH=$'\uf1c0'
+NF_GLYPH=$(printf '\357\207\200')   # U+F1C0 \u2014 printf octal (bash 3.2 has no $'\u')
 case "$OUT" in *"$NF_GLYPH"*) _ok "statusline: USE_NERD_FONTS=true emits NF glyph (U+F1C0)" ;; *) _bad "statusline: NF glyph missing in nerd mode" ;; esac
 
 # --- per-worktree overlay: a linked-worktree AI_MEMORY_CWD injects working.<wt>.md ---

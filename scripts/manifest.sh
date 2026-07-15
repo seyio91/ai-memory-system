@@ -52,10 +52,17 @@ _mf_pairs() {
 }
 
 manifest_get() {
-    local file="$1" key="$2" k v
+    local file="$1" key="$2" k v pairs
+    # Buffer all pairs first, THEN search. Reading from a live `< <(_mf_pairs …)`
+    # and `return`-ing on the first match closes the pipe while _mf_pairs is still
+    # writing, so its printf takes SIGPIPE ("write error: Broken pipe"). A here-doc
+    # over a captured string has no live writer to kill.
+    pairs="$(_mf_pairs "$file")"
     while IFS=$'\t' read -r k v; do
         if [ "$k" = "$key" ]; then _mf_expand "$v"; return 0; fi
-    done < <(_mf_pairs "$file")
+    done <<EOF
+$pairs
+EOF
     return 0
 }
 
