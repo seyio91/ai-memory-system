@@ -140,4 +140,36 @@ assert_eq "0" "$(find "$TMP" -name 'bad-hooks.json.bak-*' | grep -c .)" \
     "codex hooks_json top-level array: no backup written"
 assert_contains "$(cat "$TMP/bad.err")" "not a JSON object" "codex hooks_json top-level array: says why it refused"
 
+# --- Phase 1: session_bootstrap command is format-wrapped from the manifest `format` ---
+# The real codex manifest still wires SessionStart -> arm_recompact (compaction_arm); the
+# session_bootstrap md path lands when Phase 3 flips the manifest. Prove the engine threads
+# format=md into the SessionStart command NOW, via a synthetic manifest, so the fix is
+# guarded independently of that flip.
+SYN_MF="$TMP/synthetic-md.manifest"
+SYN_SCRIPT="$TMP/session_start_stub.sh"
+: > "$SYN_SCRIPT"
+cat > "$SYN_MF" <<EOF
+name           = synthetic
+format         = md
+session_script = $SYN_SCRIPT
+
+[hooks]
+session_bootstrap = SessionStart
+EOF
+SYN_HOOKS="$TMP/synthetic-hooks.json"
+MANIFEST="$SYN_MF" _hook_register_native_json "$SYN_HOOKS"
+SYN_CMD="$(SYN_HOOKS="$SYN_HOOKS" python3 - <<'PY'
+import json, os
+with open(os.environ["SYN_HOOKS"]) as f:
+    data = json.load(f)
+print(data["hooks"]["SessionStart"][0]["hooks"][0]["command"])
+PY
+)"
+assert_contains "$SYN_CMD" "AI_MEMORY_HOOK_FORMAT=md" \
+    "session_bootstrap: SessionStart command carries md format from manifest"
+assert_contains "$SYN_CMD" "AI_MEMORY_HOOK_EVENT=SessionStart" \
+    "session_bootstrap: SessionStart command carries the event name"
+assert_contains "$SYN_CMD" "bash $SYN_SCRIPT" \
+    "session_bootstrap: SessionStart command points at session_script"
+
 finish

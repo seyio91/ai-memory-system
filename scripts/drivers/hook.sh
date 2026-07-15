@@ -317,7 +317,12 @@ _hook_register_native_json() {
                 ;;
             session_bootstrap)
                 session_event="$event"; session_matcher="$matcher"
-                session_cmd="bash $script"
+                # Format-wrapped like inject_cmd: the shared session_start script renders
+                # via content-core, so it needs AI_MEMORY_HOOK_FORMAT from the manifest
+                # (xml for Claude, md for Codex once it points session_script here). Passing
+                # MEMORY_DIR/AI_MEMORY_HOOK_FORMAT to Claude's xml script is a no-op (its
+                # defaults already match), so this is behaviour-preserving for Claude.
+                session_cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event bash $script"
                 ;;
             task_tool_block)
                 block_event="$event"; block_matcher="$matcher"
