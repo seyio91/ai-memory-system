@@ -16,8 +16,14 @@ _ss_resolve() {
 }
 
 _ss_self="$(_ss_resolve "${BASH_SOURCE[0]}")"
-_SS_REPO="$(cd "$(dirname "$_ss_self")/../../.." && pwd)"
+# This script lives in scripts/hooks/, so the repo root is two levels up.
+_SS_REPO="$(cd "$(dirname "$_ss_self")/../.." && pwd)"
 . "$_SS_REPO/scripts/hooks/lib.sh"
+
+# Bare/isolated executor opt-out: a lean review run (codex --executor-bare) exports
+# AI_MEMORY_SKIP_INJECT=1 to suppress ALL memory injection — no startup base, and no
+# compaction sentinel. Mirrors the same gate in inject.sh so both hook faces honor it.
+[ -n "${AI_MEMORY_SKIP_INJECT:-}" ] && exit 0
 
 INPUT=$(cat)
 CWD=$(json_field "$INPUT" "cwd")

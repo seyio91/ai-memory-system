@@ -55,7 +55,7 @@ stage_old_claude_hooks() {
 stage_old_claude_hooks
 CLAUDE_INJECT="$OLD_REPO/harnesses/claude/hooks/inject_memory.sh"
 OLD_SESSION="$OLD_REPO/harnesses/claude/hooks/session_start_memory.sh"
-NEW_SESSION="$REPO/harnesses/claude/hooks/session_start_memory.sh"
+NEW_SESSION="$REPO/scripts/hooks/session_start_memory.sh"
 
 json_payload() {
     local prompt="$1" cwd="$2" session="${3:-}"
@@ -97,6 +97,20 @@ if command -v python3 >/dev/null 2>&1; then
 else
     printf '  SKIP python3 absent; shared/Claude JSON payload comparison not run\n'
 fi
+
+# --- AI_MEMORY_SKIP_INJECT gate (bare/isolated executor opt-out) — no python3 needed ---
+skip_inject="$(json_payload "hello" "$WORK/sub" "sk1" | AI_MEMORY_SKIP_INJECT=1 bash "$SHARED_INJECT")"
+assert_eq "" "$skip_inject" "skip-inject: inject.sh emits nothing when AI_MEMORY_SKIP_INJECT=1"
+
+skip_start="$(printf '{"cwd":"%s","session_id":"sk-start"}' "$WORK" | AI_MEMORY_SKIP_INJECT=1 bash "$NEW_SESSION")"
+assert_eq "" "$skip_start" "skip-inject: session_start emits nothing when AI_MEMORY_SKIP_INJECT=1"
+
+SKIP_STATE="$MEM/skip-state"
+printf '{"source":"compact","cwd":"%s","session_id":"sk-compact"}' "$WORK" \
+    | AI_MEMORY_SKIP_INJECT=1 MEMORY_STATE_DIR="$SKIP_STATE" bash "$NEW_SESSION" >/dev/null
+[ ! -e "$SKIP_STATE/sk-compact.recompact" ] \
+    && _ok "skip-inject: session_start compact writes NO sentinel when skipping" \
+    || _bad "skip-inject: session_start compact writes NO sentinel when skipping"
 
 md_out="$(json_payload "reload @memory" "$WORK" "s3" | AI_MEMORY_HOOK_FORMAT=md bash "$SHARED_INJECT")"
 assert_contains "$md_out" "# === IDENTITY ===" "shared md inject: full md identity heading"

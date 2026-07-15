@@ -4,7 +4,7 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/session_start_memory.sh" }
+          { "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart bash $MEMORY_DIR/scripts/hooks/session_start_memory.sh" }
         ]
       }
     ],

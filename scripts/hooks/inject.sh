@@ -6,6 +6,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/lib.sh"
 
+# Bare/isolated executor opt-out: a lean review run (codex --executor-bare) exports
+# AI_MEMORY_SKIP_INJECT=1 to suppress ALL memory injection — base AND breadcrumb.
+# Mirrors the same gate in session_start_memory.sh.
+[ -n "${AI_MEMORY_SKIP_INJECT:-}" ] && exit 0
+
 TRIGGER="${MEMORY_RELOAD_TRIGGER:-@memory}"
 EVENT="${AI_MEMORY_HOOK_EVENT:-UserPromptSubmit}"
 

@@ -127,7 +127,10 @@ if command -v git >/dev/null 2>&1; then
 fi
 
 # --- post-compaction flow: SessionStart(compact) sets sentinel, next prompt reloads full ---
-SS="$REPO_ROOT/harnesses/claude/hooks/session_start_memory.sh"
+SS="$REPO_ROOT/scripts/hooks/session_start_memory.sh"
+# Fail loudly if the script moved: a silent `[ -f ]` skip would let the whole
+# post-compaction flow vanish from the suite unnoticed (the "green proves nothing" trap).
+assert_file "$SS" "post-compact: session_start_memory.sh present at scripts/hooks/"
 if [ -f "$SS" ]; then
     SENT="$MEM/.sessions/s2.recompact"
     bash "$SS" >/dev/null <<<"{\"source\":\"compact\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"

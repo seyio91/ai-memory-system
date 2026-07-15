@@ -114,7 +114,7 @@ with open(path) as f:
     data = json.load(f)
 hooks = data.get("hooks", {})
 expected = {
-    "SessionStart": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart bash %s/harnesses/claude/hooks/session_start_memory.sh" % (repo, repo)),
+    "SessionStart": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo)),
     "UserPromptSubmit": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash %s/scripts/hooks/inject.sh" % (repo, repo)),
     "PreToolUse": ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo),
 }
