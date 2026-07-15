@@ -7,7 +7,7 @@
 ## Active
 
 ### Release automation (changelog fragments + computed versioning) → [plan](plans/release-automation.md)
-Phase A shipped in PR #63 (feat/release-automation) — awaiting user review/merge.
+Phase A merged to main in PR #63 (`dc98a6f`), CI green on both runners. Phase B remains (deferred).
 - [x] Phase A0 — `.github/workflows/tests.yml` runs `run-tests.sh` (ubuntu + macos/bash-3.2, shellcheck installed)
 - [x] Phase A1 — `changelog.d/` convention + `assemble-changelog.sh` (assemble + `--bump`) + tests
 - [x] Phase A2 — `release.sh` consumes fragments + `--ci` non-interactive + tests
