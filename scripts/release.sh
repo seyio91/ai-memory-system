@@ -13,9 +13,12 @@
 #   git push origin "v<version>"
 #
 # Usage:
-#   release.sh <version> [--dry-run] [--no-push]
+#   release.sh [<version>] [--ci] [--dry-run] [--no-push]
 #
-#   <version>  bare stable semver, e.g. 1.0.0 (tag becomes v1.0.0)
+#   <version>  bare stable semver, e.g. 1.0.0 (tag becomes v1.0.0). OPTIONAL:
+#              omit it and the version is computed from changelog.d/ fragment
+#              kinds (breaking->major, feature->minor, fix/upgrade->patch).
+#   --ci       non-interactive publish: also create the GitHub Release (gh).
 #   --dry-run  run guards and print the changelog section; mutate nothing
 #   --no-push  create the local release commit and tag, but skip both pushes
 
@@ -31,12 +34,16 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 VERSION=""
 TAG=""
+RELEASE_COMMIT_SUBJECT=""
 DRY_RUN=0
 NO_PUSH=0
+CI=0
 SEMVER_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+CHANGELOG_D="$REPO_ROOT/changelog.d"
+ASSEMBLE="$REPO_ROOT/scripts/assemble-changelog.sh"
 
 usage() {
-    sed -n '9,20p' "$0" >&2
+    sed -n '15,23p' "$0" >&2
 }
 
 abort() {
@@ -49,6 +56,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run) DRY_RUN=1 ;;
         --no-push) NO_PUSH=1 ;;
+        --ci) CI=1 ;;
         -*) echo "unknown flag: $1" >&2; usage; exit 2 ;;
         *)
             if [ -n "$VERSION" ]; then
@@ -62,21 +70,57 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-if [ -z "$VERSION" ]; then
-    echo "missing release version" >&2
-    usage
-    exit 2
-fi
+# A version may be given explicitly OR computed from changelog.d/ fragments after
+# fetch (resolve_version, below). Validation + tag naming happen in finalize_version,
+# called once the version is known.
+validate_semver() {
+    if ! printf '%s\n' "$1" | grep -Eq "$SEMVER_RE"; then
+        echo "  ABORT: release version must be a bare stable semver: <major>.<minor>.<patch>." >&2
+        echo "  Example: scripts/release.sh 1.0.0" >&2
+        echo "  Prerelease/build metadata and a leading v are not accepted." >&2
+        exit 2
+    fi
+}
 
-if ! printf '%s\n' "$VERSION" | grep -Eq "$SEMVER_RE"; then
-    echo "  ABORT: release version must be a bare stable semver: <major>.<minor>.<patch>." >&2
-    echo "  Example: scripts/release.sh 1.0.0" >&2
-    echo "  Prerelease/build metadata and a leading v are not accepted." >&2
-    exit 2
-fi
+finalize_version() {
+    validate_semver "$VERSION"
+    TAG="v$VERSION"
+    RELEASE_COMMIT_SUBJECT="chore(release): $TAG"
+}
 
-TAG="v$VERSION"
-RELEASE_COMMIT_SUBJECT="chore(release): $TAG"
+# fragment_status: 0 = changelog.d/ has valid fragments; 1 = present but invalid;
+# 2 = none (or the assembler is unavailable — fall back to legacy drafting).
+fragment_status() {
+    [ -x "$ASSEMBLE" ] || [ -f "$ASSEMBLE" ] || return 2
+    bash "$ASSEMBLE" --dir "$CHANGELOG_D" --check >/dev/null 2>&1
+    case $? in
+        0) return 0 ;;
+        1) return 1 ;;
+        *) return 2 ;;
+    esac
+}
+
+# resolve_version — called AFTER fetch so the latest tag is current. Aborts on
+# invalid fragments (whether or not a version was passed); computes the version
+# from fragment kinds when none was given.
+resolve_version() {
+    local st=0
+    fragment_status || st=$?
+    [ "$st" = 1 ] && abort "changelog.d/ has invalid fragments." "Run scripts/assemble-changelog.sh --check and fix them."
+    if [ -z "$VERSION" ]; then
+        if [ "$st" = 0 ]; then
+            VERSION="$(bash "$ASSEMBLE" --dir "$CHANGELOG_D" --bump)" \
+                || abort "could not compute a version from changelog.d/ fragments."
+        else
+            echo "missing release version" >&2
+            echo "  Pass a version (scripts/release.sh 1.4.0) or add changelog.d/ fragments." >&2
+            usage
+            exit 2
+        fi
+    fi
+    finalize_version
+}
+
 RELEASE_MODE="normal"
 
 cd "$REPO_ROOT"
@@ -280,6 +324,12 @@ EOF
 
 release_body() {
     local prev="$1" body
+    # Fragments, when present, are the source of truth — assemble deterministically
+    # and skip the git-log draft entirely.
+    if fragment_status; then
+        bash "$ASSEMBLE" --dir "$CHANGELOG_D" assemble
+        return 0
+    fi
     require_one_unreleased_section
     body="$(unreleased_body)"
     if body_has_entries "$body"; then
@@ -413,6 +463,21 @@ push_tag_if_needed() {
     fi
 }
 
+create_gh_release() {
+    # Idempotent: an existing release (resume) is left alone. Notes come from the
+    # assembled body when we have it, else from the annotated tag message.
+    if gh release view "$TAG" >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -n "$RELEASE_BODY" ]; then
+        gh release create "$TAG" --title "$TAG" --notes "$RELEASE_BODY" || \
+            abort "gh release create failed for $TAG." "The tag is pushed; create the Release manually or re-run --ci."
+    else
+        gh release create "$TAG" --title "$TAG" --notes-from-tag || \
+            abort "gh release create failed for $TAG." "The tag is pushed; create the Release manually or re-run --ci."
+    fi
+}
+
 publish_release() {
     if [ "$NO_PUSH" = 1 ]; then
         printf 'Created local release commit and tag %s (--no-push).\n' "$TAG"
@@ -420,6 +485,7 @@ publish_release() {
     fi
     push_main_if_needed
     push_tag_if_needed
+    [ "$CI" = 1 ] && create_gh_release
     printf 'Released %s.\n' "$TAG"
 }
 
@@ -430,6 +496,7 @@ TODAY="$(date +%Y-%m-%d)"
 dirty_tracked_guard
 branch_guard
 fetch_origin
+resolve_version
 detect_release_state
 
 case "$RELEASE_MODE" in
@@ -487,6 +554,11 @@ seed_changelog
 RELEASE_BODY="$(release_body "$PREV_TAG")"
 write_final_changelog "$VERSION" "$RELEASE_BODY" "$TODAY"
 git add CHANGELOG.md
+# release_body ran in a subshell, so re-check here: if fragments fed this release,
+# they've been assembled into CHANGELOG.md and must be removed in the same commit.
+if fragment_status; then
+    git rm -q "$CHANGELOG_D"/*.*.md
+fi
 git commit -q -m "$RELEASE_COMMIT_SUBJECT"
 tag_message "$RELEASE_BODY" | git tag -a "$TAG" --cleanup=verbatim -F -
 publish_release

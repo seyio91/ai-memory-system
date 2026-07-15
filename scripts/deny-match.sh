@@ -482,7 +482,8 @@ _deny_load_specs() {
             binary="${line%%[ 	]*}"
             rest="${line#"$binary"}"
             rest="$(_deny_trim "$rest")"
-            [ -n "$binary" ] && [ -n "$rest" ] || continue
+            [ -n "$binary" ] || continue
+            [ -n "$rest" ] || continue
             DENY_SPECS[${#DENY_SPECS[@]}]="$binary $rest"
         done < "$file"
     done

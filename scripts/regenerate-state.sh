@@ -20,10 +20,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATE="$MEMORY_DIR/state.md"
 TAB="$(printf '\t')"
 
-# file_mtime <path> -> epoch seconds (empty if missing). macOS stat first, GNU fallback.
+# file_mtime <path> -> epoch seconds (empty if missing). GNU form FIRST: `stat -c`
+# is a clean unknown-flag failure on BSD, but BSD's `stat -f` is a valid *different*
+# mode on GNU (filesystem info), so BSD-first pollutes the value on Linux.
 file_mtime() {
     [ -e "$1" ] || return 0
-    stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null
+    stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null
 }
 
 # project_mtime <projdir> -> newest mtime (epoch) among the files that signal activity.

@@ -1,0 +1,37 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The suite gates on shellcheck only when the binary is present; without it
+      # the stage skips silently. Pin an exact version (not apt/brew, whose
+      # versions differ per-runner) so the lint is DETERMINISTIC and reproducible
+      # locally — an unpinned linter makes CI flaky as SC checks change per release.
+      - name: Install shellcheck 0.11.0 (pinned)
+        run: |
+          set -euo pipefail
+          ver=0.11.0
+          os=$(uname -s | tr '[:upper:]' '[:lower:]')   # linux | darwin
+          arch=$(uname -m)                                # x86_64 | arm64 | aarch64
+          case "$arch" in arm64) arch=aarch64 ;; esac
+          url="https://github.com/koalaman/shellcheck/releases/download/v${ver}/shellcheck-v${ver}.${os}.${arch}.tar.gz"
+          curl -fsSL "$url" | tar -xzf -
+          sudo mv "shellcheck-v${ver}/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
+
+      # macOS ships Bash 3.2 — the portability floor this repo targets. Running
+      # the suite there catches 3.2 regressions that a bash-5 Linux runner misses.
+      - name: Run test suite
+        run: bash scripts/run-tests.sh

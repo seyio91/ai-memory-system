@@ -25,7 +25,9 @@ NUM="${FG_WHITE}${B}"
 
 # ─── Glyphs (Nerd Font ⟷ emoji/text fallback) ────────────────────────────────
 if [ "$USE_NERD_FONTS" = "true" ]; then
-    G_MEM=$'\uf1c0'; G_DIR=$'\uf07b'; G_BR=$'\uf126'; G_MODEL=$'\uf2db'
+    # printf octal, not $'\uXXXX' \u2014 the latter needs bash 4.2+; this repo targets
+    # bash 3.2, where $'\u' stays a literal. U+F1C0 F07B F126 F2DB (Nerd Font).
+    G_MEM=$(printf '\357\207\200'); G_DIR=$(printf '\357\201\273'); G_BR=$(printf '\357\204\246'); G_MODEL=$(printf '\357\213\233')
 else
     G_MEM="🧠"; G_DIR="📁"; G_BR="🌿"; G_MODEL="🤖"
 fi

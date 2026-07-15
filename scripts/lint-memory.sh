@@ -147,7 +147,9 @@ for f in "$MEMORY_DIR"/projects/*/working.md "$MEMORY_DIR"/projects/*/working.*.
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
     [ -s "$f" ] || continue
-    MTIME=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f" 2>/dev/null)
+    # GNU form first: `stat -c` fails cleanly on BSD, but BSD's `stat -f` is a
+    # valid *different* mode on GNU and pollutes the value. See regenerate-state.sh.
+    MTIME=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)
     [ -z "$MTIME" ] && continue
     AGE=$(( NOW - MTIME ))
     if [ "$AGE" -gt "$SECONDS_THRESHOLD" ]; then

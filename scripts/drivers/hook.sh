@@ -147,7 +147,7 @@ _hook_register_json() {
     gs="$(manifest_get "$MANIFEST" guard_script)"; gs="${gs//\$MEMORY_DIR/$MEMORY_DIR}"
     [ -n "$hs" ] || { info "hooks_json set but no hook_script in manifest — nothing to register"; return; }
     chmod +x "$hs" 2>/dev/null || true
-    [ -n "$gs" ] && chmod +x "$gs" 2>/dev/null || true
+    if [ -n "$gs" ]; then chmod +x "$gs" 2>/dev/null || true; fi
 
     while IFS=$'\t' read -r role spec; do
         [ -n "$role" ] || continue
