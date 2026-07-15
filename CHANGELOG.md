@@ -76,6 +76,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   fails the suite; an `SC2155` in a test file fails it; an `SC2086` in a test file does not
   (by design); and removing shellcheck from `PATH` skips cleanly at exit 0.
 
+- **`recurse` field on `skills.toml` — pull many skills from one repo subpath** (#61). One
+  `[[skills]]` entry with `recurse = true` fetches a repo once and materializes every `SKILL.md`
+  under `path` as its own cached skill, replacing one-entry-per-skill (grafana ships **46**, the
+  first-party `agent-skills` repo **5**). Identity is frontmatter `name:` → dir basename → optional
+  `prefix`; a nested `references/SKILL.md` is pruned (outermost-wins, not a second skill); optional
+  `exclude` globs omit sub-paths. The lockfile gains a 6th `origin` column (`url#path`) and records
+  the concrete expanded set, so a plain resolve **replays from the lock as an offline cache-hit** —
+  a recurse entry is exactly as reproducible as explicit ones once locked (expansion runs only on
+  first-resolve / `--update`). A name that collides with another source **or an existing authored
+  skill** is a hard error naming both origins (`prefix` is the escape hatch), killing silent
+  shadowing; `--update` prunes stale cache dirs + lock rows (origin-keyed, `--dry-run`-previewable).
+
+- **Deterministic post-compaction memory recovery on Codex** (#60). A per-session
+  `<session_id>.recompact` sentinel drives reliable re-injection of the full memory payload after a
+  context compaction, rather than depending on a heuristic first-prompt detection.
+
+- **Hook standardization — data-driven, manifest-wired hooks** (#57, #58, #59). Hook wiring moved off
+  per-harness bespoke glue onto a single manifest `[hooks]` role map:
+  - **P1** — data-driven hook wiring via the manifest role map (the engine reads roles, not hard-coded
+    hook paths).
+  - **P2** — shared hook scripts; Codex moved onto its native hook mechanism (hybrid).
+  - **P3** — Claude moved onto the shared hook scripts, with a fail-closed `settings.json` auto-merge
+    (a malformed merge refuses rather than silently dropping wiring).
+
+- **`executor.sh --run --clean`** (#56) — uniform final-message output across executor planes, so a
+  delegated run returns just its final message regardless of harness.
+
+- **`/start --worktree`** (#55) — route a feature task into an isolated git worktree so its execution
+  doesn't collide with other in-progress work; the per-session scratchpad auto-resolves to the
+  worktree's overlay.
+
+- **Per-worktree `working.md` overlay** (#54) — concurrent sessions in different worktrees get their
+  own scratchpad (`working.<slug>.md`) instead of racing on one file.
+
+- **Task-provider delete interface** (#53) — a `delete` capability threaded across the provider
+  contract, the `local`/`notion` providers, and the `taskctl` CLI.
+
 ### Fixed
 
 - **A `MEMORY_DIR` containing a space silently corrupted the derived state snapshot.**
