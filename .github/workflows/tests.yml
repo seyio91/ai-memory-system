@@ -1,0 +1,31 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  suite:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The suite gates on shellcheck only when the binary is present; without
+      # it the shellcheck stage skips silently. Install it so CI actually lints.
+      - name: Install shellcheck (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Install shellcheck (macOS)
+        if: runner.os == 'macOS'
+        run: brew install shellcheck
+
+      # macOS ships Bash 3.2 — the portability floor this repo targets. Running
+      # the suite there catches 3.2 regressions that a bash-5 Linux runner misses.
+      - name: Run test suite
+        run: bash scripts/run-tests.sh
