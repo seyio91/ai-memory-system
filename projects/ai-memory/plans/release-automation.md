@@ -106,11 +106,23 @@ per the task summary):
   cutover.
 
 ### Phase B — GitHub Actions (DEFERRED — needs user's repo-settings/PAT)
-- `.github/workflows/`: on merge to `main`, assemble `changelog.d/*` → open/update a
-  "Release vX.Y.Z" PR (CHANGELOG + UPGRADING + version bump; deletes fragments).
-- On release-PR merge: run `bash scripts/release.sh --ci` (tag + push + GH Release inline).
-- Requires a PAT secret (the tag-retrigger footgun) — a human setup gate. Do NOT wire until
-  Phase A is proven and the user provisions the secret.
+Phase A merged (PR #63) and is green on main; Phase B is the publish flow.
+- `release-pr.yml` — on push to `main`: if `changelog.d/` has fragments, compute the version
+  (`assemble-changelog.sh --bump`) and open/update a "Release vX.Y.Z" PR **using the PAT** so
+  the PR actually gets CI.
+- `release-publish.yml` — on that Release PR merging: run `scripts/release.sh --ci`
+  (tag + push + GH Release inline).
+- **Why a PAT (human gate):** a PR opened by an Action using the default `GITHUB_TOKEN` does
+  NOT trigger workflows (GitHub anti-recursion), so the Release PR would get no CI. A PAT
+  (fine-grained: contents + pull-requests write, e.g. secret `RELEASE_PAT`) fixes that. The
+  publish step itself can use `GITHUB_TOKEN` unless branch protection blocks direct pushes to
+  main. Do NOT wire until the user provisions the secret.
+- **Design fork to settle at Phase-B start (brainstorm):** where does assembly happen?
+  (a) *thin Release PR* — PR is an approval marker; `release.sh --ci` does ALL assembly at
+  merge (keeps release.sh the single implementation; leaning this way); (b) *fat Release PR* —
+  the Action assembles the CHANGELOG into the PR for a reviewable diff, and release.sh must
+  detect "already assembled" and only tag. Plus: if `main` requires PR review, release.sh's
+  direct push to main needs handling.
 
 ## Risks / open questions
 - **Cutover from `## [Unreleased]`.** The assembler must own the section cleanly; during
