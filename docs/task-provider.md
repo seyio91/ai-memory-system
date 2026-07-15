@@ -73,11 +73,11 @@ The always-available default. Tasks are **flat** at `$MEMORY_DIR/tasks/<slug>.md
 
 ## Notion provider (`NotionProvider`)
 
-The first remote backend, same contract, **zero changes** to the contract/CLI/factory/local code (proven by checksum). Uses `urllib.request` only (no `requests`), `Notion-Version: 2025-09-03` (data-source query `POST /v1/data_sources/{id}/query`, page create `POST /v1/pages` parented by `data_source_id`, status/field via `PATCH /v1/pages/{id}`). Reads `NOTION_TOKEN` + `NOTION_DATA_SOURCE_ID` from env — **no secrets in code or the tree**. All backend-specific strings are isolated to `providers/notion.py` (verifiable by grep).
+The first remote backend, same contract, **zero changes** to the contract/CLI/factory/local code (proven by checksum). Uses `urllib.request` only (no `requests`), `Notion-Version: 2025-09-03` (data-source query `POST /v1/data_sources/{id}/query`, page create `POST /v1/pages` parented by `data_source_id`, status/field via `PATCH /v1/pages/{id}`). Reads `NOTION_TOKEN` + `NOTION_DATA_SOURCE_ID` from env — **no secrets in code or the tree**. All backend-specific strings are isolated to `providers/notion/__init__.py` (verifiable by grep).
 
 ### Notion setup
 
-**1. The database schema the provider expects.** The target Notion data source must carry these properties (names are the constants in `providers/notion.py`):
+**1. The database schema the provider expects.** The target Notion data source must carry these properties (names are the constants in `providers/notion/__init__.py`):
 
 | Property | Type | Role |
 |----------|------|------|
@@ -88,7 +88,7 @@ The first remote backend, same contract, **zero changes** to the contract/CLI/fa
 | `Claude` | checkbox | the **consume tag** — `list` only returns `Claude = true` rows, so your own cards stay invisible to the provider |
 | `Created` | created time | optional — falls back to the page's `created_time` if absent |
 
-**The Notion page *body* is not part of the contract.** The provider reads and writes **properties only** — it never touches page children (no `children` anywhere in `providers/notion.py`). Anything you type into the body of a task page is **silently ignored**: it will not reach `get()`, and it will not reach the plan at `/start`. This is deliberate, not an omission. Reading the body would make the page a second home for detail, which is exactly the split-brain [the projection model](#the-model--backend-is-a-projection-not-a-co-source-of-truth) exists to prevent. When hand-capturing a task with a real design behind it, put the design in `projects/<project>/investigations/<slug>.md` and name it from `Summary` — `` design: `<slug>` `` — the same rule `/task` follows (see [Summary is a gate](#summary-is-a-gate)).
+**The Notion page *body* is not part of the contract.** The provider reads and writes **properties only** — it never touches page children (no `children` anywhere in `providers/notion/__init__.py`). Anything you type into the body of a task page is **silently ignored**: it will not reach `get()`, and it will not reach the plan at `/start`. This is deliberate, not an omission. Reading the body would make the page a second home for detail, which is exactly the split-brain [the projection model](#the-model--backend-is-a-projection-not-a-co-source-of-truth) exists to prevent. When hand-capturing a task with a real design behind it, put the design in `projects/<project>/investigations/<slug>.md` and name it from `Summary` — `` design: `<slug>` `` — the same rule `/task` follows (see [Summary is a gate](#summary-is-a-gate)).
 
 **2. `data_source_id`, not database id.** In the 2025-09-03 API a database is a *container* of data sources; pages live in a data source. Resolve it once:
 ```bash
@@ -121,7 +121,7 @@ Prints **JSON to stdout**, signals errors via **exit code** (+ a JSON `{"error":
 
 ## Adding a provider
 
-Implement the five methods + the two seams in `scripts/taskprovider/providers/<name>.py`, expose `PROVIDER = <YourClass>`, keep all backend vocabulary inside that one file. **Nothing else changes** — not the contract, not the CLI, not the factory. Set `MEMORY_TASK_PROVIDER=<name>`.
+Each provider is its own folder: `scripts/taskprovider/providers/<name>/` with an `__init__.py` exposing `PROVIDER = <YourClass>`, a `README.md` documenting its config/setup, and a captured image of the backend. (A flat `providers/<name>.py` still resolves too — the factory imports `taskprovider.providers.<name>` either way — but new providers should use the folder form.) Implement the five methods + the two seams, keep all backend vocabulary inside that folder. **Nothing else changes** — not the contract, not the CLI, not the factory. Set `MEMORY_TASK_PROVIDER=<name>`.
 
 **Design check — Jira fits unchanged.** Jira's status change is a *workflow transition*, which `set_status` already allows (it may be more than a field write internally — that's the `status_map` seam's job); its project is a *pre-existing key* that cannot be created on the fly and may legitimately fail — exactly what `resolve_project` is allowed to do. No contract change needed. **A `dropped` status** would be added as one more canonical entry + one `status_map` row per provider — also no contract change.
 
@@ -140,4 +140,4 @@ Tasks reach the memory tree through two commands above the CLI: **`/task`** capt
 
 `scripts/run-tests.sh` runs this Python suite as its own `== taskprovider (python) ==` stage (under the same hermetic env scrub as the bash suite) and **gates its exit code on the result**. Until 2026-07-09 it did not: the runner globbed only `scripts/tests/test_*.sh`, so the Python suite never executed and the reported pass count was bash-only.
 
-The same stage enforces a **provider ↔ test pairing**: every `providers/<name>.py` must have a matching `tests/test_<name>.py`, or the suite fails. Adding a provider needs no factory edit *by design* — so without this check, nothing would ever notice a provider shipping with no tests.
+The same stage enforces a **provider ↔ test pairing**: every provider — a flat `providers/<name>.py` or a package `providers/<name>/` — must have a matching `tests/test_<name>.py`, or the suite fails. Adding a provider needs no factory edit *by design* — so without this check, nothing would ever notice a provider shipping with no tests.

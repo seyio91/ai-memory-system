@@ -79,7 +79,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 
 ### Task management
 
-- **Pluggable provider** — a backend-neutral interface (capture/list/get/update/status/delete/ping) behind a JSON CLI; add a backend as a module, no central switch to edit.
+- **Pluggable provider** — a backend-neutral interface (capture/list/get/update/status/delete/ping) behind a JSON CLI; add a backend as a self-contained folder under `providers/<name>/` (code + README + setup image), no central switch to edit.
 - **Local + Notion backends** — default flat-markdown store in `tasks/`, or a Notion data source mapped to the same contract (properties only, never the page body).
 - **Thin task model + summary gate** — backends store only title/summary/status/project/ref/created, with summaries capped at 500 chars; detail belongs in plans and investigations.
 

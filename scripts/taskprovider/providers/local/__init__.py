@@ -13,7 +13,7 @@ class FileTaskProvider(TaskProvider):
         return {status: status for status in CANONICAL_STATUSES}
 
     def __init__(self, root=None):
-        self.root = Path(root or os.environ.get("MEMORY_DIR", Path(__file__).resolve().parents[3]))
+        self.root = Path(root or os.environ.get("MEMORY_DIR", Path(__file__).resolve().parents[4]))
 
     def resolve_project(self, name):
         path = self.root / "projects" / name
