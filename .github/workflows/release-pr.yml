@@ -1,0 +1,57 @@
+name: release-pr
+
+# When fragments land on main, open/update a "Release vX.Y.Z" PR that carries the
+# assembled CHANGELOG for review. Merging it triggers release-publish.yml.
+#
+# Uses RELEASE_PAT (not the default GITHUB_TOKEN) so the PR it opens actually gets
+# CI — PRs created with GITHUB_TOKEN do not trigger workflow runs.
+on:
+  push:
+    branches: [main]
+    paths: ['changelog.d/**']
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0                     # full history + tags for the version compute
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Open or update the release PR
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          set -euo pipefail
+          git config user.name "release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+
+          if ! bash scripts/assemble-changelog.sh --check >/dev/null 2>&1; then
+            echo "No changelog.d/ fragments — nothing to release."
+            exit 0
+          fi
+
+          ver="$(bash scripts/assemble-changelog.sh --bump)"
+          branch="release/v${ver}"
+          echo "Preparing $branch"
+
+          git fetch origin --tags
+          git checkout -B "$branch"          # fresh off main each run
+          bash scripts/release.sh "$ver" --prepare
+          git push -f origin "$branch"
+
+          if gh pr view "$branch" >/dev/null 2>&1; then
+            echo "Release PR for $branch already open (refreshed by the force-push)."
+          else
+            body="$(printf 'Automated release PR — merging cuts **v%s**; the `release-publish` workflow then tags and publishes.\n\nReview the assembled CHANGELOG in the diff. Do not hand-edit it here — add or adjust `changelog.d/` fragments on main and this PR refreshes itself.' "$ver")"
+            gh pr create --base main --head "$branch" --title "chore(release): v${ver}" --body "$body"
+          fi

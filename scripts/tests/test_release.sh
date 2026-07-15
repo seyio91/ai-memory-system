@@ -823,4 +823,73 @@ push_main "$NOCI"
 capture_release_path "$NOCI" "$STUB" --no-push >/dev/null 2>&1
 assert_eq "" "$(cat "$STUB/gh.log" 2>/dev/null)" "non-ci: gh is never called"
 
+# --- Phase B: --prepare / --publish (CI-split release) -----------------------
+
+# prep_repo <name> — fixture with v1.0.0 + a feature fragment committed & pushed
+prep_repo() {
+    local r
+    r="$(make_fixture "$1")"
+    git -C "$r" tag v1.0.0
+    add_fragment "$r" 70 feature '- ci-split feature'
+    commit_all "$r" "frag"
+    push_main "$r"
+    printf '%s\n' "$r"
+}
+
+# --prepare: assemble on a release branch, no tag, no push, fragments deleted
+PB="$(prep_repo pb-prepare)"
+git -C "$PB" checkout -q -b release/v1.1.0
+prep_out="$(run_release "$PB" 1.1.0 --prepare 2>&1)"
+assert_contains "$prep_out" "Prepared v1.1.0" "prepare: reports prepared, no tag/push"
+assert_contains "$(cat "$PB/CHANGELOG.md")" "## [1.1.0] -" "prepare: CHANGELOG section written"
+assert_contains "$(cat "$PB/CHANGELOG.md")" "- ci-split feature" "prepare: fragment assembled"
+assert_tag_absent "$PB" v1.1.0 "prepare: creates NO tag"
+assert_eq "" "$(find "$PB/changelog.d" -name '70.feature.md')" "prepare: consumed fragment deleted"
+assert_eq "chore(release): v1.1.0" "$(git -C "$PB" log -1 --format=%s)" "prepare: release commit subject"
+assert_eq "" "$(git -C "$PB" status --porcelain)" "prepare: commit is clean (nothing staged/unpushed left)"
+assert_eq "$(git -C "$PB" rev-parse origin/main)" "$(git -C "$PB" rev-parse main)" "prepare: main untouched (no push)"
+
+# --prepare refuses on main
+PBM="$(prep_repo pb-main)"
+set +u; pbm_out="$(run_release "$PBM" 1.1.0 --prepare 2>&1)"; pbm_rc=$?; set -u
+assert_exit 1 "$pbm_rc" "prepare: refuses on main"
+assert_contains "$pbm_out" "must run on a release branch" "prepare: main-refusal is explained"
+
+# --prepare with no fragments aborts
+PBNF="$(make_fixture pb-nofrag)"; git -C "$PBNF" tag v1.0.0
+git -C "$PBNF" checkout -q -b release/v1.1.0
+set +u; pbnf_out="$(run_release "$PBNF" 1.1.0 --prepare 2>&1)"; pbnf_rc=$?; set -u
+assert_exit 1 "$pbnf_rc" "prepare: no fragments aborts"
+assert_contains "$pbnf_out" "no changelog.d/ fragments" "prepare: no-fragment message"
+
+# --publish after a MERGE-COMMIT PR merge (HEAD is a merge commit, not the release commit)
+rm -f "$STUB/gh.log"
+PUB="$(prep_repo pb-publish)"
+git -C "$PUB" checkout -q -b release/v1.1.0
+run_release "$PUB" 1.1.0 --prepare >/dev/null 2>&1
+git -C "$PUB" checkout -q main
+git -C "$PUB" merge -q --no-ff release/v1.1.0 -m "Merge release v1.1.0"
+push_main "$PUB"
+pub_out="$(capture_release_path "$PUB" "$STUB" 1.1.0 --publish 2>&1)"
+assert_contains "$pub_out" "Released v1.1.0" "publish: releases after a merge-commit merge"
+assert_origin_tag_present "$ROOT/pb-publish/origin.git" v1.1.0 "publish: tag pushed to origin"
+assert_contains "$(cat "$STUB/gh.log" 2>/dev/null)" "release create v1.1.0" "publish: gh release created with notes"
+# tag body comes from the prepared CHANGELOG section
+assert_eq "1" "$(tag_message_count "$PUB" v1.1.0 '- ci-split feature')" "publish: tag message carries the changelog body"
+
+# --publish is idempotent
+pub_out2="$(capture_release_path "$PUB" "$STUB" 1.1.0 --publish 2>&1)"
+assert_contains "$pub_out2" "already released" "publish: idempotent re-run"
+
+# --publish aborts when nothing was prepared (no ## [version] section on main)
+PUBNP="$(prep_repo pb-noprep)"
+set +u; np_out="$(run_release "$PUBNP" 1.1.0 --publish 2>&1)"; np_rc=$?; set -u
+assert_exit 1 "$np_rc" "publish: no prepared section aborts"
+assert_contains "$np_out" "no prepared" "publish: names the missing section"
+
+# --prepare and --publish are mutually exclusive (usage error)
+set +u; mx_rc_out="$(run_release "$PUB" 1.1.0 --prepare --publish 2>&1)"; mx_rc=$?; set -u
+assert_exit 2 "$mx_rc" "prepare+publish is a usage error"
+assert_contains "$mx_rc_out" "mutually exclusive" "prepare+publish error is explained"
+
 finish

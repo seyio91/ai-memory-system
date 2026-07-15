@@ -91,9 +91,16 @@ Release notes are built from **news fragments**, not a hand-edited `## [Unreleas
    [`changelog.d/README.md`](../changelog.d/README.md).
 2. **Preview** anytime: `scripts/assemble-changelog.sh assemble` (the section) and
    `scripts/assemble-changelog.sh --bump` (the version the fragment kinds imply).
-3. **Cut** from a clean `main`: `scripts/release.sh` (version computed from fragments; pass one
-   to override). It assembles the section into `CHANGELOG.md`, deletes the consumed fragments in
-   the release commit, tags, and pushes. Add `--ci` to also publish the GitHub Release.
+3. **Cut** it. Two ways:
+   - **Automated (GitHub Actions).** When fragments land on `main`, `release-pr.yml` opens a
+     "Release vX.Y.Z" PR carrying the assembled CHANGELOG (via `release.sh --prepare`). You
+     review and **merge** it — that human merge is the authorization — and `release-publish.yml`
+     runs `release.sh --publish` to tag, push, and create the GitHub Release. The version is
+     computed from the fragment kinds. (Needs the `RELEASE_PAT` secret so the auto-opened PR
+     gets CI.)
+   - **Manual, from a clean `main`:** `scripts/release.sh` (version computed from fragments; pass
+     one to override) — assembles into `CHANGELOG.md`, deletes the fragments in the release
+     commit, tags, and pushes. Add `--ci` to also publish the GitHub Release.
 
 An `upgrade` fragment may only **describe an existing** `migrations/<semver>-<slug>.sh` — the
 suite enforces that every migration has an `UPGRADING.md` section. Never invent upgrade steps.

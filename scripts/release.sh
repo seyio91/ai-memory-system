@@ -13,14 +13,20 @@
 #   git push origin "v<version>"
 #
 # Usage:
-#   release.sh [<version>] [--ci] [--dry-run] [--no-push]
+#   release.sh [<version>] [--ci] [--dry-run] [--no-push]   (local one-shot cut)
+#   release.sh [<version>] --prepare                        (CI: assemble on a release branch)
+#   release.sh  <version>  --publish                        (CI: tag the merged release commit)
 #
-#   <version>  bare stable semver, e.g. 1.0.0 (tag becomes v1.0.0). OPTIONAL:
-#              omit it and the version is computed from changelog.d/ fragment
-#              kinds (breaking->major, feature->minor, fix/upgrade->patch).
+#   <version>  bare stable semver, e.g. 1.0.0 (tag becomes v1.0.0). OPTIONAL for the
+#              default and --prepare paths: omit it and the version is computed from
+#              changelog.d/ fragment kinds (breaking->major, feature->minor, fix/upgrade->patch).
 #   --ci       non-interactive publish: also create the GitHub Release (gh).
 #   --dry-run  run guards and print the changelog section; mutate nothing
 #   --no-push  create the local release commit and tag, but skip both pushes
+#   --prepare  assemble CHANGELOG + delete fragments + commit on the CURRENT (release/*)
+#              branch; NO tag, NO push. Drives the auto-opened Release PR. Refuses on main.
+#   --publish  tag the prepared release commit that is already on main + push tag + GitHub
+#              Release (implies --ci). Expects resume-at-tag state (the Release PR merged).
 
 set -euo pipefail
 
@@ -38,12 +44,14 @@ RELEASE_COMMIT_SUBJECT=""
 DRY_RUN=0
 NO_PUSH=0
 CI=0
+PREPARE=0
+PUBLISH=0
 SEMVER_RE='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
 CHANGELOG_D="$REPO_ROOT/changelog.d"
 ASSEMBLE="$REPO_ROOT/scripts/assemble-changelog.sh"
 
 usage() {
-    sed -n '15,23p' "$0" >&2
+    sed -n '15,28p' "$0" >&2
 }
 
 abort() {
@@ -57,6 +65,8 @@ while [ $# -gt 0 ]; do
         --dry-run) DRY_RUN=1 ;;
         --no-push) NO_PUSH=1 ;;
         --ci) CI=1 ;;
+        --prepare) PREPARE=1 ;;
+        --publish) PUBLISH=1; CI=1 ;;
         -*) echo "unknown flag: $1" >&2; usage; exit 2 ;;
         *)
             if [ -n "$VERSION" ]; then
@@ -69,6 +79,16 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+if [ "$PREPARE" = 1 ] && [ "$PUBLISH" = 1 ]; then
+    echo "  ABORT: --prepare and --publish are mutually exclusive." >&2
+    usage
+    exit 2
+fi
+if { [ "$PREPARE" = 1 ] || [ "$PUBLISH" = 1 ]; } && [ "$DRY_RUN" = 1 ]; then
+    echo "  ABORT: --dry-run does not apply to --prepare/--publish." >&2
+    exit 2
+fi
 
 # A version may be given explicitly OR computed from changelog.d/ fragments after
 # fetch (resolve_version, below). Validation + tag naming happen in finalize_version,
@@ -489,14 +509,77 @@ publish_release() {
     printf 'Released %s.\n' "$TAG"
 }
 
+# prepare_release (--prepare) — assemble the CHANGELOG section from fragments and
+# commit it on the CURRENT (release/*) branch, deleting the consumed fragments. NO
+# tag, NO push: the auto-opened Release PR carries this commit for review, and the
+# tag is cut by --publish once it merges. Refuses on main (main is written only via
+# the PR merge). The suite is not re-run here — CI runs it as the PR check.
+prepare_release() {
+    local branch
+    branch="$(git rev-parse --abbrev-ref HEAD)"
+    [ "$branch" = "main" ] && abort "--prepare must run on a release branch, not main." "main is written only when the Release PR merges."
+    fetch_origin
+    resolve_version
+    fragment_status || abort "no changelog.d/ fragments to prepare — nothing to release."
+    PREV_TAG="$(previous_tag)"
+    version_guard "$PREV_TAG"
+    ensure_no_version_section
+    seed_changelog
+    RELEASE_BODY="$(release_body "$PREV_TAG")"
+    write_final_changelog "$VERSION" "$RELEASE_BODY" "$TODAY"
+    git add CHANGELOG.md
+    if fragment_status; then git rm -q "$CHANGELOG_D"/*.*.md; fi
+    git commit -q -m "$RELEASE_COMMIT_SUBJECT"
+    printf 'Prepared %s on %s — no tag, no push.\n' "$TAG" "$branch"
+}
+
+# publish_prepared_release (--publish) — the prepared release is already on main (the
+# Release PR merged, by ANY strategy — merge commit, squash, or rebase). The invariant
+# is content, not a commit subject: CHANGELOG.md carries the ## [VERSION] section and no
+# vVERSION tag exists yet. Tag main's HEAD, push the tag, create the GH Release. Reruns
+# are idempotent. Implies --ci.
+publish_prepared_release() {
+    local count
+    count="$(version_heading_count "$VERSION")"
+    [ "$count" = 1 ] || abort "no prepared '## [$VERSION]' section in CHANGELOG.md on main." "Did the Release PR (release/$TAG) merge?"
+
+    # Already fully released → nothing to do (idempotent).
+    if git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null && remote_tag_commit "$TAG" >/dev/null 2>&1; then
+        printf '%s is already released.\n' "$TAG"
+        return 0
+    fi
+    if remote_tag_commit "$TAG" >/dev/null 2>&1; then
+        abort "$TAG exists on origin but not locally." "Run \`git fetch --tags\` and reconcile before publishing."
+    fi
+
+    origin_main_guard 1
+    if ! git rev-parse --verify --quiet "refs/tags/$TAG" >/dev/null; then
+        RELEASE_BODY="$(version_body "$VERSION")"
+        tag_message "$RELEASE_BODY" | git tag -a "$TAG" --cleanup=verbatim -F -
+    fi
+    publish_release
+}
+
 PREV_TAG=""
 RELEASE_BODY=""
 TODAY="$(date +%Y-%m-%d)"
 
 dirty_tracked_guard
+
+if [ "$PREPARE" = 1 ]; then
+    prepare_release
+    exit 0
+fi
+
 branch_guard
 fetch_origin
 resolve_version
+
+if [ "$PUBLISH" = 1 ]; then
+    publish_prepared_release
+    exit 0
+fi
+
 detect_release_state
 
 case "$RELEASE_MODE" in

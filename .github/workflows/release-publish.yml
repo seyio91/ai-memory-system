@@ -1,0 +1,40 @@
+name: release-publish
+
+# When a "release/*" PR merges, the assembled release commit is on main. Tag it,
+# push the tag, and create the GitHub Release. release.sh --publish is idempotent,
+# so a re-run is safe.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main                          # the merge landed here
+          token: ${{ secrets.RELEASE_PAT }}
+
+      - name: Tag + publish the release
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          set -euo pipefail
+          git config user.name "release-bot"
+          git config user.email "release-bot@users.noreply.github.com"
+
+          ref="${{ github.event.pull_request.head.ref }}"   # release/vX.Y.Z
+          ver="${ref#release/v}"
+          echo "Publishing v${ver}"
+
+          git fetch origin --tags
+          # release.sh --publish requires being ON branch main (branch_guard); a bare
+          # checkout can leave a detached HEAD, so attach it explicitly to the merged tip.
+          git checkout -B main origin/main
+          bash scripts/release.sh "$ver" --publish
