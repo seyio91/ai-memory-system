@@ -4,7 +4,23 @@ The always-available default backend. Tasks are plain markdown files — no serv
 credentials, no network. This is what you get out of the box; `MEMORY_TASK_PROVIDER`
 is unset or `local`.
 
-![Local tasks on disk](./local-tasks.png)
+A captured task is a single file at `$MEMORY_DIR/tasks/<slug>.md`:
+
+```markdown
+---
+project: fleet-observability
+status: backlog
+created: 2026-07-15
+title: Add per-tenant Grafana drill-down
+---
+Goal: a one-stop platform view with click-through drill-down. Platform health
+(operators, ArgoCD, cluster) plus a per-tenant fleet roll-up. Full design deferred
+to a later investigation.
+```
+
+The frontmatter is the record (`project` · `status` · `created` · `title`); the body is
+the summary. `status` is the only lifecycle knob — `done` flips it in place, `archived`
+moves the file to `archive/tasks/`, `delete` unlinks it.
 
 ## Setup
 
