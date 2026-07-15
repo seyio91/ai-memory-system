@@ -1,5 +1,7 @@
 # Memory System
 
+[![tests](https://github.com/seyio91/ai-memory-system/actions/workflows/tests.yml/badge.svg)](https://github.com/seyio91/ai-memory-system/actions/workflows/tests.yml)
+
 A markdown-only memory tree shared by **Claude Code**, **OpenAI Codex CLI**, and **Antigravity** — no vector DB, no daemons, no MCP servers, just files, hooks, and short shell scripts. Insight captured in one agent is visible to the other on the next session, and it compounds: every non-trivial synthesis gets offered for filing.
 
 ## Mental model
