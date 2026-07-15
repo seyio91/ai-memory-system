@@ -21,6 +21,8 @@ write_fixture_scripts() {
     mkdir -p "$repo/scripts"
     cp "$SCRIPTS_DIR/release.sh" "$repo/scripts/release.sh"
     cp "$SCRIPTS_DIR/_lib.sh" "$repo/scripts/_lib.sh"
+    cp "$SCRIPTS_DIR/assemble-changelog.sh" "$repo/scripts/assemble-changelog.sh"
+    chmod +x "$repo/scripts/assemble-changelog.sh"
     cat > "$repo/scripts/run-tests.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -732,5 +734,93 @@ ATOMIC_SEED="$(make_fixture atomic-seed)"
 run_release "$ATOMIC_SEED" 1.0.0 --no-push >/dev/null 2>&1
 tmp_left="$(find "$ATOMIC_SEED" -maxdepth 1 -name 'CHANGELOG.md.tmp.*' -print)"
 assert_eq "" "$tmp_left" "atomic changelog seed leaves no temp files"
+
+# --- changelog.d fragments: assembly, computed version, deletion --------------
+
+add_fragment() {
+    # add_fragment <repo> <id> <kind> <body>
+    local repo="$1" id="$2" kind="$3" body="$4"
+    mkdir -p "$repo/changelog.d"
+    printf '%s\n' "$body" > "$repo/changelog.d/$id.$kind.md"
+}
+
+FRAG="$(make_fixture frag-release)"
+git -C "$FRAG" tag v1.0.0                       # base so a feature bumps to 1.1.0
+mkdir -p "$FRAG/changelog.d"
+printf '# fragments\n' > "$FRAG/changelog.d/README.md"   # one dot: must survive
+add_fragment "$FRAG" 50 feature '- add a shiny thing'
+add_fragment "$FRAG" 51 fix '- stop the leak'
+commit_all "$FRAG" "work with fragments"
+push_main "$FRAG"
+
+frag_out="$(run_release "$FRAG" --no-push 2>&1)"
+assert_contains "$frag_out" "Created local release commit and tag v1.1.0" "fragments: computed version 1.1.0 (feature vs v1.0.0)"
+assert_contains "$(cat "$FRAG/CHANGELOG.md")" "## [1.1.0] -" "fragments: CHANGELOG section written"
+assert_contains "$(cat "$FRAG/CHANGELOG.md")" "### Added" "fragments: grouped heading present"
+assert_contains "$(cat "$FRAG/CHANGELOG.md")" "- add a shiny thing" "fragments: feature body assembled"
+assert_contains "$(cat "$FRAG/CHANGELOG.md")" "- stop the leak" "fragments: fix body assembled"
+assert_eq "" "$(find "$FRAG/changelog.d" -name '50.feature.md' -o -name '51.fix.md')" "fragments: consumed fragments deleted"
+assert_file "$FRAG/changelog.d/README.md" "fragments: README.md (single-dot) not deleted"
+# the deletion is part of the release commit, not an unstaged change
+assert_eq "" "$(git -C "$FRAG" status --porcelain)" "fragments: deletion committed, tree clean"
+frag_show="$(git -C "$FRAG" show --stat --oneline HEAD)"
+assert_contains "$frag_show" "changelog.d/50.feature.md" "fragments: release commit records the deletion"
+
+# an explicit version overrides the computed bump, still consuming fragments
+FRAG2="$(make_fixture frag-explicit)"
+git -C "$FRAG2" tag v1.0.0
+add_fragment "$FRAG2" 60 feature '- explicit-version feature'
+commit_all "$FRAG2" "frag + explicit version"
+push_main "$FRAG2"
+frag2_out="$(run_release "$FRAG2" 2.5.0 --no-push 2>&1)"
+assert_contains "$frag2_out" "tag v2.5.0" "fragments: explicit version overrides computed bump"
+assert_contains "$(cat "$FRAG2/CHANGELOG.md")" "- explicit-version feature" "fragments: still assembled under explicit version"
+
+# invalid fragment aborts before any release work
+FRAGBAD="$(make_fixture frag-bad)"
+git -C "$FRAGBAD" tag v1.0.0
+add_fragment "$FRAGBAD" 70 wibble '- bad kind'
+commit_all "$FRAGBAD" "bad fragment"
+set +u
+fragbad_out="$(run_release "$FRAGBAD" --no-push 2>&1)"; fragbad_rc=$?
+set -u
+assert_exit 1 "$fragbad_rc" "fragments: invalid kind aborts"
+assert_contains "$fragbad_out" "invalid fragments" "fragments: invalid abort explains why"
+assert_tag_absent "$FRAGBAD" v1.1.0 "fragments: invalid leaves no tag"
+
+# --- --ci creates the GitHub Release (gh stubbed) ----------------------------
+
+STUB="$ROOT/ghstub"
+mkdir -p "$STUB"
+cat > "$STUB/gh" <<'EOF'
+#!/usr/bin/env bash
+log="$(dirname "$0")/gh.log"
+if [ "$1" = "release" ] && [ "$2" = "view" ]; then
+    exit 1   # not found -> release create proceeds
+fi
+printf '%s\n' "$*" >> "$log"
+exit 0
+EOF
+chmod +x "$STUB/gh"
+
+CI_FIX="$(make_fixture ci-release)"
+git -C "$CI_FIX" tag v1.0.0
+add_fragment "$CI_FIX" 80 feature '- ci-published feature'
+commit_all "$CI_FIX" "frag for ci"
+push_main "$CI_FIX"
+ci_out="$(capture_release_path "$CI_FIX" "$STUB" --ci 2>&1)"
+assert_contains "$ci_out" "Released v1.1.0" "--ci: release published"
+assert_origin_tag_present "$ROOT/ci-release/origin.git" v1.1.0 "--ci: tag pushed to origin"
+assert_contains "$(cat "$STUB/gh.log" 2>/dev/null)" "release create v1.1.0" "--ci: gh release create invoked"
+
+# non-CI release never calls gh
+rm -f "$STUB/gh.log"
+NOCI="$(make_fixture no-ci)"
+git -C "$NOCI" tag v1.0.0
+add_fragment "$NOCI" 90 fix '- no-ci fix'
+commit_all "$NOCI" "frag no ci"
+push_main "$NOCI"
+capture_release_path "$NOCI" "$STUB" --no-push >/dev/null 2>&1
+assert_eq "" "$(cat "$STUB/gh.log" 2>/dev/null)" "non-ci: gh is never called"
 
 finish
