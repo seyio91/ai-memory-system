@@ -144,7 +144,7 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
     ├── taskctl                        # Bash wrapper → python3 -m taskprovider (used by /task, /start)
     └── taskprovider/                  # Python task-provider package (stdlib only):
         │                              #   contract.py, factory.py, __main__.py (JSON CLI),
-        ├── providers/                 #   providers/{local,notion}.py
+        ├── providers/                 #   providers/{local,notion}/ (pkg + README + image)
         └── tests/                     #   unittest suite (offline; Notion live smoke gated)
 ```
 

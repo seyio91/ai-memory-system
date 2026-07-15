@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Task providers are now self-contained folders** — `providers/<name>.py` becomes
+  `providers/<name>/` with an `__init__.py` (exposing `PROVIDER`), a `README.md` documenting
+  the backend's expected config/setup, and a captured setup image. The factory imports
+  `taskprovider.providers.<name>` either way, so the flat form still resolves, but new
+  providers use the folder. `check-provider-tests.sh` now discovers package providers as
+  well as flat modules, and **fails closed** (exit 2) if it finds no providers at all rather
+  than passing an empty set. `local/__init__.py` sits one level deeper, so its repo-root
+  fallback moved from `parents[3]` to `parents[4]`.
+
 ## [1.3.0] - 2026-07-15
 
 ### Changed
