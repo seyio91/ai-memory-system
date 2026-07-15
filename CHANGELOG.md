@@ -6,16 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Changed
+## [1.4.0] - 2026-07-15
+### Added
 
-- **Task providers are now self-contained folders** — `providers/<name>.py` becomes
-  `providers/<name>/` with an `__init__.py` (exposing `PROVIDER`), a `README.md` documenting
-  the backend's expected config/setup, and a captured setup image. The factory imports
-  `taskprovider.providers.<name>` either way, so the flat form still resolves, but new
-  providers use the folder. `check-provider-tests.sh` now discovers package providers as
-  well as flat modules, and **fails closed** (exit 2) if it finds no providers at all rather
-  than passing an empty set. `local/__init__.py` sits one level deeper, so its repo-root
-  fallback moved from `parents[3]` to `parents[4]`.
+- **Release pipeline — Phase B: fully automated publish via GitHub Actions.** When
+  `changelog.d/` fragments land on `main`, `release-pr.yml` opens a "Release vX.Y.Z" PR carrying
+  the assembled CHANGELOG for review; merging it triggers `release-publish.yml`, which tags,
+  pushes, and creates the GitHub Release. The human merge is the sole authorization gate.
+  - `release.sh` gains `--prepare` (assemble + delete fragments + commit on a `release/*` branch;
+    no tag, no push; refuses on `main`) and `--publish` (tag the merged release commit + push +
+    GitHub Release). It stays the single release implementation — the Actions are thin triggers.
+  - `--publish` is keyed on the CHANGELOG carrying the `## [version]` section, not on a commit
+    subject, so it works whatever merge strategy the Release PR uses (merge commit, squash, or
+    rebase), and is idempotent on re-run.
+  - The auto-opened Release PR uses the `RELEASE_PAT` secret (not the default `GITHUB_TOKEN`) so
+    it actually gets CI — PRs opened with `GITHUB_TOKEN` don't trigger workflow runs.
+- **Release pipeline automation — Phase A** (changelog fragments + computed versioning).
+  - CI now runs the full suite on every PR and `main` push (`.github/workflows/tests.yml`),
+    matrix ubuntu + macOS — macOS holds the Bash 3.2 portability line; shellcheck is installed
+    so the gate fires.
+  - Per-PR **news fragments** land in `changelog.d/<id>.<kind>.md`
+    (`breaking | feature | fix | upgrade`). `scripts/assemble-changelog.sh` turns them into a
+    CHANGELOG section deterministically and computes the next version from the fragment kinds.
+  - `release.sh` consumes fragments when present (assembling the section and deleting the
+    fragments in the release commit), makes the version argument optional (computed from
+    fragments when omitted), and gains a non-interactive `--ci` mode that also creates the
+    GitHub Release. It stays the single release implementation — CI is a trigger, not a second
+    code path.
+
+### Fixed
+
+- **Three latent portability bugs surfaced by the new CI** (first run on ubuntu + macOS).
+  - `file_mtime`/lint read mtime with BSD `stat -f %m` first; on GNU/Linux `-f` is
+    `--file-system` (a valid *different* mode, not a clean failure), so it polluted the value
+    → `/state` last-touched ordering was wrong and stale files went unflagged on Linux. Now the
+    GNU form (`stat -c %Y`) is tried first — it fails cleanly on BSD.
+  - `manifest_get` returned on the first key match while reading `< <(_mf_pairs …)`, closing the
+    pipe mid-write so the producer's `printf` took `SIGPIPE` ("write error: Broken pipe"). It now
+    buffers the pairs before searching.
+  - The Antigravity statusline built its Nerd-Font glyphs with `$'\uXXXX'`, which needs bash
+    4.2+; under the repo's own bash-3.2 target they stayed literal. Now emitted with `printf`
+    octal, matching the emoji fallback.
+  - CI pins shellcheck to an exact version (0.11.0) via the official binary instead of
+    apt/brew, whose per-runner versions flagged `SC2015` differently → the lint is now
+    deterministic and reproducible locally. Two pre-existing `A && B || C` lines
+    (`drivers/hook.sh`, `deny-match.sh`) were rewritten clean regardless.
 
 ## [1.3.0] - 2026-07-15
 
