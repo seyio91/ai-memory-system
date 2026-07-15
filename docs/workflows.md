@@ -81,6 +81,25 @@ For deeper cleanup (dedup, merge, split files): tell Claude "reorganize memory" 
 
 ---
 
+## Cutting a release
+
+Release notes are built from **news fragments**, not a hand-edited `## [Unreleased]` section.
+
+1. **Per PR that changes behavior**, drop one fragment: `changelog.d/<id>.<kind>.md`, where
+   `<kind>` is `breaking | feature | fix | upgrade` and the body is the CHANGELOG entry. Write
+   it in the PR that makes the change, while the reasoning is live. Format details:
+   [`changelog.d/README.md`](../changelog.d/README.md).
+2. **Preview** anytime: `scripts/assemble-changelog.sh assemble` (the section) and
+   `scripts/assemble-changelog.sh --bump` (the version the fragment kinds imply).
+3. **Cut** from a clean `main`: `scripts/release.sh` (version computed from fragments; pass one
+   to override). It assembles the section into `CHANGELOG.md`, deletes the consumed fragments in
+   the release commit, tags, and pushes. Add `--ci` to also publish the GitHub Release.
+
+An `upgrade` fragment may only **describe an existing** `migrations/<semver>-<slug>.sh` — the
+suite enforces that every migration has an `UPGRADING.md` section. Never invent upgrade steps.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause / Fix |
