@@ -6,7 +6,12 @@
 
 ## Active
 
-_(no active items)_
+### Release automation (changelog fragments + computed versioning) → [plan](plans/release-automation.md)
+- [ ] Phase A0 — `.github/workflows/tests.yml` runs `run-tests.sh` (ubuntu + macos/bash-3.2, shellcheck installed)
+- [ ] Phase A1 — `changelog.d/` convention + `assemble-changelog.sh` (assemble + `--bump`) + tests
+- [ ] Phase A2 — `release.sh` consumes fragments + `--ci` non-interactive + tests
+- [ ] Phase A3 — adopt per-PR fragment step + docs (`changelog.d/README`, `docs/scripts.md`, cutover)
+- [ ] Phase B (deferred) — GitHub Actions + PAT secret (needs user repo-settings setup)
 
 ## Done
 _(checked items stay above until the file is rolled)_
