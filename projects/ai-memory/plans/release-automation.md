@@ -1,6 +1,6 @@
 ---
 plan: release-automation
-status: in-progress
+status: in_progress
 created: 2026-07-15
 owner: claude (orchestrator)
 task_provider: notion
