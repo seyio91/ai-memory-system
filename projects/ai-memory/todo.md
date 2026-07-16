@@ -10,5 +10,5 @@
 - [x] Phase 1 — delivery face: manifest + sessionstart.sh adapter (lib.sh reuse, flat envelope) + _hook_register_copilot_json + install.sh entry
 - [x] Phase 2 — guard: Copilot stdin path + JSON deny output branch + timeoutSec + real-stdin fixture (fails closed, not warned)
 - [x] Phase 3 — compaction + breadcrumb: preCompact sentinel arm + postToolUse re-inject/clear
-- [ ] Phase 4 — executor face: copilot-mem.sh wrapper + exec_* block; task/explore via executor.sh
+- [x] Phase 4 — executor face: copilot-mem.sh wrapper + exec_* block; task/explore via executor.sh
 - [ ] Phase 5 — tests wired into run-tests.sh + docs/harnesses/copilot.md + changelog.d entry

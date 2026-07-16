@@ -128,8 +128,11 @@ Rejected alternatives (on the record):
       Claude/codex sentinel consumers; empty-sessionId edge safe (no stray-sentinel
       match possible); sentinel-clear-on-empty-payload mirrors inject.sh exactly.
       Live /compact recovery check deferred to final validation.)
-- [ ] Phase 4 — executor face: `copilot-mem.sh` wrapper + manifest `exec_*` block;
+- [x] Phase 4 — executor face: `copilot-mem.sh` wrapper + manifest `exec_*` block;
       `executor.sh --which/--run` for task/explore; read-only enforcement for explore.
+      (Validator: ACCEPT. Live smoke: task → EXEC-TASK-OK; explore write attempt
+      refused, file absent — criteria 3+5 proven. Phase-5 test hardening carry-over:
+      cover wrapper no-gh path, exit-code propagation, stdin closure.)
 - [ ] Phase 5 — tests wired into `run-tests.sh` (registration, injection schema, guard
       deny-shape, compaction handshake, executor probe) + `docs/harnesses/copilot.md`
       + changelog.d entry.
