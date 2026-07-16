@@ -189,6 +189,16 @@ the shared session-start script) so a stale `~/.codex/hooks.json` from a manual
 `git pull` that hasn't re-run `install.sh` keeps working. It is removed in the next
 release.
 
+**The canonical slash-command store moved: `harnesses/claude/commands/` → repo-level
+`commands/`.**
+
+The store is harness-neutral (Claude symlinks it natively; Codex/Antigravity wrap
+the same bodies as skills; `doc`-surface harnesses render a reference), so it now
+lives beside the other neutral stores (`skills/`, `agents/`). Upgrading through
+`sync-system.sh` self-heals: `install.sh` re-links `~/.claude/commands/*` at the
+new paths. A raw `git pull` that skips `install.sh` leaves those symlinks dangling
+(slash commands vanish) until `install.sh`/`sync-system.sh` runs.
+
 **Claude's `SessionStart` hook script moved — a manual `git pull` breaks session
 start until `install.sh` re-runs.**
 

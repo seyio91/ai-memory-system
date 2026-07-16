@@ -17,6 +17,7 @@ FAKE="$(cd "$FAKE" && pwd -P)"
 # Stage a self-contained fake repo: real engine + harness assets, minimal stores.
 cp -R "$REPO/scripts" "$FAKE/scripts"
 cp -R "$REPO/harnesses" "$FAKE/harnesses"
+cp -R "$REPO/commands" "$FAKE/commands"
 cp "$REPO/install.sh" "$FAKE/install.sh"
 printf '# identity template\n' > "$FAKE/identity.template.md"
 printf '# index template\n'    > "$FAKE/index.template.md"
@@ -94,8 +95,8 @@ set +e; [ -d "$FAKE/.skill-cache/template-skill" ]
 # shellcheck disable=SC2319
 e=$?; set -e
 assert_exit 1 "$e" "install seed step does not resolve remote skills"
-assert_eq "$FAKE/harnesses/claude/commands/pin.md" \
-    "$(readlink "$FHOME/.claude/commands/pin.md")" "command target -> harnesses/claude/commands"
+assert_eq "$FAKE/commands/pin.md" \
+    "$(readlink "$FHOME/.claude/commands/pin.md")" "command target -> commands/"
 assert_contains "$(cat "$FAKE/config.local.sh")" "export MEMORY_DIR=" "config.local.sh stamped in FAKE repo"
 
 # --- idempotent re-run ---
