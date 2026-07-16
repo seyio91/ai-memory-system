@@ -6,6 +6,7 @@
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
 HOOK="$REPO/harnesses/copilot/hooks/sessionstart.sh"
 FIXTURE="$REPO/scripts/tests/fixtures/copilot/session_start_camel.json"
+PRE_TOOL_FIXTURE="$REPO/scripts/tests/fixtures/copilot/pre_tool_use_bash.json"
 TMP="$(new_sandbox)"
 MEM="$(new_sandbox)"
 trap 'rm -rf "$TMP" "$MEM"' EXIT
@@ -67,6 +68,61 @@ fi
 NO_PROJECT="$(printf '{"cwd":"%s/no-marker"}' "$TMP" | MEMORY_DIR="$MEM" bash "$HOOK")"
 assert_eq '{}' "$NO_PROJECT" "sessionstart: no project -> empty object"
 
+GUARD="$REPO/scripts/hooks/guard.sh"
+PRE_TOOL_CWD="$TMP/pretool-cwd"
+mkdir -p "$PRE_TOOL_CWD"
+ORIG_PRE_TOOL_CWD="$(sed -n 's/.*"cwd": "\(.*\)",/\1/p' "$PRE_TOOL_FIXTURE" | head -1)"
+sed "s|$ORIG_PRE_TOOL_CWD|$PRE_TOOL_CWD|" "$PRE_TOOL_FIXTURE" > "$TMP/pre_tool_use_bash.json"
+sed 's|printf fixture > fixture-tool.txt|gh pr merge 42|' "$TMP/pre_tool_use_bash.json" > "$TMP/pre_tool_use_deny.json"
+GUARD_OUT="$TMP/guard.out"
+GUARD_ERR="$TMP/guard.err"
+
+AI_MEMORY_ROLE=task AI_MEMORY_GUARD_OUTPUT=copilot-json bash "$GUARD" \
+    < "$TMP/pre_tool_use_deny.json" > "$GUARD_OUT" 2>"$GUARD_ERR"
+RC=$?
+assert_exit 0 "$RC" "guard: Copilot deny exits 0 for JSON permission contract"
+assert_contains "$(cat "$GUARD_OUT")" '"permissionDecision":"deny"' "guard: Copilot deny emits permissionDecision deny"
+if command -v python3 >/dev/null 2>&1; then
+    OUT_FILE="$GUARD_OUT" python3 - <<'PY' >"$TMP/guard-json-check.out" 2>&1
+import json, os, sys
+with open(os.environ["OUT_FILE"]) as f:
+    data = json.load(f)
+if data.get("permissionDecision") != "deny":
+    sys.stderr.write("decision mismatch: %r\n" % data)
+    sys.exit(1)
+reason = data.get("permissionDecisionReason")
+if not isinstance(reason, str) or not reason:
+    sys.stderr.write("missing non-empty reason: %r\n" % data)
+    sys.exit(1)
+PY
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        _ok "guard: Copilot deny stdout is valid JSON with non-empty reason"
+    else
+        _bad "guard: Copilot deny stdout is valid JSON with non-empty reason"
+        cat "$TMP/guard-json-check.out"
+    fi
+fi
+
+AI_MEMORY_ROLE=task AI_MEMORY_GUARD_OUTPUT=copilot-json bash "$GUARD" \
+    < "$TMP/pre_tool_use_bash.json" > "$GUARD_OUT" 2>"$GUARD_ERR"
+RC=$?
+assert_exit 0 "$RC" "guard: Copilot benign fixture exits 0"
+assert_eq "" "$(cat "$GUARD_OUT")" "guard: Copilot allow emits empty stdout"
+assert_not_contains "$(cat "$GUARD_OUT")" "deny" "guard: Copilot allow output has no deny"
+
+env -u AI_MEMORY_GUARD_OUTPUT AI_MEMORY_ROLE=task bash "$GUARD" \
+    < "$TMP/pre_tool_use_deny.json" > "$GUARD_OUT" 2>"$GUARD_ERR"
+RC=$?
+assert_exit 2 "$RC" "guard: Copilot deny without output mode uses legacy exit 2"
+assert_contains "$(cat "$GUARD_ERR")" "gh pr merge" "guard: legacy deny explains blocked Copilot command"
+
+env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_OUTPUT=copilot-json bash "$GUARD" \
+    < "$TMP/pre_tool_use_deny.json" > "$GUARD_OUT" 2>"$GUARD_ERR"
+RC=$?
+assert_exit 0 "$RC" "guard: Copilot no role leaves interactive sessions unguarded"
+assert_eq "" "$(cat "$GUARD_OUT")" "guard: Copilot no role emits empty stdout"
+
 . "$REPO/scripts/manifest.sh"
 MANIFEST="$REPO/harnesses/copilot/manifest"
 MEMORY_DIR="$REPO"
@@ -114,9 +170,20 @@ checks = [
     ("timeoutSec", entry.get("timeoutSec") == 10),
     ("bash", entry.get("bash") == expected),
 ]
+guard_entries = data.get("hooks", {}).get("preToolUse")
+if not isinstance(guard_entries, list) or len(guard_entries) != 1:
+    sys.stderr.write("preToolUse entries mismatch: %r\n" % guard_entries)
+    sys.exit(1)
+guard = guard_entries[0]
+expected_guard = "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=preToolUse AI_MEMORY_GUARD_OUTPUT=copilot-json bash %s/scripts/hooks/guard.sh" % (repo, repo)
+checks.extend([
+    ("guard type", guard.get("type") == "command"),
+    ("guard timeoutSec", guard.get("timeoutSec") == 5),
+    ("guard bash", guard.get("bash") == expected_guard),
+])
 for label, ok in checks:
     if not ok:
-        sys.stderr.write("%s failed: %r\n" % (label, entry))
+        sys.stderr.write("%s failed: session=%r guard=%r\n" % (label, entry, guard))
         sys.exit(1)
 PY
     rc=$?

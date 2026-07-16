@@ -256,6 +256,10 @@ assert_contains "$cphj" '"sessionStart"' "copilot: camelCase sessionStart regist
 assert_contains "$cphj" '"timeoutSec": 10' "copilot: sessionStart timeoutSec registered"
 assert_contains "$cphj" "harnesses/copilot/hooks/sessionstart.sh" "copilot: sessionStart command -> adapter"
 assert_contains "$cphj" "AI_MEMORY_HOOK_FORMAT=md" "copilot: sessionStart renders md"
+assert_contains "$cphj" '"preToolUse"' "copilot: camelCase preToolUse registered"
+assert_contains "$cphj" '"timeoutSec": 5' "copilot: guard timeoutSec registered"
+assert_contains "$cphj" "scripts/hooks/guard.sh" "copilot: preToolUse command -> shared guard"
+assert_contains "$cphj" "AI_MEMORY_GUARD_OUTPUT=copilot-json" "copilot: guard output mode registered"
 assert_eq "$foo_before" "$(cat "$FHOME/.copilot/hooks/foo.json")" "copilot: sibling hook file untouched"
 first_copilot="$(cat "$FHOME/.copilot/hooks/ai-memory.json")"
 run_install --harness copilot >"$SBROOT/log.copilot2" 2>&1; rc=$?

@@ -115,9 +115,12 @@ Rejected alternatives (on the record):
       `scripts/hooks/lib.sh`; flat-envelope emit) + `_hook_register_copilot_json`
       branch in `hook.sh` + marker-set entries + `install.sh` registry entry/probe
       (idempotent re-runs, sibling-key preservation).
-- [ ] Phase 2 — guard: Copilot stdin path in `guard.sh` fallback chain + JSON deny
+- [x] Phase 2 — guard: Copilot stdin path in `guard.sh` fallback chain + JSON deny
       output branch + explicit `timeoutSec` + real-stdin fixture test proving a
       deny-list command is actually blocked (not warned) — fails closed.
+      (Validator: ACCEPT. Phase-5 doc note: guard never consults `toolName` —
+      schema-drift on the bash shape stays fail-open by design, same as
+      claude/antigravity; document the residual in docs/harnesses/copilot.md.)
 - [ ] Phase 3 — compaction + breadcrumb: `preCompact` sentinel arm (side-effect
       registration of the shared arm logic) + `postToolUse` re-inject/clear adapter;
       verify a post-compaction session recovers full memory.

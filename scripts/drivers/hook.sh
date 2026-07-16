@@ -563,6 +563,9 @@ _hook_register_copilot_json() {
         fi
         chmod +x "$script" 2>/dev/null || true
         cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event bash $script"
+        if [ "$role" = infra_guard ]; then
+            cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event AI_MEMORY_GUARD_OUTPUT=copilot-json bash $script"
+        fi
         entries="${entries}${event}	${timeout}	${cmd}
 "
         hook_count=$((hook_count + 1))

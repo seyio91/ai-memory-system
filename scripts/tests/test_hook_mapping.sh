@@ -22,9 +22,9 @@ expected="$(printf 'per_turn_inject\tUserPromptSubmit\ninfra_guard\tPreToolUse:^
 actual="$(manifest_hooks "$CODEX_MF")"
 assert_eq "$expected" "$actual" "codex manifest_hooks emits role/event map (post-flip: session_bootstrap, no compaction_arm)"
 
-expected="$(printf 'session_bootstrap\tsessionStart')"
+expected="$(printf 'session_bootstrap\tsessionStart\ninfra_guard\tpreToolUse')"
 actual="$(manifest_hooks "$COPILOT_MF")"
-assert_eq "$expected" "$actual" "copilot manifest_hooks emits camelCase sessionStart"
+assert_eq "$expected" "$actual" "copilot manifest_hooks emits camelCase hooks"
 
 assert_eq "" "$(manifest_get "$AGY_MF" per_turn_inject)" "section key does not leak through manifest_get"
 keys="$(manifest_keys "$AGY_MF")"
