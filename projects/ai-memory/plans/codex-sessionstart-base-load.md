@@ -29,7 +29,7 @@ where `working.md` (the freshest content) renders. Confirm during Phase 4's prob
 - `drivers/hook.sh` registers the `session_bootstrap` command with `AI_MEMORY_HOOK_FORMAT=<manifest format>` env-wrapped (md for codex), verified by a test asserting the produced `SessionStart` command string contains `AI_MEMORY_HOOK_FORMAT=md` for the codex manifest.
 - After install, `~/.codex/hooks.json` `SessionStart` runs the shared session-bootstrap script (not `arm_recompact.sh`), and a fresh `codex` session (no alias, no wrapper) shows the full `<memory:*>` base in context for a pinned repo.
 - A one-shot `codex exec` in a pinned repo sees identity + project memory with **no** generated `AGENTS.md` present (re-run the isolated-home probe shape, asserting a project-memory-only fact is answerable).
-- The **full-size** payload survives `additionalContext` intact: a probe with the real ~35KB render asserts a **tail sentinel** (truncation-detecting, not just presence).
+- The **full-size** payload survives hook injection intact: the real render, chunked, reassembles **verbatim** from the session rollout's injected messages (byte comparison, NOT a sentinel echo — codex's middle-elision defeats tail sentinels).
 - `AGENTS.md` no longer contains the memory tree — `codex-mem.sh` does not run `build-context-md.sh`; a hand-owned `~/.codex/AGENTS.md` is never overwritten by the memory system.
 - No double-injection: the base appears exactly once in a session (hook only), confirmed by grepping a session transcript for a unique identity marker.
 - `--executor-bare` runs get **no** injection at all — base *and* breadcrumbs absent (`AI_MEMORY_SKIP_INJECT=1` honored by both the session script and `inject.sh`), verified with a real bare run; `project_doc_max_bytes=0` retained for file/repo docs.
@@ -125,8 +125,49 @@ where `working.md` (the freshest content) renders. Confirm during Phase 4's prob
 - Remove `identity.md`'s Codex sibling-delegation caveat (per-cwd hook resolution obsoletes it); fix `memory.md` "mid-session memory edits don't appear until relaunch" (post-flip, `@memory` re-injects live).
 - Update `docs/harnesses/codex.md` / `domain/codex.md`.
 
+## Gate finding (2026-07-16) — cap probe FAILED; redesigned to chunked injection
+The Phase 4 probe ran early (before merge, after Phase 3 was built) and **failed**: codex
+hard-caps EVERY hook `additionalContext` message at **~10,100 bytes** (intact ≤ ~10,000B),
+middle-eliding with a `…N tokens truncated…` marker — head and tail survive, so a
+tail-sentinel-only check passes on a 90%-dropped payload. Verification must be a
+**verbatim full-payload comparison against the session rollout**, never a sentinel echo.
+The cap applies to SessionStart AND UserPromptSubmit (so the shipped post-compact full
+re-inject on main silently truncates today for >10KB payloads — same fix covers it), is
+not lifted by `tool_output_token_limit`, and has no visible config knob (codex 0.144.4).
+Counter-probe: **multiple hook entries each get their own ~10KB budget, delivered in
+registration order** — chunked injection is viable. Probes were token-free: real auth +
+`openai_base_url` pointed at a dead port; the rollout records the (truncated) hook
+message before any API call.
+
+**User decisions (2026-07-16):** chunked hooks transport; drop `domain` from the codex md
+`render_full` (Claude-parity section set: identity project index working; domain loads
+on-demand via index) — ~35KB payload → 4 chunks of ≤9,000B, 8 entries registered for
+headroom.
+
+### Phase 3b — chunked hook injection (build)
+- `render_full` md: drop `domain` (align with xml section set).
+- `scripts/hooks/lib.sh`: deterministic line-boundary slicer — full payload → ≤9,000B
+  slices; helper selects slice i of N from `AI_MEMORY_HOOK_CHUNK=i/N`. **Stateless**:
+  every chunk invocation renders + slices independently (no cache, no ordering dependency).
+  Slice overflow (payload > N slices) appends a loud `[ai-memory: base truncated — raise
+  session_chunks]` line to the LAST slice — fail loud, never silent.
+- `drivers/hook.sh`: manifest keys `session_chunks` / `inject_chunks` (default 1). N>1 →
+  register N entries for the event, each env-wrapped with `AI_MEMORY_HOOK_CHUNK=i/N`;
+  N=1 keeps today's single-entry command byte-identical (Claude unchanged). Sweep must
+  remove ALL stale same-script entries on re-install.
+- `session_start_memory.sh`: chunk-aware (emit slice i); compact-arm fires from chunk 1
+  only. `inject.sh`: post-compact full re-inject chunk-aware; per-prompt breadcrumb from
+  chunk 1 only.
+- codex manifest: `session_chunks = 8`, `inject_chunks = 8`.
+- `validate-manifest.sh` KNOWN_KEYS + tests: chunked registration (test_codex_hooks,
+  test_install_harness), slicer determinism/empty/overflow + chunk-1-only arming
+  (test_shared_hooks), chunked re-inject (test_inject_memory).
+
 ## Risks / open questions
-- **`additionalContext` size cap is unknown.** The startup probe used ~100 bytes; the real payload is ~35KB. If codex caps hook context the way it caps project docs, the flip trades one silent truncation for another — the Phase 4 tail-sentinel probe is the gate, and it must run **before** the flip ships.
+- **Hook execution order across N entries is observed, not documented.** The 3-entry probe
+  delivered messages in registration order; the stateless slicer makes correctness
+  order-independent, but out-of-order delivery would interleave the base oddly. Phase 4's
+  verbatim rollout check catches it (concatenated slices must reassemble the render).
 - **Compaction reliability on codex is unproven.** Only `source=startup` is probe-confirmed. If codex's SessionStart `additionalContext` is unreliable post-compaction (as on Claude), the recovery path *must* stay on the `UserPromptSubmit` sentinel — which it does; this plan does not touch it. Re-probe compact before any later simplification.
 - **Double-injection during rollout.** Manifest flip and `codex-mem.sh` file-retirement must land in the same change/commit, else a window exists where both AGENTS.md and the hook inject (~13k tokens twice).
 - **Bare-gate correctness.** A wrong `AI_MEMORY_SKIP_INJECT` gate leaks the full base into every lean review subagent, silently — hence the real-bare-run criterion.
