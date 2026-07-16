@@ -139,10 +139,11 @@ registration order** — chunked injection is viable. Probes were token-free: re
 `openai_base_url` pointed at a dead port; the rollout records the (truncated) hook
 message before any API call.
 
-**User decisions (2026-07-16):** chunked hooks transport; drop `domain` from the codex md
-`render_full` (Claude-parity section set: identity project index working; domain loads
-on-demand via index) — ~35KB payload → 4 chunks of ≤9,000B, 8 entries registered for
-headroom.
+**User decisions (2026-07-16):** chunked hooks transport. *(Superseded same day:)* domain
+was to be dropped from the md render on my claim it inlined 61.5KB — measurement showed
+the md `domain` section is a ~6.5KB **lazy-load table**, not inlined files; with corrected
+numbers the user chose to **keep the domain table** (payload ~96.8KB → 11-12 slices of
+the 12 registered; `session_chunks`/`inject_chunks = 12`, ~108KB capacity, loud overflow).
 
 ### Phase 3b — chunked hook injection (build)
 - `render_full` md: drop `domain` (align with xml section set).
