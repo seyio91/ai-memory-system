@@ -114,7 +114,7 @@ with open(path) as f:
     data = json.load(f)
 hooks = data.get("hooks", {})
 expected = {
-    "SessionStart": ("", "bash %s/harnesses/claude/hooks/session_start_memory.sh" % repo),
+    "SessionStart": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo)),
     "UserPromptSubmit": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash %s/scripts/hooks/inject.sh" % (repo, repo)),
     "PreToolUse": ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo),
 }
@@ -149,11 +149,11 @@ PY
     fi
 fi
 
-# --- codex (file archetype): context prep + skills + commands-as-skills ---
+# --- codex (file archetype, hand-owned base + hooks): context prep + skills + commands-as-skills ---
 run_install --harness codex >"$SBROOT/log.codex" 2>&1; rc=$?
 assert_exit 0 "$rc" "codex install exits 0"
 assert_file "$FHOME/.codex" "codex context dir prepared"
-if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then _ok "codex: no AGENTS.md symlink (built at launch)"; else _bad "codex: unexpected AGENTS.md symlink"; fi
+if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then _ok "codex: no AGENTS.md written (hand-owned static base)"; else _bad "codex: unexpected AGENTS.md written by installer"; fi
 assert_file "$FHOME/.codex/hooks.json" "codex: native hooks.json registered"
 chj="$(cat "$FHOME/.codex/hooks.json")"
 assert_contains "$chj" '"hooks"' "codex: hooks.json has top-level hooks object"
@@ -163,6 +163,36 @@ assert_contains "$chj" "AI_MEMORY_HOOK_FORMAT=md" "codex: inject command renders
 assert_contains "$chj" "scripts/hooks/inject.sh" "codex: inject command -> shared inject.sh"
 assert_contains "$chj" '"matcher": "^Bash$|apply_patch"' "codex: guard matcher registered"
 assert_contains "$chj" "scripts/hooks/guard.sh" "codex: guard command -> shared guard.sh"
+assert_contains "$chj" '"SessionStart"' "codex: SessionStart hook registered (base injects via hook, post-flip)"
+assert_contains "$chj" "scripts/hooks/session_start_memory.sh" "codex: SessionStart command -> shared session-start script"
+assert_not_contains "$chj" "arm_recompact.sh" "codex: SessionStart no longer wired to arm_recompact (shim only for stale hooks.json)"
+if command -v python3 >/dev/null 2>&1; then
+    CODEX_HOOKS="$FHOME/.codex/hooks.json" python3 - <<'PY' >"$SBROOT/codex-hooks-count.out" 2>&1
+import json, os, sys
+with open(os.environ["CODEX_HOOKS"]) as f:
+    hooks = json.load(f).get("hooks", {})
+ss = [
+    g for g in hooks.get("SessionStart", [])
+    if any("scripts/hooks/session_start_memory.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
+]
+if len(ss) != 12:
+    sys.stderr.write("SessionStart entries=%d\n" % len(ss))
+    sys.exit(1)
+for i, group in enumerate(ss, 1):
+    cmd = group["hooks"][0]["command"]
+    want = "AI_MEMORY_HOOK_CHUNK=%d/12" % i
+    if want not in cmd:
+        sys.stderr.write("missing %s in %r\n" % (want, cmd))
+        sys.exit(1)
+PY
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        _ok "codex: hooks.json has 12 ordered SessionStart chunks"
+    else
+        _bad "codex: hooks.json has 12 ordered SessionStart chunks"
+        cat "$SBROOT/codex-hooks-count.out"
+    fi
+fi
 assert_contains "$(cat "$SBROOT/log.codex")" "Run /hooks in codex once" "codex: manual /hooks trust note printed"
 # Phase 4: canonical skills fan into the manifest skills_dir (~/.agents/skills)...
 assert_file "$FHOME/.agents/skills/demo-skill" "codex: canonical skill fanned to ~/.agents/skills"

@@ -45,6 +45,14 @@ json_escape() {
     fi
 }
 
+json_escape_nonempty_stream() {
+    python3 -c 'import json,sys
+data = sys.stdin.buffer.read()
+if not data:
+    sys.exit(3)
+print(json.dumps(data.decode("utf-8")))'
+}
+
 json_field() {
     printf '%s' "$1" | python3 -c "import json,sys; print(json.loads(sys.stdin.read()).get('$2',''))" 2>/dev/null || echo ""
 }
@@ -74,6 +82,114 @@ render_full() {
         md)  content_sections "$project" identity project index domain working | md_render ;;
         *)   printf 'unsupported AI_MEMORY_HOOK_FORMAT: %s\n' "$format" >&2; return 2 ;;
     esac
+}
+
+hook_chunk_spec() {
+    local spec="${AI_MEMORY_HOOK_CHUNK:-}"
+    [ -n "$spec" ] || spec="1/1"
+    printf '%s' "$spec"
+}
+
+# A malformed AI_MEMORY_HOOK_CHUNK must fail CLOSED everywhere: emit_hook_chunk
+# already rejects it (rc=2, no output), so is_first/is_last must not default it
+# to 1/1 — that would consume the recompact sentinel / emit breadcrumbs from an
+# invocation that then emits no payload. Unset/empty stays 1/1 (Claude's shape).
+hook_chunk_valid() {
+    local spec idx total
+    spec="$(hook_chunk_spec)"
+    case "$spec" in
+        */*) idx="${spec%%/*}"; total="${spec#*/}" ;;
+        *)   return 1 ;;
+    esac
+    case "$idx"   in ''|*[!0-9]*) return 1 ;; esac
+    case "$total" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$idx" -ge 1 ] && [ "$total" -ge 1 ] && [ "$idx" -le "$total" ]
+}
+
+hook_chunk_index() {
+    hook_chunk_valid || return 1
+    local spec
+    spec="$(hook_chunk_spec)"
+    printf '%s' "${spec%%/*}"
+}
+
+hook_chunk_total() {
+    hook_chunk_valid || return 1
+    local spec
+    spec="$(hook_chunk_spec)"
+    printf '%s' "${spec#*/}"
+}
+
+hook_chunk_is_first() {
+    hook_chunk_valid && [ "$(hook_chunk_index)" = 1 ]
+}
+
+hook_chunk_is_last() {
+    hook_chunk_valid && [ "$(hook_chunk_index)" = "$(hook_chunk_total)" ]
+}
+
+emit_hook_chunk() {
+    local payload="$1" spec idx total
+    spec="$(hook_chunk_spec)"
+    if [ "$spec" = "1/1" ]; then
+        printf '%s' "$payload"
+        return 0
+    fi
+    case "$spec" in
+        */*) ;;
+        *) printf 'invalid AI_MEMORY_HOOK_CHUNK: %s\n' "$spec" >&2; return 2 ;;
+    esac
+    idx="${spec%%/*}"
+    total="${spec#*/}"
+    case "$idx" in ''|*[!0-9]*) printf 'invalid AI_MEMORY_HOOK_CHUNK: %s\n' "$spec" >&2; return 2 ;; esac
+    case "$total" in ''|*[!0-9]*) printf 'invalid AI_MEMORY_HOOK_CHUNK: %s\n' "$spec" >&2; return 2 ;; esac
+    [ "$idx" -ge 1 ] && [ "$total" -ge 1 ] || { printf 'invalid AI_MEMORY_HOOK_CHUNK: %s\n' "$spec" >&2; return 2; }
+    printf '%s' "$payload" | AI_MEMORY_CHUNK_INDEX="$idx" AI_MEMORY_CHUNK_TOTAL="$total" python3 -c '
+import os, sys
+
+MAX = 9000
+MARKER = b"[ai-memory: memory base truncated \xe2\x80\x94 raise session_chunks in the harness manifest]\n"
+idx = int(os.environ["AI_MEMORY_CHUNK_INDEX"])
+total = int(os.environ["AI_MEMORY_CHUNK_TOTAL"])
+data = sys.stdin.buffer.read()
+if not data:
+    sys.exit(0)
+
+slices = []
+current = b""
+for line in data.splitlines(keepends=True):
+    if not current:
+        current = line
+    elif len(current) + len(line) <= MAX:
+        current += line
+    else:
+        slices.append(current)
+        current = line
+if current:
+    slices.append(current)
+
+if idx > len(slices):
+    sys.exit(0)
+
+overflow = len(slices) > total
+if overflow and idx == total:
+    out = slices[idx - 1]
+    sep = b"" if out.endswith(b"\n") or not out else b"\n"
+    while out and len(out) + len(sep) + len(MARKER) > MAX:
+        lines = out.splitlines(keepends=True)
+        if len(lines) <= 1:
+            out = b""
+            sep = b""
+            break
+        out = b"".join(lines[:-1])
+        sep = b"" if out.endswith(b"\n") or not out else b"\n"
+    sys.stdout.buffer.write(out + sep + MARKER)
+    sys.exit(0)
+if overflow and idx > total:
+    sys.exit(0)
+
+sys.stdout.buffer.write(slices[idx - 1])
+'
 }
 
 render_breadcrumb() {

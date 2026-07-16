@@ -43,6 +43,10 @@ valid_json() { # valid_json <file> <label>
     fi
 }
 
+additional_context() {
+    python3 -c 'import json,sys; print(json.load(sys.stdin)["hookSpecificOutput"]["additionalContext"], end="")'
+}
+
 out="$MEM/out"
 
 # --- plain prompt inside marked tree -> breadcrumb only ---
@@ -61,6 +65,27 @@ valid_json "$out" "reload: valid JSON"
 assert_contains "$b" '<memory:identity>' "reload: identity injected"
 assert_contains "$b" '<memory:index>'    "reload: index injected"
 assert_contains "$b" '<memory:working>'  "reload: working injected"
+
+# --- @memory chunked: trigger reload fans out across chunks like post-compact ---
+if command -v python3 >/dev/null 2>&1; then
+    T_EXPECTED="$MEM/trigger.expected"
+    T_ASSEMBLED="$MEM/trigger.assembled"
+    T_CHUNK="$MEM/trigger.chunk"
+    bash "$HOOK" > "$out" <<<"{\"prompt\":\"reload @memory\",\"cwd\":\"$REPO/sub\"}"
+    additional_context < "$out" > "$T_EXPECTED"
+    : > "$T_ASSEMBLED"
+    for i in 1 2 3 4 5 6 7 8; do
+        AI_MEMORY_HOOK_CHUNK="$i/8" bash "$HOOK" > "$T_CHUNK" <<<"{\"prompt\":\"reload @memory\",\"cwd\":\"$REPO/sub\"}"
+        [ -s "$T_CHUNK" ] && additional_context < "$T_CHUNK" >> "$T_ASSEMBLED"
+    done
+    if cmp -s "$T_EXPECTED" "$T_ASSEMBLED"; then
+        _ok "reload: chunked @memory re-inject reassembles byte-for-byte"
+    else
+        _bad "reload: chunked @memory re-inject reassembles byte-for-byte"
+    fi
+else
+    printf '  SKIP python3 absent; @memory chunk reassembly not run\n'
+fi
 
 # --- no marker, plain prompt -> silent (no fallback to .active_project) ---
 bash "$HOOK" > "$out" <<<'{"prompt":"hi","cwd":"/tmp"}'
@@ -127,8 +152,21 @@ if command -v git >/dev/null 2>&1; then
 fi
 
 # --- post-compaction flow: SessionStart(compact) sets sentinel, next prompt reloads full ---
-SS="$REPO_ROOT/harnesses/claude/hooks/session_start_memory.sh"
+SS="$REPO_ROOT/scripts/hooks/session_start_memory.sh"
+# Fail loudly if the script moved: a silent `[ -f ]` skip would let the whole
+# post-compaction flow vanish from the suite unnoticed (the "green proves nothing" trap).
+assert_file "$SS" "post-compact: session_start_memory.sh present at scripts/hooks/"
 if [ -f "$SS" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - <<'PY' >> "$MEM/projects/proj/working.md"
+import sys
+sys.stdout.write("\n")
+sys.stdout.write("POST-COMPACT-LARGE\n")
+sys.stdout.write("y" * 22000)
+sys.stdout.write("\n")
+PY
+    fi
+
     SENT="$MEM/.sessions/s2.recompact"
     bash "$SS" >/dev/null <<<"{\"source\":\"compact\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
     assert_file "$SENT" "compact: sentinel written"
@@ -141,6 +179,39 @@ if [ -f "$SS" ]; then
     # next prompt is back to a breadcrumb (sentinel already consumed)
     bash "$HOOK" > "$out" <<<"{\"prompt\":\"again\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
     assert_not_contains "$(cat "$out")" '<memory:identity>' "post-compact: subsequent prompt is breadcrumb"
+
+    if command -v python3 >/dev/null 2>&1; then
+        EXPECTED="$MEM/postcompact.expected"
+        ASSEMBLED="$MEM/postcompact.assembled"
+        CHUNK_OUT="$MEM/postcompact.chunk"
+
+        : > "$SENT"
+        bash "$HOOK" > "$out" <<<"{\"prompt\":\"continue\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
+        additional_context < "$out" > "$EXPECTED"
+
+        : > "$SENT"
+        : > "$ASSEMBLED"
+        for i in 1 2 3 4 5 6 7 8; do
+            AI_MEMORY_HOOK_CHUNK="$i/8" bash "$HOOK" > "$CHUNK_OUT" <<<"{\"prompt\":\"continue\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
+            if [ -s "$CHUNK_OUT" ]; then
+                additional_context < "$CHUNK_OUT" >> "$ASSEMBLED"
+            fi
+        done
+        if cmp -s "$EXPECTED" "$ASSEMBLED"; then
+            _ok "post-compact: chunked full re-inject reassembles byte-for-byte"
+        else
+            _bad "post-compact: chunked full re-inject reassembles byte-for-byte"
+        fi
+        [ ! -e "$SENT" ] && _ok "post-compact: chunked flow consumes sentinel on final chunk" \
+            || _bad "post-compact: chunked flow consumes sentinel on final chunk"
+    else
+        printf '  SKIP python3 absent; post-compact chunk reassembly not run\n'
+    fi
+
+    AI_MEMORY_HOOK_CHUNK=1/8 bash "$HOOK" > "$out" <<<"{\"prompt\":\"again\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
+    assert_contains "$(cat "$out")" '<memory:active project=\"proj\"' "breadcrumb: chunk 1 emits breadcrumb"
+    AI_MEMORY_HOOK_CHUNK=2/8 bash "$HOOK" > "$out" <<<"{\"prompt\":\"again\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
+    assert_eq "" "$(cat "$out")" "breadcrumb: chunk 2 emits nothing"
 fi
 
 finish

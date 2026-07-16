@@ -49,9 +49,10 @@ EXEMPT="$ROOT/.docscheck-exempt"
 
 [ -f "$TABLE" ] || { printf 'check-docs: no table at %s\n' "$TABLE" >&2; exit 2; }
 
-# Code roots. install.sh may be absent in a fixture; that is not an error.
+# Code roots. install.sh / migrations/ may be absent in a fixture; not an error.
 ROOTS="$ROOT/scripts $ROOT/harnesses"
 [ -f "$ROOT/install.sh" ] && ROOTS="$ROOTS $ROOT/install.sh"
+[ -d "$ROOT/migrations" ] && ROOTS="$ROOTS $ROOT/migrations"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -61,7 +62,7 @@ trap 'rm -rf "$TMP"' EXIT
 # resolve_script <basename> -> absolute path, or empty. Searches only the code
 # roots, so archive/ and .skill-cache/ copies can never satisfy a check.
 resolve_script() {
-    find "$ROOT/scripts" "$ROOT/harnesses" -name "$1" -type f 2>/dev/null | head -1
+    find "$ROOT/scripts" "$ROOT/harnesses" "$ROOT/migrations" -name "$1" -type f 2>/dev/null | head -1
 }
 
 # sources_of <file> -> basenames of .sh files it sources.

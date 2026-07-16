@@ -9,7 +9,7 @@ format       = xml
 hooks_dir      = ~/.claude/hooks
 settings_json = ~/.claude/settings.json
 hook_script    = $MEMORY_DIR/scripts/hooks/inject.sh
-session_script = $MEMORY_DIR/harnesses/claude/hooks/session_start_memory.sh
+session_script = $MEMORY_DIR/scripts/hooks/session_start_memory.sh
 block_script   = $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh
 statusline     = ~/.claude/statusline.sh
 

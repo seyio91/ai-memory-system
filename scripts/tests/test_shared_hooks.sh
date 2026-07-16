@@ -25,6 +25,7 @@ summary: proj summary
 EOF
 printf 'proj\n' > "$WORK/.agents/memory-project"
 
+. "$REPO/scripts/hooks/lib.sh"
 . "$REPO/scripts/_lib.sh"
 . "$REPO/scripts/formatters/md.sh"
 
@@ -55,7 +56,7 @@ stage_old_claude_hooks() {
 stage_old_claude_hooks
 CLAUDE_INJECT="$OLD_REPO/harnesses/claude/hooks/inject_memory.sh"
 OLD_SESSION="$OLD_REPO/harnesses/claude/hooks/session_start_memory.sh"
-NEW_SESSION="$REPO/harnesses/claude/hooks/session_start_memory.sh"
+NEW_SESSION="$REPO/scripts/hooks/session_start_memory.sh"
 
 json_payload() {
     local prompt="$1" cwd="$2" session="${3:-}"
@@ -94,13 +95,106 @@ if command -v python3 >/dev/null 2>&1; then
     assert_eq "" "$new_compact" "session_start: compact emits no inline injection"
     assert_file "$OLD_STATE/ss-compact.recompact" "session_start: old compact writes sentinel"
     assert_file "$NEW_STATE/ss-compact.recompact" "session_start: migrated compact writes sentinel"
+
+    CHUNK_STATE="$MEM/chunk-state"
+    printf '{"source":"compact","cwd":"%s","session_id":"ss-chunk2"}' "$WORK" \
+        | AI_MEMORY_HOOK_CHUNK=2/8 MEMORY_STATE_DIR="$CHUNK_STATE" bash "$NEW_SESSION" >/dev/null
+    [ ! -e "$CHUNK_STATE/ss-chunk2.recompact" ] \
+        && _ok "session_start: compact chunk 2 writes no sentinel" \
+        || _bad "session_start: compact chunk 2 writes no sentinel"
+    printf '{"source":"compact","cwd":"%s","session_id":"ss-chunk1"}' "$WORK" \
+        | AI_MEMORY_HOOK_CHUNK=1/8 MEMORY_STATE_DIR="$CHUNK_STATE" bash "$NEW_SESSION" >/dev/null
+    assert_file "$CHUNK_STATE/ss-chunk1.recompact" "session_start: compact chunk 1 writes sentinel"
 else
     printf '  SKIP python3 absent; shared/Claude JSON payload comparison not run\n'
+fi
+
+# --- AI_MEMORY_SKIP_INJECT gate (bare/isolated executor opt-out) — no python3 needed ---
+skip_inject="$(json_payload "hello" "$WORK/sub" "sk1" | AI_MEMORY_SKIP_INJECT=1 bash "$SHARED_INJECT")"
+assert_eq "" "$skip_inject" "skip-inject: inject.sh emits nothing when AI_MEMORY_SKIP_INJECT=1"
+
+skip_start="$(printf '{"cwd":"%s","session_id":"sk-start"}' "$WORK" | AI_MEMORY_SKIP_INJECT=1 bash "$NEW_SESSION")"
+assert_eq "" "$skip_start" "skip-inject: session_start emits nothing when AI_MEMORY_SKIP_INJECT=1"
+
+SKIP_STATE="$MEM/skip-state"
+printf '{"source":"compact","cwd":"%s","session_id":"sk-compact"}' "$WORK" \
+    | AI_MEMORY_SKIP_INJECT=1 MEMORY_STATE_DIR="$SKIP_STATE" bash "$NEW_SESSION" >/dev/null
+[ ! -e "$SKIP_STATE/sk-compact.recompact" ] \
+    && _ok "skip-inject: session_start compact writes NO sentinel when skipping" \
+    || _bad "skip-inject: session_start compact writes NO sentinel when skipping"
+
+if command -v python3 >/dev/null 2>&1; then
+    PAYLOAD_FILE="$MEM/chunk-payload.txt"
+    ORIG_FILE="$MEM/chunk-orig.txt"
+    REASM_FILE="$MEM/chunk-reassembled.txt"
+    python3 - <<'PY' >"$PAYLOAD_FILE"
+import sys
+sys.stdout.write("alpha café\n")
+sys.stdout.write("x" * 9500)
+sys.stdout.write("\n")
+sys.stdout.write("omega ☕")
+PY
+    payload="$(cat "$PAYLOAD_FILE")"
+    printf '%s' "$payload" > "$ORIG_FILE"
+    : > "$REASM_FILE"
+    for i in 1 2 3 4; do
+        AI_MEMORY_HOOK_CHUNK="$i/4" emit_hook_chunk "$payload" >> "$REASM_FILE"
+    done
+    if cmp -s "$ORIG_FILE" "$REASM_FILE"; then
+        _ok "chunker: slices reassemble byte-for-byte with UTF-8 and >9000B line"
+    else
+        _bad "chunker: slices reassemble byte-for-byte with UTF-8 and >9000B line"
+    fi
+
+    empty="$(AI_MEMORY_HOOK_CHUNK=5/5 emit_hook_chunk "$payload")"
+    assert_eq "" "$empty" "chunker: chunk beyond natural slice count is empty"
+
+    OVER_FILE="$MEM/chunk-overflow.txt"
+    AI_MEMORY_HOOK_CHUNK=2/2 emit_hook_chunk "$payload" > "$OVER_FILE"
+    assert_contains "$(cat "$OVER_FILE")" "[ai-memory: memory base truncated — raise session_chunks in the harness manifest]" \
+        "chunker: overflow emits loud truncation marker"
+    assert_eq "[ai-memory: memory base truncated — raise session_chunks in the harness manifest]" \
+        "$(tail -n 1 "$OVER_FILE")" "chunker: overflow marker is the final line"
+
+    UNSET_FILE="$MEM/chunk-unset.txt"
+    ONE_FILE="$MEM/chunk-one.txt"
+    unset AI_MEMORY_HOOK_CHUNK
+    emit_hook_chunk "$payload" > "$UNSET_FILE"
+    AI_MEMORY_HOOK_CHUNK=1/1 emit_hook_chunk "$payload" > "$ONE_FILE"
+    if cmp -s "$ORIG_FILE" "$UNSET_FILE" && cmp -s "$ORIG_FILE" "$ONE_FILE"; then
+        _ok "chunker: unset and 1/1 passthrough are byte-identical"
+    else
+        _bad "chunker: unset and 1/1 passthrough are byte-identical"
+    fi
+
+    # Malformed specs fail CLOSED across ALL helpers: is_first/is_last must not
+    # default garbage to 1/1 (would consume the recompact sentinel / emit a
+    # breadcrumb from an invocation whose emit_hook_chunk then rejects the spec).
+    for bad in garbage 0/8 /8 2/ 9/8 1/x; do
+        if AI_MEMORY_HOOK_CHUNK="$bad" hook_chunk_is_first 2>/dev/null; then
+            _bad "chunker: malformed spec '$bad' is not first"
+        else
+            _ok "chunker: malformed spec '$bad' is not first"
+        fi
+        if AI_MEMORY_HOOK_CHUNK="$bad" hook_chunk_is_last 2>/dev/null; then
+            _bad "chunker: malformed spec '$bad' is not last"
+        else
+            _ok "chunker: malformed spec '$bad' is not last"
+        fi
+    done
+    if hook_chunk_is_first && hook_chunk_is_last; then
+        _ok "chunker: unset spec is first AND last (1/1)"
+    else
+        _bad "chunker: unset spec is first AND last (1/1)"
+    fi
+else
+    printf '  SKIP python3 absent; chunker unit coverage not run\n'
 fi
 
 md_out="$(json_payload "reload @memory" "$WORK" "s3" | AI_MEMORY_HOOK_FORMAT=md bash "$SHARED_INJECT")"
 assert_contains "$md_out" "# === IDENTITY ===" "shared md inject: full md identity heading"
 assert_contains "$md_out" "# === PROJECT: proj ===" "shared md inject: full md project heading"
+assert_contains "$md_out" "# === DOMAIN INDEX ===" "shared md inject: full md keeps domain lazy-load table"
 
 # Codex's REAL PreToolUse stdin shape (verified against codex 0.144.1): the shell
 # command lives at tool_input.command. Using the actual schema is the point — an

@@ -269,12 +269,39 @@ PY
     fi
 }
 
+_hook_manifest_chunk_count() {
+    local key="$1" value
+    value="$(manifest_get "$MANIFEST" "$key")"
+    [ -n "$value" ] || value=1
+    case "$value" in
+        ''|*[!0-9]*|0)
+            info "$key must be a positive integer (got '${value:-<empty>}') — using 1"
+            value=1
+            ;;
+    esac
+    printf '%s' "$value"
+}
+
+_hook_chunked_commands() {
+    local base="$1" script="$2" chunks="$3" i
+    if [ "$chunks" -eq 1 ]; then
+        printf '%s bash %s\n' "$base" "$script"
+        return
+    fi
+    i=1
+    while [ "$i" -le "$chunks" ]; do
+        printf '%s AI_MEMORY_HOOK_CHUNK=%s/%s bash %s\n' "$base" "$i" "$chunks" "$script"
+        i=$((i + 1))
+    done
+}
+
 # _hook_register_native_json <settings_or_hooks_json> — register Claude/Codex
 # native hook schema: top-level {"hooks": {"Event": [{matcher?, hooks:[...]}]}}.
 # Only ai-memory hook commands are removed/replaced; sibling top-level settings
 # and unrelated hook groups are preserved.
 _hook_register_native_json() {
     local hooks_json="$1" fmt role spec event matcher key script hook_count=0
+    local inject_chunks session_chunks
     local inject_event="" inject_matcher="" inject_cmd=""
     local guard_event="" guard_matcher="" guard_cmd=""
     local session_event="" session_matcher="" session_cmd=""
@@ -282,6 +309,8 @@ _hook_register_native_json() {
     local arm_event="" arm_matcher="" arm_cmd=""
     fmt="$(manifest_get "$MANIFEST" format)"
     [ -n "$fmt" ] || fmt=xml
+    inject_chunks="$(_hook_manifest_chunk_count inject_chunks)"
+    session_chunks="$(_hook_manifest_chunk_count session_chunks)"
 
     while IFS=$'\t' read -r role spec; do
         [ -n "$role" ] || continue
@@ -309,7 +338,7 @@ _hook_register_native_json() {
         case "$role" in
             per_turn_inject)
                 inject_event="$event"; inject_matcher="$matcher"
-                inject_cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event bash $script"
+                inject_cmd="$(_hook_chunked_commands "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event" "$script" "$inject_chunks")"
                 ;;
             infra_guard)
                 guard_event="$event"; guard_matcher="$matcher"
@@ -317,7 +346,12 @@ _hook_register_native_json() {
                 ;;
             session_bootstrap)
                 session_event="$event"; session_matcher="$matcher"
-                session_cmd="bash $script"
+                # Format-wrapped like inject_cmd: the shared session_start script renders
+                # via content-core, so it needs AI_MEMORY_HOOK_FORMAT from the manifest
+                # (xml for Claude, md for Codex once it points session_script here). Passing
+                # MEMORY_DIR/AI_MEMORY_HOOK_FORMAT to Claude's xml script is a no-op (its
+                # defaults already match), so this is behaviour-preserving for Claude.
+                session_cmd="$(_hook_chunked_commands "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event" "$script" "$session_chunks")"
                 ;;
             task_tool_block)
                 block_event="$event"; block_matcher="$matcher"
@@ -418,13 +452,16 @@ for event in list(hooks.keys()):
                 cleaned.append(group)
     hooks[event] = cleaned
 
-def add(event, matcher, cmd):
-    if not event or not cmd:
+def add(event, matcher, cmds):
+    if not event or not cmds:
         return
-    group = {"hooks": [{"type": "command", "command": cmd}]}
-    if matcher:
-        group["matcher"] = matcher
-    hooks.setdefault(event, []).append(group)
+    for cmd in cmds.splitlines():
+        if not cmd:
+            continue
+        group = {"hooks": [{"type": "command", "command": cmd}]}
+        if matcher:
+            group["matcher"] = matcher
+        hooks.setdefault(event, []).append(group)
 
 for prefix in ("INJECT", "GUARD", "SESSION", "BLOCK", "ARM"):
     add(
@@ -454,11 +491,22 @@ PY
             local wrote=0
             _hook_native_print_group() {
                 local ev="$1" mt="$2" cm="$3"
+                local one_cmd first
                 [ -n "$ev" ] && [ -n "$cm" ] || return 0
                 [ "$wrote" -eq 0 ] || printf ','
-                printf '\n    "%s": [\n      { ' "$ev"
-                [ -z "$mt" ] || printf '"matcher": "%s", ' "$mt"
-                printf '"hooks": [ { "type": "command", "command": "%s" } ] }\n    ]' "$cm"
+                printf '\n    "%s": [' "$ev"
+                first=1
+                while IFS= read -r one_cmd || [ -n "$one_cmd" ]; do
+                    [ -n "$one_cmd" ] || continue
+                    [ "$first" -eq 1 ] || printf ','
+                    printf '\n      { '
+                    [ -z "$mt" ] || printf '"matcher": "%s", ' "$mt"
+                    printf '"hooks": [ { "type": "command", "command": "%s" } ] }' "$one_cmd"
+                    first=0
+                done <<EOF
+$cm
+EOF
+                printf '\n    ]'
                 wrote=1
             }
             _hook_native_print_group "$session_event" "$session_matcher" "$session_cmd"
