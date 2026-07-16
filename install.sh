@@ -167,11 +167,12 @@ if [ -n "$AGENTS_DIR" ] && [ -d "$REPO_ROOT/agents" ]; then
 fi
 
 # ---- commands surface ------------------------------------------------------
-# Canonical command bodies are authored under the Claude harness dir and shared
-# across harnesses: symlinked natively (Claude), wrapped AS skills into skills_dir
+# Canonical command bodies live in the repo-level commands/ store (harness-neutral,
+# like skills/ and agents/) and are shared across harnesses: symlinked natively
+# (Claude), wrapped AS skills into skills_dir
 # (Codex — its command mechanism IS skills), or rendered as a reference doc
 # (fallback for a harness with neither surface).
-COMMANDS_STORE="$REPO_ROOT/harnesses/claude/commands"
+COMMANDS_STORE="$REPO_ROOT/commands"
 CMDS="$(manifest_get "$MANIFEST" commands)"
 CMDS_DIR="$(manifest_get "$MANIFEST" commands_dir)"
 case "$CMDS" in

@@ -206,7 +206,7 @@ and slash commands reach it with no adapter:
   layout, so fan-out is a zero-transform symlink into the shared `~/.agents/skills`
   (Antigravity is registered in `~/.agents/.skill-lock.json`).
 - **Commands** — the manifest declares `commands = skill`, so each canonical
-  slash-command body under `harnesses/claude/commands/` is wrapped as a `SKILL.md`
+  slash-command body under `commands/` is wrapped as a `SKILL.md`
   into the same `~/.agents/skills` (Antigravity's command mechanism *is* skills).
 
 Because both land in `~/.agents/skills`, the exact same store is shared with Codex.
