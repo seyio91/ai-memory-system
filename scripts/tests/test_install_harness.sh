@@ -166,6 +166,33 @@ assert_contains "$chj" "scripts/hooks/guard.sh" "codex: guard command -> shared 
 assert_contains "$chj" '"SessionStart"' "codex: SessionStart hook registered (base injects via hook, post-flip)"
 assert_contains "$chj" "scripts/hooks/session_start_memory.sh" "codex: SessionStart command -> shared session-start script"
 assert_not_contains "$chj" "arm_recompact.sh" "codex: SessionStart no longer wired to arm_recompact (shim only for stale hooks.json)"
+if command -v python3 >/dev/null 2>&1; then
+    CODEX_HOOKS="$FHOME/.codex/hooks.json" python3 - <<'PY' >"$SBROOT/codex-hooks-count.out" 2>&1
+import json, os, sys
+with open(os.environ["CODEX_HOOKS"]) as f:
+    hooks = json.load(f).get("hooks", {})
+ss = [
+    g for g in hooks.get("SessionStart", [])
+    if any("scripts/hooks/session_start_memory.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
+]
+if len(ss) != 8:
+    sys.stderr.write("SessionStart entries=%d\n" % len(ss))
+    sys.exit(1)
+for i, group in enumerate(ss, 1):
+    cmd = group["hooks"][0]["command"]
+    want = "AI_MEMORY_HOOK_CHUNK=%d/8" % i
+    if want not in cmd:
+        sys.stderr.write("missing %s in %r\n" % (want, cmd))
+        sys.exit(1)
+PY
+    rc=$?
+    if [ "$rc" -eq 0 ]; then
+        _ok "codex: hooks.json has 8 ordered SessionStart chunks"
+    else
+        _bad "codex: hooks.json has 8 ordered SessionStart chunks"
+        cat "$SBROOT/codex-hooks-count.out"
+    fi
+fi
 assert_contains "$(cat "$SBROOT/log.codex")" "Run /hooks in codex once" "codex: manual /hooks trust note printed"
 # Phase 4: canonical skills fan into the manifest skills_dir (~/.agents/skills)...
 assert_file "$FHOME/.agents/skills/demo-skill" "codex: canonical skill fanned to ~/.agents/skills"

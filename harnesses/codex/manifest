@@ -16,6 +16,9 @@ hook_script       = $MEMORY_DIR/scripts/hooks/inject.sh
 guard_script      = $MEMORY_DIR/scripts/hooks/guard.sh
 session_script    = $MEMORY_DIR/scripts/hooks/session_start_memory.sh
 hooks_min_version = 0.135.0
+# Codex caps each hook additionalContext message at ~10KB; fan out ordered slices.
+session_chunks    = 8
+inject_chunks     = 8
 
 # Forward-declared delivery surfaces. The generic per-manifest fan-out (skills
 # into ~/.agents/skills; command bodies delivered AS skills) lands in Phase 4;

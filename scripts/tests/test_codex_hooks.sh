@@ -44,16 +44,26 @@ if not isinstance(ups, list) or not ups:
 if not isinstance(ptu, list) or not ptu:
     sys.stderr.write("missing PreToolUse array\n")
     sys.exit(1)
-if "matcher" in ups[0]:
-    sys.stderr.write("UserPromptSubmit group unexpectedly has matcher\n")
-    sys.exit(1)
-inject_cmd = ups[0]["hooks"][0]["command"]
 guard_cmd = ptu[0]["hooks"][0]["command"]
+inject_entries = [
+    g for g in ups
+    if any("scripts/hooks/inject.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
+]
+if len(inject_entries) != 8:
+    sys.stderr.write("idempotency/count failure: inject=%d\n" % len(inject_entries))
+    sys.exit(1)
+for g in inject_entries:
+    if "matcher" in g:
+        sys.stderr.write("UserPromptSubmit group unexpectedly has matcher\n")
+        sys.exit(1)
+inject_cmds = [g["hooks"][0]["command"] for g in inject_entries]
+inject_cmd = inject_cmds[0]
 checks = [
     ("inject path", "scripts/hooks/inject.sh" in inject_cmd),
     ("md format", "AI_MEMORY_HOOK_FORMAT=md" in inject_cmd),
     ("memory dir", "MEMORY_DIR=" in inject_cmd),
     ("hook event", "AI_MEMORY_HOOK_EVENT=UserPromptSubmit" in inject_cmd),
+    ("chunk", "AI_MEMORY_HOOK_CHUNK=1/8" in inject_cmd),
     ("guard matcher", ptu[0].get("matcher") == "^Bash$|apply_patch"),
     ("guard path", "scripts/hooks/guard.sh" in guard_cmd),
 ]
@@ -61,21 +71,20 @@ for label, ok in checks:
     if not ok:
         sys.stderr.write("failed check: %s\n" % label)
         sys.exit(1)
-inject_entries = [
-    g for g in ups
-    if any("scripts/hooks/inject.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
-]
 guard_entries = [
     g for g in ptu
     if any("scripts/hooks/guard.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
 ]
-if len(inject_entries) != 1 or len(guard_entries) != 1:
+if len(guard_entries) != 1:
     sys.stderr.write("idempotency failure: inject=%d guard=%d\n" % (len(inject_entries), len(guard_entries)))
     sys.exit(1)
-expected_inject = "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash %s/scripts/hooks/inject.sh" % (repo, repo)
+expected_inject = [
+    "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=UserPromptSubmit AI_MEMORY_HOOK_CHUNK=%d/8 bash %s/scripts/hooks/inject.sh" % (repo, i, repo)
+    for i in range(1, 9)
+]
 expected_guard = "env MEMORY_DIR=%s bash %s/scripts/hooks/guard.sh" % (repo, repo)
-if inject_cmd != expected_inject:
-    sys.stderr.write("inject command mismatch\nexpected=%r\nactual=%r\n" % (expected_inject, inject_cmd))
+if inject_cmds != expected_inject:
+    sys.stderr.write("inject command mismatch\nexpected=%r\nactual=%r\n" % (expected_inject, inject_cmds))
     sys.exit(1)
 if guard_cmd != expected_guard:
     sys.stderr.write("guard command mismatch\nexpected=%r\nactual=%r\n" % (expected_guard, guard_cmd))
@@ -90,16 +99,20 @@ session_entries = [
     g for g in ss
     if any("scripts/hooks/session_start_memory.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
 ]
-if len(session_entries) != 1:
+if len(session_entries) != 8:
     sys.stderr.write("idempotency failure: session=%d\n" % len(session_entries))
     sys.exit(1)
-if "matcher" in session_entries[0]:
-    sys.stderr.write("SessionStart session group unexpectedly has matcher\n")
-    sys.exit(1)
-session_cmd = session_entries[0]["hooks"][0]["command"]
-expected_session = "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=SessionStart bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo)
-if session_cmd != expected_session:
-    sys.stderr.write("session command mismatch\nexpected=%r\nactual=%r\n" % (expected_session, session_cmd))
+for g in session_entries:
+    if "matcher" in g:
+        sys.stderr.write("SessionStart session group unexpectedly has matcher\n")
+        sys.exit(1)
+session_cmds = [g["hooks"][0]["command"] for g in session_entries]
+expected_session = [
+    "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=SessionStart AI_MEMORY_HOOK_CHUNK=%d/8 bash %s/scripts/hooks/session_start_memory.sh" % (repo, i, repo)
+    for i in range(1, 9)
+]
+if session_cmds != expected_session:
+    sys.stderr.write("session command mismatch\nexpected=%r\nactual=%r\n" % (expected_session, session_cmds))
     sys.exit(1)
 # The old arm_recompact.sh must NOT be wired by the flipped manifest (it survives only as
 # a compatibility shim reachable via a stale pre-flip hooks.json, not a fresh registration).
@@ -131,8 +144,8 @@ JSON
 _hook_register_codex_json "$LEGACY"
 assert_eq "0" "$(grep -c 'inject_memory.sh' "$LEGACY")" \
     "codex hooks_json: legacy inject_memory.sh entry swept on re-sync"
-assert_eq "1" "$(grep -c 'scripts/hooks/inject.sh' "$LEGACY")" \
-    "codex hooks_json: current inject.sh entry present after sweep"
+assert_eq "8" "$(grep -c 'scripts/hooks/inject.sh' "$LEGACY")" \
+    "codex hooks_json: current chunked inject.sh entries present after sweep"
 
 BAD="$TMP/bad-hooks.json"
 printf '[1, 2, 3]\n' > "$BAD"

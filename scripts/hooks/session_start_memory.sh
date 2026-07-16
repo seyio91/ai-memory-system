@@ -51,6 +51,9 @@ elif [ -z "$SOURCE" ]; then
     esac
 fi
 if [ "$COMPACT" = true ]; then
+    if ! hook_chunk_is_first; then
+        exit 0
+    fi
     if [ -n "$PROJECT" ]; then
         SENT=$(recompact_sentinel "$SESSION_ID")
         if [ -n "$SENT" ]; then
@@ -66,5 +69,7 @@ fi
 OUTPUT=$(render_full "$PROJECT")
 [ -z "$OUTPUT" ] && exit 0
 
-ESC=$(json_escape "$OUTPUT")
+if ! ESC=$(emit_hook_chunk "$OUTPUT" | json_escape_nonempty_stream); then
+    exit 0
+fi
 printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":%s}}\n' "$ESC"
