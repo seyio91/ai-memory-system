@@ -186,6 +186,18 @@ for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
     fi
 done
 
+# 9. Investigations must be tied to a task lifecycle — a live investigation
+#    carries a frontmatter `task_ref` (the task it seeds or serves); when that
+#    task closes, the file moves to archive/investigations/. An orphan has no
+#    lifecycle anchor and never gets archived. Live dir only; archive not scanned.
+for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
+    [ -e "$f" ] || continue
+    case "$f" in *"/_template/"*) continue;; esac
+    if [ -z "$(extract_fm_field "$f" task_ref)" ]; then
+        emit "WARN:  $f has no task_ref — attach the task it serves (or archive it to archive/investigations/)"
+    fi
+done
+
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
     exit 0
