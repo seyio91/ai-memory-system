@@ -1,0 +1,11 @@
+{
+  "sessionId": "5cc2ec69-977e-41c0-a1db-e6af53a4cd16",
+  "timestamp": 1784211006829.0,
+  "cwd": "/private/tmp/claude-502/-Users-seyi-Downloads-personal-claude-memory/62a0daf4-7e3d-4305-9633-0ea9704c1bfe/scratchpad/copilot-probe",
+  "toolName": "bash",
+  "toolArgs": "{\"command\":\"printf fixture > fixture-tool.txt\",\"description\":\"Run the specified printf command\"}",
+  "toolResult": {
+    "resultType": "success",
+    "textResultForLlm": "\n<shellId: 0 completed with exit code 0>"
+  }
+}

@@ -56,13 +56,14 @@ codex_hooks_version() {
 # present. Claude first, preserving the historical no-arg behavior.
 detect_harness() {
     local h
-    for h in claude codex antigravity gemini cursor; do
+    for h in claude codex antigravity copilot gemini cursor; do
         [ -f "$REPO_ROOT/harnesses/$h/manifest" ] || continue
         case "$h" in
             claude)      [ -d "$HOME/.claude" ] && { printf claude; return 0; } ;;
             codex)       [ -d "$HOME/.codex" ]  && { printf codex; return 0; } ;;
             antigravity) { command -v agy >/dev/null 2>&1 || [ -d "$HOME/.gemini/antigravity-cli" ]; } \
                              && { printf antigravity; return 0; } ;;
+            copilot)     command -v copilot >/dev/null 2>&1 && { printf copilot; return 0; } ;;
             gemini)      [ -d "$HOME/.gemini" ] && { printf gemini; return 0; } ;;
             cursor)      [ -d "$HOME/.cursor" ] && { printf cursor; return 0; } ;;
         esac
@@ -109,6 +110,12 @@ rm -f /tmp/vm.$$
 
 ARCHETYPE="$(manifest_get "$MANIFEST" archetype)"
 printf '== installing memory system for harness: %s (archetype: %s) ==\n' "$HARNESS" "$ARCHETYPE"
+PROBE="$(manifest_get "$MANIFEST" probe)"
+SKIP_DRIVER=0
+if [ -n "$PROBE" ] && ! command -v "$PROBE" >/dev/null 2>&1; then
+    info "$PROBE not found on PATH — skipping $HARNESS hook registration"
+    SKIP_DRIVER=1
+fi
 
 # ---- shared: stable memory-tree path --------------------------------------
 step "Memory tree -> $MEMORY_DIR"
@@ -123,7 +130,9 @@ fi
 
 # ---- archetype driver (hooks/statusline for hook; context prep for file) --
 . "$REPO_ROOT/scripts/drivers/$ARCHETYPE.sh"
-driver_install
+if [ "$SKIP_DRIVER" -eq 0 ]; then
+    driver_install
+fi
 
 # Codex hybrid: its manifest remains file-archetype (static AGENTS.md base) but
 # declares native hooks_json for dynamic per-turn memory and the executor guard.
@@ -239,7 +248,14 @@ mkdir -p "$REPO_ROOT/tasks" "$REPO_ROOT/archive/tasks"
 
 # ---- manual steps (harness-specific) --------------------------------------
 printf '\n==> Done (%s). Manual steps that remain:\n\n' "$HARNESS"
-driver_notes
+if [ "$SKIP_DRIVER" -eq 0 ]; then
+    driver_notes
+else
+    cat <<EOF
+  1. Install for '$HARNESS' skipped hook registration because '$PROBE' is not on PATH.
+     Install the runtime, then re-run: install.sh --harness $HARNESS
+EOF
+fi
 cat <<EOF
 
   Then: edit identity.md (per-instance, git-ignored), onboard a repo with '/pin <project>',

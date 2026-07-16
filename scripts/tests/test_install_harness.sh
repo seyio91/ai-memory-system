@@ -34,6 +34,14 @@ esac
 exit 0
 EOF
 chmod +x "$FBIN/codex"
+cat > "$FBIN/copilot" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version) printf 'GitHub Copilot CLI 1.0.71.\n'; exit 0 ;;
+esac
+exit 0
+EOF
+chmod +x "$FBIN/copilot"
 export PATH="$FBIN:$PATH"
 
 run_install() { HOME="$FHOME" MEMORY_DIR="$FAKE" bash "$FAKE/install.sh" "$@"; }
@@ -235,6 +243,36 @@ assert_exit 0 "$rc" "antigravity re-run exits 0"
 assert_eq "1" "$(grep -c 'ai-memory-inject' "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single inject entry"
 assert_eq "1" "$(grep -c 'ai-memory-guard'  "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single guard entry"
 
+# --- copilot (hook archetype, owned ~/.copilot/hooks/ai-memory.json) ---
+mkdir -p "$FHOME/.copilot/hooks"
+printf '{"version":1,"hooks":{"sessionStart":[]}}\n' > "$FHOME/.copilot/hooks/foo.json"
+foo_before="$(cat "$FHOME/.copilot/hooks/foo.json")"
+run_install --harness copilot >"$SBROOT/log.copilot" 2>&1; rc=$?
+assert_exit 0 "$rc" "copilot install exits 0"
+assert_file "$FHOME/.copilot/hooks/ai-memory.json" "copilot: owned ai-memory.json registered"
+cphj="$(cat "$FHOME/.copilot/hooks/ai-memory.json")"
+assert_contains "$cphj" '"version": 1' "copilot: hooks file declares version 1"
+assert_contains "$cphj" '"sessionStart"' "copilot: camelCase sessionStart registered"
+assert_contains "$cphj" '"timeoutSec": 10' "copilot: sessionStart timeoutSec registered"
+assert_contains "$cphj" "harnesses/copilot/hooks/sessionstart.sh" "copilot: sessionStart command -> adapter"
+assert_contains "$cphj" "AI_MEMORY_HOOK_FORMAT=md" "copilot: sessionStart renders md"
+assert_eq "$foo_before" "$(cat "$FHOME/.copilot/hooks/foo.json")" "copilot: sibling hook file untouched"
+first_copilot="$(cat "$FHOME/.copilot/hooks/ai-memory.json")"
+run_install --harness copilot >"$SBROOT/log.copilot2" 2>&1; rc=$?
+assert_exit 0 "$rc" "copilot re-run exits 0"
+assert_eq "$first_copilot" "$(cat "$FHOME/.copilot/hooks/ai-memory.json")" "copilot: re-run is byte-identical"
+
+rm -f "$FHOME/.copilot/hooks/ai-memory.json"
+PATH="/usr/bin:/bin" run_install --harness copilot >"$SBROOT/log.copilot-missing" 2>&1; rc=$?
+assert_exit 0 "$rc" "copilot missing binary: install skips without error"
+if [ ! -e "$FHOME/.copilot/hooks/ai-memory.json" ]; then
+    _ok "copilot missing binary: hook registration skipped"
+else
+    _bad "copilot missing binary: unexpected hook file"
+fi
+assert_contains "$(cat "$SBROOT/log.copilot-missing")" "copilot not found on PATH" \
+    "copilot missing binary: skip reason reported"
+
 # --- doc surface (synthetic file harness with commands=doc, no skills_dir) ---
 mkdir -p "$FAKE/harnesses/doch"
 printf '%s\n' \
@@ -306,6 +344,7 @@ out="$(HOME="$FHOME" bash "$FAKE/install.sh" --list 2>&1)"
 assert_contains "$out" "claude"      "--list shows claude"
 assert_contains "$out" "codex"       "--list shows codex"
 assert_contains "$out" "antigravity" "--list shows antigravity"
+assert_contains "$out" "copilot"     "--list shows copilot"
 
 # --- claude settings.json merge must fail closed on a non-object ------------
 rm -f "$FHOME/.claude"/settings.json.bak-*

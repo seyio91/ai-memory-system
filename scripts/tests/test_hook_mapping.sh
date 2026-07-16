@@ -8,6 +8,7 @@ REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
 AGY_MF="$REPO/harnesses/antigravity/manifest"
 CLAUDE_MF="$REPO/harnesses/claude/manifest"
 CODEX_MF="$REPO/harnesses/codex/manifest"
+COPILOT_MF="$REPO/harnesses/copilot/manifest"
 
 expected="$(printf 'per_turn_inject\tPreInvocation\ninfra_guard\tPreToolUse:*')"
 actual="$(manifest_hooks "$AGY_MF")"
@@ -20,6 +21,10 @@ assert_eq "$expected" "$actual" "claude manifest_hooks emits role/event map"
 expected="$(printf 'per_turn_inject\tUserPromptSubmit\ninfra_guard\tPreToolUse:^Bash$|apply_patch\nsession_bootstrap\tSessionStart')"
 actual="$(manifest_hooks "$CODEX_MF")"
 assert_eq "$expected" "$actual" "codex manifest_hooks emits role/event map (post-flip: session_bootstrap, no compaction_arm)"
+
+expected="$(printf 'session_bootstrap\tsessionStart')"
+actual="$(manifest_hooks "$COPILOT_MF")"
+assert_eq "$expected" "$actual" "copilot manifest_hooks emits camelCase sessionStart"
 
 assert_eq "" "$(manifest_get "$AGY_MF" per_turn_inject)" "section key does not leak through manifest_get"
 keys="$(manifest_keys "$AGY_MF")"

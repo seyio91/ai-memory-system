@@ -15,7 +15,7 @@ ERRORS=0
 err()  { printf 'ERROR: %s\n' "$1"; ERRORS=$((ERRORS + 1)); }
 warn() { printf 'WARN:  %s\n' "$1"; }
 
-KNOWN_KEYS=" name archetype format hooks_dir hooks_json settings_json hook_script guard_script session_script block_script arm_script hooks_min_version session_chunks inject_chunks statusline statusline_settings statusline_script commands commands_dir commands_doc skills_dir agents_dir context_target refresh exec exec_cmd exec_model_flag exec_readonly exec_last_message exec_probe "
+KNOWN_KEYS=" name archetype format probe hooks_dir hooks_json copilot_hooks_json settings_json hook_script guard_script session_script block_script arm_script hooks_min_version session_chunks inject_chunks statusline statusline_settings statusline_script commands commands_dir commands_doc skills_dir agents_dir context_target refresh exec exec_cmd exec_model_flag exec_readonly exec_last_message exec_probe "
 
 in_set() { case "$2" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
@@ -39,9 +39,12 @@ validate_one() {
     case "$arch" in
         hook)
             [ -n "$(manifest_get "$mf" hooks_dir)" ] || [ -n "$(manifest_get "$mf" hooks_json)" ] \
-                || err "$label: hook archetype requires 'hooks_dir' or 'hooks_json'"
+                || [ -n "$(manifest_get "$mf" copilot_hooks_json)" ] \
+                || err "$label: hook archetype requires 'hooks_dir', 'hooks_json', or 'copilot_hooks_json'"
             [ -z "$(manifest_get "$mf" hooks_json)" ] || [ -n "$(manifest_get "$mf" hook_script)" ] \
                 || err "$label: hooks_json requires 'hook_script'"
+            [ -z "$(manifest_get "$mf" copilot_hooks_json)" ] || [ -n "$(manifest_get "$mf" session_script)" ] \
+                || err "$label: copilot_hooks_json requires 'session_script'"
             [ -z "$(manifest_get "$mf" statusline_settings)" ] || [ -n "$(manifest_get "$mf" statusline_script)" ] \
                 || err "$label: statusline_settings requires 'statusline_script'"
             ;;

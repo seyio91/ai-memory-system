@@ -1,0 +1,15 @@
+# GitHub Copilot CLI — delivery manifest.
+# hook archetype: live session-start injection via ~/.copilot/hooks/ai-memory.json.
+name         = copilot
+archetype    = hook
+format       = md
+probe        = copilot
+
+# Copilot loads every JSON file under ~/.copilot/hooks/. Own one dedicated file
+# instead of merging into a shared settings object; sibling configs live in
+# sibling files and are untouched.
+copilot_hooks_json = ~/.copilot/hooks/ai-memory.json
+session_script     = $MEMORY_DIR/harnesses/copilot/hooks/sessionstart.sh
+
+[hooks]
+session_bootstrap = sessionStart
