@@ -21,13 +21,24 @@ export AI_MEMORY_HARNESSES_DIR="$MEM/harnesses"
 
 CAP="$BIN/copilot-args"
 ENVCAP="$BIN/copilot-env"
+STDINCAP="$BIN/copilot-stdin"
 cat > "$BIN/copilot" <<EOF
-#!/usr/bin/env bash
+#!/bin/sh
+stdin_bytes=0
+if IFS= read -r line; then
+  stdin_bytes=nonzero
+elif [ -n "\$line" ]; then
+  stdin_bytes=nonzero
+fi
+printf '%s\n' "\$stdin_bytes" > "$STDINCAP"
 printf '%s\n' "\$@" > "$CAP"
 {
   printf 'ROLE=%s\n' "\${AI_MEMORY_ROLE:-}"
   printf 'GH_TOKEN=%s\n' "\${GH_TOKEN:-}"
 } > "$ENVCAP"
+if [ -n "\${FAKE_COPILOT_RC:-}" ]; then
+  exit "\$FAKE_COPILOT_RC"
+fi
 printf 'FAKE-COPILOT-OUT\n'
 exit 0
 EOF
@@ -85,6 +96,7 @@ assert_contains "$args" "--no-color" "task: disables color"
 assert_contains "$args" "--no-auto-update" "task: disables auto-update"
 assert_contains "$(cat "$ENVCAP")" "ROLE=task" "task: AI_MEMORY_ROLE reaches copilot"
 assert_contains "$(cat "$ENVCAP")" "GH_TOKEN=FAKE-GH-TOKEN" "task: wrapper exports gh auth token fallback"
+assert_eq "0" "$(cat "$STDINCAP")" "task: wrapper closes stdin"
 
 export AI_MEMORY_EXECUTOR="copilot:gpt-5-mini"
 run --role task --run "model prompt"
@@ -121,6 +133,26 @@ assert_exit 0 "$CODE" "wrapper: auth fallback run exits 0"
 assert_contains "$(cat "$ENVCAP")" "GH_TOKEN=FAKE-GH-TOKEN" "wrapper: gh auth token populates GH_TOKEN"
 assert_contains "$(cat "$BIN/gh-called")" "called" "wrapper: gh was called when no token env existed"
 
+# Wrapper still execs copilot when gh is absent from PATH.
+NOGH_BIN="$(new_sandbox)"
+cp "$BIN/copilot" "$NOGH_BIN/copilot"
+chmod +x "$NOGH_BIN/copilot"
+: > "$CAP"; : > "$ENVCAP"; : > "$STDINCAP"; rm -f "$BIN/gh-called"
+set +e
+env -u COPILOT_GITHUB_TOKEN -u GH_TOKEN -u GITHUB_TOKEN PATH="$NOGH_BIN" \
+    /bin/bash "$WRAP" -p "no gh prompt" >"$BIN/no-gh.out" 2>"$BIN/no-gh.err"
+CODE=$?
+set -e
+assert_exit 0 "$CODE" "wrapper: no gh on PATH still exits 0"
+assert_eq "FAKE-COPILOT-OUT" "$(cat "$BIN/no-gh.out")" "wrapper: no gh on PATH still execs copilot"
+assert_contains "$(cat "$CAP")" "no gh prompt" "wrapper: no gh path passes prompt"
+assert_contains "$(cat "$ENVCAP")" "GH_TOKEN=" "wrapper: no gh path leaves GH_TOKEN empty"
+if [ -e "$BIN/gh-called" ]; then
+    _bad "wrapper: no gh path did not call fake gh"
+else
+    _ok "wrapper: no gh path did not call fake gh"
+fi
+
 # Existing token env wins; gh must not be called or overwrite GH_TOKEN.
 : > "$CAP"; : > "$ENVCAP"; rm -f "$BIN/gh-called"
 set +e
@@ -134,6 +166,22 @@ if [ -e "$BIN/gh-called" ]; then
 else
     _ok "wrapper: gh not called when GH_TOKEN is preset"
 fi
+
+# Copilot's exit code is propagated by the exec wrapper.
+set +e
+FAKE_COPILOT_RC=7 bash "$WRAP" -p "exit prompt" >/dev/null 2>"$BIN/wrap.err"
+CODE=$?
+set -e
+assert_exit 7 "$CODE" "wrapper: propagates copilot exit code"
+
+# Wrapper closes stdin even if the caller pipes data into it.
+: > "$STDINCAP"
+set +e
+printf 'caller stdin must not reach copilot' | bash "$WRAP" -p "stdin prompt" >/dev/null 2>"$BIN/wrap.err"
+CODE=$?
+set -e
+assert_exit 0 "$CODE" "wrapper: piped stdin run exits 0"
+assert_eq "0" "$(cat "$STDINCAP")" "wrapper: copilot receives zero stdin bytes"
 
 OUT="$(bash "$REPO/scripts/validate-manifest.sh" "$REPO/harnesses/copilot/manifest" 2>&1)"; RC=$?
 assert_exit 0 "$RC" "manifest: copilot manifest validates"

@@ -11,4 +11,4 @@
 - [x] Phase 2 — guard: Copilot stdin path + JSON deny output branch + timeoutSec + real-stdin fixture (fails closed, not warned)
 - [x] Phase 3 — compaction + breadcrumb: preCompact sentinel arm + postToolUse re-inject/clear
 - [x] Phase 4 — executor face: copilot-mem.sh wrapper + exec_* block; task/explore via executor.sh
-- [ ] Phase 5 — tests wired into run-tests.sh + docs/harnesses/copilot.md + changelog.d entry
+- [x] Phase 5 — tests wired into run-tests.sh + docs/harnesses/copilot.md + changelog.d entry

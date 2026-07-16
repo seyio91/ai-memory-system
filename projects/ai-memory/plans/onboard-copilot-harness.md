@@ -133,9 +133,14 @@ Rejected alternatives (on the record):
       (Validator: ACCEPT. Live smoke: task → EXEC-TASK-OK; explore write attempt
       refused, file absent — criteria 3+5 proven. Phase-5 test hardening carry-over:
       cover wrapper no-gh path, exit-code propagation, stdin closure.)
-- [ ] Phase 5 — tests wired into `run-tests.sh` (registration, injection schema, guard
+- [x] Phase 5 — tests wired into `run-tests.sh` (registration, injection schema, guard
       deny-shape, compaction handshake, executor probe) + `docs/harnesses/copilot.md`
       + changelog.d entry.
+      (Done 2026-07-16. Live final validation: real install into ~/.copilot (4 hook
+      rows, owned file) + live pinned-repo session correctly reported active project
+      AND working.md checkpoint content — success criterion 2 verified end-to-end.
+      All 7 success criteria now evidenced; live /compact recovery remains
+      fixture-proven only (needs a long organic session).)
 
 ## Risks / open questions
 
