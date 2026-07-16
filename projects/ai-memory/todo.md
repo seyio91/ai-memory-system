@@ -12,7 +12,7 @@ Move Codex's dynamic memory base off the `codex-mem.sh` file-build onto a `Sessi
 workflow rules + overlay. Mirrors the Antigravity model; makes plain `codex` alias-free.
 - [x] Phase 1 — `drivers/hook.sh`: format-wrap `session_cmd` (md for codex) + `test_codex_hooks.sh` assertion (branch `e14ba60`, Validator-verified)
 - [x] Phase 2 — relocate `session_start_memory.sh` → `scripts/hooks/` (same name); re-point Claude manifest; `AI_MEMORY_SKIP_INJECT` gates + tests (codex untouched) (branch `d70d7f4`, Validator-verified)
-- [ ] Phase 3 — flip codex manifest (`session_bootstrap`); retire AGENTS.md build; `arm_recompact.sh` → N/N+1 shim; header-keyed migration; bare = skip-inject + doc-bytes-0
+- [x] Phase 3 — flip codex manifest (`session_bootstrap`); retire AGENTS.md build; `arm_recompact.sh` → N/N+1 shim; header-keyed migration; bare = skip-inject + doc-bytes-0 (branch `efaa0b1`+`954e4f1`+`0a323ae`, Validator 9/9 PASS; also fixed latent `AI_MEMORY_CWD` overlay-routing bug in the shared session script)
 - [ ] Phase 4 — verify (plain-codex + exec probe, full-size tail sentinel, bare run) + update memory.md / identity.md / docs
 
 ### Release automation (changelog fragments + computed versioning) → [plan](plans/release-automation.md) ✅ DONE
