@@ -1,6 +1,6 @@
 ---
 plan: codex-sessionstart-base-load
-status: draft
+status: active
 created: 2026-07-16
 owner: claude (orchestrator)
 task_provider: notion
@@ -108,10 +108,11 @@ where `working.md` (the freshest content) renders. Confirm during Phase 4's prob
 - Move `harnesses/claude/hooks/session_start_memory.sh` → `scripts/hooks/session_start_memory.sh` — same filename (self-locate logic: fix the repo-root depth from `../../..` to `../..`).
 - Update Claude manifest `session_script` to the new path; confirm Claude SessionStart still injects xml (no behavior change) and that re-install sweeps the old-path entry from `settings.json` (existing marker covers it).
 - Add `AI_MEMORY_SKIP_INJECT=1` no-op gates to the session script and `inject.sh` (+ tests).
-- Replace `harnesses/codex/hooks/arm_recompact.sh` body with a one-line shim exec'ing the shared script (delete in N+1; note it in the plan for the next release).
+- **NB (sequencing fix, found in execution):** `arm_recompact.sh` → shim moved to **Phase 3**. If the shim (which exec's the *full* shared script, including the startup-inject branch) landed while codex's manifest still routes SessionStart through `compaction_arm`→`arm_script`, codex would start injecting at startup *while Phase 2 still builds AGENTS.md* → double-injection. The shim must land **with** the manifest flip + AGENTS.md retirement (atomic), so it belongs in Phase 3. Phase 2 leaves `arm_recompact.sh` + codex manifest untouched (zero codex behavior change).
 
 ### Phase 3 — flip codex manifest + retire the memory-tree AGENTS.md
 - Codex manifest: replace `compaction_arm = SessionStart` (`arm_script`) with `session_bootstrap = SessionStart` (`session_script`). Keep `per_turn_inject`/`infra_guard` as-is (the compact recovery still rides `UserPromptSubmit` via the shared script's compact branch + `inject.sh`). Update `validate-manifest.sh` / `test_hook_mapping.sh` / `test_install_harness.sh` expectations.
+- **Replace `harnesses/codex/hooks/arm_recompact.sh` body with a one-line shim exec'ing the shared `scripts/hooks/session_start_memory.sh`** (moved here from Phase 2 — see the sequencing NB). Shim defaults `AI_MEMORY_HOOK_FORMAT=md` so a stale pre-flip `hooks.json` entry (registered without the format env) still injects md. Delete in N+1. This is what makes the flip safe for a manual `git pull` that hasn't re-run `install.sh`.
 - `codex-mem.sh`: stop calling `build-context-md.sh`; never write `AGENTS.md`. `--executor-bare` exports `AI_MEMORY_SKIP_INJECT=1` **and keeps** `-c project_doc_max_bytes=0`.
 - Migration `migrations/<ver>-codex-agents-handoff.sh`: header-keyed — generated `AGENTS.md` → replaced with `AGENTS.local.md` content (stub if absent); no header → untouched. Idempotent.
 - Update `install.sh` codex-hybrid notes / `drivers/file.sh` `driver_notes` (no longer "rebuilt each launch from memory"; now hand-owned static + live hook) + `UPGRADING.md` (re-trust: codex re-prompts `/hooks` when a hook command changes; headless bypasses).

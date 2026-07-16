@@ -10,9 +10,9 @@
 Move Codex's dynamic memory base off the `codex-mem.sh` file-build onto a `SessionStart` hook
 (startup inject proven by live probe 2026-07-16); leave a hand-owned static `AGENTS.md` for
 workflow rules + overlay. Mirrors the Antigravity model; makes plain `codex` alias-free.
-- [ ] Phase 1 — `drivers/hook.sh`: format-wrap `session_cmd` (md for codex) + `test_codex_hooks.sh` assertion
-- [ ] Phase 2 — relocate `session_start_memory.sh` → `scripts/hooks/` (same name); `AI_MEMORY_SKIP_INJECT` gates; `arm_recompact.sh` → N/N+1 shim
-- [ ] Phase 3 — flip codex manifest (`session_bootstrap`); retire AGENTS.md build; header-keyed migration; bare = skip-inject + doc-bytes-0
+- [x] Phase 1 — `drivers/hook.sh`: format-wrap `session_cmd` (md for codex) + `test_codex_hooks.sh` assertion (branch `e14ba60`, Validator-verified)
+- [x] Phase 2 — relocate `session_start_memory.sh` → `scripts/hooks/` (same name); re-point Claude manifest; `AI_MEMORY_SKIP_INJECT` gates + tests (codex untouched) (branch `d70d7f4`, Validator-verified)
+- [ ] Phase 3 — flip codex manifest (`session_bootstrap`); retire AGENTS.md build; `arm_recompact.sh` → N/N+1 shim; header-keyed migration; bare = skip-inject + doc-bytes-0
 - [ ] Phase 4 — verify (plain-codex + exec probe, full-size tail sentinel, bare run) + update memory.md / identity.md / docs
 
 ### Release automation (changelog fragments + computed versioning) → [plan](plans/release-automation.md) ✅ DONE
