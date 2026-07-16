@@ -1,0 +1,31 @@
+# GitHub Copilot CLI — delivery + execute manifest.
+# hook archetype: live session-start injection via ~/.copilot/hooks/ai-memory.json.
+name         = copilot
+archetype    = hook
+format       = md
+probe        = copilot
+
+# Copilot loads every JSON file under ~/.copilot/hooks/. Own one dedicated file
+# instead of merging into a shared settings object; sibling configs live in
+# sibling files and are untouched.
+copilot_hooks_json = ~/.copilot/hooks/ai-memory.json
+session_script     = $MEMORY_DIR/harnesses/copilot/hooks/sessionstart.sh
+hook_script        = $MEMORY_DIR/harnesses/copilot/hooks/posttooluse.sh
+arm_script         = $MEMORY_DIR/harnesses/copilot/hooks/precompact.sh
+guard_script       = $MEMORY_DIR/scripts/hooks/guard.sh
+
+# execute face — headless `copilot -p` via the wrapper. copilot-mem.sh only
+# handles token fallback and stdin closure; the SessionStart hook delivers fresh
+# memory. {prompt}/{model} substituted by executor.sh; $MEMORY_DIR expanded.
+# `--silent` returns the final answer cleanly on stdout, so no exec_last_message
+# parser/file flag is needed.
+exec_cmd        = $MEMORY_DIR/harnesses/copilot/scripts/copilot-mem.sh -p {prompt} --allow-all --silent --stream off --no-color --no-auto-update
+exec_readonly   = $MEMORY_DIR/harnesses/copilot/scripts/copilot-mem.sh -p {prompt} --available-tools=view,grep,glob --allow-all-tools --allow-all-paths --allow-all-urls --silent --stream off --no-color --no-auto-update
+exec_model_flag = --model {model}
+exec_probe      = copilot
+
+[hooks]
+session_bootstrap = sessionStart
+infra_guard = preToolUse
+compaction_arm = preCompact
+per_turn_inject = postToolUse

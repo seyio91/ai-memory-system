@@ -13,9 +13,10 @@
 
 # driver_install — dispatch on which registration style the manifest declares.
 driver_install() {
-    local hooks_dir hooks_json settings_json sl_settings
+    local hooks_dir hooks_json copilot_hooks_json settings_json sl_settings
     hooks_dir="$(manifest_get "$MANIFEST" hooks_dir)"
     hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
+    copilot_hooks_json="$(manifest_get "$MANIFEST" copilot_hooks_json)"
     settings_json="$(manifest_get "$MANIFEST" settings_json)"
 
     if [ -n "$hooks_dir" ]; then
@@ -26,8 +27,10 @@ driver_install() {
         _hook_register_native_json "$settings_json"
     elif [ -n "$hooks_json" ]; then
         _hook_register_json "$hooks_json"
+    elif [ -n "$copilot_hooks_json" ]; then
+        _hook_register_copilot_json "$copilot_hooks_json"
     else
-        info "hook archetype but neither hooks_dir nor hooks_json in manifest — nothing wired"
+        info "hook archetype but no supported hook target in manifest — nothing wired"
     fi
 
     # Optional statusline registered into a JSON settings file (Antigravity —
@@ -526,10 +529,108 @@ _hook_register_codex_json() {
     _hook_register_native_json "$1"
 }
 
+_hook_json_escape_string() {
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\t/\\t/g'
+}
+
+# _hook_register_copilot_json <hooks_json> — Copilot style: write the owned
+# ~/.copilot/hooks/ai-memory.json file from the manifest's [hooks] role map.
+_hook_register_copilot_json() {
+    local hooks_json="$1" fmt role spec event key script cmd timeout hook_count=0 entries
+    fmt="$(manifest_get "$MANIFEST" format)"
+    [ -n "$fmt" ] || fmt=md
+    entries=""
+
+    while IFS=$'\t' read -r role spec; do
+        [ -n "$role" ] || continue
+        event="${spec%%:*}"
+        key=""
+        timeout=10
+        case "$role" in
+            session_bootstrap) key=session_script ;;
+            per_turn_inject)   key=hook_script ;;
+            infra_guard)       key=guard_script; timeout=5 ;;
+            compaction_arm)    key=arm_script ;;
+            *)
+                info "hook role '$role' has no Copilot script association — skipping"
+                continue
+                ;;
+        esac
+        script="$(manifest_get "$MANIFEST" "$key")"; script="${script//\$MEMORY_DIR/$MEMORY_DIR}"
+        if [ -z "$script" ]; then
+            info "hook role '$role' missing $key — skipping"
+            continue
+        fi
+        chmod +x "$script" 2>/dev/null || true
+        cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event bash $script"
+        if [ "$role" = infra_guard ]; then
+            cmd="env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=$fmt AI_MEMORY_HOOK_EVENT=$event AI_MEMORY_GUARD_OUTPUT=copilot-json bash $script"
+        fi
+        entries="${entries}${event}	${timeout}	${cmd}
+"
+        hook_count=$((hook_count + 1))
+    done < <(manifest_hooks "$MANIFEST")
+
+    if [ "$hook_count" -eq 0 ]; then
+        info "copilot_hooks_json set but [hooks] has no registerable roles — nothing to register"
+        return
+    fi
+
+    step "Copilot hooks -> $hooks_json"
+    mkdir -p "$(dirname "$hooks_json")"
+    if command -v python3 >/dev/null 2>&1; then
+        AIM_COPILOT_HOOKS_JSON="$hooks_json" AIM_COPILOT_ENTRIES="$entries" python3 - <<'PY'
+import json, os
+
+path = os.environ["AIM_COPILOT_HOOKS_JSON"]
+entries = os.environ["AIM_COPILOT_ENTRIES"].splitlines()
+data = {"version": 1, "hooks": {}}
+for line in entries:
+    if not line:
+        continue
+    event, timeout, cmd = line.split("\t", 2)
+    data["hooks"].setdefault(event, []).append({
+        "type": "command",
+        "bash": cmd,
+        "timeoutSec": int(timeout),
+    })
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+PY
+    else
+        {
+            printf '{\n  "version": 1,\n  "hooks": {'
+            local wrote=0
+            while IFS=$'\t' read -r event timeout cmd; do
+                [ -n "$event" ] || continue
+                [ "$wrote" -eq 0 ] || printf ','
+                printf '\n    "%s": [\n' "$(_hook_json_escape_string "$event")"
+                printf '      { "type": "command", "bash": "%s", "timeoutSec": %s }\n' "$(_hook_json_escape_string "$cmd")" "$timeout"
+                printf '    ]'
+                wrote=1
+            done <<EOF
+$entries
+EOF
+            printf '\n  }\n}\n'
+        } > "$hooks_json"
+    fi
+    info "registered Copilot hooks in owned file $hooks_json"
+}
+
 # driver_notes — manual steps the installer cannot fully do (global-rules
 # placement, trust prompts). Printed at the end.
 driver_notes() {
-    local hooks_json; hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
+    local hooks_json copilot_hooks_json
+    hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
+    copilot_hooks_json="$(manifest_get "$MANIFEST" copilot_hooks_json)"
+    if [ -n "$copilot_hooks_json" ]; then
+        cat <<EOF
+  1. Copilot hooks were written to the owned file $copilot_hooks_json.
+     Verify: run 'copilot' in a pinned repo and check it sees memory at session start.
+EOF
+        return
+    fi
     if [ -n "$hooks_json" ]; then
         local cd; cd="$(dirname "$hooks_json")"
         cat <<EOF

@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "SessionStart",
+  "session_id": "28c24a04-c073-4a58-b1d6-73b78530f016",
+  "timestamp": "2026-07-16T14:09:56.116Z",
+  "cwd": "/private/tmp/claude-502/-Users-seyi-Downloads-personal-claude-memory/62a0daf4-7e3d-4305-9633-0ea9704c1bfe/scratchpad/copilot-probe",
+  "source": "new",
+  "initial_prompt": "Reply exactly: FIXTURE_SESSION_PASCAL"
+}

@@ -46,16 +46,22 @@ assert_contains "$OUT" "archetype must be hook|file" "bad archetype: message"
 mf="$(write_manifest claude 'name = claude' 'archetype = hook' 'format = yaml' 'hooks_dir = ~/.claude/hooks')"
 run_vm "$mf"; assert_contains "$OUT" "format must be xml|md" "bad format: message"
 
-# --- hook archetype missing both hooks_dir and hooks_json ---
+# --- hook archetype missing every hook target ---
 mf="$(write_manifest claude 'name = claude' 'archetype = hook' 'format = xml')"
-run_vm "$mf"; assert_exit 1 "$RC" "hook w/o hooks_dir|hooks_json: exit 1"
-assert_contains "$OUT" "requires 'hooks_dir' or 'hooks_json'" "hook w/o hooks_dir|hooks_json: message"
+run_vm "$mf"; assert_exit 1 "$RC" "hook w/o hook target: exit 1"
+assert_contains "$OUT" "requires 'hooks_dir', 'hooks_json', or 'copilot_hooks_json'" "hook w/o hook target: message"
 
 # --- hook via hooks_json is valid (Antigravity style), but needs hook_script ---
 mf="$(write_manifest antigravity 'name = antigravity' 'archetype = hook' 'format = xml' 'hooks_json = ~/.gemini/config/hooks.json')"
 run_vm "$mf"; assert_contains "$OUT" "hooks_json requires 'hook_script'" "hooks_json w/o hook_script: message"
 mf="$(write_manifest antigravity 'name = antigravity' 'archetype = hook' 'format = xml' 'hooks_json = ~/.gemini/config/hooks.json' 'hook_script = $MEMORY_DIR/h.sh')"
 run_vm "$mf"; assert_exit 0 "$RC" "hook via hooks_json + hook_script: exit 0"
+
+# --- Copilot-owned hook file is valid, but needs session_script ---
+mf="$(write_manifest copilot 'name = copilot' 'archetype = hook' 'format = md' 'copilot_hooks_json = ~/.copilot/hooks/ai-memory.json')"
+run_vm "$mf"; assert_contains "$OUT" "copilot_hooks_json requires 'session_script'" "copilot_hooks_json w/o session_script: message"
+mf="$(write_manifest copilot 'name = copilot' 'archetype = hook' 'format = md' 'copilot_hooks_json = ~/.copilot/hooks/ai-memory.json' 'session_script = $MEMORY_DIR/h.sh' 'probe = copilot')"
+run_vm "$mf"; assert_exit 0 "$RC" "hook via copilot_hooks_json + session_script: exit 0"
 
 # --- statusline_settings requires statusline_script ---
 mf="$(write_manifest antigravity 'name = antigravity' 'archetype = hook' 'format = xml' 'hooks_json = ~/.gemini/config/hooks.json' 'hook_script = $MEMORY_DIR/h.sh' 'statusline_settings = ~/.gemini/antigravity-cli/settings.json')"

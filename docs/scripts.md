@@ -175,6 +175,7 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `AI_MEMORY_EXECUTOR` | `claude-subagent` | `executor.sh` — legacy single var; fallback for `task`/`explore` only |
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | `executor.sh` — command template for a generic CLI executor |
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `claude-subagent` | `executor.sh` — used when the preferred CLI binary is absent |
+| `AI_MEMORY_GUARD_OUTPUT` | unset | `guard.sh` — output envelope selector; `copilot-json` emits Copilot `permissionDecision` JSON instead of legacy exit-2 deny |
 
 `REPO_ROOT` is the checkout root. In a normal install it is the same directory as
 `MEMORY_DIR`, but they diverge if `MEMORY_DIR` is overridden.
