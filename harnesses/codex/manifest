@@ -17,7 +17,7 @@ guard_script      = $MEMORY_DIR/scripts/hooks/guard.sh
 session_script    = $MEMORY_DIR/scripts/hooks/session_start_memory.sh
 hooks_min_version = 0.135.0
 # Codex caps each hook additionalContext message at ~10KB; fan out ordered slices.
-# 12 x <=9000B = ~108KB capacity; the live ai-memory base renders ~90KB (probe
+# 12 x <=9000B = ~108KB capacity; the live ai-memory base renders ~97KB (probe
 # 2026-07-16). Overflow is loud (marker on the last slice), never silent.
 session_chunks    = 12
 inject_chunks     = 12

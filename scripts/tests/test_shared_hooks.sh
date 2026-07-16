@@ -194,7 +194,7 @@ fi
 md_out="$(json_payload "reload @memory" "$WORK" "s3" | AI_MEMORY_HOOK_FORMAT=md bash "$SHARED_INJECT")"
 assert_contains "$md_out" "# === IDENTITY ===" "shared md inject: full md identity heading"
 assert_contains "$md_out" "# === PROJECT: proj ===" "shared md inject: full md project heading"
-assert_not_contains "$md_out" "# === DOMAIN INDEX ===" "shared md inject: full md drops domain section"
+assert_contains "$md_out" "# === DOMAIN INDEX ===" "shared md inject: full md keeps domain lazy-load table"
 
 # Codex's REAL PreToolUse stdin shape (verified against codex 0.144.1): the shell
 # command lives at tool_input.command. Using the actual schema is the point — an

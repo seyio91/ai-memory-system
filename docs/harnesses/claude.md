@@ -34,7 +34,7 @@ Three hooks, registered in `~/.claude/settings.json` by `install.sh`. The inject
 | Hook | Event | Script | Effect |
 |------|-------|--------|--------|
 | Memory injection | `UserPromptSubmit` | `scripts/hooks/inject.sh` | Emits the `<memory:*>` blocks above as `hookSpecificOutput.additionalContext`; otherwise the per-prompt breadcrumb. |
-| Session start | `SessionStart` | `harnesses/claude/hooks/session_start_memory.sh` | Full injection once on session load; on `source=compact` arms a sentinel so the next prompt re-injects (compaction recovery). |
+| Session start | `SessionStart` | shared `scripts/hooks/session_start_memory.sh` | Full injection once on session load; on `source=compact` arms a sentinel so the next prompt re-injects (compaction recovery). Shared with Codex (which runs it in `md` format, chunked). |
 | Task-tool block | `PreToolUse` (matcher `TaskCreate\|TaskUpdate`) | `harnesses/claude/hooks/block_task_tools.sh` | Consumes stdin, writes the tier-classification reminder to stderr, `exit 2` — blocking the call. Forces all executable-work tracking into `projects/<active>/todo.md`. |
 
 The three entries are auto-merged into `settings.json`; `harnesses/claude/settings.hooks.json` is the reference shape:
@@ -42,7 +42,7 @@ The three entries are auto-merged into `settings.json`; `harnesses/claude/settin
 ```json
 {
   "SessionStart": [
-    { "hooks": [{ "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/session_start_memory.sh" }] }
+    { "hooks": [{ "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart bash $MEMORY_DIR/scripts/hooks/session_start_memory.sh" }] }
   ],
   "UserPromptSubmit": [
     { "hooks": [{ "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash $MEMORY_DIR/scripts/hooks/inject.sh" }] }

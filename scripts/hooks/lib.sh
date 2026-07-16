@@ -79,7 +79,7 @@ render_full() {
     [ -z "$project" ] && return 0
     case "$format" in
         xml) content_sections "$project" identity project index working | xml_render_full ;;
-        md)  content_sections "$project" identity project index working | md_render ;;
+        md)  content_sections "$project" identity project index domain working | md_render ;;
         *)   printf 'unsupported AI_MEMORY_HOOK_FORMAT: %s\n' "$format" >&2; return 2 ;;
     esac
 }
