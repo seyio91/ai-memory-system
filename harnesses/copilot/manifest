@@ -24,6 +24,15 @@ exec_readonly   = $MEMORY_DIR/harnesses/copilot/scripts/copilot-mem.sh -p {promp
 exec_model_flag = --model {model}
 exec_probe      = copilot
 
+# commands + skills surface. Copilot discovers personal skills from
+# ~/.copilot/skills/ AND ~/.agents/skills/ — target the latter (codex's dir) so
+# both CLIs share one fan-out and Copilot never lists duplicates. commands=skill:
+# like codex, Copilot's command mechanism IS skills, so canonical commands/
+# bodies are wrapped as SKILL.md dirs. Makes a copilot-only install
+# self-sufficient instead of riding codex's fan-out implicitly.
+skills_dir   = ~/.agents/skills
+commands     = skill
+
 [hooks]
 session_bootstrap = sessionStart
 infra_guard = preToolUse

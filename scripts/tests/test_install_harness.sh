@@ -248,6 +248,10 @@ assert_eq "1" "$(grep -c 'ai-memory-guard'  "$FHOME/.gemini/config/hooks.json")"
 mkdir -p "$FHOME/.copilot/hooks"
 printf '{"version":1,"hooks":{"sessionStart":[]}}\n' > "$FHOME/.copilot/hooks/foo.json"
 foo_before="$(cat "$FHOME/.copilot/hooks/foo.json")"
+# Copilot-only scenario: the codex block above already fanned ~/.agents/skills;
+# wipe it so these assertions prove copilot's OWN install populates the shared
+# dir (a copilot-only machine must not depend on codex's fan-out).
+rm -rf "$FHOME/.agents/skills"
 run_install --harness copilot >"$SBROOT/log.copilot" 2>&1; rc=$?
 assert_exit 0 "$rc" "copilot install exits 0"
 assert_file "$FHOME/.copilot/hooks/ai-memory.json" "copilot: owned ai-memory.json registered"
@@ -260,6 +264,10 @@ assert_contains "$cphj" "AI_MEMORY_HOOK_FORMAT=md" "copilot: sessionStart render
 assert_contains "$cphj" '"preToolUse"' "copilot: camelCase preToolUse registered"
 assert_contains "$cphj" '"timeoutSec": 5' "copilot: guard timeoutSec registered"
 assert_contains "$cphj" "scripts/hooks/guard.sh" "copilot: preToolUse command -> shared guard"
+assert_file "$FHOME/.agents/skills/demo-skill" "copilot: canonical skill fanned to ~/.agents/skills"
+assert_file "$FHOME/.agents/skills/pin/SKILL.md"      "copilot: command delivered as skill (pin)"
+assert_file "$FHOME/.agents/skills/pin/.from-command" "copilot: command-skill marked generated"
+assert_contains "$(cat "$FHOME/.agents/skills/pin/SKILL.md")" "name: pin" "copilot: command-skill wrapper frontmatter"
 assert_contains "$cphj" "AI_MEMORY_GUARD_OUTPUT=copilot-json" "copilot: guard output mode registered"
 assert_contains "$cphj" '"preCompact"' "copilot: camelCase preCompact registered"
 assert_contains "$cphj" "harnesses/copilot/hooks/precompact.sh" "copilot: preCompact command -> sentinel arm adapter"
