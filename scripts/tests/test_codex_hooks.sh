@@ -49,7 +49,7 @@ inject_entries = [
     g for g in ups
     if any("scripts/hooks/inject.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
 ]
-if len(inject_entries) != 8:
+if len(inject_entries) != 12:
     sys.stderr.write("idempotency/count failure: inject=%d\n" % len(inject_entries))
     sys.exit(1)
 for g in inject_entries:
@@ -63,7 +63,7 @@ checks = [
     ("md format", "AI_MEMORY_HOOK_FORMAT=md" in inject_cmd),
     ("memory dir", "MEMORY_DIR=" in inject_cmd),
     ("hook event", "AI_MEMORY_HOOK_EVENT=UserPromptSubmit" in inject_cmd),
-    ("chunk", "AI_MEMORY_HOOK_CHUNK=1/8" in inject_cmd),
+    ("chunk", "AI_MEMORY_HOOK_CHUNK=1/12" in inject_cmd),
     ("guard matcher", ptu[0].get("matcher") == "^Bash$|apply_patch"),
     ("guard path", "scripts/hooks/guard.sh" in guard_cmd),
 ]
@@ -79,8 +79,8 @@ if len(guard_entries) != 1:
     sys.stderr.write("idempotency failure: inject=%d guard=%d\n" % (len(inject_entries), len(guard_entries)))
     sys.exit(1)
 expected_inject = [
-    "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=UserPromptSubmit AI_MEMORY_HOOK_CHUNK=%d/8 bash %s/scripts/hooks/inject.sh" % (repo, i, repo)
-    for i in range(1, 9)
+    "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=UserPromptSubmit AI_MEMORY_HOOK_CHUNK=%d/12 bash %s/scripts/hooks/inject.sh" % (repo, i, repo)
+    for i in range(1, 13)
 ]
 expected_guard = "env MEMORY_DIR=%s bash %s/scripts/hooks/guard.sh" % (repo, repo)
 if inject_cmds != expected_inject:
@@ -99,7 +99,7 @@ session_entries = [
     g for g in ss
     if any("scripts/hooks/session_start_memory.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
 ]
-if len(session_entries) != 8:
+if len(session_entries) != 12:
     sys.stderr.write("idempotency failure: session=%d\n" % len(session_entries))
     sys.exit(1)
 for g in session_entries:
@@ -108,8 +108,8 @@ for g in session_entries:
         sys.exit(1)
 session_cmds = [g["hooks"][0]["command"] for g in session_entries]
 expected_session = [
-    "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=SessionStart AI_MEMORY_HOOK_CHUNK=%d/8 bash %s/scripts/hooks/session_start_memory.sh" % (repo, i, repo)
-    for i in range(1, 9)
+    "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=SessionStart AI_MEMORY_HOOK_CHUNK=%d/12 bash %s/scripts/hooks/session_start_memory.sh" % (repo, i, repo)
+    for i in range(1, 13)
 ]
 if session_cmds != expected_session:
     sys.stderr.write("session command mismatch\nexpected=%r\nactual=%r\n" % (expected_session, session_cmds))
@@ -144,7 +144,7 @@ JSON
 _hook_register_codex_json "$LEGACY"
 assert_eq "0" "$(grep -c 'inject_memory.sh' "$LEGACY")" \
     "codex hooks_json: legacy inject_memory.sh entry swept on re-sync"
-assert_eq "8" "$(grep -c 'scripts/hooks/inject.sh' "$LEGACY")" \
+assert_eq "12" "$(grep -c 'scripts/hooks/inject.sh' "$LEGACY")" \
     "codex hooks_json: current chunked inject.sh entries present after sweep"
 
 BAD="$TMP/bad-hooks.json"

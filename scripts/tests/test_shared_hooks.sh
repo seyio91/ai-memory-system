@@ -166,6 +166,27 @@ PY
     else
         _bad "chunker: unset and 1/1 passthrough are byte-identical"
     fi
+
+    # Malformed specs fail CLOSED across ALL helpers: is_first/is_last must not
+    # default garbage to 1/1 (would consume the recompact sentinel / emit a
+    # breadcrumb from an invocation whose emit_hook_chunk then rejects the spec).
+    for bad in garbage 0/8 /8 2/ 9/8 1/x; do
+        if AI_MEMORY_HOOK_CHUNK="$bad" hook_chunk_is_first 2>/dev/null; then
+            _bad "chunker: malformed spec '$bad' is not first"
+        else
+            _ok "chunker: malformed spec '$bad' is not first"
+        fi
+        if AI_MEMORY_HOOK_CHUNK="$bad" hook_chunk_is_last 2>/dev/null; then
+            _bad "chunker: malformed spec '$bad' is not last"
+        else
+            _ok "chunker: malformed spec '$bad' is not last"
+        fi
+    done
+    if hook_chunk_is_first && hook_chunk_is_last; then
+        _ok "chunker: unset spec is first AND last (1/1)"
+    else
+        _bad "chunker: unset spec is first AND last (1/1)"
+    fi
 else
     printf '  SKIP python3 absent; chunker unit coverage not run\n'
 fi

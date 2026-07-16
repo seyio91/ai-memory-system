@@ -90,30 +90,42 @@ hook_chunk_spec() {
     printf '%s' "$spec"
 }
 
-hook_chunk_index() {
-    local spec
+# A malformed AI_MEMORY_HOOK_CHUNK must fail CLOSED everywhere: emit_hook_chunk
+# already rejects it (rc=2, no output), so is_first/is_last must not default it
+# to 1/1 — that would consume the recompact sentinel / emit breadcrumbs from an
+# invocation that then emits no payload. Unset/empty stays 1/1 (Claude's shape).
+hook_chunk_valid() {
+    local spec idx total
     spec="$(hook_chunk_spec)"
     case "$spec" in
-        */*) printf '%s' "${spec%%/*}" ;;
-        *)   printf '1' ;;
+        */*) idx="${spec%%/*}"; total="${spec#*/}" ;;
+        *)   return 1 ;;
     esac
+    case "$idx"   in ''|*[!0-9]*) return 1 ;; esac
+    case "$total" in ''|*[!0-9]*) return 1 ;; esac
+    [ "$idx" -ge 1 ] && [ "$total" -ge 1 ] && [ "$idx" -le "$total" ]
+}
+
+hook_chunk_index() {
+    hook_chunk_valid || return 1
+    local spec
+    spec="$(hook_chunk_spec)"
+    printf '%s' "${spec%%/*}"
 }
 
 hook_chunk_total() {
+    hook_chunk_valid || return 1
     local spec
     spec="$(hook_chunk_spec)"
-    case "$spec" in
-        */*) printf '%s' "${spec#*/}" ;;
-        *)   printf '1' ;;
-    esac
+    printf '%s' "${spec#*/}"
 }
 
 hook_chunk_is_first() {
-    [ "$(hook_chunk_index)" = 1 ]
+    hook_chunk_valid && [ "$(hook_chunk_index)" = 1 ]
 }
 
 hook_chunk_is_last() {
-    [ "$(hook_chunk_index)" = "$(hook_chunk_total)" ]
+    hook_chunk_valid && [ "$(hook_chunk_index)" = "$(hook_chunk_total)" ]
 }
 
 emit_hook_chunk() {

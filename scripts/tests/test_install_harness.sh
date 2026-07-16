@@ -175,21 +175,21 @@ ss = [
     g for g in hooks.get("SessionStart", [])
     if any("scripts/hooks/session_start_memory.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
 ]
-if len(ss) != 8:
+if len(ss) != 12:
     sys.stderr.write("SessionStart entries=%d\n" % len(ss))
     sys.exit(1)
 for i, group in enumerate(ss, 1):
     cmd = group["hooks"][0]["command"]
-    want = "AI_MEMORY_HOOK_CHUNK=%d/8" % i
+    want = "AI_MEMORY_HOOK_CHUNK=%d/12" % i
     if want not in cmd:
         sys.stderr.write("missing %s in %r\n" % (want, cmd))
         sys.exit(1)
 PY
     rc=$?
     if [ "$rc" -eq 0 ]; then
-        _ok "codex: hooks.json has 8 ordered SessionStart chunks"
+        _ok "codex: hooks.json has 12 ordered SessionStart chunks"
     else
-        _bad "codex: hooks.json has 8 ordered SessionStart chunks"
+        _bad "codex: hooks.json has 12 ordered SessionStart chunks"
         cat "$SBROOT/codex-hooks-count.out"
     fi
 fi
