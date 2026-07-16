@@ -1,6 +1,7 @@
 ---
 plan: onboard-copilot-harness
-status: active
+status: done
+completed: 2026-07-16
 created: 2026-07-16
 owner: claude (orchestrator)
 task_provider: notion
