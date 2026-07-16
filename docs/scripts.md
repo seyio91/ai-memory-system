@@ -4,11 +4,11 @@
 |--------|---------|---------------------|
 | `manifest.sh` | Parse a harness manifest (sourced) | `manifest_get <file> <key>`, `manifest_keys <file>` |
 | `validate-manifest.sh` | Static-check harness manifests | `validate-manifest.sh [<file>]` (exit 1 on ERROR) |
-| `build-context-md.sh` | Build the md context (AGENTS.md-style) from the memory tree | `build-context-md.sh <out> <label> [overlay]` — called by codex-mem.sh / agy.sh |
+| `build-context-md.sh` | Build the md context (AGENTS.md-style) from the memory tree | `build-context-md.sh <out> <label> [overlay]` — generic `refresh=launch` builder; no registered consumer since the codex SessionStart flip |
 | `drivers/{hook,file}.sh` | Archetype install drivers (sourced by install.sh) | `driver_install`, `driver_notes` |
 | `link-command-skills.sh` | Deliver command bodies AS skills (`commands=skill`) | `link-command-skills.sh <commands-src> [skills-dir]` |
 | `gen-commands-doc.sh` | Render a "Memory Commands" reference (`commands=doc`) | `gen-commands-doc.sh <commands-src> <out-file>` |
-| `codex-mem.sh` | Build AGENTS.md + run codex (calls `build-context-md.sh`) | `codex-mem.sh`, `codex-mem.sh exec --sandbox read-only "..."` |
+| `codex-mem.sh` | Run codex (executor sandbox/network flags; memory injects via the SessionStart hook, no file build) | `codex-mem.sh`, `codex-mem.sh exec --sandbox read-only "..."` |
 | `codex-mem-checkpoint.sh` | Emit checkpoint scaffold | TTY → opens `$EDITOR`; `--for-codex` → stdout for Codex to consume |
 | `agy.sh` | Antigravity launch wrapper (build context + `exec agy`) | `agy.sh [agy args...]` (alias `agy` to it) |
 | `executor.sh` | Resolve + dispatch the configured executor/validator (manifest-driven) | `executor.sh [--role task\|explore\|validate] --which \| --run [--clean] "<prompt>" \| --show`; `--clean` emits only the final agent message (needs the harness's `exec_last_message`) |
@@ -151,8 +151,8 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `MEMORY_DIR` | repo root (self-locating); `~/.claude-memory` when installed | All scripts |
 | `AI_MEMORY_PROJECTS_ROOT` | `$HOME/Projects` | `memory-pin.sh`, `resolve_repo_path`, `lint-memory.sh` |
 | `config.local.sh` (file, not a var) | unset — copy from `.example` | Sourced by `_lib.sh` + `taskctl` for per-env overrides |
-| `CODEX_INSTRUCTIONS_FILE` | `~/.codex/AGENTS.md` | `codex-mem.sh` |
-| `CODEX_OVERLAY_FILE` | `~/.codex/AGENTS.local.md` | `codex-mem.sh` |
+| `CODEX_INSTRUCTIONS_FILE` | `~/.codex/AGENTS.md` | `1.4.0-codex-agents-handoff.sh` |
+| `CODEX_OVERLAY_FILE` | `~/.codex/AGENTS.local.md` | `1.4.0-codex-agents-handoff.sh` |
 | `CODEX_HISTORY_FILE` | `~/.codex/history.jsonl` | `codex-mem-checkpoint.sh` |
 | `CODEX_HISTORY_LINES` | `20` | `codex-mem-checkpoint.sh` |
 | `MEMORY_STALE_DAYS` | `30` | `lint-memory.sh` |

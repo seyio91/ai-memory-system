@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Codex arm_recompact.sh: SessionStart(source=compact) writes the .recompact
-# sentinel that inject.sh consumes on the next prompt; every other input is a no-op.
+# Codex arm_recompact.sh (compatibility shim -> shared session_start_memory.sh):
+# SessionStart(source=compact) writes the .recompact sentinel that inject.sh
+# consumes on the next prompt; startup injects the base instead of arming.
 . "$(dirname "$0")/_assert.sh"
 
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
@@ -40,11 +41,12 @@ payload startup "$WORK" cx-start | MEMORY_STATE_DIR="$STATE2" bash "$ARM" >/dev/
     || _bad "arm: startup does not write sentinel"
 
 # 2b. no `source` field (PreCompact/PostCompact shape) -> sentinel written. Keeps the
-# event choice pure manifest config: the script arms regardless of which compaction
-# event the manifest wires, rejecting only an explicit non-compact source.
+# event choice pure manifest config: the engine names the wired event in
+# AI_MEMORY_HOOK_EVENT, and the script arms on any *Compact* event, rejecting only
+# an explicit non-compact source.
 STATE_NS="$MEM/state-nosource"
 out_ns="$(printf '{"trigger":"auto","cwd":"%s","session_id":"cx-precompact"}' "$WORK" \
-    | MEMORY_STATE_DIR="$STATE_NS" bash "$ARM")"
+    | MEMORY_STATE_DIR="$STATE_NS" AI_MEMORY_HOOK_EVENT=PreCompact bash "$ARM")"
 assert_eq "" "$out_ns" "arm: no-source event emits no inline output"
 assert_file "$STATE_NS/cx-precompact.recompact" "arm: no-source (Pre/PostCompact) writes sentinel"
 

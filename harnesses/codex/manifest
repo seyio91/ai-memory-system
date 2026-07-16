@@ -1,17 +1,20 @@
 # Codex CLI — delivery + execute manifest.
-# file archetype: materialize ~/.codex/AGENTS.md, rebuilt on each launch by the
-# wrapper (harnesses/codex/scripts/codex-mem.sh); md format.
+# file archetype: ~/.codex/AGENTS.md is a hand-owned STATIC base (workflow rules +
+# user overlay), never written by the memory system; the dynamic memory tree
+# injects live via the SessionStart hook (refresh=hook), mirroring Antigravity. md
+# format. The wrapper (harnesses/codex/scripts/codex-mem.sh) survives for the
+# executor face only — sandbox flags, no file build.
 name           = codex
 archetype      = file
 format         = md
 context_target = ~/.codex/AGENTS.md
-refresh        = launch
+refresh        = hook
 
-# hybrid: file-archetype AGENTS.md base + native Codex hooks for the dynamic roles
+# hybrid: hand-owned AGENTS.md base + native Codex hooks for base + dynamic roles
 hooks_json        = ~/.codex/hooks.json
 hook_script       = $MEMORY_DIR/scripts/hooks/inject.sh
 guard_script      = $MEMORY_DIR/scripts/hooks/guard.sh
-arm_script        = $MEMORY_DIR/harnesses/codex/hooks/arm_recompact.sh
+session_script    = $MEMORY_DIR/scripts/hooks/session_start_memory.sh
 hooks_min_version = 0.135.0
 
 # Forward-declared delivery surfaces. The generic per-manifest fan-out (skills
@@ -20,9 +23,10 @@ hooks_min_version = 0.135.0
 skills_dir     = ~/.agents/skills
 commands       = skill
 
-# execute face: headless Codex via the memory wrapper (builds AGENTS.md + sandbox
-# flags), so a delegated run sees fresh memory. {prompt}/{model} substituted by
-# executor.sh; $MEMORY_DIR expanded. exec_probe gates availability on the codex bin.
+# execute face: headless Codex via the memory wrapper (sandbox/network flags, no
+# file build), so a delegated run sees fresh memory via the SessionStart hook.
+# {prompt}/{model} substituted by executor.sh; $MEMORY_DIR expanded. exec_probe
+# gates availability on the codex bin.
 exec_cmd        = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh --executor {prompt}
 exec_readonly   = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh exec --dangerously-bypass-hook-trust --sandbox read-only {prompt}
 exec_model_flag = --model {model}
@@ -33,6 +37,6 @@ exec_last_message = -o {file}
 exec_probe      = codex
 
 [hooks]
-per_turn_inject = UserPromptSubmit
-infra_guard     = PreToolUse:^Bash$|apply_patch
-compaction_arm  = SessionStart
+per_turn_inject   = UserPromptSubmit
+infra_guard       = PreToolUse:^Bash$|apply_patch
+session_bootstrap = SessionStart

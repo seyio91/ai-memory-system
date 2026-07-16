@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Golden test: the codex-mem AGENTS.md build is pinned byte-for-byte against
-# scripts/tests/fixtures/codex_agents.golden. Guards the content-core + md
-# formatter refactor (and any future change to it) from silently drifting the
-# file-materialize output. Sandbox paths are normalized to __MEM__/__BIN__ so the
-# fixture is machine-independent.
+# Golden test: the build-context-md.sh file-materialize output is pinned
+# byte-for-byte against scripts/tests/fixtures/codex_agents.golden. Guards the
+# content-core + md formatter (and any future change to it) from silently
+# drifting. Post-flip, no registered harness builds a context file at launch
+# (codex injects via SessionStart) — the builder stays as the generic
+# refresh=launch engine capability, exercised here directly. Sandbox paths are
+# normalized to __MEM__/__BIN__ so the fixture is machine-independent.
 . "$(dirname "$0")/_assert.sh"
 
 FIXTURE="$(dirname "$0")/fixtures/codex_agents.golden"
@@ -26,18 +28,10 @@ EOF
 printf '# Working\n\nactive scratch\n' > "$MEM/projects/proj/working.md"
 WORK="$MEM/work"; mkdir -p "$WORK/.agents"; printf 'proj\n' > "$WORK/.agents/memory-project"
 
-# Stub codex (build path only; we never exec the real thing).
-cat > "$BIN/codex" <<'EOF'
-#!/usr/bin/env bash
-exit 0
-EOF
-chmod +x "$BIN/codex"; export PATH="$BIN:$PATH"
-
-AGENTS="$BIN/AGENTS.md"; export CODEX_INSTRUCTIONS_FILE="$AGENTS"
+AGENTS="$BIN/AGENTS.md"
 OVERLAY="$BIN/AGENTS.local.md"; printf 'my permanent overlay line\n' > "$OVERLAY"
-export CODEX_OVERLAY_FILE="$OVERLAY"
 
-(cd "$WORK" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh") >/dev/null 2>&1
+(cd "$WORK" && bash "$SCRIPTS_DIR/build-context-md.sh" "$AGENTS" "codex-mem" "$OVERLAY") >/dev/null 2>&1
 assert_file "$AGENTS" "AGENTS.md generated"
 
 got="$(sed "s|$MEM|__MEM__|g; s|$BIN|__BIN__|g" "$AGENTS")"

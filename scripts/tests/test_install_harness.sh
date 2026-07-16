@@ -149,11 +149,11 @@ PY
     fi
 fi
 
-# --- codex (file archetype): context prep + skills + commands-as-skills ---
+# --- codex (file archetype, hand-owned base + hooks): context prep + skills + commands-as-skills ---
 run_install --harness codex >"$SBROOT/log.codex" 2>&1; rc=$?
 assert_exit 0 "$rc" "codex install exits 0"
 assert_file "$FHOME/.codex" "codex context dir prepared"
-if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then _ok "codex: no AGENTS.md symlink (built at launch)"; else _bad "codex: unexpected AGENTS.md symlink"; fi
+if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then _ok "codex: no AGENTS.md written (hand-owned static base)"; else _bad "codex: unexpected AGENTS.md written by installer"; fi
 assert_file "$FHOME/.codex/hooks.json" "codex: native hooks.json registered"
 chj="$(cat "$FHOME/.codex/hooks.json")"
 assert_contains "$chj" '"hooks"' "codex: hooks.json has top-level hooks object"
@@ -163,6 +163,9 @@ assert_contains "$chj" "AI_MEMORY_HOOK_FORMAT=md" "codex: inject command renders
 assert_contains "$chj" "scripts/hooks/inject.sh" "codex: inject command -> shared inject.sh"
 assert_contains "$chj" '"matcher": "^Bash$|apply_patch"' "codex: guard matcher registered"
 assert_contains "$chj" "scripts/hooks/guard.sh" "codex: guard command -> shared guard.sh"
+assert_contains "$chj" '"SessionStart"' "codex: SessionStart hook registered (base injects via hook, post-flip)"
+assert_contains "$chj" "scripts/hooks/session_start_memory.sh" "codex: SessionStart command -> shared session-start script"
+assert_not_contains "$chj" "arm_recompact.sh" "codex: SessionStart no longer wired to arm_recompact (shim only for stale hooks.json)"
 assert_contains "$(cat "$SBROOT/log.codex")" "Run /hooks in codex once" "codex: manual /hooks trust note printed"
 # Phase 4: canonical skills fan into the manifest skills_dir (~/.agents/skills)...
 assert_file "$FHOME/.agents/skills/demo-skill" "codex: canonical skill fanned to ~/.agents/skills"

@@ -35,19 +35,12 @@ git -C "$CODE" worktree add -q -b feat "$CODE/.claude/worktrees/feat" 2>/dev/nul
 WT="$CODE/.claude/worktrees/feat"
 
 # ============ CODEX PROCESS: `git worktree add` + run codex in the worktree ============
-# Stub codex so codex-mem.sh runs without the real binary.
-cat > "$BIN/codex" <<'EOF'
-#!/usr/bin/env bash
-exit 0
-EOF
-chmod +x "$BIN/codex"; export PATH="$BIN:$PATH"
-export CODEX_INSTRUCTIONS_FILE="$BIN/AGENTS.md"
-
-# Step 1 — context build from within the worktree -> overlay, not base.
-( cd "$WT" && bash "$REPO_ROOT/harnesses/codex/scripts/codex-mem.sh" ) >/dev/null 2>&1
-body="$(cat "$BIN/AGENTS.md" 2>/dev/null)"
-assert_contains     "$body" "WT-FEATURE-SCRATCH" "codex process: context build reads the worktree overlay"
-assert_not_contains "$body" "BASE-SCRATCH"        "codex process: context build does NOT read the base"
+# Step 1 — SessionStart hook fired from within the worktree -> overlay, not base
+# (post-flip the base injects via the hook; cwd in the event payload drives routing).
+body="$(printf '{"source":"startup","cwd":"%s","session_id":"wt-sess"}' "$WT" \
+    | AI_MEMORY_HOOK_FORMAT=md bash "$REPO_ROOT/scripts/hooks/session_start_memory.sh")"
+assert_contains     "$body" "WT-FEATURE-SCRATCH" "codex process: SessionStart injects the worktree overlay"
+assert_not_contains "$body" "BASE-SCRATCH"        "codex process: SessionStart does NOT inject the base"
 
 # Step 2 — checkpoint writer from within the worktree -> overlay target.
 ck="$( cd "$WT" && bash "$REPO_ROOT/harnesses/codex/scripts/codex-mem-checkpoint.sh" --for-codex )"
@@ -62,7 +55,7 @@ cat > "$BIN/agy" <<EOF
 printf 'CWD=%s\n' "\${AI_MEMORY_CWD:-}" > "$ENVCAP"
 exit 0
 EOF
-chmod +x "$BIN/agy"
+chmod +x "$BIN/agy"; export PATH="$BIN:$PATH"
 
 # Step 1 — launching agy FROM the worktree exports AI_MEMORY_CWD = the worktree
 # (this is "open the worktree as a workspace").

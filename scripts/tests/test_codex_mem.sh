@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# codex-mem.sh: AGENTS.md section build order + --executor flag expansion.
-# Uses a stub `codex` on PATH that records its args, so no real codex is needed.
+# codex-mem.sh (post-flip wrapper): never writes AGENTS.md (the memory base
+# injects live via the SessionStart hook), --executor flag expansion,
+# --executor-bare injection suppression (AI_MEMORY_SKIP_INJECT=1 +
+# project_doc_max_bytes=0). Uses a stub `codex` on PATH that records its args
+# and the injection-gate env, so no real codex is needed.
 . "$(dirname "$0")/_assert.sh"
 
 MEM="$(new_sandbox)"
 BIN="$(new_sandbox)"
-trap 'rm -rf "$MEM" "$BIN"' EXIT
+FHOME="$(new_sandbox)"
+trap 'rm -rf "$MEM" "$BIN" "$FHOME"' EXIT
 export MEMORY_DIR="$MEM"
 seed_min_tree "$MEM"
 
-# Active project with non-empty working.md (so the WORKING section is emitted).
+# Active project with non-empty working.md (irrelevant to the wrapper now, but a
+# populated tree proves "no AGENTS.md" isn't just "nothing to render").
 mkdir -p "$MEM/projects/proj"
 cat > "$MEM/projects/proj/memory.md" <<'EOF'
 ---
@@ -20,46 +25,37 @@ summary: proj summary
 # Project: proj
 EOF
 printf '# Working\n\nactive scratch\n' > "$MEM/projects/proj/working.md"
-# Project resolves only from a cwd marker now (no .active_project fallback).
 WORK="$MEM/work"; mkdir -p "$WORK/.agents"; printf 'proj\n' > "$WORK/.agents/memory-project"
 
-# Stub codex that records args then exits 0.
+# Stub codex that records args + the injection-gate env, then exits 0.
 CAPTURE="$BIN/codex-args"
+ENVCAP="$BIN/codex-env"
 cat > "$BIN/codex" <<EOF
 #!/usr/bin/env bash
 printf '%s ' "\$@" > "$CAPTURE"
+printf 'SKIP_INJECT=%s\n' "\${AI_MEMORY_SKIP_INJECT:-}" > "$ENVCAP"
 exit 0
 EOF
 chmod +x "$BIN/codex"
 export PATH="$BIN:$PATH"
 
-AGENTS="$BIN/AGENTS.md"
-export CODEX_INSTRUCTIONS_FILE="$AGENTS"
-OVERLAY="$BIN/AGENTS.local.md"
-printf 'my permanent overlay line\n' > "$OVERLAY"
-export CODEX_OVERLAY_FILE="$OVERLAY"
-
-# --- interactive (no executor): builds AGENTS.md ---
+# --- interactive: exec's codex, writes NO AGENTS.md (hand-owned static base) ---
 set +e
-(cd "$WORK" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh") >/dev/null 2>&1; CODE=$?
+(cd "$WORK" && HOME="$FHOME" bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh") >/dev/null 2>&1; CODE=$?
 set -e
 assert_exit 0 "$CODE" "codex-mem (interactive) exits 0 via stub"
-assert_file "$AGENTS" "AGENTS.md generated"
+if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then
+    _ok "interactive: AGENTS.md NOT written (hand-owned static base)"
+else
+    _bad "interactive: AGENTS.md NOT written (hand-owned static base)"
+fi
+assert_contains "$(cat "$ENVCAP")" "SKIP_INJECT=" "interactive: injection gate not set"
+assert_not_contains "$(cat "$ENVCAP")" "SKIP_INJECT=1" "interactive: AI_MEMORY_SKIP_INJECT unset"
 
-# Build order: collect the === headers in file order, compare to expected sequence.
-order="$(grep '^# === ' "$AGENTS" | tr '\n' '|')"
-expected="# === IDENTITY ===|# === PROJECT: proj ===|# === MEMORY INDEX ===|# === DOMAIN INDEX ===|# === WORKING MEMORY ===|# === LOCAL OVERLAY ===|"
-assert_eq "$expected" "$order" "AGENTS.md section build order"
-
-body="$(cat "$AGENTS")"
-assert_contains "$body" "active scratch"            "working memory included"
-assert_contains "$body" "my permanent overlay line" "local overlay appended"
-assert_contains "$body" "terraform"                 "domain index row present"
-
-# --- executor mode: flag expansion captured by stub ---
-: > "$CAPTURE"
+# --- executor mode: flag expansion captured by stub, injection stays on ---
+: > "$CAPTURE"; : > "$ENVCAP"
 set +e
-(cd "$WORK" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --executor "do the thing") >/dev/null 2>&1; CODE=$?
+(cd "$WORK" && HOME="$FHOME" bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --executor "do the thing") >/dev/null 2>&1; CODE=$?
 set -e
 assert_exit 0 "$CODE" "executor mode exits 0 via stub"
 args="$(cat "$CAPTURE")"
@@ -67,20 +63,22 @@ assert_contains "$args" "exec --dangerously-bypass-hook-trust --sandbox workspac
 assert_contains "$args" "--skip-git-repo-check"          "executor: skip-git-repo-check"
 assert_contains "$args" "sandbox_workspace_write.network_access=true" "executor: network access on"
 assert_contains "$args" "do the thing"                   "executor: passes through the prompt"
+assert_not_contains "$args" "project_doc_max_bytes"      "executor: repo docs not suppressed"
+assert_not_contains "$(cat "$ENVCAP")" "SKIP_INJECT=1"   "executor: memory injection stays on"
 
-# --- per-worktree overlay: building from a linked worktree emits working.<wt>.md ---
-if command -v git >/dev/null 2>&1; then
-    WT="$(new_sandbox)"
-    git -C "$WT" init -q
-    git -C "$WT" -c user.name=T -c user.email=t@e commit --allow-empty -qm init
-    git -C "$WT" worktree add -q -b feat "$WT/wt-feat" 2>/dev/null
-    mkdir -p "$WT/wt-feat/.agents"; printf 'proj\n' > "$WT/wt-feat/.agents/memory-project"
-    printf '# Working\n\nWT-ONLY-SCRATCH\n' > "$MEM/projects/proj/working.wt-feat.md"
-    (cd "$WT/wt-feat" && bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh") >/dev/null 2>&1
-    wbody="$(cat "$AGENTS")"
-    assert_contains     "$wbody" "WT-ONLY-SCRATCH" "codex worktree: overlay working.<wt>.md built"
-    assert_not_contains "$wbody" "active scratch"  "codex worktree: base working.md NOT built"
-    rm -rf "$WT"
+# --- executor-bare: injection suppressed at BOTH levers ---
+: > "$CAPTURE"; : > "$ENVCAP"
+set +e
+(cd "$WORK" && HOME="$FHOME" bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --executor-bare "lean review") >/dev/null 2>&1; CODE=$?
+set -e
+assert_exit 0 "$CODE" "executor-bare exits 0 via stub"
+bargs="$(cat "$CAPTURE")"
+assert_contains "$bargs" "project_doc_max_bytes=0" "bare: hand-owned AGENTS.md / repo docs suppressed"
+assert_contains "$(cat "$ENVCAP")" "SKIP_INJECT=1"  "bare: AI_MEMORY_SKIP_INJECT=1 exported to codex"
+if [ ! -e "$FHOME/.codex/AGENTS.md" ]; then
+    _ok "bare: AGENTS.md NOT written"
+else
+    _bad "bare: AGENTS.md NOT written"
 fi
 
 finish

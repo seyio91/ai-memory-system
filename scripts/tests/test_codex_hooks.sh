@@ -80,25 +80,31 @@ if inject_cmd != expected_inject:
 if guard_cmd != expected_guard:
     sys.stderr.write("guard command mismatch\nexpected=%r\nactual=%r\n" % (expected_guard, guard_cmd))
     sys.exit(1)
-# compaction_arm: SessionStart entry registered exactly once, correct command, no matcher.
+# session_bootstrap: SessionStart entry registered exactly once, format-wrapped for md
+# (post-flip codex injects the base via the shared session-start script), no matcher.
 ss = hooks.get("SessionStart")
 if not isinstance(ss, list) or not ss:
     sys.stderr.write("missing SessionStart array\n")
     sys.exit(1)
-arm_entries = [
+session_entries = [
     g for g in ss
-    if any("arm_recompact.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
+    if any("scripts/hooks/session_start_memory.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
 ]
-if len(arm_entries) != 1:
-    sys.stderr.write("idempotency failure: arm=%d\n" % len(arm_entries))
+if len(session_entries) != 1:
+    sys.stderr.write("idempotency failure: session=%d\n" % len(session_entries))
     sys.exit(1)
-if "matcher" in arm_entries[0]:
-    sys.stderr.write("SessionStart arm group unexpectedly has matcher\n")
+if "matcher" in session_entries[0]:
+    sys.stderr.write("SessionStart session group unexpectedly has matcher\n")
     sys.exit(1)
-arm_cmd = arm_entries[0]["hooks"][0]["command"]
-expected_arm = "env MEMORY_DIR=%s bash %s/harnesses/codex/hooks/arm_recompact.sh" % (repo, repo)
-if arm_cmd != expected_arm:
-    sys.stderr.write("arm command mismatch\nexpected=%r\nactual=%r\n" % (expected_arm, arm_cmd))
+session_cmd = session_entries[0]["hooks"][0]["command"]
+expected_session = "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=SessionStart bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo)
+if session_cmd != expected_session:
+    sys.stderr.write("session command mismatch\nexpected=%r\nactual=%r\n" % (expected_session, session_cmd))
+    sys.exit(1)
+# The old arm_recompact.sh must NOT be wired by the flipped manifest (it survives only as
+# a compatibility shim reachable via a stale pre-flip hooks.json, not a fresh registration).
+if any("arm_recompact.sh" in h.get("command", "") for g in ss for h in g.get("hooks", []) if isinstance(h, dict)):
+    sys.stderr.write("flipped codex manifest still wires arm_recompact.sh\n")
     sys.exit(1)
 PY
 rc=$?
