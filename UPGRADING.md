@@ -189,6 +189,24 @@ the shared session-start script) so a stale `~/.codex/hooks.json` from a manual
 `git pull` that hasn't re-run `install.sh` keeps working. It is removed in the next
 release.
 
+**Claude's `SessionStart` hook script moved — a manual `git pull` breaks session
+start until `install.sh` re-runs.**
+
+The same relocation moved Claude's session-start script from
+`harnesses/claude/hooks/session_start_memory.sh` to the shared
+`scripts/hooks/session_start_memory.sh`. A live `~/.claude/settings.json` that
+still points at the old path fails every session start with
+`no such file or directory` (the memory base silently stops loading).
+
+Upgrading through `sync-system.sh` fixes this automatically: it re-runs
+`install.sh`, whose settings merge sweeps ai-memory hook entries by script name
+regardless of path and re-registers them at the current location — including the
+`env MEMORY_DIR=... AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart`
+prefix the shared script expects. No manual step.
+
+Only an instance updated with a raw `git pull` that skips `install.sh` hits the
+error. Recovery is the same either way: run `install.sh` (or `sync-system.sh`).
+
 ## 1.1.0
 
 **`identity.md` is no longer tracked. Back it up before upgrading.**
