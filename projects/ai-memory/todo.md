@@ -15,7 +15,7 @@ workflow rules + overlay. Mirrors the Antigravity model; makes plain `codex` ali
 - [x] Phase 3 — flip codex manifest (`session_bootstrap`); retire AGENTS.md build; `arm_recompact.sh` → N/N+1 shim; header-keyed migration; bare = skip-inject + doc-bytes-0 (branch `efaa0b1`+`954e4f1`+`0a323ae`, Validator 9/9 PASS; also fixed latent `AI_MEMORY_CWD` overlay-routing bug in the shared session script)
 - [x] Phase 3b — chunked hook injection (~10KB/msg hard cap found; chunk transport; domain table RESTORED on corrected numbers; also fixes shipped >10KB post-compact + @memory re-inject truncation) (branch `f49785b`+`e79ecc3`+`bbd73cc`, Validator 7/8→fixes applied; codex-executor-built)
 - [x] Phase 4 — verify: 96,399B reassembled BYTE-FOR-BYTE from real codex rollout across 12 chunks; paid E2E probe (model quoted working-tail + identity rule); bare run zero leakage; docs + memory.md/identity.md/domain-codex updated
-- [ ] Ship: push branch, open PR, **user merges** (do NOT self-merge); on merge → plan done + archive, close Notion task `39ef6850`; N+1 cleanup task: delete `arm_recompact.sh` shim
+- [x] Ship: PR #68 merged 2026-07-16 (CI green both jobs); plan done → archived; live install re-registered (12+12 chunked hooks) + AGENTS.md migration run; Notion `39ef6850` closed; N+1 shim-deletion task filed
 
 ### Release automation (changelog fragments + computed versioning) → [plan](plans/release-automation.md) ✅ DONE
 Phase A merged in PR #63 (`dc98a6f`); Phase B merged in PR #64 (`d69b431`). Pipeline verified in
