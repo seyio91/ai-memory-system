@@ -45,6 +45,18 @@ the user-level hooks directory only.
 | `compaction_arm` | `preCompact` | `harnesses/copilot/hooks/precompact.sh` | Arms the shared `.recompact` sentinel as a side effect. |
 | `per_turn_inject` | `postToolUse` | `harnesses/copilot/hooks/posttooluse.sh` | If a sentinel is present, re-injects the full payload once and clears it. |
 
+## Commands and skills
+
+Copilot's command mechanism is skills, like Codex's. The install fans the
+canonical stores into `~/.agents/skills/`: real skills link directly, and every
+slash-command body in `commands/` is wrapped as a generated `SKILL.md` dir.
+
+The target is deliberately **the same directory Codex uses**. Copilot discovers
+personal skills from both `~/.copilot/skills/` and `~/.agents/skills/`; sharing
+the latter means one fan-out serves both CLIs and Copilot never lists a skill
+twice. A copilot-only machine (no Codex installed) is self-sufficient — the
+copilot install populates the directory itself.
+
 ## What gets injected
 
 The `sessionStart` adapter sources the shared hook library and renders the same
