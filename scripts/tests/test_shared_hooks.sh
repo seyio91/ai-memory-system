@@ -14,6 +14,7 @@ trap 'rm -rf "$MEM" "$WORK" "$OLD_REPO"' EXIT
 export MEMORY_DIR="$MEM"
 
 seed_min_tree "$MEM"
+printf '# Orchestrator\n\nORCH-MARKER\n' > "$MEM/orchestrator.md"
 mkdir -p "$MEM/projects/proj" "$WORK/.agents" "$WORK/sub"
 cat > "$MEM/projects/proj/memory.md" <<'EOF'
 ---
@@ -30,18 +31,37 @@ printf 'proj\n' > "$WORK/.agents/memory-project"
 . "$REPO/scripts/formatters/md.sh"
 
 export AI_MEMORY_CWD="$WORK/sub"
-crumb="$(content_sections proj identity project index working | md_render_breadcrumb proj "$WORK/sub")"
+crumb="$(content_sections proj identity orchestrator project index working | md_render_breadcrumb proj "$WORK/sub")"
 assert_contains "$crumb" "project: proj" "md breadcrumb: active project"
+assert_contains "$crumb" "orchestrator: $MEM/orchestrator.md" "md breadcrumb: orchestrator path"
 assert_contains "$crumb" "working.md"    "md breadcrumb: working write target"
 assert_contains "$crumb" "$MEM/projects/proj/working.md" "md breadcrumb: advertises absent working path"
 
 printf '# Working\n\nSHARED-HOOK-SCRATCH\n' > "$MEM/projects/proj/working.md"
+
+xml_full="$(AI_MEMORY_HOOK_FORMAT=xml render_full proj)"
+assert_contains "$xml_full" "<memory:orchestrator>" "xml full: orchestrator section rendered"
+case "$xml_full" in
+    *"<memory:identity>"*"<memory:orchestrator>"*"<memory:project name=\"proj\">"*) _ok "xml full: orchestrator is after identity before project" ;;
+    *) _bad "xml full: orchestrator is after identity before project" ;;
+esac
+md_full="$(AI_MEMORY_HOOK_FORMAT=md render_full proj)"
+assert_contains "$md_full" "# === ORCHESTRATOR ===" "md full: orchestrator heading rendered"
+case "$md_full" in
+    *"# === IDENTITY ==="*"# === ORCHESTRATOR ==="*"# === PROJECT: proj ==="*) _ok "md full: orchestrator is after identity before project" ;;
+    *) _bad "md full: orchestrator is after identity before project" ;;
+esac
 
 # The parity oracle uses FROZEN pre-migration copies vendored under
 # scripts/tests/fixtures/claude-legacy-hooks/ — NOT `git show HEAD:...`, which
 # only resolves the old files while the migration is uncommitted (once P3 is
 # committed/merged, HEAD no longer carries them and the oracle would silently
 # read empty and the parity tests would fail on committed code / in CI).
+# Pre-migration hooks never emitted the (post-freeze) orchestrator section, so
+# the parity block runs against an UN-SEEDED tree — which doubles as the
+# backward-compat proof for instances that haven't seeded orchestrator.md yet.
+# The section's own rendering is asserted independently above and below.
+mv "$MEM/orchestrator.md" "$MEM/orchestrator.md.aside"
 LEGACY="$REPO/scripts/tests/fixtures/claude-legacy-hooks"
 stage_old_claude_hooks() {
     mkdir -p "$OLD_REPO/harnesses/claude/hooks" "$OLD_REPO/scripts/formatters"
@@ -108,6 +128,9 @@ if command -v python3 >/dev/null 2>&1; then
 else
     printf '  SKIP python3 absent; shared/Claude JSON payload comparison not run\n'
 fi
+
+# Parity oracle done — restore the orchestrator file for the remaining tests.
+mv "$MEM/orchestrator.md.aside" "$MEM/orchestrator.md"
 
 # --- AI_MEMORY_SKIP_INJECT gate (bare/isolated executor opt-out) — no python3 needed ---
 skip_inject="$(json_payload "hello" "$WORK/sub" "sk1" | AI_MEMORY_SKIP_INJECT=1 bash "$SHARED_INJECT")"
@@ -193,6 +216,7 @@ fi
 
 md_out="$(json_payload "reload @memory" "$WORK" "s3" | AI_MEMORY_HOOK_FORMAT=md bash "$SHARED_INJECT")"
 assert_contains "$md_out" "# === IDENTITY ===" "shared md inject: full md identity heading"
+assert_contains "$md_out" "# === ORCHESTRATOR ===" "shared md inject: full md orchestrator heading"
 assert_contains "$md_out" "# === PROJECT: proj ===" "shared md inject: full md project heading"
 assert_contains "$md_out" "# === DOMAIN INDEX ===" "shared md inject: full md keeps domain lazy-load table"
 

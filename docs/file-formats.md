@@ -1,5 +1,18 @@
 # File format conventions
 
+## Root instruction files
+
+`identity.md` and `orchestrator.md` are per-instance files seeded by
+`install.sh` when missing:
+
+| File | Seed template | Purpose | Tracked? |
+|------|---------------|---------|----------|
+| `identity.md` | `identity.template.md` | Role, stack, communication style, defaults, and hard rules | no |
+| `orchestrator.md` | `orchestrator.template.md` | Workflow doctrine: task tiers, brainstorm gate, orchestrator/executor/validator roles, Task Contract, and cross-project rules | no |
+
+Existing files are never overwritten. Precedence is:
+`identity.md` hard rules > `orchestrator.md` workflow doctrine > project memory.
+
 ## Frontmatter (required on every domain + project memory file)
 
 **Domain file:**

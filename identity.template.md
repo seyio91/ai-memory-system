@@ -32,15 +32,8 @@
 ## Defaults When Not Specified
 - <Default choices the agent should make when you don't specify.>
 
-## Orchestration
+## Workflow Doctrine
 
-**Three task tiers — classify every request before acting:**
-- **Research / explore / Q&A** → answer directly. No plan, no `todo.md`, no executor.
-- **Quick actionable item** (one edit, a short fix) → just do it. No plan, no todo.
-- **Large / non-trivial actionable task** → file a plan in
-  `projects/<active>/plans/<name>.md` and track steps in `projects/<active>/todo.md`.
-
-`todo.md` tracks plan execution only. No plan ⇒ no todo entry.
-
-<Add your orchestrator / executor / validator conventions here, or delete this
-section if you run a single-agent setup. See README for the reference workflow.>
+Workflow doctrine lives in `orchestrator.md`, seeded from
+`orchestrator.template.md`. `identity.md` should stay focused on role, defaults,
+hard rules, and communication style.

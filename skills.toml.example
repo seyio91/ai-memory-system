@@ -67,12 +67,6 @@ path = "skills/grafana-lgtm/prometheus"
 # path = "renovate-manager"
 #
 # [[skills]]
-# name = "brainstorming"
-# url  = "git@github.com:seyio91/agent-skills.git"
-# ref  = "main"
-# path = "brainstorming"
-#
-# [[skills]]
 # name = "excalidraw-diagram"
 # url  = "git@github.com:seyio91/agent-skills.git"
 # ref  = "main"

@@ -39,8 +39,8 @@ registers two namespaced entries there:
 `formatters/xml.sh` — byte-for-byte the same `<memory:*>` payload Claude injects:
 
 - **`invocationNum == 0`** (0-based — the first model call of a session) → the
-  **full** payload: `<memory:identity>` + `<memory:project>` + `<memory:index>` +
-  `<memory:working>`.
+  **full** payload: `<memory:identity>` + `<memory:orchestrator>` +
+  `<memory:project>` + `<memory:index>` + `<memory:working>`.
 - **later invocations** → the lightweight `<memory:active>` **breadcrumb** (project
   pointer + absolute memory paths + a re-read directive).
 - **no active project** → `{"injectSteps":[]}` — the memory system stays dormant

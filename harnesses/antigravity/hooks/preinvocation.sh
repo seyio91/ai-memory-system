@@ -37,9 +37,9 @@ no_inject() { printf '{"injectSteps":[]}\n'; exit 0; }
 
 # invocationNum is 0-based: the first model call of a session is 0 (verified live).
 if [ "$INV" = "0" ]; then
-    PAYLOAD="$(content_sections "$PROJECT" identity project index working | xml_render_full)"
+    PAYLOAD="$(content_sections "$PROJECT" identity orchestrator project index working | xml_render_full)"
 else
-    PAYLOAD="$(content_sections "$PROJECT" identity project index working \
+    PAYLOAD="$(content_sections "$PROJECT" identity orchestrator project index working \
         | xml_render_breadcrumb "$PROJECT" "$CWD")"
 fi
 

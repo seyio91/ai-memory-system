@@ -1,7 +1,7 @@
 # Codex CLI
 
 Codex gets its memory **live through native Codex hooks**: the full dynamic tree
-(identity → project → index → domain table → working) injects at `SessionStart`, and the
+(identity → orchestrator → project → index → domain table → working) injects at `SessionStart`, and the
 per-turn breadcrumb / compaction recovery ride `UserPromptSubmit` — so a **plain `codex`**
 (no alias, no wrapper) has full memory. `~/.codex/AGENTS.md` is a **hand-owned static
 base** the memory system never writes (the Antigravity model): put permanent
@@ -51,10 +51,11 @@ codex        # plain launch — full memory via the SessionStart hook
 Rendered live from the memory tree on every session load (`md` format), in this order:
 
 1. **`# === IDENTITY ===`** — `identity.md` verbatim.
-2. **`# === PROJECT: <name> ===`** — `projects/<active>/memory.md`.
-3. **`# === MEMORY INDEX ===`** — `index.md` (lifecycle prose + auto-generated catalog).
-4. **`# === DOMAIN INDEX ===`** — table synthesized from frontmatter in each `domain/*.md` (file path, triggers, summary), with a lazy-load instruction: Codex reads the file with its shell tool when the user's request matches a topic's triggers.
-5. **`# === WORKING MEMORY ===`** — the session's working file if non-empty (worktree-aware — see below).
+2. **`# === ORCHESTRATOR ===`** — `orchestrator.md` verbatim.
+3. **`# === PROJECT: <name> ===`** — `projects/<active>/memory.md`.
+4. **`# === MEMORY INDEX ===`** — `index.md` (lifecycle prose + auto-generated catalog).
+5. **`# === DOMAIN INDEX ===`** — table synthesized from frontmatter in each `domain/*.md` (file path, triggers, summary), with a lazy-load instruction: Codex reads the file with its shell tool when the user's request matches a topic's triggers.
+6. **`# === WORKING MEMORY ===`** — the session's working file if non-empty (worktree-aware — see below).
 
 Unlike the retired file build, edits to the tree are picked up **live**: the next session (or `@memory` in the current one) sees them with no relaunch of a wrapper.
 

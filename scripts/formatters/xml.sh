@@ -7,7 +7,7 @@
 # Records arrive on stdin as `kind<TAB>path<TAB>name` (see content-core.sh).
 # Output carries no trailing newline, matching the pre-refactor assemble_* helpers.
 #
-# The xml payload intentionally covers identity/project/index/working only; a
+# The xml payload intentionally covers identity/orchestrator/project/index/working only; a
 # `domain` record (emitted by the core for the md formatter) is simply ignored
 # here, preserving the historical Claude output byte-for-byte.
 
@@ -20,6 +20,10 @@ xml_render_full() {
                 out+="<memory:identity>"$'\n'
                 out+=$(cat "$path")
                 out+=$'\n'"</memory:identity>"$'\n' ;;
+            orchestrator)
+                out+="<memory:orchestrator>"$'\n'
+                out+=$(cat "$path")
+                out+=$'\n'"</memory:orchestrator>"$'\n' ;;
             project)
                 out+="<memory:project name=\"$name\">"$'\n'
                 out+=$(cat "$path")
@@ -46,6 +50,7 @@ xml_render_breadcrumb() {
     while IFS=$'\t' read -r kind path name; do
         case "$kind" in
             identity) out+="identity: $path"$'\n' ;;
+            orchestrator) out+="orchestrator: $path"$'\n' ;;
             project)  out+="project: $path"$'\n' ;;
             index)    out+="index: $path"$'\n' ;;
             working)  ;;  # emitted below as the always-present write target

@@ -38,7 +38,7 @@ cd ~/.claude-memory
 - fans the bundled `skills/` (and Claude-shaped `agents/`) into each manifest's `skills_dir`
   via `scripts/link-skills.sh` / `link-agents.sh`,
 - links the clone to `$MEMORY_DIR`, stamps `config.local.sh`, and seeds `identity.md` /
-  `index.md` from their `*.template.md` if missing.
+  `orchestrator.md` / `index.md` from their `*.template.md` if missing.
 
 The manual steps it prints depend on the harness (e.g. Claude: register `settings.hooks.json`
 + place `CLAUDE.md`; a file harness: alias its launch wrapper).
@@ -48,16 +48,18 @@ Two steps it leaves to you:
 1. **Register settings** — merge the hook entries and the `statusLine` from `harnesses/claude/settings.hooks.json` into `~/.claude/settings.json`.
 2. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (or merge into your existing one).
 
-Then edit `identity.md` (start from `identity.template.md`), onboard a repo with
-`/pin <project>`, and start a session. To install from a different clone path,
-set `MEMORY_DIR` to that path before running `install.sh`.
+Then edit `identity.md` (start from `identity.template.md`) and `orchestrator.md`
+(start from `orchestrator.template.md`), onboard a repo with `/pin <project>`,
+and start a session. To install from a different clone path, set `MEMORY_DIR` to
+that path before running `install.sh`.
 
 > **Committed vs ignored.** The engine ships — `scripts/`, the `harnesses/claude/` wiring,
 > `skills/`, `agents/`, and the `*.template.md` files. Your data does not: the real
 > `index.md`, `domain/*.md`, `projects/*` (except `_template/`), `tasks/`, and
-> `archive/` are git-ignored — and so is `identity.md`, which is per-instance. The
-> tracked `identity.template.md` is its generic starting point; `install.sh` copies
-> it to `identity.md` whenever that file is missing. See `.gitignore`.
+> `archive/` are git-ignored — and so are `identity.md` and `orchestrator.md`,
+> which are per-instance. The tracked templates are their generic starting
+> points; `install.sh` copies them whenever the live files are missing. See
+> `.gitignore`.
 
 ## Upgrading
 
@@ -75,11 +77,11 @@ version.
 
 Prefer not to run the installer? The components, in build order — each has a detailed spec section elsewhere in the docs.
 
-1. **Memory tree** — create `~/.claude-memory/` with `identity.md`, `index.md` (with the AUTOGEN fence), and the `domain/`, `projects/`, `scripts/` directories. See [Directory layout](#directory-layout).
+1. **Memory tree** — create `~/.claude-memory/` with `identity.md`, `orchestrator.md`, `index.md` (with the AUTOGEN fence), and the `domain/`, `projects/`, `scripts/` directories. See [Directory layout](#directory-layout).
 2. **Project scaffold** — create `projects/_template/` (`memory.md` with the 5 required sections + frontmatter, empty `working.md`, `todo.md`, `plans/.gitkeep`, `archive/{plans,todos,working}/.gitkeep`). See [File formats](file-formats.md).
 3. **Scripts** — populate `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`) plus the `scripts/tests/` suite; `chmod +x` all executables. Also create the `scripts/taskprovider/` Python package (stdlib-only task-provider layer — see [Task-provider layer](task-provider.md)). See [Scripts reference](scripts.md).
 4. **Claude hooks** — keep the `~/.claude/hooks/` runtime root, symlink `harnesses/claude/statusline.sh` to `~/.claude/statusline.sh`, and register the three hook commands into `~/.claude/settings.json`: shared `scripts/hooks/inject.sh` for `UserPromptSubmit`, `harnesses/claude/hooks/session_start_memory.sh` for `SessionStart`, and `harnesses/claude/hooks/block_task_tools.sh` for `PreToolUse`. See [Claude Code › Hooks](harnesses/claude.md#hooks).
-5. **Claude slash commands & skills** — symlink the command files in `commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the `brainstorming` gate is anchored by the `identity.md` Orchestration routing rule.
+5. **Claude slash commands & skills** — symlink the command files in `commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the `brainstorming` gate is anchored by the `orchestrator.md` Orchestration routing rule.
 6. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (maintenance rules, workflow tiers, file-as-page nudge).
 7. **Codex bridge** — populate `harnesses/codex/scripts/` (`codex-mem.sh`, `codex-mem-checkpoint.sh`), then create `~/.codex/AGENTS.local.md` (can be empty), `~/.codex/prompts/checkpoint.md`, `~/.codex/skills/checkpoint/{SKILL.md,agents/openai.yaml}`, and `~/.codex/rules/default.rules` (the executor deny list). `AGENTS.md` is generated — do not author it. See [Codex CLI](harnesses/codex.md).
 8. **Verify** — run `scripts/lint-memory.sh` (expect exit 0), `scripts/regenerate-index.sh` (index matches frontmatter), launch a Claude session and confirm `<memory:*>` blocks inject, and confirm a `TaskCreate` call is blocked.
@@ -95,6 +97,8 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── .gitignore                         # Ships templates + engine; ignores your real memory data
 ├── identity.md                        # Hard rules, injected once per session (per-instance, git-ignored)
 ├── identity.template.md               # Generic starting point for identity.md
+├── orchestrator.md                    # Workflow doctrine, injected once per session (per-instance, git-ignored)
+├── orchestrator.template.md           # Generic starting point for orchestrator.md
 ├── CHANGELOG.md                       # Thin changelog shell; release.sh finalizes sections
 ├── UPGRADING.md                       # Channel, rollback, semver, and migration notes
 ├── .applied-version                   # Migration high-water marker (gitignored)

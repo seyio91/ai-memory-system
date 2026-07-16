@@ -163,10 +163,19 @@ migration — as the next section does.
 
 ## 1.4.0
 
+**Workflow doctrine moved from `identity.md` to `orchestrator.md`.**
+
+New installs seed `orchestrator.md` from tracked `orchestrator.template.md`.
+Existing instances are not rewritten: move or delete your `## Orchestration`
+and `## Cross-project relationships` sections from `identity.md` into
+`orchestrator.md` by hand, then keep `identity.md` focused on voice, hard rules,
+and defaults. Until you trim `identity.md`, the same doctrine is injected twice;
+that duplication is harmless but noisy.
+
 **Codex's `~/.codex/AGENTS.md` becomes a hand-owned static base.**
 
 The memory system no longer generates `~/.codex/AGENTS.md`. The dynamic memory
-tree (identity, project, index, domain, working) now injects live through Codex's
+tree (identity, orchestrator, project, index, domain, working) now injects live through Codex's
 `SessionStart` hook — the same model Antigravity and Claude already use — so a
 plain `codex` (no alias, no wrapper) gets full memory. `~/.codex/AGENTS.md` is left
 as a hand-owned static base for permanent Codex-specific workflow rules or personal

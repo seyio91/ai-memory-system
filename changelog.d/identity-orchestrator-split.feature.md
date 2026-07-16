@@ -1,0 +1,1 @@
+- **Identity and orchestration doctrine are now separate files.** `install.sh` seeds a gitignored `orchestrator.md` from tracked `orchestrator.template.md`, injects it directly after `identity.md` in every harness payload, and ships the `brainstorming` workflow skill in-engine under `skills/brainstorming/` instead of as a remote catalog entry.

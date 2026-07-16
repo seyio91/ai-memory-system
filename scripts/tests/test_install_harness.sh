@@ -20,6 +20,7 @@ cp -R "$REPO/harnesses" "$FAKE/harnesses"
 cp -R "$REPO/commands" "$FAKE/commands"
 cp "$REPO/install.sh" "$FAKE/install.sh"
 printf '# identity template\n' > "$FAKE/identity.template.md"
+printf '# orchestrator template\n' > "$FAKE/orchestrator.template.md"
 printf '# index template\n'    > "$FAKE/index.template.md"
 printf '# skills template\n[[skills]]\nname = "template-skill"\nurl = "https://example.invalid/skills.git"\nref = "main"\n' > "$FAKE/skills.toml.example"
 mkdir -p "$FAKE/skills/demo-skill"
@@ -96,6 +97,8 @@ assert_contains "$csj" "Stop" "claude settings: user Stop hook preserved"
 assert_contains "$csj" "echo user-stop-hook" "claude settings: user hook command preserved"
 assert_contains "$(cat "$SBROOT/log.claude")" "Hook entries were auto-merged" "claude notes: settings auto-merge reported"
 assert_file "$FAKE/skills.toml"                   "root skills.toml seeded from template"
+assert_file "$FAKE/orchestrator.md"               "orchestrator.md seeded from template"
+assert_eq "# orchestrator template" "$(cat "$FAKE/orchestrator.md")" "orchestrator.md seeded as an exact template copy"
 assert_eq "$(cat "$FAKE/skills.toml.example")" "$(cat "$FAKE/skills.toml")" "skills.toml seeded as an exact template copy"
 assert_contains "$(cat "$SBROOT/log.claude")" "seeded skills.toml from template" "install reports the skills.toml seed step"
 set +e; [ -d "$FAKE/.skill-cache/template-skill" ]
@@ -109,10 +112,12 @@ assert_contains "$(cat "$FAKE/config.local.sh")" "export MEMORY_DIR=" "config.lo
 
 # --- idempotent re-run ---
 printf '# keep local choices\n' > "$FAKE/skills.toml"
+printf '# custom orchestrator\n' > "$FAKE/orchestrator.md"
 run_install --harness claude >"$SBROOT/log.claude2" 2>&1; rc=$?
 assert_exit 0 "$rc" "claude re-run exits 0"
 assert_contains "$(cat "$SBROOT/log.claude2")" "ok (already linked)" "re-run: already-linked (no churn)"
 assert_eq "# keep local choices" "$(cat "$FAKE/skills.toml")" "existing skills.toml is not overwritten"
+assert_eq "# custom orchestrator" "$(cat "$FAKE/orchestrator.md")" "existing orchestrator.md is not overwritten"
 assert_not_contains "$(cat "$SBROOT/log.claude2")" "seeded skills.toml from template" "existing skills.toml skips seed step"
 if command -v python3 >/dev/null 2>&1; then
     CLAUDE_SETTINGS="$FHOME/.claude/settings.json" FAKE_REPO="$FAKE" python3 - <<'PY' >"$SBROOT/claude-settings-check.out" 2>&1

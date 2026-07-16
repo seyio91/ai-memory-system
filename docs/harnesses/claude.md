@@ -16,6 +16,7 @@ printf '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalCon
 | Block | When |
 |-------|------|
 | `<memory:identity>` | Full payload — session start, `@memory`, or post-compaction |
+| `<memory:orchestrator>` | Full payload (as above) |
 | `<memory:project name="...">` | Full payload (as above), if active project resolved |
 | `<memory:index>` | Full payload (as above) |
 | `<memory:working>` | Full payload (as above), if `projects/<active>/working.md` is non-empty — **not** every prompt |
@@ -98,7 +99,7 @@ Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked f
 |-------|------|--------|
 | `brainstorming` | **Tier-3 feature tasks with open design questions only** — silent on Tier 1 (research/Q&A), Tier 2 (quick edits), and settled Tier-3 work (mechanical refactors, renames, migrations) | Runs the collaborative design pass (clarify → 2-3 approaches → sectioned design), then hands off to `/new-plan`, folding the approved design into the plan's `## Goal` / `## Success criteria` / `## Design` / `## Risks`. Never writes code or scaffolds the plan itself. |
 
-The gate lives in two places that must agree: the skill's `description` (what Claude Code matches on) and the routing rule in `identity.md` → Orchestration (the injected-every-session anchor). The skill is **orchestrator-only** (Claude main session — Codex never brainstorms) and **seed-agnostic**: it accepts either a fresh user request or a pulled task summary, so a future `/start` can delegate to it without changing the skill.
+The gate lives in two places that must agree: the skill's `description` (what Claude Code matches on) and the routing rule in `orchestrator.md` → Orchestration (the injected-every-session anchor). The skill is **orchestrator-role only** (executors never brainstorm) and **seed-agnostic**: it accepts either a fresh user request or a pulled task summary, so a future `/start` can delegate to it without changing the skill.
 
 ### Skill file conventions
 
