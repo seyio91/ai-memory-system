@@ -5,8 +5,12 @@
 
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
 HOOK="$REPO/harnesses/copilot/hooks/sessionstart.sh"
+PRECOMPACT="$REPO/harnesses/copilot/hooks/precompact.sh"
+POSTTOOL="$REPO/harnesses/copilot/hooks/posttooluse.sh"
 FIXTURE="$REPO/scripts/tests/fixtures/copilot/session_start_camel.json"
 PRE_TOOL_FIXTURE="$REPO/scripts/tests/fixtures/copilot/pre_tool_use_bash.json"
+PRE_COMPACT_FIXTURE="$REPO/scripts/tests/fixtures/copilot/pre_compact.json"
+POST_TOOL_FIXTURE="$REPO/scripts/tests/fixtures/copilot/post_tool_use_bash.json"
 TMP="$(new_sandbox)"
 MEM="$(new_sandbox)"
 trap 'rm -rf "$TMP" "$MEM"' EXIT
@@ -33,6 +37,9 @@ mkdir -p "$FIXTURE_CWD/.agents"
 printf 'copilotproj\n' > "$FIXTURE_CWD/.agents/memory-project"
 ORIG_CWD="$(sed -n 's/.*"cwd": "\(.*\)",/\1/p' "$FIXTURE" | head -1)"
 sed "s|$ORIG_CWD|$FIXTURE_CWD|" "$FIXTURE" > "$TMP/session_start_camel.json"
+
+STATE_DIR="$TMP/state"
+mkdir -p "$STATE_DIR"
 
 OUT="$(MEMORY_DIR="$MEM" bash "$HOOK" < "$TMP/session_start_camel.json")"
 assert_contains "$OUT" '"additionalContext"' "sessionstart: emits Copilot flat additionalContext"
@@ -67,6 +74,79 @@ fi
 # No pinned project -> dormant empty object, not an empty additionalContext string.
 NO_PROJECT="$(printf '{"cwd":"%s/no-marker"}' "$TMP" | MEMORY_DIR="$MEM" bash "$HOOK")"
 assert_eq '{}' "$NO_PROJECT" "sessionstart: no project -> empty object"
+
+PRE_COMPACT_CWD="$TMP/precompact-cwd"
+mkdir -p "$PRE_COMPACT_CWD"
+ORIG_PRE_COMPACT_CWD="$(sed -n 's/.*"cwd": "\(.*\)",/\1/p' "$PRE_COMPACT_FIXTURE" | head -1)"
+PRE_COMPACT_ID="$(sed -n 's/.*"sessionId": "\(.*\)",/\1/p' "$PRE_COMPACT_FIXTURE" | head -1)"
+sed "s|$ORIG_PRE_COMPACT_CWD|$PRE_COMPACT_CWD|" "$PRE_COMPACT_FIXTURE" > "$TMP/pre_compact.json"
+
+OUT="$(MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$PRECOMPACT" < "$TMP/pre_compact.json")"; RC=$?
+assert_exit 0 "$RC" "precompact: exits 0 for real fixture"
+assert_eq '{}' "$OUT" "precompact: emits empty object"
+assert_file "$STATE_DIR/$PRE_COMPACT_ID.recompact" "precompact: writes shared recompact sentinel"
+
+OUT="$(printf 'not json' | MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$PRECOMPACT")"; RC=$?
+assert_exit 0 "$RC" "precompact: malformed stdin exits 0"
+assert_eq '{}' "$OUT" "precompact: malformed stdin emits empty object"
+OUT="$(printf '' | MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$PRECOMPACT")"; RC=$?
+assert_exit 0 "$RC" "precompact: empty stdin exits 0"
+assert_eq '{}' "$OUT" "precompact: empty stdin emits empty object"
+
+POST_TOOL_CWD="$TMP/posttool-cwd"
+mkdir -p "$POST_TOOL_CWD/.agents"
+printf 'copilotproj\n' > "$POST_TOOL_CWD/.agents/memory-project"
+ORIG_POST_TOOL_CWD="$(sed -n 's/.*"cwd": "\(.*\)",/\1/p' "$POST_TOOL_FIXTURE" | head -1)"
+POST_TOOL_ID="$(sed -n 's/.*"sessionId": "\(.*\)",/\1/p' "$POST_TOOL_FIXTURE" | head -1)"
+sed "s|$ORIG_POST_TOOL_CWD|$POST_TOOL_CWD|" "$POST_TOOL_FIXTURE" > "$TMP/post_tool_use_bash.json"
+
+: > "$STATE_DIR/$POST_TOOL_ID.recompact"
+OUT="$(MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$POSTTOOL" < "$TMP/post_tool_use_bash.json")"; RC=$?
+assert_exit 0 "$RC" "posttooluse: armed sentinel exits 0"
+assert_contains "$OUT" '"additionalContext"' "posttooluse: armed sentinel emits additionalContext"
+assert_contains "$OUT" "COPILOT-PROJECT-MARKER" "posttooluse: payload contains project marker"
+if [ ! -e "$STATE_DIR/$POST_TOOL_ID.recompact" ]; then
+    _ok "posttooluse: removes sentinel after re-inject"
+else
+    _bad "posttooluse: removes sentinel after re-inject"
+fi
+if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$OUT" | python3 -m json.tool >/dev/null 2>&1
+    assert_exit 0 "$?" "posttooluse: armed output is valid JSON"
+fi
+
+OUT="$(MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$POSTTOOL" < "$TMP/post_tool_use_bash.json")"; RC=$?
+assert_exit 0 "$RC" "posttooluse: no sentinel exits 0"
+assert_eq '{}' "$OUT" "posttooluse: no sentinel emits empty object"
+if [ ! -e "$STATE_DIR/$POST_TOOL_ID.recompact" ]; then
+    _ok "posttooluse: no-sentinel path leaves sentinel dir untouched"
+else
+    _bad "posttooluse: no-sentinel path leaves sentinel dir untouched"
+fi
+
+HANDSHAKE_ID="11111111-2222-3333-4444-555555555555"
+sed "s|$ORIG_PRE_COMPACT_CWD|$PRE_COMPACT_CWD|;s|$PRE_COMPACT_ID|$HANDSHAKE_ID|" \
+    "$PRE_COMPACT_FIXTURE" > "$TMP/pre_compact_handshake.json"
+sed "s|$ORIG_POST_TOOL_CWD|$POST_TOOL_CWD|;s|$POST_TOOL_ID|$HANDSHAKE_ID|" \
+    "$POST_TOOL_FIXTURE" > "$TMP/post_tool_use_handshake.json"
+OUT="$(MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$PRECOMPACT" < "$TMP/pre_compact_handshake.json")"; RC=$?
+assert_exit 0 "$RC" "handshake: precompact exits 0"
+assert_eq '{}' "$OUT" "handshake: precompact emits empty object"
+assert_file "$STATE_DIR/$HANDSHAKE_ID.recompact" "handshake: precompact arms sentinel"
+OUT="$(MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$POSTTOOL" < "$TMP/post_tool_use_handshake.json")"; RC=$?
+assert_exit 0 "$RC" "handshake: first posttooluse exits 0"
+assert_contains "$OUT" '"additionalContext"' "handshake: first posttooluse re-injects"
+assert_contains "$OUT" "COPILOT-PROJECT-MARKER" "handshake: first payload contains project marker"
+OUT="$(MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$POSTTOOL" < "$TMP/post_tool_use_handshake.json")"; RC=$?
+assert_exit 0 "$RC" "handshake: second posttooluse exits 0"
+assert_eq '{}' "$OUT" "handshake: second posttooluse is dormant"
+
+OUT="$(printf 'not json' | MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$POSTTOOL")"; RC=$?
+assert_exit 0 "$RC" "posttooluse: malformed stdin exits 0"
+assert_eq '{}' "$OUT" "posttooluse: malformed stdin emits empty object"
+OUT="$(printf '' | MEMORY_DIR="$MEM" MEMORY_STATE_DIR="$STATE_DIR" bash "$POSTTOOL")"; RC=$?
+assert_exit 0 "$RC" "posttooluse: empty stdin exits 0"
+assert_eq '{}' "$OUT" "posttooluse: empty stdin emits empty object"
 
 GUARD="$REPO/scripts/hooks/guard.sh"
 PRE_TOOL_CWD="$TMP/pretool-cwd"
@@ -146,6 +226,11 @@ if [ -x "$REPO/harnesses/copilot/hooks/sessionstart.sh" ]; then
 else
     _bad "registration: referenced script is executable"
 fi
+if [ -x "$PRECOMPACT" ] && [ -x "$POSTTOOL" ]; then
+    _ok "registration: compaction scripts are executable"
+else
+    _bad "registration: compaction scripts are executable"
+fi
 FIRST="$(cat "$COPILOT_JSON")"
 _hook_register_copilot_json "$COPILOT_JSON"
 assert_eq "$FIRST" "$(cat "$COPILOT_JSON")" "registration: re-run is byte-identical"
@@ -181,9 +266,30 @@ checks.extend([
     ("guard timeoutSec", guard.get("timeoutSec") == 5),
     ("guard bash", guard.get("bash") == expected_guard),
 ])
+arm_entries = data.get("hooks", {}).get("preCompact")
+if not isinstance(arm_entries, list) or len(arm_entries) != 1:
+    sys.stderr.write("preCompact entries mismatch: %r\n" % arm_entries)
+    sys.exit(1)
+arm = arm_entries[0]
+expected_arm = "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=preCompact bash %s/harnesses/copilot/hooks/precompact.sh" % (repo, repo)
+post_entries = data.get("hooks", {}).get("postToolUse")
+if not isinstance(post_entries, list) or len(post_entries) != 1:
+    sys.stderr.write("postToolUse entries mismatch: %r\n" % post_entries)
+    sys.exit(1)
+post = post_entries[0]
+expected_post = "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=md AI_MEMORY_HOOK_EVENT=postToolUse bash %s/harnesses/copilot/hooks/posttooluse.sh" % (repo, repo)
+checks.extend([
+    ("arm type", arm.get("type") == "command"),
+    ("arm timeoutSec", arm.get("timeoutSec") == 10),
+    ("arm bash", arm.get("bash") == expected_arm),
+    ("post type", post.get("type") == "command"),
+    ("post timeoutSec", post.get("timeoutSec") == 10),
+    ("post bash", post.get("bash") == expected_post),
+    ("event count", sorted(data.get("hooks", {}).keys()) == ["postToolUse", "preCompact", "preToolUse", "sessionStart"]),
+])
 for label, ok in checks:
     if not ok:
-        sys.stderr.write("%s failed: session=%r guard=%r\n" % (label, entry, guard))
+        sys.stderr.write("%s failed: session=%r guard=%r arm=%r post=%r\n" % (label, entry, guard, arm, post))
         sys.exit(1)
 PY
     rc=$?

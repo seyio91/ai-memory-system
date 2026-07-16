@@ -121,9 +121,13 @@ Rejected alternatives (on the record):
       (Validator: ACCEPT. Phase-5 doc note: guard never consults `toolName` —
       schema-drift on the bash shape stays fail-open by design, same as
       claude/antigravity; document the residual in docs/harnesses/copilot.md.)
-- [ ] Phase 3 — compaction + breadcrumb: `preCompact` sentinel arm (side-effect
+- [x] Phase 3 — compaction + breadcrumb: `preCompact` sentinel arm (side-effect
       registration of the shared arm logic) + `postToolUse` re-inject/clear adapter;
       verify a post-compaction session recovers full memory.
+      (Validator: ACCEPT — handshake interoperable both directions with the
+      Claude/codex sentinel consumers; empty-sessionId edge safe (no stray-sentinel
+      match possible); sentinel-clear-on-empty-payload mirrors inject.sh exactly.
+      Live /compact recovery check deferred to final validation.)
 - [ ] Phase 4 — executor face: `copilot-mem.sh` wrapper + manifest `exec_*` block;
       `executor.sh --which/--run` for task/explore; read-only enforcement for explore.
 - [ ] Phase 5 — tests wired into `run-tests.sh` (registration, injection schema, guard

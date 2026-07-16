@@ -260,6 +260,12 @@ assert_contains "$cphj" '"preToolUse"' "copilot: camelCase preToolUse registered
 assert_contains "$cphj" '"timeoutSec": 5' "copilot: guard timeoutSec registered"
 assert_contains "$cphj" "scripts/hooks/guard.sh" "copilot: preToolUse command -> shared guard"
 assert_contains "$cphj" "AI_MEMORY_GUARD_OUTPUT=copilot-json" "copilot: guard output mode registered"
+assert_contains "$cphj" '"preCompact"' "copilot: camelCase preCompact registered"
+assert_contains "$cphj" "harnesses/copilot/hooks/precompact.sh" "copilot: preCompact command -> sentinel arm adapter"
+assert_contains "$cphj" '"postToolUse"' "copilot: camelCase postToolUse registered"
+assert_contains "$cphj" "harnesses/copilot/hooks/posttooluse.sh" "copilot: postToolUse command -> re-inject adapter"
+assert_eq "4" "$(grep -c '"type": "command"' "$FHOME/.copilot/hooks/ai-memory.json")" \
+    "copilot: owned hooks file has four event rows"
 assert_eq "$foo_before" "$(cat "$FHOME/.copilot/hooks/foo.json")" "copilot: sibling hook file untouched"
 first_copilot="$(cat "$FHOME/.copilot/hooks/ai-memory.json")"
 run_install --harness copilot >"$SBROOT/log.copilot2" 2>&1; rc=$?

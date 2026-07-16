@@ -10,8 +10,12 @@ probe        = copilot
 # sibling files and are untouched.
 copilot_hooks_json = ~/.copilot/hooks/ai-memory.json
 session_script     = $MEMORY_DIR/harnesses/copilot/hooks/sessionstart.sh
+hook_script        = $MEMORY_DIR/harnesses/copilot/hooks/posttooluse.sh
+arm_script         = $MEMORY_DIR/harnesses/copilot/hooks/precompact.sh
 guard_script       = $MEMORY_DIR/scripts/hooks/guard.sh
 
 [hooks]
 session_bootstrap = sessionStart
 infra_guard = preToolUse
+compaction_arm = preCompact
+per_turn_inject = postToolUse
