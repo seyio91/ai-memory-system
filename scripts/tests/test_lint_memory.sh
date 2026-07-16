@@ -190,4 +190,35 @@ run_lint
 assert_contains "$OUT" "working.wt-old.md stale" "lint flags a stale worktree overlay"
 rm -rf "$M8"
 
+# --- investigations must carry a task_ref (lifecycle anchor) ---
+M9="$(new_sandbox)"; export MEMORY_DIR="$M9"; build_clean "$M9"
+mkdir -p "$M9/projects/good/investigations" "$M9/projects/good/archive/investigations"
+cat > "$M9/projects/good/investigations/anchored.md" <<'EOF'
+---
+kind: investigation
+task_ref: 12345678-abcd-4ef0-9012-34567890abcd
+status: open
+created: 2026-07-16
+---
+# anchored
+EOF
+run_lint
+assert_exit 0 "$CODE" "investigation with task_ref keeps lint clean"
+cat > "$M9/projects/good/investigations/orphan.md" <<'EOF'
+---
+kind: investigation
+status: open
+created: 2026-07-16
+---
+# orphan
+EOF
+run_lint
+assert_exit 1 "$CODE" "investigation without task_ref exits 1"
+assert_contains "$OUT" "orphan.md has no task_ref" "warning names the orphan investigation"
+# archived investigations are never scanned
+mv "$M9/projects/good/investigations/orphan.md" "$M9/projects/good/archive/investigations/orphan.md"
+run_lint
+assert_exit 0 "$CODE" "archived orphan investigation is not scanned"
+rm -rf "$M9"
+
 finish
