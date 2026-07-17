@@ -13,11 +13,16 @@
 
 # driver_install — dispatch on which registration style the manifest declares.
 driver_install() {
-    local hooks_dir hooks_json copilot_hooks_json settings_json sl_settings
+    local hooks_dir hooks_json copilot_hooks_json settings_json statusline sl_settings
     hooks_dir="$(manifest_get "$MANIFEST" hooks_dir)"
     hooks_json="$(manifest_get "$MANIFEST" hooks_json)"
     copilot_hooks_json="$(manifest_get "$MANIFEST" copilot_hooks_json)"
     settings_json="$(manifest_get "$MANIFEST" settings_json)"
+    statusline="$(manifest_get "$MANIFEST" statusline)"
+
+    if [ -n "$statusline" ]; then
+        _hook_link_statusline "$statusline"
+    fi
 
     if [ -n "$hooks_dir" ]; then
         _hook_install_scripts "$hooks_dir"
@@ -118,15 +123,8 @@ PY
     fi
 }
 
-# _hook_install_scripts <hooks_dir> — Claude style: keep the runtime root around
-# and symlink the statusline, if any. Hook scripts run by absolute path from
-# settings.json, so harnesses/claude/hooks/*.sh is no longer fanned into HOME.
-_hook_install_scripts() {
-    local hooks_dir="$1" statusline
-    step "Hook runtime -> $hooks_dir"
-    mkdir -p "$hooks_dir"
-
-    statusline="$(manifest_get "$MANIFEST" statusline)"
+_hook_link_statusline() {
+    local statusline="$1"
     if [ -n "$statusline" ]; then
         if [ -f "$HARNESS_DIR/statusline.sh" ]; then
             step "Status line -> $statusline"
@@ -136,6 +134,15 @@ _hook_install_scripts() {
             info "no $HARNESS_DIR/statusline.sh — skipping status line"
         fi
     fi
+}
+
+# _hook_install_scripts <hooks_dir> — Claude style: keep the runtime root around.
+# Hook scripts run by absolute path from settings.json, so harnesses/claude/hooks/*.sh
+# is no longer fanned into HOME.
+_hook_install_scripts() {
+    local hooks_dir="$1"
+    step "Hook runtime -> $hooks_dir"
+    mkdir -p "$hooks_dir"
 }
 
 # _hook_register_json <hooks_json> — Antigravity style: register namespaced hook
@@ -628,6 +635,11 @@ driver_notes() {
         cat <<EOF
   1. Copilot hooks were written to the owned file $copilot_hooks_json.
      Verify: run 'copilot' in a pinned repo and check it sees memory at session start.
+  2. The statusline script is symlinked to ~/.copilot/statusline.sh, but the
+     experimental STATUS_LINE flag and settings entry are manual. To enable it,
+     add to ~/.copilot/settings.json:
+       { "feature_flags": { "enabled": ["STATUS_LINE"] },
+         "statusLine": { "type": "command", "command": "~/.copilot/statusline.sh", "padding": 1 } }
 EOF
         return
     fi

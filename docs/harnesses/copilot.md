@@ -45,6 +45,25 @@ the user-level hooks directory only.
 | `compaction_arm` | `preCompact` | `harnesses/copilot/hooks/precompact.sh` | Arms the shared `.recompact` sentinel as a side effect. |
 | `per_turn_inject` | `postToolUse` | `harnesses/copilot/hooks/posttooluse.sh` | If a sentinel is present, re-injects the full payload once and clears it. |
 
+## Status line
+
+`install.sh --harness copilot` symlinks the script to
+`~/.copilot/statusline.sh`. Enabling the status line is a manual step because
+Copilot gates it behind the experimental `STATUS_LINE` feature flag.
+
+`~/.copilot/settings.json`:
+
+```json
+{ "feature_flags": { "enabled": ["STATUS_LINE"] },
+  "statusLine": { "type": "command", "command": "~/.copilot/statusline.sh", "padding": 1 } }
+```
+
+Copilot pipes JSON to the command on each render. The script reads
+`model.display_name`, `workspace.current_dir` with `.cwd` fallback, and
+`context_window.current_context_used_percentage` with `.used_percentage`
+fallback. The workspace directory is also used for `git -C "$DIR" branch
+--show-current`, because Copilot does not provide a local branch field.
+
 ## Commands and skills
 
 Copilot's command mechanism is skills, like Codex's. The install fans the

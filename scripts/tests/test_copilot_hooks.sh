@@ -16,6 +16,8 @@ MEM="$(new_sandbox)"
 trap 'rm -rf "$TMP" "$MEM"' EXIT
 
 seed_min_tree "$MEM"
+mkdir -p "$MEM/scripts"
+cp "$REPO/scripts/_lib.sh" "$MEM/scripts/_lib.sh"
 mkdir -p "$MEM/projects/copilotproj"
 cat > "$MEM/projects/copilotproj/memory.md" <<'EOF'
 ---
@@ -28,6 +30,18 @@ summary: Copilot project summary
 COPILOT-PROJECT-MARKER
 EOF
 printf '# Working\n\nCOPILOT-WORKING-MARKER\n' > "$MEM/projects/copilotproj/working.md"
+cat > "$MEM/projects/copilotproj/todo.md" <<'EOF'
+# Todo
+
+- [ ] first open item
+- [x] completed item
+
+```
+- [ ] fenced example only
+```
+
+- [ ] second open item
+EOF
 
 # Rewrite the fixture's captured absolute cwd to a path inside this test's own
 # sandbox — never materialize (or clean up) the literal recorded path, which on
@@ -202,6 +216,42 @@ env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_OUTPUT=copilot-json bash "$GUARD" \
 RC=$?
 assert_exit 0 "$RC" "guard: Copilot no role leaves interactive sessions unguarded"
 assert_eq "" "$(cat "$GUARD_OUT")" "guard: Copilot no role emits empty stdout"
+
+SL="$REPO/harnesses/copilot/statusline.sh"
+STATUS_CWD="$TMP/status-cwd"
+mkdir -p "$STATUS_CWD/.agents"
+printf 'copilotproj\n' > "$STATUS_CWD/.agents/memory-project"
+if command -v git >/dev/null 2>&1; then
+    git -C "$STATUS_CWD" init -q
+    git -C "$STATUS_CWD" symbolic-ref HEAD refs/heads/status-main
+fi
+PAYLOAD="$(printf '{"model":{"display_name":"GPT-5 Copilot"},"workspace":{"current_dir":"%s"},"context_window":{"current_context_used_percentage":72.5}}' "$STATUS_CWD")"
+OUT="$(printf '%s' "$PAYLOAD" | MEMORY_DIR="$MEM" bash "$SL")"; RC=$?
+assert_exit 0 "$RC" "statusline: project render exits 0"
+assert_contains "$OUT" "GPT-5 Copilot" "statusline: shows the model"
+assert_contains "$OUT" "status-cwd" "statusline: shows the folder"
+assert_contains "$OUT" "copilotproj" "statusline: shows the memory project"
+assert_contains "$OUT" "2 open" "statusline: shows memory open todo count"
+if command -v git >/dev/null 2>&1; then
+    assert_contains "$OUT" "status-main" "statusline: derives git branch from workspace dir"
+fi
+assert_contains "$OUT" "72% ctx" "statusline: shows context percentage without cost"
+
+DORMANT="$TMP/no-project-cwd"
+mkdir -p "$DORMANT"
+PAYLOAD="$(printf '{"model":{"display_name":"GPT-5 Copilot"},"workspace":{"current_dir":"%s"},"context_window":{"used_percentage":11}}' "$DORMANT")"
+OUT="$(printf '%s' "$PAYLOAD" | MEMORY_DIR="$MEM" bash "$SL")"; RC=$?
+assert_exit 0 "$RC" "statusline: dormant render exits 0"
+assert_contains "$OUT" "🧠 (no project)" "statusline: dormant shows no-project memory segment"
+assert_not_contains "$OUT" "📋" "statusline: dormant omits todo glyph"
+assert_not_contains "$OUT" "open" "statusline: dormant omits open todo count"
+
+NOJQ_BIN="$TMP/nojq-bin"
+mkdir -p "$NOJQ_BIN"
+ln -s /bin/bash "$NOJQ_BIN/bash"
+ln -s /bin/cat "$NOJQ_BIN/cat"
+OUT="$(printf '%s' "$PAYLOAD" | PATH="$NOJQ_BIN" MEMORY_DIR="$MEM" bash "$SL" 2>&1)"; RC=$?
+assert_exit 0 "$RC" "statusline: no-jq fallback exits 0"
 
 . "$REPO/scripts/manifest.sh"
 MANIFEST="$REPO/harnesses/copilot/manifest"
