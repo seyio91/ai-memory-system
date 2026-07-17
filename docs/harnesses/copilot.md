@@ -60,9 +60,10 @@ copilot install populates the directory itself.
 ## What gets injected
 
 The `sessionStart` adapter sources the shared hook library and renders the same
-markdown payload as Codex: identity, active project memory, index, domain index,
-and non-empty working memory. Project detection comes from the hook stdin `cwd`;
-no launcher-exported project variable is needed for interactive use.
+markdown payload as Codex: identity, orchestrator doctrine, active project
+memory, index, domain index, and non-empty working memory. Project detection
+comes from the hook stdin `cwd`; no launcher-exported project variable is needed
+for interactive use.
 
 There is no Copilot per-turn breadcrumb. `userPromptSubmitted` is notification-only
 and cannot inject context. `postToolUse` can inject, but only after a tool call, so

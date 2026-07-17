@@ -13,7 +13,7 @@
 
 # Canonical section order. `content_sections` walks these and emits the ones that
 # are present (and, if a filter is given, requested).
-_CS_ORDER="identity project index domain working"
+_CS_ORDER="identity orchestrator project index domain working"
 _CS_WANT=""
 
 # _cs_want <kind> — true if <kind> is in the active filter (empty filter = all).
@@ -87,6 +87,8 @@ content_sections() {
         case "$kind" in
             identity)
                 [ -f "$mdir/identity.md" ] && printf 'identity\t%s\t\n' "$mdir/identity.md" ;;
+            orchestrator)
+                [ -f "$mdir/orchestrator.md" ] && printf 'orchestrator\t%s\t\n' "$mdir/orchestrator.md" ;;
             project)
                 [ -n "$project" ] && [ -f "$mdir/projects/$project/memory.md" ] \
                     && printf 'project\t%s\t%s\n' "$mdir/projects/$project/memory.md" "$project" ;;

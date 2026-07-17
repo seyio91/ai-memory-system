@@ -3,7 +3,7 @@
 #   - project resolves ONLY by walking cwd up to a .agents/memory-project marker
 #     (legacy .claude/memory-project still resolves via fallback; no .active_project global).
 #   - plain prompt + project  -> tiny <memory:active ...> breadcrumb
-#   - "@memory" prompt + project -> full payload (identity + project + index + working)
+#   - "@memory" prompt + project -> full payload (identity + orchestrator + project + index + working)
 #   - no marker (any prompt)   -> silent (generic Claude, memory system dormant)
 . "$(dirname "$0")/_assert.sh"
 

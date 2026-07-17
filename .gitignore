@@ -82,6 +82,8 @@ __pycache__/
 # the empty folder in git.
 /skills/*
 !/skills/.gitkeep
+!/skills/brainstorming/
+!/skills/brainstorming/**
 
 # Remote-skill cache: content is materialized per-instance by resolve-skills.sh from
 # root skills.toml and pinned by .skill-cache/skills.lock. Never committed — remote
@@ -98,6 +100,10 @@ __pycache__/
 # sync-system.sh's dirty-tracked-file guard then aborts every sync. install.sh seeds
 # it from the tracked identity.template.md whenever it is missing.
 /identity.md
+
+# Your orchestrator.md is per-instance workflow doctrine. install.sh seeds it from
+# orchestrator.template.md whenever missing; edits are local like identity.md.
+/orchestrator.md
 
 # Stray terraform state from validator probes (echo-PWNED-style tests)
 terraform.tfstate

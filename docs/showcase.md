@@ -98,7 +98,7 @@ each injection cheap and each layer's lifecycle distinct.
 (`scripts/hooks/inject.sh`) emits `<memory:*>` blocks straight into the prompt —
 the model never issues a retrieval call. There are three "full payload" moments —
 **SessionStart**, an explicit `@memory`, and the first prompt after **compaction** — where
-the whole stack (identity → project memory → index → working) is injected. Every *other*
+the whole stack (identity → orchestrator → project memory → index → working) is injected. Every *other*
 prompt gets only a lightweight `<memory:active>` breadcrumb (project name + file paths), so
 the context that repeats each turn stays tiny and the cache prefix isn't busted.
 

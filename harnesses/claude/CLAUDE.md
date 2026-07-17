@@ -66,7 +66,7 @@ Every non-trivial **actionable** task flows through three roles. Hard rules in `
 `todo.md` tracks **plan execution**. No plan ⇒ no `todo.md` entry. The workflow exists to manage large state-mutating work — not to ceremonially wrap every question or every small edit.
 
 ### Roles
-1. **Orchestrator (Claude main session)** — for large actionable tasks: plans, decomposes, delegates. Writes plans to `projects/<active>/plans/<name>.md` and tracks their steps in `projects/<active>/todo.md` (markdown checkboxes). **Handles quick items and short tasks directly** — no plan/todo — when delegating would be more overhead than the work. **Handles all research/exploration directly** — never spins up an executor or files plan/todo artifacts for read-only investigation.
+1. **Orchestrator (main session)** — for large actionable tasks: plans, decomposes, delegates. Writes plans to `projects/<active>/plans/<name>.md` and tracks their steps in `projects/<active>/todo.md` (markdown checkboxes). **Handles quick items and short tasks directly** — no plan/todo — when delegating would be more overhead than the work. **Handles all research/exploration directly** — never spins up an executor or files plan/todo artifacts for read-only investigation.
 2. **Executor: two roles, each `harness[:model]`-configurable.** Pick the role by task nature: `task` (default, write-capable — a plan step) or `explore` (read-only scouting). Run `~/.claude-memory/scripts/executor.sh --role <role> --which`:
    - `subagent` / `subagent:<model>` → use the Claude `Agent` tool (named model or `sonnet`; `Explore` type for the explore role).
    - `cli:<name>` → run `~/.claude-memory/scripts/executor.sh --role <role> --run "<prompt>"`; on `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead. **Dispatch the `--run` as a background Bash task (`run_in_background: true`)** — a CLI executor runs a minutes-long agentic loop, so a foreground call is killed by the 2-min tool timeout (SIGTERM, exit 143) mid-run; read its output file when the task completes. (The subagent plane does not have this limit.)
@@ -94,4 +94,3 @@ Projects map one-to-one to repos, but some relate (a unit of work spans several,
 
 - **Delegate, don't load.** When a task matches a `## Related Projects` row, do NOT pull the sibling's `memory.md` into the main thread. Delegate sibling-scoped work to the configured executor (`executor.sh --which` → `--run` or Agent tool) with a self-contained prompt (points at `identity.md` + the sibling `memory.md`); default deliverable = **plan only**. Keep only the returned summary.
 - **Plan-set execution.** Execute persisted plans by walking them in order and delegating each; keep summaries; **pause at human/CI gates** (PR merges, `terraform`/`kubectl` applies).
-

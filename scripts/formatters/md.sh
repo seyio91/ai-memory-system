@@ -17,6 +17,8 @@ md_render() {
         case "$kind" in
             identity)
                 echo "# === IDENTITY ==="; echo; cat "$path"; echo ;;
+            orchestrator)
+                echo "# === ORCHESTRATOR ==="; echo; cat "$path"; echo ;;
             project)
                 echo "# === PROJECT: $name ==="; echo; cat "$path"; echo ;;
             index)
@@ -40,6 +42,7 @@ md_render_breadcrumb() {
     while IFS=$'\t' read -r kind path name; do
         case "$kind" in
             identity) echo "identity: $path" ;;
+            orchestrator) echo "orchestrator: $path" ;;
             project)  echo "project memory: $path" ;;
             index)    echo "index: $path" ;;
             working)  ;;  # emitted below as the always-present write target

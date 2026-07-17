@@ -78,8 +78,8 @@ render_full() {
     local project="$1" format="${AI_MEMORY_HOOK_FORMAT:-xml}"
     [ -z "$project" ] && return 0
     case "$format" in
-        xml) content_sections "$project" identity project index working | xml_render_full ;;
-        md)  content_sections "$project" identity project index domain working | md_render ;;
+        xml) content_sections "$project" identity orchestrator project index working | xml_render_full ;;
+        md)  content_sections "$project" identity orchestrator project index domain working | md_render ;;
         *)   printf 'unsupported AI_MEMORY_HOOK_FORMAT: %s\n' "$format" >&2; return 2 ;;
     esac
 }
@@ -196,8 +196,8 @@ render_breadcrumb() {
     local project="$1" cwd="${2:-}" format="${AI_MEMORY_HOOK_FORMAT:-xml}"
     [ -z "$project" ] && return 0
     case "$format" in
-        xml) content_sections "$project" identity project index working | xml_render_breadcrumb "$project" "$cwd" ;;
-        md)  content_sections "$project" identity project index working | md_render_breadcrumb "$project" "$cwd" ;;
+        xml) content_sections "$project" identity orchestrator project index working | xml_render_breadcrumb "$project" "$cwd" ;;
+        md)  content_sections "$project" identity orchestrator project index working | md_render_breadcrumb "$project" "$cwd" ;;
         *)   printf 'unsupported AI_MEMORY_HOOK_FORMAT: %s\n' "$format" >&2; return 2 ;;
     esac
 }
