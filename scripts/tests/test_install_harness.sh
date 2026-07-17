@@ -260,6 +260,7 @@ rm -rf "$FHOME/.agents/skills"
 run_install --harness copilot >"$SBROOT/log.copilot" 2>&1; rc=$?
 assert_exit 0 "$rc" "copilot install exits 0"
 assert_file "$FHOME/.copilot/hooks/ai-memory.json" "copilot: owned ai-memory.json registered"
+assert_file "$FHOME/.copilot/statusline.sh" "copilot: statusline linked"
 cphj="$(cat "$FHOME/.copilot/hooks/ai-memory.json")"
 assert_contains "$cphj" '"version": 1' "copilot: hooks file declares version 1"
 assert_contains "$cphj" '"sessionStart"' "copilot: camelCase sessionStart registered"
@@ -278,6 +279,8 @@ assert_contains "$cphj" '"preCompact"' "copilot: camelCase preCompact registered
 assert_contains "$cphj" "harnesses/copilot/hooks/precompact.sh" "copilot: preCompact command -> sentinel arm adapter"
 assert_contains "$cphj" '"postToolUse"' "copilot: camelCase postToolUse registered"
 assert_contains "$cphj" "harnesses/copilot/hooks/posttooluse.sh" "copilot: postToolUse command -> re-inject adapter"
+assert_contains "$(cat "$SBROOT/log.copilot")" "STATUS_LINE" "copilot: notes mention manual experimental statusline flag"
+assert_contains "$(cat "$SBROOT/log.copilot")" ".copilot/statusline.sh" "copilot: notes mention manual statusline command"
 assert_eq "4" "$(grep -c '"type": "command"' "$FHOME/.copilot/hooks/ai-memory.json")" \
     "copilot: owned hooks file has four event rows"
 assert_eq "$foo_before" "$(cat "$FHOME/.copilot/hooks/foo.json")" "copilot: sibling hook file untouched"
