@@ -67,13 +67,14 @@ was low-value).
 
 ## Phases
 
-- [ ] Phase 1 — lift `count_open_todos` into `_lib.sh`; repoint
+- [x] Phase 1 — lift `count_open_todos` into `_lib.sh`; repoint
       `regenerate-state.sh`; suite green.
-- [ ] Phase 2 — Claude statusline segment.
-- [ ] Phase 3 — agy statusline: replace `tasks` with the segment; update
+- [x] Phase 2 — Claude statusline segment.
+- [x] Phase 3 — agy statusline: replace `tasks` with the segment; update
       `test_antigravity.sh` assertions; suite green.
-- [ ] Phase 4 — validate (cross-model), live render check both harnesses,
-      PR.
+- [x] Phase 4 — validate (cross-model), live render check both harnesses,
+      PR. (Executor: codex, commit e5170fd; cross-model validate: ACCEPT;
+      PR #75. Awaiting human merge.)
 
 ## Risks / open questions
 
