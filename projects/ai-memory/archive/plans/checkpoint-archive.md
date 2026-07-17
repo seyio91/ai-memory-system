@@ -1,7 +1,8 @@
 ---
 plan: checkpoint-archive
-status: active
+status: done
 created: 2026-07-17
+completed: 2026-07-17
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 3a0f6850-c619-8177-b4b7-efc1da5d0177
