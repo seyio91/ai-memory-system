@@ -4,8 +4,11 @@
 # here. Three roles select independent config, each a `harness[:model]` value:
 #   task     -> AI_MEMORY_EXECUTOR_TASK     (write-capable; a plan step)
 #   explore  -> AI_MEMORY_EXECUTOR_EXPLORE  (read-only scouting)
-#   validate -> AI_MEMORY_EXECUTOR_VALIDATE (read-only check of executor output; defaults to claude-subagent, NOT the legacy var)
-# Task/explore fall back to the legacy single AI_MEMORY_EXECUTOR, then to claude-subagent.
+#   validate -> AI_MEMORY_EXECUTOR_VALIDATE (read-only check of executor output; defaults to 'subagent', NOT the legacy var)
+# Task/explore fall back to the legacy single AI_MEMORY_EXECUTOR, then to 'subagent'.
+# 'subagent' is orchestrator-relative: the calling harness's own subagent plane
+# (Claude's Agent tool, Copilot's background agents, ...). 'claude-subagent' is
+# its accepted legacy alias.
 #
 #   executor.sh [--role task|explore|validate] --which          -> 'subagent[:model]' | 'cli:<name>'
 #   executor.sh [--role task|explore|validate] --run [--clean] "<prompt>" -> execs the CLI executor, or
@@ -34,7 +37,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Registry location (override for tests / non-standard layouts).
 HARNESSES_DIR="${AI_MEMORY_HARNESSES_DIR:-$REPO_ROOT/harnesses}"
 
-FALLBACK="${AI_MEMORY_EXECUTOR_FALLBACK-claude-subagent}"
+FALLBACK="${AI_MEMORY_EXECUTOR_FALLBACK-subagent}"
 ROLE="task"
 
 # Deliberate first-word split with globbing disabled.
@@ -49,10 +52,10 @@ role_value() {
     case "$ROLE" in
         task)     v="${AI_MEMORY_EXECUTOR_TASK-}" ;;
         explore)  v="${AI_MEMORY_EXECUTOR_EXPLORE-}" ;;
-        validate) v="${AI_MEMORY_EXECUTOR_VALIDATE-}"; [ -n "$v" ] || v="claude-subagent"; printf '%s' "$v"; return 0 ;;
+        validate) v="${AI_MEMORY_EXECUTOR_VALIDATE-}"; [ -n "$v" ] || v="subagent"; printf '%s' "$v"; return 0 ;;
     esac
     [ -n "$v" ] || v="${AI_MEMORY_EXECUTOR-}"
-    [ -n "$v" ] || v="claude-subagent"
+    [ -n "$v" ] || v="subagent"
     printf '%s' "$v"
 }
 
@@ -81,8 +84,12 @@ resolve_value() {
     case "$value" in *:*) model="${value#*:}" ;; esac
     R_PLANE="" R_NAME="$harness" R_MODEL="$model" R_CMD="" R_LASTMSG=""
 
-    # subagent plane: legacy sentinel or a manifest exec=subagent.
-    if [ "$harness" = "claude-subagent" ]; then R_PLANE=subagent; return 0; fi
+    # subagent plane: the canonical 'subagent' sentinel, its legacy alias
+    # 'claude-subagent' (kept so existing config.local.sh files keep working),
+    # or a manifest exec=subagent. The sentinel is orchestrator-relative — it
+    # means "the calling harness's OWN subagent mechanism" (Claude's Agent
+    # tool, Copilot's background agents, ...), never a specific harness.
+    if [ "$harness" = "subagent" ] || [ "$harness" = "claude-subagent" ]; then R_PLANE=subagent; return 0; fi
 
     mf="$(harness_manifest "$harness")"
     if [ -n "$mf" ]; then
@@ -124,7 +131,7 @@ resolve_value() {
     local tmpl bin
     tmpl="$(cmd_template "$harness")"
     if [ -z "$tmpl" ]; then
-        printf 'executor: unknown executor %s (register a harness manifest, set AI_MEMORY_EXECUTOR_CMD_%s, or use claude-subagent)\n' "$harness" "$harness" >&2
+        printf 'executor: unknown executor %s (register a harness manifest, set AI_MEMORY_EXECUTOR_CMD_%s, or use subagent)\n' "$harness" "$harness" >&2
         return 2
     fi
     case "$tmpl" in *'{prompt}'*) : ;; *) printf 'executor: AI_MEMORY_EXECUTOR_CMD_%s must contain {prompt}\n' "$harness" >&2; return 2 ;; esac

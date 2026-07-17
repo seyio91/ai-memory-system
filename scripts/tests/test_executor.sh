@@ -40,11 +40,17 @@ set -e
 assert_eq "subagent" "$(cat "$BIN/o")" "default executor resolves to subagent"
 assert_exit 0 "$CODE" "default --which exits 0"
 
-# --- 1b. explicit claude-subagent -> subagent ---
+# --- 1b. legacy alias claude-subagent -> subagent (kept for old config.local.sh) ---
 export AI_MEMORY_EXECUTOR="claude-subagent"
 run --which
-assert_eq "subagent" "$OUT" "explicit claude-subagent -> subagent"
+assert_eq "subagent" "$OUT" "legacy alias claude-subagent -> subagent"
 assert_exit 0 "$CODE" "claude-subagent --which exits 0"
+
+# --- 1c. canonical subagent sentinel -> subagent ---
+export AI_MEMORY_EXECUTOR="subagent"
+run --which
+assert_eq "subagent" "$OUT" "canonical subagent sentinel -> subagent"
+assert_exit 0 "$CODE" "subagent --which exits 0"
 
 # --- 2. codex selected + codex present on PATH -> cli:codex ---
 cat > "$BIN/codex" <<'EOF'
@@ -116,7 +122,7 @@ assert_eq "ARG do the thing END" "$(cat "$MARK")" "--run substitutes {prompt} (q
 export PATH="$OLDPATH"
 
 # --- 8. --run resolving to subagent -> sentinel + exit 3 ---
-export AI_MEMORY_EXECUTOR="claude-subagent"
+export AI_MEMORY_EXECUTOR="subagent"
 run --run "anything"
 assert_eq "EXECUTOR_USE_SUBAGENT" "$OUT" "--run subagent prints sentinel"
 assert_exit 3 "$CODE" "--run subagent exits 3"
@@ -414,7 +420,7 @@ assert_eq "CLEAN-MSG" "$OUT" "--run --clean cleans the explore role (exec_readon
 unset AI_MEMORY_EXECUTOR_EXPLORE CLEANBIN_MSG
 
 # --clean on the subagent plane is a no-op: still prints the sentinel and exits 3
-export AI_MEMORY_EXECUTOR_VALIDATE=claude-subagent
+export AI_MEMORY_EXECUTOR_VALIDATE=subagent
 run --role validate --run --clean "check"
 assert_eq "EXECUTOR_USE_SUBAGENT" "$OUT" "--run --clean on the subagent plane still prints the sentinel"
 assert_exit 3 "$CODE" "--run --clean on the subagent plane exits 3 (--clean is a no-op)"

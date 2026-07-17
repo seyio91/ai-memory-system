@@ -223,7 +223,7 @@ Non-trivial work flows through three roles (diagram below):
 
 - **Orchestrator** (the main session) plans and delegates.
 - **Executor** runs the delegated work. It's *config-driven*, not hardcoded: `executor.sh
-  --which` resolves `AI_MEMORY_EXECUTOR` (default `claude-subagent`, or a CLI like `codex`),
+  --which` resolves `AI_MEMORY_EXECUTOR` (default `subagent`, or a CLI like `codex`),
   so the same workflow runs whatever backend an instance is configured with.
 - **Validator** checks the result against the plan's `## Success criteria`. It's a **separate,
   read-only role** (`AI_MEMORY_EXECUTOR_VALIDATE`) that defaults to the orchestrator's own agent
