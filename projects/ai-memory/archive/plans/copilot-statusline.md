@@ -1,7 +1,8 @@
 ---
 plan: copilot-statusline
-status: active
+status: done
 created: 2026-07-17
+completed: 2026-07-17
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 3a0f6850-c619-8121-8bdf-f109446a4086
