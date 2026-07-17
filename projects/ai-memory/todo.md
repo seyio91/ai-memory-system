@@ -6,7 +6,7 @@
 ## Active
 
 ### Checkpoint-archive: roll working.md checkpoints independently → [plan](plans/checkpoint-archive.md)
-- [ ] Phase 1 — scripts/checkpoint-archive.sh (awk section split, snapshot, inline reset, no-op guard)
-- [ ] Phase 2 — scripts/tests/test_checkpoint_archive.sh (siblings preserved, reset, no-op, slug, worktree path)
-- [ ] Phase 3 — /checkpoint-archive command (wrapper + in-flight gate) + docs
-- [ ] Phase 4 — validate (cross-model), suite green, PR
+- [x] Phase 1 — scripts/checkpoint-archive.sh (awk section split, snapshot, inline reset, no-op guard)
+- [x] Phase 2 — scripts/tests/test_checkpoint_archive.sh (siblings preserved, reset, no-op, slug, worktree path)
+- [x] Phase 3 — /checkpoint-archive command (wrapper + in-flight gate) + docs
+- [x] Phase 4 — validate (cross-model), suite green, PR (#77 open, awaiting merge)

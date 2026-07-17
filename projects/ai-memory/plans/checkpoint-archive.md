@@ -92,13 +92,15 @@ coupling that *is* the bug).
 
 ## Phases
 
-- [ ] Phase 1 — `scripts/checkpoint-archive.sh` (awk section split, snapshot,
+- [x] Phase 1 — `scripts/checkpoint-archive.sh` (awk section split, snapshot,
       inline reset; working-file arg; no-op guard).
-- [ ] Phase 2 — `scripts/tests/test_checkpoint_archive.sh` (siblings preserved,
+- [x] Phase 2 — `scripts/tests/test_checkpoint_archive.sh` (siblings preserved,
       reset, no-op, slug, worktree path).
-- [ ] Phase 3 — `/checkpoint-archive` command (wrapper + in-flight gate) +
+- [x] Phase 3 — `/checkpoint-archive` command (wrapper + in-flight gate) +
       docs (claude.md table row, promote-memory cross-ref).
-- [ ] Phase 4 — validate (cross-model), suite green, PR.
+- [x] Phase 4 — validate (cross-model), suite green, PR. (Executor codex
+      `ddace4c`; suite 48/0 @ LC_ALL=C; end-to-end on real working.md; cross-
+      model validate: ACCEPT (all 6); PR #77. Awaiting human merge.)
 
 ## Risks / open questions
 
