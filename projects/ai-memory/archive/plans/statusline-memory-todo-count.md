@@ -1,7 +1,8 @@
 ---
 plan: statusline-memory-todo-count
-status: active
+status: done
 created: 2026-07-17
+completed: 2026-07-17
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 396f6850-c619-81a4-a573-edac26f5372e
