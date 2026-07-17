@@ -26,16 +26,16 @@ NUM="${FG_WHITE}${B}"
 # ─── Glyphs (Nerd Font ⟷ emoji/text fallback) ────────────────────────────────
 if [ "$USE_NERD_FONTS" = "true" ]; then
     # printf octal, not $'\uXXXX' \u2014 the latter needs bash 4.2+; this repo targets
-    # bash 3.2, where $'\u' stays a literal. U+F1C0 F07B F126 F2DB (Nerd Font).
-    G_MEM=$(printf '\357\207\200'); G_DIR=$(printf '\357\201\273'); G_BR=$(printf '\357\204\246'); G_MODEL=$(printf '\357\213\233')
+    # bash 3.2, where $'\u' stays a literal. U+F1C0 F07B F126 F2DB F0AE (Nerd Font).
+    G_MEM=$(printf '\357\207\200'); G_DIR=$(printf '\357\201\273'); G_BR=$(printf '\357\204\246'); G_MODEL=$(printf '\357\213\233'); G_TODO=$(printf '\357\202\256')
 else
-    G_MEM="🧠"; G_DIR="📁"; G_BR="🌿"; G_MODEL="🤖"
+    G_MEM="🧠"; G_DIR="📁"; G_BR="🌿"; G_MODEL="🤖"; G_TODO="📋"
 fi
 
 # ─── Parse agy's stdin payload (single jq pass; defaults if jq/parse fails) ───
 if command -v jq >/dev/null 2>&1; then
     { read -r STATE; read -r USED_PCT; read -r VCS_BRANCH; read -r VCS_DIRTY
-      read -r SANDBOX; read -r SUBAGENTS; read -r BG_TASKS; read -r MODEL; read -r COLS
+      read -r SANDBOX; read -r SUBAGENTS; read -r MODEL; read -r COLS
     } <<EOF
 $(jq -r '
     (.agent_state // "idle"),
@@ -44,15 +44,14 @@ $(jq -r '
     (.vcs.dirty // false),
     (.sandbox.enabled // false),
     (if .subagents | type == "array" then (.subagents | length) else 0 end),
-    (.task_count // 0),
     (.model.display_name // ""),
     (.terminal_width // 80)
-  ' 2>/dev/null || printf 'idle\n0\n\nfalse\nfalse\n0\n0\n\n80\n')
+  ' 2>/dev/null || printf 'idle\n0\n\nfalse\nfalse\n0\n\n80\n')
 EOF
 else
     cat >/dev/null 2>&1   # drain stdin so agy's pipe closes cleanly
     STATE=idle; USED_PCT=0; VCS_BRANCH=""; VCS_DIRTY=false
-    SANDBOX=false; SUBAGENTS=0; BG_TASKS=0; MODEL=""; COLS=80
+    SANDBOX=false; SUBAGENTS=0; MODEL=""; COLS=80
 fi
 COLS="${COLS:-80}"; case "$COLS" in ''|*[!0-9]*) COLS=80 ;; esac
 
@@ -68,6 +67,15 @@ mem_project() {
 }
 PROJECT="$(mem_project)"
 FOLDER="$(basename "${AI_MEMORY_CWD:-$PWD}")"
+OPEN_TODOS=""
+MEM_LIB="${MEMORY_DIR:-$HOME/.claude-memory}/scripts/_lib.sh"
+if [ -n "$PROJECT" ] && [ -f "$MEM_LIB" ]; then
+    # shellcheck disable=SC1090
+    . "$MEM_LIB" 2>/dev/null || true
+    if type count_open_todos >/dev/null 2>&1; then
+        OPEN_TODOS="$(count_open_todos "${MEMORY_DIR:-$HOME/.claude-memory}/projects/$PROJECT/todo.md" 2>/dev/null || true)"
+    fi
+fi
 
 # ─── Segments ────────────────────────────────────────────────────────────────
 # Memory project (brain): highlighted when resolved, dim "dormant" otherwise.
@@ -119,13 +127,18 @@ for ((i = 0; i < BAR_LEN; i++)); do
 done
 CTX="${FG_GRAY}ctx ${BAR_COLOR}${BAR} ${NUM}${PCT_FMT}%${R}"
 SUB="${FG_GRAY}subagents ${NUM}${SUBAGENTS}${R}"
-TSK="${FG_GRAY}tasks ${NUM}${BG_TASKS}${R}"
+TODO=""
+[ -n "$OPEN_TODOS" ] && TODO="${FG_GRAY}${G_TODO} ${NUM}${OPEN_TODOS} open${R}"
 [ "$SANDBOX" = "true" ] && SB="${FG_GRAY}sandbox ${FG_GREEN}${B}ON${R}" || SB="${FG_GRAY}sandbox off${R}"
 DOT="${FG_GRAY} · ${R}"
 
 # ─── Responsive layout ───────────────────────────────────────────────────────
 LINE1="${MEM}${DOT}${DIR}${V}${M}"
-LINE2=" ${S}${DOT}${CTX}${DOT}${SUB}${DOT}${TSK}${DOT}${SB}"
+if [ -n "$TODO" ]; then
+    LINE2=" ${S}${DOT}${CTX}${DOT}${SUB}${DOT}${TODO}${DOT}${SB}"
+else
+    LINE2=" ${S}${DOT}${CTX}${DOT}${SUB}${DOT}${SB}"
+fi
 if [ "$COLS" -ge 120 ]; then
     echo -e "${LINE1}${FG_GRAY}  │  ${R}${S}${DOT}${CTX}"
 elif [ "$COLS" -ge 80 ]; then

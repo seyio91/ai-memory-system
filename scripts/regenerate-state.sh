@@ -56,18 +56,6 @@ extract_goal() {
     ' "$1"
 }
 
-# count_open_todos <todo.md> -> number of unchecked "- [ ]" boxes (0 if no file).
-# Lines inside a fenced code block (``` … ```) are skipped — a "- [ ]" in an
-# example is not a real open item.
-count_open_todos() {
-    [ -f "$1" ] || { printf '0'; return; }
-    awk '
-        /^[[:space:]]*```/ { fence = !fence; next }
-        !fence && /^[[:space:]]*- \[ \]/ { n++ }
-        END { print n + 0 }
-    ' "$1"
-}
-
 # Sentinel category key that sorts AFTER any real (printable-ASCII) category under
 # LC_ALL=C — '~' (0x7E) is greater than digits/letters — so uncategorized rows land
 # last within the grouped table.
