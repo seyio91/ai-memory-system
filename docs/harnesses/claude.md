@@ -76,7 +76,8 @@ All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips
 | `/plan-done <name>` | Flip a plan's `status:` to `done` and stamp `completed:` date |
 | `/plan-archive <name>` | Move a completed plan from `plans/` to `archive/plans/` |
 | `/todo-archive [<slug>]` | Snapshot a fully-ticked `todo.md` to `archive/todos/` and reset. Auto-derives the slug when `todo.md` references exactly one plan and no `<slug>` was passed. |
-| `/promote-memory` | Agent extracts candidate learnings from `working.md`, labels each with inferred destination (`[domain:<topic>]` or `[project]`); user multi-selects which to keep; archive `working.md`; regenerate `index.md` |
+| `/checkpoint-archive [<slug>]` | Snapshot `working.md`'s `## Checkpoints` section to `archive/working/` and reset only that section; warns before rolling entries that do not say `CLOSED` or `DONE`. |
+| `/promote-memory` | Agent extracts candidate learnings from `working.md`, labels each with inferred destination (`[domain:<topic>]` or `[project]`); user multi-selects which to keep; archive `working.md`; regenerate `index.md`. Use `/checkpoint-archive` for checkpoints; `/promote-memory` rolls learnings and is gated on the learnings section. |
 | `/archive-cleanup [--all-projects] [--days N]` | Dry-run first, then on confirmation delete `archive/{plans,todos,working}/` files older than retention threshold (default 30 days; override via `MEMORY_ARCHIVE_RETAIN_DAYS`). `.gitkeep` preserved. |
 | `/reindex` | Run `regenerate-index.sh`, show diff |
 | `/state [<category>]` | Show the derived cross-project **In Flight** snapshot — `category \| project \| last touched \| current goal \| open todos`, **grouped by category** (uncategorized last), newest first within each. `/state <category>` filters to one client. On-demand projection (`regenerate-state.sh`), never auto-injected. |
