@@ -14,6 +14,8 @@ MEM="$(new_sandbox)"; BIN="$(new_sandbox)"
 trap 'rm -rf "$MEM" "$BIN"' EXIT
 export MEMORY_DIR="$MEM"
 seed_min_tree "$MEM"
+mkdir -p "$MEM/scripts"
+cp "$REPO/scripts/_lib.sh" "$MEM/scripts/_lib.sh"
 mkdir -p "$MEM/projects/proj"
 cat > "$MEM/projects/proj/memory.md" <<'EOF'
 ---
@@ -24,6 +26,18 @@ summary: proj summary
 # Project: proj
 EOF
 printf 'working note\n' > "$MEM/projects/proj/working.md"
+cat > "$MEM/projects/proj/todo.md" <<'EOF'
+# Todo
+
+- [ ] first open item
+- [x] completed item
+
+```
+- [ ] fenced example only
+```
+
+- [ ] second open item
+EOF
 WORK="$MEM/work"; mkdir -p "$WORK/.agents"; printf 'proj\n' > "$WORK/.agents/memory-project"
 
 # --- agy.sh: stub agy records its args AND the env agy.sh exported ---
@@ -159,10 +173,14 @@ assert_contains "$OUT" "main"            "statusline: shows the git branch"
 assert_contains "$OUT" "Gemini 3.5 Flash" "statusline: shows the model"
 assert_contains "$OUT" "63.4%"           "statusline: shows context % (period decimal, any locale)"
 assert_contains "$OUT" "WORKING"         "statusline: shows agent state"
+assert_contains "$OUT" "2 open"          "statusline: shows memory open todo count"
+assert_not_contains "$OUT" "tasks "      "statusline: runtime tasks segment is removed"
 
 # dormant when no project resolves
 OUT="$(printf '%s' "$PAYLOAD" | env -u AI_MEMORY_PROJECT AI_MEMORY_CWD=/tmp/nowhere-xyz USE_NERD_FONTS=false bash "$SL")"
 assert_contains "$OUT" "dormant" "statusline: dormant with no active project"
+assert_not_contains "$OUT" "open" "statusline: dormant omits memory open todo count"
+assert_not_contains "$OUT" "tasks " "statusline: dormant omits runtime tasks segment"
 
 # no-jq fallback: must not error, still prints something
 OUT="$(printf '%s' "$PAYLOAD" | PATH=/usr/bin:/bin AI_MEMORY_PROJECT=proj USE_NERD_FONTS=false bash "$SL" 2>&1)"; c=$?

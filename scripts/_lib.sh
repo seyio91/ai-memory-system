@@ -105,6 +105,18 @@ list_skill_dirs() {
     done < <(skill_roots)
 }
 
+# count_open_todos <todo.md> -> number of unchecked "- [ ]" boxes (0 if no file).
+# Lines inside a fenced code block (``` … ```) are skipped — a "- [ ]" in an
+# example is not a real open item.
+count_open_todos() {
+    [ -f "$1" ] || { printf '0'; return; }
+    awk '
+        /^[[:space:]]*```/ { fence = !fence; next }
+        !fence && /^[[:space:]]*- \[ \]/ { n++ }
+        END { print n + 0 }
+    ' "$1"
+}
+
 # resolve_skill_dir — print the absolute dir of the skill named <name>, searching
 # roots in precedence order (first match wins), and return 0; return 1 if no root
 # holds a skill by that name. Lets name-addressed tools (apply-partial, ratings)

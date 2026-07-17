@@ -19,10 +19,15 @@ COST="$(printf '%s' "$input" | jq -r '.cost.total_cost_usd // 0')"
 # --- active memory project ---
 MEM_LIB="${MEMORY_DIR:-$HOME/.claude-memory}/scripts/_lib.sh"
 PROJECT=""
+OPEN_TODOS=""
 if [ -f "$MEM_LIB" ]; then
   # shellcheck disable=SC1090
-  . "$MEM_LIB"
-  PROJECT="$(detect_active_project "$DIR" 2>/dev/null || true)"
+  if . "$MEM_LIB" 2>/dev/null; then
+    PROJECT="$(detect_active_project "$DIR" 2>/dev/null || true)"
+    if [ -n "$PROJECT" ] && type count_open_todos >/dev/null 2>&1; then
+      OPEN_TODOS="$(count_open_todos "${MEMORY_DIR:-$HOME/.claude-memory}/projects/$PROJECT/todo.md" 2>/dev/null || true)"
+    fi
+  fi
 fi
 
 # --- git branch (scoped to DIR so it's correct regardless of script cwd) ---
@@ -50,6 +55,7 @@ line1="${CYAN}[${MODEL}]${RESET} 📁 ${DIR##*/}"
 [ -n "$BRANCH" ]  && line1="${line1} 🌿 ${BRANCH}"
 if [ -n "$PROJECT" ]; then
   line1="${line1} ${MAGENTA}🧠 ${PROJECT}${RESET}"
+  [ -n "$OPEN_TODOS" ] && line1="${line1} 📋 ${OPEN_TODOS} open"
 else
   line1="${line1} ${DIM}🧠 (no project)${RESET}"
 fi
