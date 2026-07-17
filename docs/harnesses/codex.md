@@ -88,6 +88,32 @@ Codex has no in-session worktree switch (Claude's `EnterWorktree`), but the memo
 
 The hooks resolve the project and the working overlay from the **session's cwd** (carried in the hook event payload and exported as `AI_MEMORY_CWD`), so launching inside the worktree routes both the injected context *and* `/checkpoint` to `working.<worktree-name>.md` — the [per-worktree overlay](../file-formats.md#per-worktree-overlays-workingkeymd) — with no config. The other checkout's `working.md` is untouched. (First-class `--worktree`/`--tmux` flags are only a proposed Codex feature; until then, the manual `git worktree add` above is the flow.) This process is regression-tested end-to-end (`scripts/tests/test_worktree_feature_process.sh`).
 
+## Status line — not wired (fixed item vocabulary, no script hook)
+
+Investigated 2026-07-17 against codex 0.144.4. Codex **has** a TUI status line —
+`/statusline` in the TUI, persisted as `tui.status_line` (+ `status_line_use_colors`)
+in `config.toml` — but it only toggles a **fixed set of built-in items**:
+
+```
+app-name · project-name · current-dir · activity · run-state · thread-title ·
+git-branch · context-remaining · context-used · five-hour-limit · weekly-limit ·
+codex-version · used-tokens · total-input-tokens · total-output-tokens ·
+thread-id · fast-mode · model-with-reasoning · reasoning · task-progress
+```
+
+There is **no command-backed/custom segment** (verified by binary probe — no
+`custom` item, no statusline feature flag), so unlike Claude
+(`settings.json → statusLine`) and Antigravity (`statusline.sh`), the memory
+system cannot inject an active-project or memory-todo-count segment here. The
+memory system therefore does not touch Codex's status line — turn the built-in
+items on yourself with `/statusline` if you want them.
+
+**Revisit trigger:** command-backed statusline rendering is an open upstream
+request ([openai/codex#20140](https://github.com/openai/codex/issues/20140),
+[#20244](https://github.com/openai/codex/issues/20244)). If it ships, file a
+fresh task: a manifest `statusline_*` pair plus the shared memory-todo-count
+segment (design record: the `codex-statusline` plan).
+
 ## Adding a new domain topic (Codex picks it up automatically)
 
 1. Drop a new file `domain/postgres.md` with frontmatter:

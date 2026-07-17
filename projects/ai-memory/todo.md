@@ -3,4 +3,4 @@
 > Single source of truth for executable work on this project.
 > Large items link to a plan under `plans/`.
 
-_(empty — rolled 2026-07-17 to archive/todos/2026-07-17-identity-orchestrator-split.md)_
+_(empty — rolled 2026-07-17 to archive/todos/2026-07-17-codex-statusline.md)_
