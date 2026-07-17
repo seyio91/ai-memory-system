@@ -1,5 +1,7 @@
 Promote one or more learnings from the active project's `working.md` into either a domain file (cross-project) or the project's `memory.md` (engagement-specific). Multi-select: the agent generates candidates, the user picks which to keep.
 
+Checkpoint archival is separate: use `/checkpoint-archive` to roll the `## Checkpoints` section independently.
+
 Use today's actual date (from `<memory:identity>` injection context) for all entries — do not invent.
 
 Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`).
