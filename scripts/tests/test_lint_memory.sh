@@ -221,4 +221,59 @@ run_lint
 assert_exit 0 "$CODE" "archived orphan investigation is not scanned"
 rm -rf "$M9"
 
+# --- stale investigation: task_ref matches a plan already in archive/plans/ ---
+M10="$(new_sandbox)"; export MEMORY_DIR="$M10"; build_clean "$M10"
+mkdir -p "$M10/projects/good/investigations"
+cat > "$M10/projects/good/archive/plans/shipped.md" <<'EOF'
+---
+plan: shipped
+status: done
+created: 2026-07-01
+completed: 2026-07-02
+owner: seyi
+task_ref: stale-task-ref-001
+---
+# shipped
+EOF
+cat > "$M10/projects/good/investigations/shipped.md" <<'EOF'
+---
+kind: investigation
+task_ref: stale-task-ref-001
+status: open
+created: 2026-07-01
+---
+# shipped
+EOF
+run_lint
+assert_exit 1 "$CODE" "stale investigation (task_ref matches archived plan) exits 1"
+assert_contains "$OUT" "shipped.md stale" "warning names the stale investigation"
+assert_contains "$OUT" "archived plan" "warning points at the archived plan"
+rm -rf "$M10"
+
+# --- live investigation: task_ref matches a plan still in plans/ (not archived) -> no stale warning ---
+M11="$(new_sandbox)"; export MEMORY_DIR="$M11"; build_clean "$M11"
+mkdir -p "$M11/projects/good/investigations"
+cat > "$M11/projects/good/plans/inflight.md" <<'EOF'
+---
+plan: inflight
+status: in_progress
+created: 2026-07-01
+owner: seyi
+task_ref: live-task-ref-002
+---
+# inflight
+EOF
+cat > "$M11/projects/good/investigations/inflight.md" <<'EOF'
+---
+kind: investigation
+task_ref: live-task-ref-002
+status: open
+created: 2026-07-01
+---
+# inflight
+EOF
+run_lint
+assert_exit 0 "$CODE" "investigation whose plan is still live keeps lint clean (not stale)"
+rm -rf "$M11"
+
 finish
