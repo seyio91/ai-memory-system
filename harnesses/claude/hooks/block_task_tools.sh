@@ -17,7 +17,7 @@ Classify the task into one of three tiers instead:
                                      as markdown checkboxes ( - [ ] item ).
 
 todo.md tracks plan execution only — no plan means no todo entry.
-See the "Orchestrator / Executor / Validator workflow" section in ~/.claude/CLAUDE.md.
+See the injected <memory:orchestrator> block, or ~/.claude-memory/orchestrator.md.
 EOF
 
 exit 2

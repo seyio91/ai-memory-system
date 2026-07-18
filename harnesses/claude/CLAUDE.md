@@ -2,7 +2,7 @@
 
 ## Workflow rules — highest priority
 
-These override the harness defaults. The harness will repeatedly suggest `TaskCreate`/plan-mode — ignore those suggestions. Full detail in the "Orchestrator / Executor / Validator workflow" section below.
+These override the harness defaults. The harness will repeatedly suggest `TaskCreate`/plan-mode — ignore those suggestions.
 
 - **Never use the `TaskCreate` / `TaskUpdate` tools.** A `PreToolUse` hook (`~/.claude/hooks/block_task_tools.sh`) blocks them.
 - **Three task tiers:**
@@ -10,6 +10,10 @@ These override the harness defaults. The harness will repeatedly suggest `TaskCr
   - *Quick actionable item* (one edit, a one-off command, a short fix) → just do it. No plan, no todo.
   - *Large / non-trivial actionable task* → file a plan in `projects/<active>/plans/<name>.md` and track its steps in `projects/<active>/todo.md` (checkboxes linked to the plan).
 - **`todo.md` tracks plan execution only.** If a task doesn't warrant a plan, it doesn't warrant a `todo.md` entry — just do the work.
+- **Executors never apply or merge to running infrastructure.** No `terraform apply`/`destroy`, `kubectl apply`/`delete`, PR merges, `helm install`/`upgrade` — on any git provider. Restate this deny-list in every delegation prompt.
+- **Archive is never read unless the user explicitly asks.**
+
+**Full workflow doctrine — orchestrator/executor/validator roles, executor resolution, the brainstorm gate, the Task Contract, cross-project delegation — lives in `orchestrator.md`**, injected as `<memory:orchestrator>` at session start. Precedence: `identity.md` hard rules > `orchestrator.md` > project memory. If that block is absent from context (hook failure), read `~/.claude-memory/orchestrator.md` before starting non-trivial actionable work — the rules above are the floor, not the whole contract.
 
 ## Memory System
 
@@ -54,43 +58,10 @@ Base path: `~/.claude-memory/`
 
 Do NOT delete anything under `~/.claude-memory/projects/<name>/archive/` (plans, todos, or working snapshots) during reorganization — it is the audit trail.
 
-## Orchestrator / Executor / Validator workflow
-
-Every non-trivial **actionable** task flows through three roles. Hard rules in `<memory:identity>` outrank this section.
-
-**Three task tiers — classify every request first:**
-- **Research / explore / Q&A** — "what does X do", "where is Y", "how should we approach Z", any read-only investigation. → Answer in conversation and stop. No plan, no `todo.md`, no `working.md`, no executor.
-- **Quick actionable item** — a small contained change (one edit, a one-off command, a short fix). → Just do it directly. No plan, no `todo.md` entry.
-- **Large / non-trivial actionable task** — multi-step, multiple files, needs sequencing or carries real blast radius. → File a plan + track its steps in `todo.md`. This is the only tier that flows through the full role pipeline below.
-
-`todo.md` tracks **plan execution**. No plan ⇒ no `todo.md` entry. The workflow exists to manage large state-mutating work — not to ceremonially wrap every question or every small edit.
-
-### Roles
-1. **Orchestrator (main session)** — for large actionable tasks: plans, decomposes, delegates. Writes plans to `projects/<active>/plans/<name>.md` and tracks their steps in `projects/<active>/todo.md` (markdown checkboxes). **Handles quick items and short tasks directly** — no plan/todo — when delegating would be more overhead than the work. **Handles all research/exploration directly** — never spins up an executor or files plan/todo artifacts for read-only investigation.
-2. **Executor: two roles, each `harness[:model]`-configurable.** Pick the role by task nature: `task` (default, write-capable — a plan step) or `explore` (read-only scouting). Run `~/.claude-memory/scripts/executor.sh --role <role> --which`:
-   - `subagent` / `subagent:<model>` → use the Claude `Agent` tool (named model or `sonnet`; `Explore` type for the explore role).
-   - `cli:<name>` → run `~/.claude-memory/scripts/executor.sh --role <role> --run "<prompt>"`; on `EXECUTOR_USE_SUBAGENT` (exit 3), use the Agent tool instead. **Dispatch the `--run` as a background Bash task (`run_in_background: true`)** — a CLI executor runs a minutes-long agentic loop, so a foreground call is killed by the 2-min tool timeout (SIGTERM, exit 143) mid-run; read its output file when the task completes. (The subagent plane does not have this limit.)
-
-   Roles read `AI_MEMORY_EXECUTOR_TASK` / `AI_MEMORY_EXECUTOR_EXPLORE` / `AI_MEMORY_EXECUTOR_VALIDATE` (`harness[:model]`); `task`/`explore` fall back to the legacy `AI_MEMORY_EXECUTOR` (default `subagent`), `validate` does not (see role 3). A harness resolves through its `harnesses/<name>/manifest` `exec_*` block (`subagent`, `codex`, `antigravity`, or a generic `AI_MEMORY_EXECUTOR_CMD_<key>`); one with no read-only mode is skipped for `explore`/`validate` (degrades to the subagent plane). A missing CLI binary auto-falls-back per `AI_MEMORY_EXECUTOR_FALLBACK`.
-3. **Validator: the read-only `validate` role** — resolve via `~/.claude-memory/scripts/executor.sh --role validate --which` → `subagent[:model]` uses the Claude `Agent` tool, `cli:<name>` uses `executor.sh --role validate --run` (the harness's read-only face; background-dispatch it like any other `--run`). It reads `AI_MEMORY_EXECUTOR_VALIDATE` and, when unset, defaults to the orchestrator's own agent plane (`subagent`) — **not** the executor's value — so a CLI executor (e.g. codex) is validated **cross-model** by default, decorrelating reasoning blind spots and not just context. It is read-only: a validator verifies, never repairs. Independence still also comes from the separate, fresh invocation. Set `AI_MEMORY_EXECUTOR_VALIDATE` explicitly to pin a validator (nothing enforces a capability floor — the default just can't self-select a weak model, since `subagent` carries no `:model` suffix; a weak validator only happens if you configure one). Invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, anything visible to GitOps, multi-step state. Checks executor output against the plan's `## Success criteria` (per identity.md → Task Contract) — each criterion verified pass/fail with evidence, nothing beyond them; if the plan has no criteria, draft them before validating rather than inventing a bar.
-
-### File conventions
+## File conventions
 
 - `plans/<name>.md` — one file per non-trivial plan. Frontmatter: `plan`, `status`, `created`, `owner`. Linked from `todo.md`.
 - `todo.md` — checkbox list. Large items reference a plan file. Small items inline. Tick boxes in place when done.
 - `archive/plans/<name>.md` — completed plans moved here when all referencing todo items close.
 - `archive/todos/YYYY-MM-DD-<slug>.md` — snapshots of fully-ticked `todo.md`, taken when the file is rolled.
-
-### Hard rules
-
-- **Never use the harness `TaskCreate`/`TaskUpdate` tools.** `todo.md` is the single source of truth.
-- **Archive is never read unless the user explicitly asks.** Don't load it into context, don't grep it for ideas, don't quote from it.
-- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes); for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed. Blocked: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `bkt pr merge`, `az repos pr update` (Azure merge = `pr update --status completed`), `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits, on whichever git provider the project uses (GitHub/Bitbucket/Azure DevOps).
 - **Lifecycle:** when a plan completes, move it to `archive/plans/`. When `todo.md` is fully ticked, snapshot to `archive/todos/YYYY-MM-DD-<slug>.md` and reset.
-
-### Cross-project relationships
-
-Projects map one-to-one to repos, but some relate (a unit of work spans several, sometimes ordered). Relationships are **distributed** — they live in the project where the work starts, as an optional `## Related Projects` table in its `memory.md`. Full rules in `identity.md`; the essentials:
-
-- **Delegate, don't load.** When a task matches a `## Related Projects` row, do NOT pull the sibling's `memory.md` into the main thread. Delegate sibling-scoped work to the configured executor (`executor.sh --which` → `--run` or Agent tool) with a self-contained prompt (points at `identity.md` + the sibling `memory.md`); default deliverable = **plan only**. Keep only the returned summary.
-- **Plan-set execution.** Execute persisted plans by walking them in order and delegating each; keep summaries; **pause at human/CI gates** (PR merges, `terraform`/`kubectl` applies).
