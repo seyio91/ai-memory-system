@@ -18,7 +18,9 @@
 - [ ] Phase 1b — **live-confirm the ~10,000 hook cap** (static analysis only so far); blocks Phase 2
 - [ ] Phase 2 — guard in `lib.sh` (close the `1/1` fast path, prepend `<memory:warning>`) — budget TBD from 1b
 - [ ] Phase 3 — tests (over-budget, under-budget byte-identical, boundary)
-- [ ] Phase 4 — compress `## Architecture Decisions` (37 entries → ≤6KB)
-- [ ] Phase 5 — trim gotchas + `/checkpoint-archive` on `working.md`
+- [x] Phase 4 — compress `## Architecture Decisions` (34.2KB → 7.5KB, 37 entries intact, validated + repaired)
+- [x] Phase 5a — trim gotchas (15.5KB → 4.4KB, 24 entries intact); memory.md 55.3KB → 17.8KB
+- [ ] Phase 5b — `/checkpoint-archive` on `working.md` (11.3KB `## Checkpoints`)
+- [ ] **Real fix** — apply `session_chunks = 12` to the Claude manifest (needs `install.sh --harness claude`)
 - [ ] Phase 6 — verify end to end (real hook run, real session start)
 - [ ] Phase 7 — docs (`AI_MEMORY_INJECT_WARN_BYTES`) + changelog

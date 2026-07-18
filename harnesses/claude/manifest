@@ -8,6 +8,17 @@ format       = xml
 # hook commands are registered into settings.json by absolute path.
 hooks_dir      = ~/.claude/hooks
 settings_json = ~/.claude/settings.json
+
+# Claude Code caps EACH hook's additionalContext at 10,000 chars (jLt/mou=1e4 in
+# @anthropic-ai/claude-code 2.1.214) — same class of cap as codex's ~10,100B, and
+# likewise per registered entry, so the base fans across N ordered chunk entries
+# (≤9,000B line-boundary slices). Without these keys the count defaults to 1, the
+# whole base goes out in one message, and the harness silently spills it to a file
+# leaving only a 2KB preview in context. Live payload 91,797B = 11 slices; 12 gives
+# headroom, and overflow past 12 emits the loud truncation marker rather than
+# failing silently.
+session_chunks = 12
+inject_chunks  = 12
 hook_script    = $MEMORY_DIR/scripts/hooks/inject.sh
 session_script = $MEMORY_DIR/scripts/hooks/session_start_memory.sh
 block_script   = $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh
