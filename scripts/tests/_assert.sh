@@ -60,6 +60,34 @@ finish() {
     exit 0
 }
 
+# strip_chunks <file>... — reassemble enveloped hook chunks to stdout.
+# emit_hook_chunk frames each slice as <memory:chunk index="i" of="N">…</memory:chunk>
+# because hook entries are NOT delivered in registration order (Claude, 2026-07-18).
+# Sorts by the header index, so callers may pass files in any order; empty files
+# (chunks past the natural slice count) are skipped. Fails loudly on a missing
+# envelope rather than silently passing raw bytes through.
+strip_chunks() {
+    python3 - "$@" <<'PY'
+import re, sys
+parts = []
+for path in sys.argv[1:]:
+    data = open(path, "rb").read()
+    if not data:
+        continue
+    head, _, rest = data.partition(b"\n")
+    m = re.match(rb'^<memory:chunk index="(\d+)" of="(\d+)"', head)
+    if not m:
+        sys.stderr.write("missing envelope header: %s\n" % path)
+        sys.exit(1)
+    if not rest.endswith(b"</memory:chunk>\n"):
+        sys.stderr.write("missing envelope footer: %s\n" % path)
+        sys.exit(1)
+    parts.append((int(m.group(1)), rest[: -len(b"</memory:chunk>\n")]))
+parts.sort()
+sys.stdout.buffer.write(b"".join(body for _, body in parts))
+PY
+}
+
 # --- sandbox helpers -------------------------------------------------------
 
 new_sandbox() {

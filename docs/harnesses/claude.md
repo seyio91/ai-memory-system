@@ -57,6 +57,30 @@ The three entries are auto-merged into `settings.json`; `harnesses/claude/settin
 
 All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips `block_task_tools.sh` leaves the harness free to call `TaskCreate` — the workflow rule "`todo.md` is the single source of truth" is *enforced* here, not just documented.
 
+### Chunked injection (`session_chunks` / `inject_chunks`)
+
+The shape above is the *reference* single-entry form. In practice both memory events are registered **N times**, because **Claude caps each hook's `additionalContext` at 10,000 chars** (`jLt/mou=1e4` in `@anthropic-ai/claude-code` 2.1.214) — the same class of cap as Codex's ~10,100B, and likewise budgeted **per registered entry**. A single oversized message is silently spilled to a file leaving only a ~2KB preview in context, with the hook still exiting 0: memory vanishes and nothing reports it.
+
+So `harnesses/claude/manifest` sets `session_chunks` / `inject_chunks`, and `_hook_chunked_commands` (`scripts/drivers/hook.sh`) registers one entry per chunk, each passing `AI_MEMORY_HOOK_CHUNK=i/N`. `emit_hook_chunk` (`scripts/hooks/lib.sh`) cuts the rendered payload into ≤9,000B **line-boundary** slices and emits the i-th. Chunks past the natural slice count emit nothing; a payload needing more than N slices emits a loud truncation marker in the last one rather than dropping bytes silently. Per-entry budgeting is confirmed live (2026-07-18: 5 chunks of ≤9,045B all delivered whole).
+
+**Delivery order is not guaranteed.** Codex delivers registered entries in registration order; **Claude does not** — it runs same-event hooks concurrently and concatenates by completion. Observed 2026-07-18: entries registered 1..12 arrived as **2, 3, 4, 1, 5**, splicing `<memory:identity>` into the middle of the `<memory:index>` Domain table. Since slices are cut at arbitrary line boundaries, an out-of-order chunk bisects a `<memory:*>` block.
+
+Every non-empty slice is therefore wrapped in an ordering envelope:
+
+```
+<memory:chunk index="2" of="5">
+…slice bytes, verbatim…
+</memory:chunk>
+```
+
+- `of` is the **actual** slice count, not the registered chunk total — `of="5"` with 12 entries registered means 7 are empty headroom.
+- Chunk 1 alone carries a `note=` attribute explaining that fragments concatenate by index. One note suffices regardless of arrival order, since all chunks sit in context simultaneously.
+- The envelope is a **transport frame**, deliberately not balanced against the content tags it may bisect.
+- No separator is inserted before the footer: whether a trailing newline was original or added would be ambiguous on strip, breaking byte-identical reassembly. Only the final slice can lack one, so at most one chunk closes on the same line as its last byte.
+- `1/1` and an unset spec stay raw passthrough — a single chunk has no ordering problem.
+
+Tests reassemble with the shared `strip_chunks` helper (`scripts/tests/_assert.sh`), deliberately passing chunks **out of order** and asserting byte-identity against the unchunked render.
+
 ## Maintenance rules (from `~/.claude/CLAUDE.md`)
 
 - **Update memory immediately** when you learn or decide something durable. Don't batch.

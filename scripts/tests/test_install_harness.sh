@@ -120,6 +120,11 @@ assert_eq "# keep local choices" "$(cat "$FAKE/skills.toml")" "existing skills.t
 assert_eq "# custom orchestrator" "$(cat "$FAKE/orchestrator.md")" "existing orchestrator.md is not overwritten"
 assert_not_contains "$(cat "$SBROOT/log.claude2")" "seeded skills.toml from template" "existing skills.toml skips seed step"
 if command -v python3 >/dev/null 2>&1; then
+    # set +e: a failing check must reach _bad and print its captured output. Under
+    # set -e the script exits at the python call, so the suite saw only a bare rc=1
+    # with no reason and no summary line — which is how a broken expectation here
+    # went unnoticed from 742f083 until 2026-07-18.
+    set +e
     CLAUDE_SETTINGS="$FHOME/.claude/settings.json" FAKE_REPO="$FAKE" python3 - <<'PY' >"$SBROOT/claude-settings-check.out" 2>&1
 import json, os, sys
 path = os.environ["CLAUDE_SETTINGS"]
@@ -127,22 +132,44 @@ repo = os.environ["FAKE_REPO"]
 with open(path) as f:
     data = json.load(f)
 hooks = data.get("hooks", {})
+# Chunk counts come from the manifest, not a literal: this check exists to catch
+# registration drift, and hardcoding the count is how it silently stopped doing
+# that (742f083 chunked registration; this expectation was never updated, so it
+# matched 0 entries and the whole test died before reporting).
+def chunk_count(key):
+    with open(os.path.join(repo, "harnesses", "claude", "manifest")) as f:
+        for line in f:
+            k, _, v = line.partition("=")
+            if k.strip() == key:
+                return int(v.strip())
+    return 1
+
 expected = {
-    "SessionStart": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo)),
-    "UserPromptSubmit": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit bash %s/scripts/hooks/inject.sh" % (repo, repo)),
-    "PreToolUse": ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo),
+    "SessionStart": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart%%s bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo), chunk_count("session_chunks")),
+    "UserPromptSubmit": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit%%s bash %s/scripts/hooks/inject.sh" % (repo, repo), chunk_count("inject_chunks")),
+    # chunks=None marks an event that is not chunk-capable at all (no %s slot).
+    # That is different from chunks==1, where _hook_chunked_commands emits the
+    # un-chunked form of a chunk-capable event.
+    "PreToolUse": ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo, None),
 }
-for event, (matcher, command) in expected.items():
+for event, (matcher, template, chunks) in expected.items():
     groups = hooks.get(event, [])
-    matches = [
-        g for g in groups
-        if isinstance(g, dict)
-        and (not matcher or g.get("matcher") == matcher)
-        and any(isinstance(h, dict) and h.get("command") == command for h in g.get("hooks", []))
-    ]
-    if len(matches) != 1:
-        sys.stderr.write("%s expected one ai-memory hook, got %d\n" % (event, len(matches)))
-        sys.exit(1)
+    if chunks is None:
+        wanted = [template]
+    elif chunks == 1:
+        wanted = [template % ""]
+    else:
+        wanted = [template % (" AI_MEMORY_HOOK_CHUNK=%d/%d" % (i, chunks)) for i in range(1, chunks + 1)]
+    for command in wanted:
+        matches = [
+            g for g in groups
+            if isinstance(g, dict)
+            and (not matcher or g.get("matcher") == matcher)
+            and any(isinstance(h, dict) and h.get("command") == command for h in g.get("hooks", []))
+        ]
+        if len(matches) != 1:
+            sys.stderr.write("%s expected one ai-memory hook for %r, got %d\n" % (event, command, len(matches)))
+            sys.exit(1)
 stop = hooks.get("Stop", [])
 if not stop or "user-stop-hook" not in json.dumps(stop):
     sys.stderr.write("user Stop hook was not preserved\n")
@@ -154,7 +181,8 @@ if "permissions" not in data:
     sys.stderr.write("permissions missing\n")
     sys.exit(1)
 PY
-    rc=$?
+    # shellcheck disable=SC2319
+    rc=$?; set -e
     if [ "$rc" -eq 0 ]; then
         _ok "claude settings: re-run is idempotent and preserves siblings"
     else
@@ -181,25 +209,34 @@ assert_contains "$chj" '"SessionStart"' "codex: SessionStart hook registered (ba
 assert_contains "$chj" "scripts/hooks/session_start_memory.sh" "codex: SessionStart command -> shared session-start script"
 assert_not_contains "$chj" "arm_recompact.sh" "codex: SessionStart no longer wired to arm_recompact (shim only for stale hooks.json)"
 if command -v python3 >/dev/null 2>&1; then
-    CODEX_HOOKS="$FHOME/.codex/hooks.json" python3 - <<'PY' >"$SBROOT/codex-hooks-count.out" 2>&1
+    set +e
+    CODEX_HOOKS="$FHOME/.codex/hooks.json" FAKE_REPO="$FAKE" python3 - <<'PY' >"$SBROOT/codex-hooks-count.out" 2>&1
 import json, os, sys
 with open(os.environ["CODEX_HOOKS"]) as f:
     hooks = json.load(f).get("hooks", {})
+# count from the manifest, not a literal — see the claude check above
+want_n = 1
+with open(os.path.join(os.environ["FAKE_REPO"], "harnesses", "codex", "manifest")) as f:
+    for line in f:
+        k, _, v = line.partition("=")
+        if k.strip() == "session_chunks":
+            want_n = int(v.strip())
 ss = [
     g for g in hooks.get("SessionStart", [])
     if any("scripts/hooks/session_start_memory.sh" in h.get("command", "") for h in g.get("hooks", []) if isinstance(h, dict))
 ]
-if len(ss) != 12:
-    sys.stderr.write("SessionStart entries=%d\n" % len(ss))
+if len(ss) != want_n:
+    sys.stderr.write("SessionStart entries=%d, manifest says %d\n" % (len(ss), want_n))
     sys.exit(1)
 for i, group in enumerate(ss, 1):
     cmd = group["hooks"][0]["command"]
-    want = "AI_MEMORY_HOOK_CHUNK=%d/12" % i
+    want = "AI_MEMORY_HOOK_CHUNK=%d/%d" % (i, want_n)
     if want not in cmd:
         sys.stderr.write("missing %s in %r\n" % (want, cmd))
         sys.exit(1)
 PY
-    rc=$?
+    # shellcheck disable=SC2319
+    rc=$?; set -e
     if [ "$rc" -eq 0 ]; then
         _ok "codex: hooks.json has 12 ordered SessionStart chunks"
     else

@@ -159,14 +159,48 @@ sys.stdout.write("omega ☕")
 PY
     payload="$(cat "$PAYLOAD_FILE")"
     printf '%s' "$payload" > "$ORIG_FILE"
-    : > "$REASM_FILE"
+
+    # Hook entries are NOT delivered in registration order (Claude, 2026-07-18:
+    # 2,3,4,1,5), so chunks carry an ordering envelope. Strip it by header index
+    # and reassemble sorted — the SHUFFLED order below is the point of the test.
+    CHUNK_DIR="$MEM/chunk-parts"
+    mkdir -p "$CHUNK_DIR"
     for i in 1 2 3 4; do
-        AI_MEMORY_HOOK_CHUNK="$i/4" emit_hook_chunk "$payload" >> "$REASM_FILE"
+        AI_MEMORY_HOOK_CHUNK="$i/4" emit_hook_chunk "$payload" > "$CHUNK_DIR/part.$i"
     done
+    # deliberately shuffled — reassembly must depend on index, not arrival
+    strip_chunks "$CHUNK_DIR/part.3" "$CHUNK_DIR/part.1" "$CHUNK_DIR/part.4" \
+        "$CHUNK_DIR/part.2" > "$REASM_FILE"
     if cmp -s "$ORIG_FILE" "$REASM_FILE"; then
-        _ok "chunker: slices reassemble byte-for-byte with UTF-8 and >9000B line"
+        _ok "chunker: out-of-order slices reassemble byte-for-byte by index (UTF-8, >9000B line)"
     else
-        _bad "chunker: slices reassemble byte-for-byte with UTF-8 and >9000B line"
+        _bad "chunker: out-of-order slices reassemble byte-for-byte by index (UTF-8, >9000B line)"
+    fi
+
+    assert_contains "$(head -n 1 "$CHUNK_DIR/part.2")" '<memory:chunk index="2" of="3">' \
+        "chunker: envelope header carries index and ACTUAL slice count"
+    assert_eq "</memory:chunk>" "$(tail -n 1 "$CHUNK_DIR/part.2")" \
+        "chunker: envelope footer closes the chunk"
+    assert_contains "$(head -n 1 "$CHUNK_DIR/part.1")" 'note="ordered fragments' \
+        "chunker: chunk 1 carries the reassembly note"
+    if head -n 1 "$CHUNK_DIR/part.2" | grep -q 'note='; then
+        _bad "chunker: note appears only on chunk 1"
+    else
+        _ok "chunker: note appears only on chunk 1"
+    fi
+    assert_eq "" "$(cat "$CHUNK_DIR/part.4")" \
+        "chunker: chunk past the natural slice count emits no envelope at all"
+
+    # The envelope must not push a chunk over the harness per-entry cap (10,000).
+    worst=0
+    for i in 1 2 3 4; do
+        n="$(wc -c < "$CHUNK_DIR/part.$i" | tr -d ' ')"
+        [ "$n" -gt "$worst" ] && worst="$n"
+    done
+    if [ "$worst" -lt 10000 ]; then
+        _ok "chunker: worst-case enveloped chunk ($worst B) stays under the 10,000 cap"
+    else
+        _bad "chunker: worst-case enveloped chunk ($worst B) stays under the 10,000 cap"
     fi
 
     empty="$(AI_MEMORY_HOOK_CHUNK=5/5 emit_hook_chunk "$payload")"
@@ -177,7 +211,9 @@ PY
     assert_contains "$(cat "$OVER_FILE")" "[ai-memory: memory base truncated — raise session_chunks in the harness manifest]" \
         "chunker: overflow emits loud truncation marker"
     assert_eq "[ai-memory: memory base truncated — raise session_chunks in the harness manifest]" \
-        "$(tail -n 1 "$OVER_FILE")" "chunker: overflow marker is the final line"
+        "$(tail -n 2 "$OVER_FILE" | head -n 1)" "chunker: overflow marker is the final line inside the envelope"
+    assert_eq "</memory:chunk>" "$(tail -n 1 "$OVER_FILE")" \
+        "chunker: overflow chunk is enveloped too"
 
     UNSET_FILE="$MEM/chunk-unset.txt"
     ONE_FILE="$MEM/chunk-one.txt"

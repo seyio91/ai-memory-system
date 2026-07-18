@@ -73,11 +73,18 @@ if command -v python3 >/dev/null 2>&1; then
     T_CHUNK="$MEM/trigger.chunk"
     bash "$HOOK" > "$out" <<<"{\"prompt\":\"reload @memory\",\"cwd\":\"$REPO/sub\"}"
     additional_context < "$out" > "$T_EXPECTED"
-    : > "$T_ASSEMBLED"
+    T_PARTS="$MEM/trigger.parts"
+    rm -rf "$T_PARTS"; mkdir -p "$T_PARTS"
     for i in 1 2 3 4 5 6 7 8; do
         AI_MEMORY_HOOK_CHUNK="$i/8" bash "$HOOK" > "$T_CHUNK" <<<"{\"prompt\":\"reload @memory\",\"cwd\":\"$REPO/sub\"}"
-        [ -s "$T_CHUNK" ] && additional_context < "$T_CHUNK" >> "$T_ASSEMBLED"
+        [ -s "$T_CHUNK" ] && additional_context < "$T_CHUNK" > "$T_PARTS/p.$i"
     done
+    # reversed on purpose — chunks are enveloped because delivery order is not guaranteed
+    T_REV=""
+    for i in 8 7 6 5 4 3 2 1; do
+        [ -f "$T_PARTS/p.$i" ] && T_REV="$T_REV $T_PARTS/p.$i"
+    done
+    strip_chunks $T_REV > "$T_ASSEMBLED"
     if cmp -s "$T_EXPECTED" "$T_ASSEMBLED"; then
         _ok "reload: chunked @memory re-inject reassembles byte-for-byte"
     else
@@ -190,13 +197,20 @@ PY
         additional_context < "$out" > "$EXPECTED"
 
         : > "$SENT"
-        : > "$ASSEMBLED"
+        PC_PARTS="$MEM/postcompact.parts"
+        rm -rf "$PC_PARTS"; mkdir -p "$PC_PARTS"
         for i in 1 2 3 4 5 6 7 8; do
             AI_MEMORY_HOOK_CHUNK="$i/8" bash "$HOOK" > "$CHUNK_OUT" <<<"{\"prompt\":\"continue\",\"cwd\":\"$REPO\",\"session_id\":\"s2\"}"
             if [ -s "$CHUNK_OUT" ]; then
-                additional_context < "$CHUNK_OUT" >> "$ASSEMBLED"
+                additional_context < "$CHUNK_OUT" > "$PC_PARTS/p.$i"
             fi
         done
+        # reversed on purpose — delivery order is not guaranteed
+        PC_REV=""
+        for i in 8 7 6 5 4 3 2 1; do
+            [ -f "$PC_PARTS/p.$i" ] && PC_REV="$PC_REV $PC_PARTS/p.$i"
+        done
+        strip_chunks $PC_REV > "$ASSEMBLED"
         if cmp -s "$EXPECTED" "$ASSEMBLED"; then
             _ok "post-compact: chunked full re-inject reassembles byte-for-byte"
         else

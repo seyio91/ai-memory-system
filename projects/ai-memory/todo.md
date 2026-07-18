@@ -12,6 +12,13 @@
 - [ ] Phase 4 — docs + changelog entry
 - [ ] Phase 5 — archive the `executor-output-normalization` investigation
 
+### Hook chunk ordering envelope → [plan](plans/hook-chunk-ordering.md)
+- [x] Phase 1 — envelope in `emit_hook_chunk` (`scripts/hooks/lib.sh`)
+- [x] Phase 2 — tests: `strip_chunks` helper in `_assert.sh`; out-of-order assertions in `test_shared_hooks.sh` + `test_inject_memory.sh`
+- [x] Phase 3 — verify: suite 47/1 (the 1 pre-existing at HEAD); mutation-check watched failing; live shuffled reassembly == `render_full` (43,776 B)
+- [x] Phase 4 — docs (`docs/harnesses/claude.md` + codex caveat), manifest comment corrected, gotcha in project memory
+- [x] Phase 5 — restore the install gate: `test_install_harness.sh` broken since `742f083` (106 of 143 assertions ungated); expectations now manifest-derived, `set +e` so failures report. Suite 48/0.
+
 ### Memory injection size guard + compress memory base → [plan](plans/memory-injection-size-guard.md)
 - [x] Phase 1 — measure the inline cap ⚠️ **wrong by ~3x** — measured the Bash tool cap (30,000), not the hook cap
 - [x] Phase 1a — validate Phase 1 → refuted: hook `additionalContext` cap is ~10,000 chars, budget 20000 unsafe
@@ -22,5 +29,5 @@
 - [x] Phase 5a — trim gotchas (15.5KB → 4.4KB, 24 entries intact); memory.md 55.3KB → 17.8KB
 - [x] Phase 5b — `/checkpoint-archive` on `working.md` (14.2KB → 3.7KB; 8 entries archived, live backlog carried forward)
 - [x] **Real fix** — `session_chunks = 12` applied + registered (12 entries/event; payload now 6 chunks, max 8,711 chars)
-- [ ] Phase 6 — verify end to end: hook run done (6 chunks, max 8,711 chars, byte-identical reassembly); **awaiting `/clear`** to confirm per-entry budgeting
-- [ ] Phase 7 — docs: `session_chunks`/`inject_chunks` + the 10,000-char per-entry cap in `docs/harnesses/claude.md` + changelog (~~`AI_MEMORY_INJECT_WARN_BYTES`~~ — never built)
+- [x] Phase 6 — verify end to end: **`/clear` 2026-07-18 CONFIRMS per-entry budgeting** — 5 chunks ≤8,996 chars all arrived whole, no truncation marker, no spill preview. Exposed a *separate* ordering bug → `plans/hook-chunk-ordering.md`
+- [ ] Phase 7 — docs: `session_chunks`/`inject_chunks` + the 10,000-char per-entry cap in `docs/harnesses/claude.md` + changelog (~~`AI_MEMORY_INJECT_WARN_BYTES`~~ — never built) — **folded into the ordering plan's Phase 4**

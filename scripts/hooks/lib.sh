@@ -171,6 +171,25 @@ if current:
 if idx > len(slices):
     sys.exit(0)
 
+# Hook entries registered 1..N are NOT guaranteed to be delivered in registration
+# order -- Claude ran them concurrently and concatenated by completion (observed
+# 2026-07-18: chunks arrived 2,3,4,1,5). Slices are cut at arbitrary line
+# boundaries, so an out-of-order chunk bisects a <memory:*> block. Frame every
+# slice with its index so a reader can reassemble regardless of arrival order.
+# This is a transport frame, deliberately not balanced against the content tags
+# it may bisect. Inert on codex, which does deliver in order.
+NOTE = (b" note=\"ordered fragments of one memory payload; hook delivery order is"
+        b" not guaranteed -- concatenate by index\"")
+
+def emit(body, of):
+    # No separator before the footer: whether a trailing newline was original or
+    # inserted would be ambiguous on strip, breaking byte-identical reassembly.
+    # Only the final slice can lack one (slices are cut keeping line ends), so at
+    # most one chunk closes on the same line as its last byte.
+    head = b"<memory:chunk index=\"%d\" of=\"%d\"%s>\n" % (
+        idx, of, NOTE if idx == 1 else b"")
+    sys.stdout.buffer.write(head + body + b"</memory:chunk>\n")
+
 overflow = len(slices) > total
 if overflow and idx == total:
     out = slices[idx - 1]
@@ -183,12 +202,12 @@ if overflow and idx == total:
             break
         out = b"".join(lines[:-1])
         sep = b"" if out.endswith(b"\n") or not out else b"\n"
-    sys.stdout.buffer.write(out + sep + MARKER)
+    emit(out + sep + MARKER, total)
     sys.exit(0)
 if overflow and idx > total:
     sys.exit(0)
 
-sys.stdout.buffer.write(slices[idx - 1])
+emit(slices[idx - 1], len(slices))
 '
 }
 

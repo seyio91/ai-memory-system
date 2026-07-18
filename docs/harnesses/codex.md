@@ -16,6 +16,11 @@ bundled skills **and** the slash-commands-as-skills fan into the cross-agent
 > (`session_chunks`/`inject_chunks` in the manifest, ≤9,000B line-boundary slices).
 > Overflow is **loud** (a truncation marker on the last slice tells you to raise the
 > chunk count), never silent.
+>
+> Registration order holds **on Codex specifically** — Claude does not guarantee it
+> (see `docs/harnesses/claude.md` → Chunked injection). Slices therefore carry a
+> `<memory:chunk index of>` ordering envelope from the shared `emit_hook_chunk`;
+> on Codex it is inert insurance, not a fix for an observed defect here.
 
 ## Daily use
 
