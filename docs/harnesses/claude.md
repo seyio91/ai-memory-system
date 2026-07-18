@@ -144,6 +144,7 @@ First-party **workflow** skills carry a managed *self-rating* block — a signal
 Skills now have one meaningful axis: **source**.
 
 - **Authored skills** live in `skills/<name>/` under the memory root. `skills/` is per-instance and gitignored except `.gitkeep`: drop a skill dir in, then run `scripts/link-skills.sh` to fan it into the harness skill dirs. These are owned and edited on this instance.
+  `link-skills.sh` also **prunes dangling store-shaped links** — a link stranded by a skill rename or a move of the memory tree is never revisited by the link pass (which walks only skills that still exist), so it would otherwise persist forever. A link is removed only when it is dangling *and* its target sits directly under a `skills/` or `.skill-cache/` dir *and* the target basename matches the link name; anything else is reported as a `WARN` and left alone. `--dry-run` reports prunes without removing.
 - **Remote skills** live in `.skill-cache/<name>/`, materialized from the root `skills.toml` manifest. They are referenced, pinned, and re-fetchable, not copied into source control.
 
 The old generic/local authored split is retired. There is no tracked in-tree authored skill store. Sharing an authored skill means publishing it to a remote repo and adding it to the catalog/manifest; there is no copy-fork middle category.

@@ -20,6 +20,14 @@
 #
 # Idempotent. Only creates/repairs symlinks that point into the canonical
 # store; never touches real dirs or foreign symlinks it didn't create.
+#
+# Also prunes dangling store-shaped symlinks: a link left behind when its skill
+# was renamed or the memory tree moved is never revisited by the link loop
+# (which only walks skills that still exist), so it would otherwise survive
+# indefinitely. A link is pruned only when it is dangling AND its target sits
+# directly under a skills/ or .skill-cache/ dir AND the target basename matches
+# the link name — deliberately matching on shape rather than on the *current*
+# store roots, since a moved tree leaves links pointing at the old root.
 
 set -euo pipefail
 
@@ -71,5 +79,32 @@ while IFS= read -r d; do
   linked=$((linked+1))
 done < <(list_skill_dirs)
 
+pruned=0
+for dst in "$TARGET"/*; do
+  [ -L "$dst" ] || continue
+  [ -e "$dst" ] && continue
+
+  name="$(basename "$dst")"
+  tgt="$(readlink "$dst")"
+  parent="$(basename "$(dirname "$tgt")")"
+
+  case "$parent" in
+    skills|.skill-cache) ;;
+    *)
+      echo "WARN: $name dangles outside a skill store ($tgt) — leaving untouched" >&2
+      continue
+      ;;
+  esac
+
+  if [ "$(basename "$tgt")" != "$name" ]; then
+    echo "WARN: $name dangles to a differently-named target ($tgt) — leaving untouched" >&2
+    continue
+  fi
+
+  echo "prune: $name (dangling -> $tgt)"
+  [ "$DRY_RUN" = 1 ] || rm "$dst"
+  pruned=$((pruned+1))
+done
+
 tag=""; [ "$DRY_RUN" = 1 ] && tag=" [dry-run]"
-echo "done: ${linked} linked, ${repaired} repaired, ${skipped} already-current (target: $TARGET)${tag}"
+echo "done: ${linked} linked, ${repaired} repaired, ${pruned} pruned, ${skipped} already-current (target: $TARGET)${tag}"
