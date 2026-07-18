@@ -1,6 +1,7 @@
 ---
 plan: archive-investigation-on-task-done
-status: active
+status: done
+completed: 2026-07-18
 created: 2026-07-18
 owner: claude (orchestrator)
 task_provider: notion

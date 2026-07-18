@@ -5,7 +5,7 @@
 
 ## Active
 
-### Archive investigation when a task is done → [plan](plans/archive-investigation-on-task-done.md)
+### Archive investigation when a task is done → DONE, shipped in PR #81, archived → [plan](archive/plans/archive-investigation-on-task-done.md)
 - [x] Phase 1 — `/plan-archive` extension (resolve linked investigation, move it). Fixed a defect the suite could not see: Step 5 said "skip to Step 8" twice, skipping **Step 7, the plan move** — the no-investigation path archived nothing. Live-exercised on `hook-chunk-ordering` (no linked investigation) after the fix: plan moved, source gone.
 - [x] Phase 2 — `lint-memory` rule 10 (stale live investigation); mutation-tested both directions (silenced → 3 fail; scan live `plans/` → 4 fail)
 - [x] Phase 3 — tests in `test_lint_memory.sh`
