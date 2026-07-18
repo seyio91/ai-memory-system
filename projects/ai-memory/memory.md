@@ -87,6 +87,7 @@ The engine is **harness-agnostic** (`install.sh` is a generic manifest-driven in
 - **A tracked `identity.md` bricks the release channel.** User-editable files must not be tracked; untracking a previously tracked file can delete local data during checkout transitions.
 - **A git tag ships a whole tree, and there is no build step to filter it.** Under tag-based distribution, tracking a file publishes it in every release; `.gitattributes export-ignore` is no defence — `git archive` honours it, `git clone`/`git checkout <tag>` do not.
 - **A GitHub force-push does not remove anything.** GitHub-controlled PR refs can preserve scrubbed history; deleting/recreating the remote is the only complete removal path.
+- **`domain/<topic>-cache/` subdirectories are invisible to both the catalog and git.** `regenerate-index` globs top-level `domain/*.md` only (`-maxdepth 1`), and `/domain/*` is gitignored — so a path-addressed cache like `domain/terraform-module-cache/` (one file per module, keyed on short name) is local, untracked, and looked up by direct path. Never reindex after writing one; it will not appear.
 
 ## Related Projects
 
@@ -96,10 +97,6 @@ The engine is **harness-agnostic** (`install.sh` is a generic manifest-driven in
 
 > **This tree can only *reference* those skills, never fix them.** `skills.toml` declares them; `resolve-skills.sh` materializes them into the gitignored `.skill-cache/`, which is *referenced, not forked* — so an edit under `.skill-cache/<name>/` is silently discarded on the next resolve. A skill's content change is a **PR against `agent-skills`**, delegated (never loaded). Consequence, learned 2026-07-10: a doctrine contradiction between this tree's `memory.md` and a remote skill's `SKILL.md` is **structurally invisible** to any check that runs here — the doc-vs-code gate cannot see across the repo boundary.
 
-## Related Skills / Tooling
-- **`renovate-manager`** (remote-referenced from the `agent-skills` repo → materialized in `.skill-cache/`) — read-only Renovate-PR review dispatcher: routes by Renovate manager type to per-domain reviewers (helm vs terraform), runs heavy work (diff/clone/validate/release-notes) in parallel subagents, keeps review memory in the per-instance skill-data root (so re-resolving the remote never touches its data), resolves the project from the PR repo URL via the reverse-map. Skill specifics live with the skill, not in Architecture Decisions.
-- **`domain/terraform-module-cache/` convention** — a path-addressed cache keyed on module short name (one file per module). Not in the `index.md` catalog (regenerate-index only globs top-level `domain/*.md`), and `domain/*` is gitignored — local, untracked, looked up by direct path. No reindex when writing them.
-
 ## Current Goal
 **Prepare to open-source.** The repo goes public with its history intact; content is removed going forward, never scrubbed (see the open-sourcing decision above). `identity.md` and live client references are already out of the tracked tree.
 
@@ -107,4 +104,3 @@ Open build threads, all captured as backlog tasks:
 - **Release automation** — replace `release.sh`'s release-time `git log` drafting with per-PR changelog fragments, then let GitHub Actions assemble and publish. Design in the `release-automation` investigation. Would also make branch protection on `main` possible, which `release.sh` currently forbids by pushing `main` itself.
 - **`@`-sign section-level context loading** — pull a named file or section instead of injecting whole files.
 
-**Versioned-release-channel thread — DONE** (the `versioned-release-channel` plan). Its design record is the `versioned-release-packaging` wiki; §7 there holds the deferred external-user zip thread, which untracking personal content would make cheap (`git archive` becomes a valid build primitive once nothing personal is tracked).
