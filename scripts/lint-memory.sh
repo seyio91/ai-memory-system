@@ -198,6 +198,27 @@ for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
     fi
 done
 
+# 10. Stale investigation — a live investigation whose `task_ref` matches a plan
+#     already sitting in archive/plans/ means that task's work has shipped and
+#     the investigation was left behind by mistake (/plan-archive should have
+#     moved it too). Purely local: compare `task_ref` frontmatter values within
+#     the same project's investigations/ and archive/plans/ trees — never calls
+#     the task provider. Live investigations dir only; archive not scanned.
+for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
+    [ -e "$f" ] || continue
+    case "$f" in *"/_template/"*) continue;; esac
+    ref=$(extract_fm_field "$f" task_ref)
+    [ -n "$ref" ] || continue
+    project_dir=$(dirname "$(dirname "$f")")
+    for p in "$project_dir"/archive/plans/*.md; do
+        [ -e "$p" ] || continue
+        if [ "$(extract_fm_field "$p" task_ref)" = "$ref" ]; then
+            emit "WARN:  $f stale — task_ref matches archived plan $p (work shipped; archive this investigation too)"
+            break
+        fi
+    done
+done
+
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
     exit 0
