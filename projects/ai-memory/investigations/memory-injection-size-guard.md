@@ -84,11 +84,15 @@ knows how to signal truncation.
    in practice despite reading as destructive. Rejected: per-decision `wikis/` pages (37 new files for
    detail that is already in git) and a single decisions-detail grab-bag file.
 
-## Phase 1 result — the measured cap (2026-07-18)
+## Phase 1 result — SUPERSEDED, see "Phase 1 corrected" below
+
+> **The measurement in this section is wrong by ~3x.** It measured the *Bash tool* cap and assumed it
+> also governed hook `additionalContext`. Independent validation refuted that. Kept for the record;
+> use the corrected section that follows.
 
 Probed by emitting payloads of known size and observing whether the harness inlined them or spilled
 them to a file. Bash tool output and hook `additionalContext` use the same spill mechanism and the same
-`Output too large (NKB)` message, so the former is a valid proxy.
+`Output too large (NKB)` message, so the former is a valid proxy. **← this inference is the error.**
 
 | Payload | Bytes | Result |
 |---|---|---|
@@ -130,6 +134,74 @@ Reaching budget therefore requires a structural change, not just editing. Candid
 - **Trim `orchestrator.md`** (11.4KB) — doctrine prose, hand-maintained, the least safe to cut blind.
 - **Make injection selective** — inject `identity` + `project` always, and load `orchestrator` / `index`
   on demand. The largest change, but the only one that stops the fixed cost growing back.
+
+## Phase 1 corrected — independent validation (2026-07-18)
+
+A read-only validator re-derived every Phase 1 claim, then settled the decisive one by extracting
+`strings` from the installed CLI (`@anthropic-ai/claude-code@2.1.214`, `bin/claude.exe`) rather than
+inferring thresholds from observed behavior.
+
+### The two caps are different
+
+| Path | Constant | Value |
+|---|---|---|
+| Bash / shell tool result | `maxResultSizeChars` on the shell tool definition | **30,000** chars |
+| Hook `additionalContext` | `jLt(e,t,r,n=mou)`, `mou = 1e4`; all call sites pass 3 args | **10,000** chars |
+
+Both funnel into the same persist/preview helper (same `Output too large … Preview (first NKB)`
+template, preview size `SXt = 2000`), which is precisely why they look identical from outside. **Shared
+plumbing is not a shared threshold.** The original reasoning — "same mechanism, same message, therefore
+valid proxy" — is a non-sequitur, and it is wrong here by a factor of three.
+
+The 10,000 default is not user-tunable: no override for hook content exists anywhere in the binary, and
+the surrounding flag (`tengu_velvet_ibis`) is a Statsig-style internal, not a setting.
+
+### Corrected numbers
+
+- **Hook `additionalContext` cap: ~10,000 chars.** Everything the guard cares about is measured against
+  this, not 30,000.
+- **Bash tool cap: ~30,000 chars**, empirically narrowed to inline ≤29,696 / spill ≥29,952 — consistent
+  with `maxResultSizeChars: 30000`. Correct, but about a path the memory system never uses.
+- **It is a character count, not a byte count** — the guard compares `string.length` (UTF-16 code units).
+  Identical to bytes for ASCII markdown, divergent for emoji/CJK. "Byte-based" was imprecise; the
+  practical conclusion still holds for this repo's content.
+- **Budget 20,000 is refuted.** It sits *above* the real cap: a payload between 10,000 and 20,000 would
+  be silently spilled by the harness while the guard stayed quiet — the original bug, reproduced at a
+  smaller size. Needs recomputation with headroom under 10,000 (~7,000–8,000 pending live confirmation).
+
+### Corrected scope — `render_full` is not a per-turn cost
+
+`inject.sh` pays the full render on only three paths:
+
+1. `SessionStart`, non-compact source (`session_start_memory.sh`, unconditional)
+2. `UserPromptSubmit` when a recompact sentinel exists (one-shot, post-compaction)
+3. `UserPromptSubmit` when the prompt contains `@memory`
+
+Every other prompt calls `render_breadcrumb` — **measured at 546 bytes** for this project. There is no
+continuous per-turn 22.1KB tax. The earlier Risks-section phrasing ("fixed always-injected set")
+conflated "every session" with "every turn" and overstated the problem.
+
+Fixed-set byte sizes confirmed exactly: `orchestrator.md` 11,403 + `index.md` 8,755 + `identity.md`
+1,884 = **22,042 B**. Live `render_full` for `ai-memory` reproduced at **91,797 B**.
+
+### What this changes
+
+Against a ~10,000-char ceiling, **`orchestrator.md` alone (11,403) overflows the entire budget before
+any other file loads.** Compression of `memory.md` is not merely insufficient — it is close to
+irrelevant to the binding constraint. Selective injection stops being one option among three and
+becomes effectively mandatory: the full set cannot fit, at any realistic level of editing.
+
+The good news is the corrected scope makes this cheaper than feared — the cost lands at session start,
+recompact, and explicit `@memory`, not on every turn, so deferring `orchestrator`/`index` to on-demand
+loading costs a fetch on rare paths rather than degrading normal operation.
+
+### Open — needs a live test
+
+The validator's evidence is static analysis of minified shipped code: concrete (literal constants, exact
+call sites) but not a live observation, and it could not drive the orchestrating session to test the
+hook path directly. **Confirm with one live test before Phase 2 hardcodes a budget:** emit a
+`render_full` payload sized just under and just over ~10,000 chars through the actual hook and observe
+inline vs. spill. Until then treat 10,000 as high-confidence, not settled.
 
 ## Unrelated latent bug found while investigating
 

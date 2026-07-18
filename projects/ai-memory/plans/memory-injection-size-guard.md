@@ -84,11 +84,17 @@ Rejected:
 - Guard behavior: warn inline, inject fully. Never drop content.
 - Warning position: first in the payload, so it survives into the harness's truncated preview.
 - Evicted rationale: discarded, not relocated. Git history is the recovery path.
-- Budget default: `AI_MEMORY_INJECT_WARN_BYTES` = **20000**. Measured 2026-07-18: the cap sits between
-  24,576 (inline) and 32,764 (spills); 20000 leaves headroom under the confirmed-safe figure. The
-  original 40000 guess was itself over the cap.
-- The cap is **byte-based, not token-based** — verified by identical behavior for real prose and a
-  repeated-character run at the same byte count. A byte budget is exact, not a proxy.
+- Budget default: `AI_MEMORY_INJECT_WARN_BYTES` = **~7000–8000, pending live confirmation.**
+  ~~20000~~ was refuted by validation: it sits *above* the real cap, so a 10,000–20,000 payload would
+  spill silently while the guard stayed quiet — the original bug at a smaller size.
+- **The governing cap is hook `additionalContext` ≈ 10,000 chars** (`jLt`/`mou = 1e4` in
+  `@anthropic-ai/claude-code@2.1.214`), *not* the 30,000 `maxResultSizeChars` of the Bash tool. The two
+  share persist/preview plumbing and emit an identical message, which is what made the earlier proxy
+  measurement look sound. It was wrong by ~3x.
+- The cap is a **character count** (`string.length`, UTF-16 units), not a byte count. Equivalent for
+  ASCII markdown; divergent for emoji/CJK.
+- **`render_full` is not a per-turn cost.** It fires on SessionStart, on the recompact sentinel, and on
+  an explicit `@memory` prompt. Ordinary prompts emit a 546-byte breadcrumb.
 - Under-budget output must be byte-identical to today's — the guard is inert in the normal case.
 - Out of scope: the `resolve_session_key` / `working..git.md` bug (see investigation, filed separately).
 
@@ -121,13 +127,18 @@ Rejected:
 - ~~The real inline cap is unknown.~~ **Resolved in Phase 1:** cap is between 24,576 and 32,764 bytes.
 - ~~The cap may be token-based.~~ **Resolved in Phase 1:** byte-based; real prose and a repeated-character
   run at 24,576 bytes behaved identically.
-- **BLOCKING — compressing `memory.md` cannot reach budget on its own.** The fixed always-injected set
-  (`orchestrator` 11.4KB + `index` 8.8KB + `identity` 1.9KB = 22.1KB) already consumes 90% of the safe
-  ceiling before either project file loads, leaving ~2.5KB for `memory.md` + `working.md` combined.
-  Phases 4-5 are necessary but not sufficient, and criterion 6 is unreachable as the plan currently
-  stands. Needs a decision — trim the generated `index.md`, trim `orchestrator.md`, or make injection
-  selective (identity + project always, orchestrator/index on demand) — before Phase 2 hardcodes a
-  budget the system cannot meet.
+- **BLOCKING — against a ~10,000-char cap, `orchestrator.md` (11,403) overflows the budget by itself,**
+  before `identity`, `index`, `memory`, or `working` load at all. Compressing `memory.md` is not just
+  insufficient, it barely touches the binding constraint. Selective injection (identity + project
+  always; orchestrator/index on demand) is effectively the only option that can work — trimming cannot
+  close a gap this size. Phases 4-5 remain worth doing for their own sake but must not be relied on to
+  reach criterion 6.
+  *Earlier framing of this risk cited a 22.1KB per-prompt fixed cost against a ~24.5KB ceiling. Both
+  numbers were wrong: the cost is per-session, not per-turn, and the ceiling is ~10,000. The conclusion
+  survives in stronger form.*
+- **The ~10,000 figure is static analysis, not live observation.** Extracted from the shipped minified
+  binary; concrete but unconfirmed against a running hook. Phase 1b exists to settle it. Do not hardcode
+  a budget until it does.
 - **Compression is judgment, not mechanical.** 37 entries rewritten in one pass risks flattening
   decisions that genuinely need two lines. The ≤6KB target is a goal, not a hard constraint — a decision
   that loses its meaning when compressed should keep the extra line.
