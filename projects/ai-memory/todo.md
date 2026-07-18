@@ -13,7 +13,7 @@
 - [ ] Phase 5 — archive the `executor-output-normalization` investigation
 
 ### Memory injection size guard + compress memory base → [plan](plans/memory-injection-size-guard.md)
-- [ ] Phase 1 — measure the real inline cap, set the budget default
+- [x] Phase 1 — measure the real inline cap, set the budget default (24,576–32,764 B, byte-based; budget 20000)
 - [ ] Phase 2 — guard in `lib.sh` (close the `1/1` fast path, prepend `<memory:warning>`)
 - [ ] Phase 3 — tests (over-budget, under-budget byte-identical, boundary)
 - [ ] Phase 4 — compress `## Architecture Decisions` (37 entries → ≤6KB)

@@ -84,7 +84,11 @@ Rejected:
 - Guard behavior: warn inline, inject fully. Never drop content.
 - Warning position: first in the payload, so it survives into the harness's truncated preview.
 - Evicted rationale: discarded, not relocated. Git history is the recovery path.
-- Budget default: `AI_MEMORY_INJECT_WARN_BYTES`, starting at 40000, revised in Phase 1 against the measured cap.
+- Budget default: `AI_MEMORY_INJECT_WARN_BYTES` = **20000**. Measured 2026-07-18: the cap sits between
+  24,576 (inline) and 32,764 (spills); 20000 leaves headroom under the confirmed-safe figure. The
+  original 40000 guess was itself over the cap.
+- The cap is **byte-based, not token-based** — verified by identical behavior for real prose and a
+  repeated-character run at the same byte count. A byte budget is exact, not a proxy.
 - Under-budget output must be byte-identical to today's — the guard is inert in the normal case.
 - Out of scope: the `resolve_session_key` / `working..git.md` bug (see investigation, filed separately).
 
@@ -114,11 +118,16 @@ Rejected:
 
 ## Risks / open questions
 
-- **The real inline cap is unknown.** 88.9KB exceeded it; the threshold itself was never observed. If it
-  is well below 40KB the budget must drop and Phase 5's trimming gets more aggressive. Phase 1 exists to
-  remove this unknown before any tuning depends on it.
-- **The cap may be token-based, not byte-based**, in which case a byte budget is a proxy and needs
-  conservative headroom. Worth checking during Phase 1 rather than assuming bytes.
+- ~~The real inline cap is unknown.~~ **Resolved in Phase 1:** cap is between 24,576 and 32,764 bytes.
+- ~~The cap may be token-based.~~ **Resolved in Phase 1:** byte-based; real prose and a repeated-character
+  run at 24,576 bytes behaved identically.
+- **BLOCKING — compressing `memory.md` cannot reach budget on its own.** The fixed always-injected set
+  (`orchestrator` 11.4KB + `index` 8.8KB + `identity` 1.9KB = 22.1KB) already consumes 90% of the safe
+  ceiling before either project file loads, leaving ~2.5KB for `memory.md` + `working.md` combined.
+  Phases 4-5 are necessary but not sufficient, and criterion 6 is unreachable as the plan currently
+  stands. Needs a decision — trim the generated `index.md`, trim `orchestrator.md`, or make injection
+  selective (identity + project always, orchestrator/index on demand) — before Phase 2 hardcodes a
+  budget the system cannot meet.
 - **Compression is judgment, not mechanical.** 37 entries rewritten in one pass risks flattening
   decisions that genuinely need two lines. The ≤6KB target is a goal, not a hard constraint — a decision
   that loses its meaning when compressed should keep the extra line.
