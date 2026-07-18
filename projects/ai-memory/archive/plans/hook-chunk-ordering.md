@@ -1,6 +1,7 @@
 ---
 plan: hook-chunk-ordering
-status: draft
+status: done
+completed: 2026-07-18
 created: 2026-07-18
 owner: claude (orchestrator)
 ---

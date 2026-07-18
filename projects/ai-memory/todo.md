@@ -6,13 +6,13 @@
 ## Active
 
 ### Archive investigation when a task is done → [plan](plans/archive-investigation-on-task-done.md)
-- [ ] Phase 1 — `/plan-archive` extension (resolve linked investigation, move it)
-- [ ] Phase 2 — `lint-memory` rule 10 (stale live investigation)
-- [ ] Phase 3 — tests in `test_lint_memory.sh`
-- [ ] Phase 4 — docs + changelog entry
-- [ ] Phase 5 — archive the `executor-output-normalization` investigation
+- [x] Phase 1 — `/plan-archive` extension (resolve linked investigation, move it). Fixed a defect the suite could not see: Step 5 said "skip to Step 8" twice, skipping **Step 7, the plan move** — the no-investigation path archived nothing. Live-exercised on `hook-chunk-ordering` (no linked investigation) after the fix: plan moved, source gone.
+- [x] Phase 2 — `lint-memory` rule 10 (stale live investigation); mutation-tested both directions (silenced → 3 fail; scan live `plans/` → 4 fail)
+- [x] Phase 3 — tests in `test_lint_memory.sh`
+- [x] Phase 4 — docs + changelog entry
+- [x] Phase 5 — archived `executor-output-normalization` **manually** (`mv`, not `/plan-archive`): no `task_ref` and its plan was already in `archive/plans/`, so the command aborts at Step 2 and rule 10 can't match — the orphan case the Design anticipated. Clears one baseline lint warning.
 
-### Hook chunk ordering envelope → [plan](plans/hook-chunk-ordering.md)
+### Hook chunk ordering envelope → DONE, archived → [plan](archive/plans/hook-chunk-ordering.md)
 - [x] Phase 1 — envelope in `emit_hook_chunk` (`scripts/hooks/lib.sh`)
 - [x] Phase 2 — tests: `strip_chunks` helper in `_assert.sh`; out-of-order assertions in `test_shared_hooks.sh` + `test_inject_memory.sh`
 - [x] Phase 3 — verify: suite 47/1 (the 1 pre-existing at HEAD); mutation-check watched failing; live shuffled reassembly == `render_full` (43,776 B)
