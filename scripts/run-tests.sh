@@ -13,9 +13,32 @@
 # this runner just guarantees a clean baseline so results are reproducible on any
 # machine / in CI.
 #
-# Usage: run-tests.sh [--no-lint] [-v]
-#   --no-lint   skip the lint-memory.sh pass (tests only)
-#   -v          stream each test's full output (default: only failures)
+# Usage: run-tests.sh [--no-lint] [--tests-only] [--only PAT] [--changed [REF]] [-v]
+#   --no-lint     skip the lint-memory.sh pass (tests only)
+#   --tests-only  skip lint, skills, doc-vs-code and shellcheck (~12s)
+#   --only PAT    run only tests whose filename contains PAT (repeatable)
+#   --changed     derive the test set from the working-tree diff vs REF (default HEAD)
+#   -v            stream each test's full output (default: only failures)
+#
+# SELECTION IS A LOCAL FAST PATH, NOT A GATE. CI (.github/workflows/tests.yml)
+# runs the full suite on ubuntu + macos for every PR and every push to main, and
+# that is what gates merges. Any selecting run prints a SELECTED banner and a
+# "NOT A FULL RUN" summary line, so a partial pass can never be misread as a green
+# suite — silent subsetting is the one failure this flag set must not introduce.
+#
+# --changed maps a changed file to tests two ways and unions the results:
+#   1. naming convention — scripts/foo-bar.sh -> scripts/tests/test_foo_bar.sh
+#   2. reference grep    — any test mentioning the changed file's basename, which
+#                          is what catches shared libs (lib.sh, _lib.sh,
+#                          content-core.sh) that many tests source indirectly.
+# A changed shell script that maps to NO test is reported as UNMAPPED and forces a
+# non-zero exit: an edit that no test covers is a finding, not a pass.
+#
+# Timing note (measured 2026-07-18, this machine): the full run is ~179s, of which
+# the bash suite is 167.5s. It is extremely skewed — test_install_harness.sh alone
+# is 67s (40%), the top 3 files are 60%, and the median test is 0.24s. The non-test
+# stages total ~12s, so --tests-only is a minor saving; --changed is the real one.
+# --no-lint saves ~1.1s and is not a speed control.
 #
 # Exit: 0 if everything passes, 1 otherwise.
 
@@ -27,15 +50,101 @@ TESTS="$HERE/tests"
 
 DO_LINT=1
 VERBOSE=0
+TESTS_ONLY=0
+CHANGED=0
+CHANGED_REF="HEAD"
+ONLY_PATS=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-lint) DO_LINT=0; shift ;;
+        --tests-only) TESTS_ONLY=1; shift ;;
+        --only)
+            [ $# -ge 2 ] || { echo "run-tests: --only needs a pattern" >&2; exit 2; }
+            ONLY_PATS="$ONLY_PATS$2"$'\n'; shift 2 ;;
+        --changed)
+            CHANGED=1; shift
+            # optional REF; anything starting with '-' is the next flag, not a ref
+            case "${1:-}" in ''|-*) ;; *) CHANGED_REF="$1"; shift ;; esac ;;
         -v|--verbose) VERBOSE=1; shift ;;
         *) echo "run-tests: unknown arg: $1" >&2; exit 2 ;;
     esac
 done
 
 [ -d "$TESTS" ] || { echo "run-tests: no tests dir at $TESTS" >&2; exit 2; }
+
+# --- test selection -----------------------------------------------------------
+# SELECTED is a newline-delimited list of absolute test paths. Empty => run all.
+# UNMAPPED collects changed scripts that resolved to no test at all; it is a hard
+# failure, because "no test ran for this edit" must not look like "tests passed".
+SELECTED=""
+UNMAPPED=""
+SELECTING=0
+
+if [ -n "$ONLY_PATS" ]; then
+    SELECTING=1
+    while IFS= read -r pat; do
+        [ -n "$pat" ] || continue
+        for t in "$TESTS"/test_*.sh; do
+            [ -e "$t" ] || continue
+            case "$(basename "$t")" in *"$pat"*) SELECTED="$SELECTED$t"$'\n' ;; esac
+        done
+    done <<EOF
+$ONLY_PATS
+EOF
+fi
+
+if [ "$CHANGED" = 1 ]; then
+    SELECTING=1
+    if ! git -C "$MEM" rev-parse --git-dir >/dev/null 2>&1; then
+        echo "run-tests: --changed needs a git repo at $MEM" >&2; exit 2
+    fi
+    # staged + unstaged vs REF, plus untracked — an untracked new script is
+    # exactly the case where "no test exists yet" most needs to be reported.
+    changed_files="$(
+        { git -C "$MEM" diff --name-only "$CHANGED_REF" 2>/dev/null
+          git -C "$MEM" ls-files --others --exclude-standard 2>/dev/null
+        } | sort -u
+    )"
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        base="$(basename "$f")"
+        hit=0
+        case "$f" in
+            scripts/tests/test_*.sh)                       # a test edited directly
+                [ -e "$MEM/$f" ] && { SELECTED="$SELECTED$MEM/$f"$'\n'; hit=1; } ;;
+        esac
+        if [ "$hit" = 0 ]; then
+            # 1. naming convention: foo-bar.sh -> test_foo_bar.sh
+            stem="${base%.sh}"
+            conv="$TESTS/test_$(printf '%s' "$stem" | tr '-' '_').sh"
+            [ -e "$conv" ] && { SELECTED="$SELECTED$conv"$'\n'; hit=1; }
+            # 2. reference grep: any test naming this file (catches shared libs)
+            refs="$(grep -l -F "$base" "$TESTS"/test_*.sh 2>/dev/null)"
+            if [ -n "$refs" ]; then
+                SELECTED="$SELECTED$refs"$'\n'; hit=1
+            fi
+        fi
+        # Only shell scripts are expected to map to a test. Docs/markdown changes
+        # are covered by the check-docs stage, not by a per-file test.
+        case "$f" in
+            *.sh) [ "$hit" = 0 ] && UNMAPPED="$UNMAPPED  $f"$'\n' ;;
+        esac
+    done <<EOF
+$changed_files
+EOF
+fi
+
+if [ "$SELECTING" = 1 ]; then
+    SELECTED="$(printf '%s' "$SELECTED" | sort -u | grep -v '^$')"
+    n_sel="$(printf '%s' "$SELECTED" | grep -c . )"
+    printf '== SELECTED RUN — %s test file(s), NOT the full suite ==\n' "${n_sel:-0}"
+    printf '%s\n' "$SELECTED" | sed 's|.*/|   |' | grep -v '^\s*$' || true
+    if [ -n "$UNMAPPED" ]; then
+        printf '\n  UNMAPPED — changed script(s) with no corresponding test:\n%s' "$UNMAPPED"
+        printf '  This is a coverage gap, not a pass. Run the full suite.\n'
+    fi
+    printf '\n'
+fi
 
 # Hermetic baseline — nothing from the invoking shell should reach a test.
 hermetic() {
@@ -51,9 +160,25 @@ trap 'rm -rf "$LOGDIR"' EXIT
 pass=0 fail=0
 failed_names=""
 
-printf '== test suite (hermetic) ==\n'
+# Glob, not `ls` — SC2010/SC2012, and the prod shellcheck floor is -S info so an
+# `ls | grep` here would fail the very gate this script runs.
+ALL_TESTS=""
+ALL_COUNT=0
 for t in "$TESTS"/test_*.sh; do
     [ -e "$t" ] || continue
+    ALL_TESTS="$ALL_TESTS$t"$'\n'
+    ALL_COUNT=$((ALL_COUNT + 1))
+done
+
+if [ "$SELECTING" = 1 ]; then
+    TEST_LIST="$SELECTED"
+else
+    TEST_LIST="$ALL_TESTS"
+fi
+
+printf '== test suite (hermetic) ==\n'
+while IFS= read -r t; do
+    [ -n "$t" ] && [ -e "$t" ] || continue
     name="$(basename "$t")"
     log="$LOGDIR/$name.log"
     if hermetic bash "$t" >"$log" 2>&1; then
@@ -66,7 +191,11 @@ for t in "$TESTS"/test_*.sh; do
         fail=$((fail + 1))
         failed_names="$failed_names $name"
     fi
-done
+# Here-doc, not a pipe: a piped `while` runs in a subshell and the pass/fail
+# counters would be discarded on exit, reporting 0 passed / 0 failed forever.
+done <<EOF
+$TEST_LIST
+EOF
 
 # Python suite. Lives outside scripts/tests/ (it is a package, not a bash script),
 # so the loop above cannot see it — it went ungated until 2026-07-09. Enforce the
@@ -75,7 +204,8 @@ done
 PY_TESTS="$MEM/scripts/taskprovider/tests"
 py_status="skipped"
 py_rc=0
-if [ -d "$PY_TESTS" ]; then
+[ "$TESTS_ONLY" = 1 ] && py_status="skipped (--tests-only)"
+if [ "$TESTS_ONLY" = 0 ] && [ -d "$PY_TESTS" ]; then
     printf '\n== taskprovider (python) ==\n'
     if ! command -v python3 >/dev/null 2>&1; then
         py_status="setup error (no python3)"
@@ -106,7 +236,7 @@ fi
 
 lint_status="skipped"
 lint_errors=0
-if [ "$DO_LINT" = 1 ]; then
+if [ "$DO_LINT" = 1 ] && [ "$TESTS_ONLY" = 0 ]; then
     printf '\n== lint-memory ==\n'
     # lint-memory.sh exits 1 on ANY finding (warn or error), so its exit code
     # can't gate the run. Failure = a real ERROR: line; WARN: lines are advisory.
@@ -124,7 +254,7 @@ fi
 
 vs_status="skipped"
 vs_rc=0
-if [ "$DO_LINT" = 1 ]; then
+if [ "$DO_LINT" = 1 ] && [ "$TESTS_ONLY" = 0 ]; then
     printf '\n== validate-skills ==\n'
     # Exits 0 clean, 1 on ERROR, 2 on setup error. Gate on the exit code so an
     # exit-2 (no skills dir) can't masquerade as clean (it emits no ERROR: line).
@@ -148,6 +278,9 @@ fi
 # fail-open shape this stage exists to prevent.
 dvc_status="skipped"
 dvc_rc=0
+if [ "$TESTS_ONLY" = 1 ]; then
+    dvc_status="skipped (--tests-only)"
+else
 printf '\n== doc-vs-code ==\n'
 hermetic bash "$HERE/check-docs.sh" >"$LOGDIR/dvc.log" 2>&1; dvc_rc=$?
 if [ "$dvc_rc" -eq 0 ]; then
@@ -160,6 +293,7 @@ else
     else
         dvc_status="setup error (exit $dvc_rc)"
     fi
+fi
 fi
 
 # Static analysis. Two floors against the single root .shellcheckrc (a nested rc
@@ -177,6 +311,9 @@ fi
 # fresh machine (or a consumer instance running the suite) fails for lacking a linter.
 sc_status="skipped"
 sc_rc=0
+if [ "$TESTS_ONLY" = 1 ]; then
+    sc_status="skipped (--tests-only)"
+else
 printf '\n== shellcheck ==\n'
 if ! command -v shellcheck >/dev/null 2>&1; then
     sc_status="skipped (not installed; dev/CI only)"
@@ -198,6 +335,7 @@ else
         printf '  PASS  %-32s %s\n' "shellcheck" "0 findings"
     fi
 fi
+fi
 
 printf '\n== summary ==\n'
 printf '  tests: %d passed, %d failed%s\n' "$pass" "$fail" \
@@ -208,5 +346,19 @@ printf '  python: %s\n' "$py_status"
 printf '  doc-vs-code: %s\n' "$dvc_status"
 printf '  shellcheck: %s\n' "$sc_status"
 
+# A selecting run must never read as a green suite. Say so last, where the eye
+# lands, and name the command that actually gates.
+unmapped_rc=0
+if [ "$SELECTING" = 1 ]; then
+    printf '\n  *** NOT A FULL RUN — %d of %d test files ran. ***\n' \
+        "$((pass + fail))" "$ALL_COUNT"
+    printf '  Merge is gated by CI (full suite, ubuntu + macos). Locally: %s\n' \
+        "$(basename "$0")"
+    if [ -n "$UNMAPPED" ]; then
+        printf '  UNMAPPED changed script(s) — no test covers these:\n%s' "$UNMAPPED"
+        unmapped_rc=1
+    fi
+fi
+
 [ "$fail" -eq 0 ] && [ "$py_rc" -eq 0 ] && [ "$lint_errors" -eq 0 ] && [ "$vs_rc" -eq 0 ] \
-    && [ "$dvc_rc" -eq 0 ] && [ "$sc_rc" -eq 0 ]
+    && [ "$dvc_rc" -eq 0 ] && [ "$sc_rc" -eq 0 ] && [ "$unmapped_rc" -eq 0 ]

@@ -28,8 +28,26 @@
 | `taskctl` | Bash wrapper for the task-provider CLI (used by `/task`, `/start`) | `taskctl <capture\|list\|get\|update\|set-status\|ping> ...` |
 | `taskprovider/` | Python (stdlib-only) task-provider CLI — see [Task-provider layer](task-provider.md) | `PYTHONPATH=$MEMORY_DIR/scripts python3 -m taskprovider <verb>`; tests: `cd scripts && python3 -m unittest discover -s taskprovider/tests -t .` |
 | `check-docs.sh` | Assert the env-var table below matches the code (forward + strict-consumer axes) | `check-docs.sh [root]` (exit 0 clean, 1 findings, 2 setup error) |
-| `run-tests.sh` | Suite runner: shell tests → python tests → lint → skills → doc-vs-code → shellcheck. Gates on all six | `run-tests.sh [--no-lint] [-v]` (exit 0 clean, 1 otherwise) |
+| `run-tests.sh` | Suite runner: shell tests → python tests → lint → skills → doc-vs-code → shellcheck. Gates on all six | `run-tests.sh [--no-lint] [--tests-only] [--only PAT] [--changed [REF]] [-v]` (exit 0 clean, 1 otherwise) |
 | `tests/*` | Dependency-free shell tests (bash 3.2) | `for t in scripts/tests/test_*.sh; do bash "$t"; done` |
+
+### Selecting a subset locally
+
+A full run is ~179s, and it is heavily skewed — `test_install_harness.sh` alone is 67s (40%),
+the top three files are 60%, and the median test is 0.24s. `--only PAT` (repeatable) and
+`--changed [REF]` cut that to seconds for a typical edit; `--changed` maps a changed file to
+tests by naming convention (`foo-bar.sh` → `test_foo_bar.sh`) unioned with a basename grep
+across the suite, which is what catches shared libs like `hooks/lib.sh`.
+
+**Selection is a local fast path, never a gate.** CI (`.github/workflows/tests.yml`) runs the
+full suite on ubuntu **and** macos for every PR and push to `main`, and that is what gates
+merges. A selecting run prints a `SELECTED RUN` banner and a closing `*** NOT A FULL RUN ***`
+line so a partial pass cannot be misread as green, and a changed shell script that maps to no
+test at all is reported as `UNMAPPED` and **exits non-zero** — an edit no test covers is a
+finding, not a pass.
+
+`--tests-only` skips lint/skills/doc-vs-code/shellcheck, but those total only ~12s; `--no-lint`
+saves ~1.1s and is a correctness toggle, not a speed control.
 
 All scripts target macOS `bash` 3.2 (no `mapfile`, no associative arrays) and resolve the memory tree via `MEMORY_DIR`. Each test sets `MEMORY_DIR` to a `mktemp -d` sandbox so the suite never touches real memory; the hook's state dir derives from it (`$MEMORY_DIR/.sessions`).
 
