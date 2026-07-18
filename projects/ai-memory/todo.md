@@ -34,4 +34,4 @@
 - [x] Criterion 7 — **verified 2026-07-18 (2nd `/clear`, post-ordering-fix)**: 6 chunks, all 5 sections inline, no truncation marker, correct reassembly from arrival order 3,2,5,4,1,6. Criterion 5 closed as a **miss** (AD 7,595 B vs ≤6KB); criteria 1-4, 8 superseded
 
 ### Carried out of the injection plan (unowned)
-- [ ] CHANGELOG entry for the chunking fix (`session_chunks`/`inject_chunks`, per-entry cap, ordering envelope) — shipped across `742f083`/`d154319` with no changelog record
+- [x] CHANGELOG entry for the chunking fix (`session_chunks`/`inject_chunks`, per-entry cap, ordering envelope) — shipped across `742f083`/`d154319` with no changelog record. **DONE via PR #78** (`915741c`): fragment `changelog.d/memory-injection-chunking.fix.md` covers all three — the `1/1` fast path + ~10,000-char cap, the `<memory:chunk index of>` ordering envelope, and the overflow marker. `assemble-changelog.sh --check` passes; it renders under `### Fixed`. A fragment, not a `CHANGELOG.md` edit — release assembly is deterministic from `changelog.d/`.
