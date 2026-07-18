@@ -1,7 +1,8 @@
 ---
 plan: memory-injection-size-guard
-status: active
+status: done
 created: 2026-07-18
+completed: 2026-07-18
 owner: claude (orchestrator)
 task_provider: notion
 task_ref: 3a1f6850-c619-810d-a840-c5c812e4bb77
@@ -46,7 +47,29 @@ payload 91,797 → ~46,000 chars, now 6 of 12 chunks with the largest message at
 Criterion 5's ≤6KB target was missed (Architecture Decisions landed at 7,451 B) — recorded as a miss,
 not renegotiated; the byte target came from the refuted budget and no longer binds anything.
 
-Criterion 7 (a real session start carries memory inline) remains **unverified** pending a `/clear`.
+## Close-out (2026-07-18) — criterion 7 verified by live observation
+
+Criterion 7 was the last item left open **in this plan file** (`todo.md` was already ahead of it). It is
+now **met**, verified in a real post-`/clear` session rather than by simulation: the `SessionStart` hook
+delivered the base as 6 chunks, all five sections present inline (`identity`, `orchestrator`, `project`,
+`index`, `working`), no truncation marker, and correct reassembly despite out-of-order arrival (indices
+landed 3,2,5,4,1,6). This is the second confirmation — the first, on 2026-07-18, proved per-entry
+budgeting but surfaced the ordering bug; this one is the first clean run *after* that fix shipped, so it
+validates the envelope end to end as well.
+
+Criterion 6 is met on the same evidence. `render_full` for `ai-memory` measures 44,144 chars against
+a 12 × ~9,000 = ~108,000 capacity — better than 2× headroom, and the live session showed no overflow
+marker. Note the number must come from the *harness* path: invoking `scripts/hooks/inject.sh` directly
+does not carry the manifest's `inject_chunks`, so it falls to the `1/1` default and emits one 45KB
+message — a stand-in that measures the unconfigured path, not the shipped one.
+
+**Final criteria state:** 1-4 and 8 superseded (the overflow marker is the guard); 5 **missed** and
+left recorded as a miss — `## Architecture Decisions` is 7,595 B against a ≤6KB target drawn from the
+refuted budget; 6 and 7 met.
+
+**Not delivered:** Phase 7's changelog entry. The docs half is moot (`AI_MEMORY_INJECT_WARN_BYTES` was
+never built), but the chunking fix shipped without a CHANGELOG entry. Carried out of this plan rather
+than ticked — see `todo.md`.
 
 ## Success criteria
 
@@ -147,11 +170,13 @@ Rejected:
 - [ ] **Phase 5 — Trim gotchas and roll checkpoints.** Compress `## Known Constraints / Gotchas`
       (15.5KB / 24 entries) on the same principle, and run `/checkpoint-archive` to move `working.md`'s
       11.3KB `## Checkpoints` into `archive/working/`.
-- [ ] **Phase 6 — Verify end to end.** Run the hook for real and confirm the payload is under budget, the
-      warning is absent, and a fresh session carries all five sections inline. Criteria 6 and 7 are
-      verified by observation, not by arithmetic over file sizes.
-- [ ] **Phase 7 — Docs + changelog.** Document `AI_MEMORY_INJECT_WARN_BYTES` in `docs/scripts.md` (the
-      env-var table is machine-checked by the doc-vs-code gate) and add a changelog entry.
+- [x] **Phase 6 — Verify end to end.** First confirmed by a `/clear` on 2026-07-18 (5 chunks, no
+      truncation marker, no spill preview), which also exposed the ordering bug split out to
+      `plans/hook-chunk-ordering.md`. Re-confirmed after that fix shipped — see Close-out.
+- [x] **Phase 7 — Docs.** Folded into the ordering plan's Phase 4 and delivered there
+      (`docs/harnesses/claude.md` + codex caveat, manifest comment, project-memory gotcha).
+      `AI_MEMORY_INJECT_WARN_BYTES` is superseded, never built, nothing to document.
+      **Changelog entry remains outstanding** — carried to `todo.md`, not ticked here.
 
 ## Risks / open questions
 

@@ -19,7 +19,7 @@
 - [x] Phase 4 — docs (`docs/harnesses/claude.md` + codex caveat), manifest comment corrected, gotcha in project memory
 - [x] Phase 5 — restore the install gate: `test_install_harness.sh` broken since `742f083` (106 of 143 assertions ungated); expectations now manifest-derived, `set +e` so failures report. Suite 48/0.
 
-### Memory injection size guard + compress memory base → [plan](plans/memory-injection-size-guard.md)
+### Memory injection size guard + compress memory base → DONE, archived → [plan](archive/plans/memory-injection-size-guard.md)
 - [x] Phase 1 — measure the inline cap ⚠️ **wrong by ~3x** — measured the Bash tool cap (30,000), not the hook cap
 - [x] Phase 1a — validate Phase 1 → refuted: hook `additionalContext` cap is ~10,000 chars, budget 20000 unsafe
 - [x] ~~Phase 1b — live-confirm the ~10,000 hook cap~~ — CLOSED, superseded (chunking makes the exact cap non-binding)
@@ -30,4 +30,8 @@
 - [x] Phase 5b — `/checkpoint-archive` on `working.md` (14.2KB → 3.7KB; 8 entries archived, live backlog carried forward)
 - [x] **Real fix** — `session_chunks = 12` applied + registered (12 entries/event; payload now 6 chunks, max 8,711 chars)
 - [x] Phase 6 — verify end to end: **`/clear` 2026-07-18 CONFIRMS per-entry budgeting** — 5 chunks ≤8,996 chars all arrived whole, no truncation marker, no spill preview. Exposed a *separate* ordering bug → `plans/hook-chunk-ordering.md`
-- [ ] Phase 7 — docs: `session_chunks`/`inject_chunks` + the 10,000-char per-entry cap in `docs/harnesses/claude.md` + changelog (~~`AI_MEMORY_INJECT_WARN_BYTES`~~ — never built) — **folded into the ordering plan's Phase 4**
+- [x] Phase 7 — docs delivered via the ordering plan's Phase 4 (`docs/harnesses/claude.md` + codex caveat, manifest comment, memory gotcha); ~~`AI_MEMORY_INJECT_WARN_BYTES`~~ never built
+- [x] Criterion 7 — **verified 2026-07-18 (2nd `/clear`, post-ordering-fix)**: 6 chunks, all 5 sections inline, no truncation marker, correct reassembly from arrival order 3,2,5,4,1,6. Criterion 5 closed as a **miss** (AD 7,595 B vs ≤6KB); criteria 1-4, 8 superseded
+
+### Carried out of the injection plan (unowned)
+- [ ] CHANGELOG entry for the chunking fix (`session_chunks`/`inject_chunks`, per-entry cap, ordering envelope) — shipped across `742f083`/`d154319` with no changelog record
