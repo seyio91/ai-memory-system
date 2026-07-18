@@ -17,6 +17,37 @@ hook exited 0. Nothing reported the degradation. Fix *both* halves: make an over
 rather than silent, and bring the payload itself back under a budget so the warning stays quiet in
 normal operation. Full diagnosis in [memory-injection-size-guard](../investigations/memory-injection-size-guard.md).
 
+## Resolution (2026-07-18) — the guard was already built; the bug was a missing config key
+
+This plan was written on a wrong diagnosis. It assumed the payload was too large and needed a new
+size guard plus aggressive compression. The actual root cause: `harnesses/claude/manifest` had no
+`session_chunks` / `inject_chunks` keys, so the count defaulted to 1, `emit_hook_chunk` took its
+`1/1` fast path (`lib.sh:134-137`, returns unmeasured), and the whole base went out as one message
+against a 10,000-char per-entry cap.
+
+Codex hit the same class of bug on 2026-07-16 and the fix already existed, tested and documented:
+fan the base across N ordered chunk entries of ≤9,000B slices. Only Claude's manifest lacked the keys.
+
+**Criteria 1-4 and 8 are superseded, not met.** They specified a `<memory:warning>` block and an
+`AI_MEMORY_INJECT_WARN_BYTES` budget. Both are now redundant:
+
+- the **overflow marker** in `emit_hook_chunk` (`lib.sh:151`) already fires loudly when the payload
+  outgrows N chunks — that is the guard, and it predates this plan
+- it is already covered by tests (`test_shared_hooks.sh:177-179`)
+- a byte-budget warning would be a second, weaker mechanism policing a threshold the chunker already
+  enforces structurally
+
+Building it would have added a parallel implementation of an existing control. Phases 1b, 2 and 3 are
+closed as superseded.
+
+**Criteria 5-7 stand and were met by the compression work**, which remains worthwhile on its own terms
+(doctrine compliance, not delivery): `memory.md` 55,338 → 17,802 B, `working.md` 14,219 → 3,735 B,
+payload 91,797 → ~46,000 chars, now 6 of 12 chunks with the largest message at 8,711 chars.
+Criterion 5's ≤6KB target was missed (Architecture Decisions landed at 7,451 B) — recorded as a miss,
+not renegotiated; the byte target came from the refuted budget and no longer binds anything.
+
+Criterion 7 (a real session start carries memory inline) remains **unverified** pending a `/clear`.
+
 ## Success criteria
 
 1. `emit_hook_chunk` measures the assembled payload on **every** path, including the `1/1` default —
