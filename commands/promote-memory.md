@@ -6,7 +6,7 @@ Use today's actual date (from `<memory:identity>` injection context) for all ent
 
 Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`).
 
-Step 2 — read `~/.claude-memory/projects/<active>/working.md`. If empty (or only the `_(none yet)_` placeholder under "Cross-project learnings"), abort and tell the user there's nothing to promote.
+Step 2 — read the working file named on the `working:` line of the `<memory:active>` breadcrumb (falling back to `~/.claude-memory/projects/<active>/working.md`). Abort only when **both** candidate sources are empty: `## Cross-project learnings (pending promotion)` holds nothing but its `_(none yet)_` placeholder **and** `## Checkpoints` holds no durable lesson. Step 3 reads both, so aborting on the learnings section alone would make a checkpoint-recorded lesson unpromotable.
 
 Step 3 — extract candidate learnings. Walk both sections:
 - `## Cross-project learnings (pending promotion)` — explicit candidates, usually each their own bullet with `**Why:**` / `**How to apply:**` sub-bullets.
@@ -55,9 +55,19 @@ Step 5 — for each selected candidate, write to its destination (using today's 
   - A **constraint/gotcha** or a reusable **pattern/convention** → fold it into the matching structured section (`## Known Constraints / Gotchas` or `## Architecture Decisions`), NOT Decisions Log. The log is for choices, not for landmines or conventions.
   - A pure **event** (work landed, PR merged, track closed) → do NOT promote; that's git history. (Step 3's present-tense test should already have dropped it.)
 
-Step 6 — archive `working.md` exactly once at the end of the run (regardless of how many candidates were promoted): move it to `~/.claude-memory/projects/<active>/archive/working/YYYY-MM-DD-HHMM.md`, then create a fresh empty `working.md` in the project directory.
+Step 6 — roll **only the learnings section**, exactly once at the end of the run (regardless of how many candidates were promoted):
 
-If the user selected zero candidates from Step 4, skip the archive step — nothing was promoted, working.md should remain.
+```
+bash ~/.claude-memory/scripts/checkpoint-archive.sh --section "Cross-project learnings (pending promotion)" <working-file>
+```
+
+Use the working-file path from the `working:` line of the `<memory:active>` breadcrumb (it may be a `working.<key>.md` worktree overlay), exactly like `/checkpoint`. The script snapshots that section to `archive/working/YYYY-MM-DD-HHMM.md`, resets it to a `_(none yet — rolled …)_` placeholder naming the snapshot, and leaves every sibling section byte-identical.
+
+**Do NOT move, delete, or blank the whole `working.md`.** It also holds `## Checkpoints` — owned by `/checkpoint-archive`, and possibly mid-flight — and free-form sections such as `## Open threads` that no command owns. This command previously `mv`-ed the entire file and started a fresh empty one, silently destroying both.
+
+A candidate promoted **out of `## Checkpoints`** leaves that checkpoint in place; `/checkpoint-archive` owns it. It may therefore be offered again on the next run until checkpoints are rolled — that is expected, not a bug.
+
+If the user selected zero candidates from Step 4, skip this step entirely — nothing was promoted, so nothing is rolled.
 
 Step 7 — regenerate the memory index:
 ```
@@ -66,5 +76,5 @@ bash ~/.claude-memory/scripts/regenerate-index.sh
 
 Step 8 — report back, concise (≤6 lines):
 - For each promoted item: destination path + one-line summary.
-- Archive path of the rolled `working.md` (or "kept — no promotions selected").
+- Snapshot path of the rolled learnings section (or "kept — no promotions selected"), plus a note that `## Checkpoints` and any other sections were left untouched.
 - `index unchanged` or `index updated`.
