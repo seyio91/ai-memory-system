@@ -174,16 +174,33 @@ for f in "$MEMORY_DIR"/projects/*/memory.md "$MEMORY_DIR"/domain/*.md; do
     done < <(grep -nE "$CHANGELOG_RE" "$f" 2>/dev/null)
 done
 
-# 8. Plan status spelling — the canonical in-flight status is `in_progress`
-#    (underscore). Flag the hyphenated `in-progress` so status stays uniform
-#    (the /activity + /state reports pass `status:` through verbatim). Live
-#    plans only; archive is not scanned.
+# 8. Plan status vocabulary — a live plan carries exactly one of `draft`,
+#    `in_progress`, `done`. That is what the tooling itself produces: /new-plan
+#    scaffolds `draft` and /plan-done writes `done`. Anything else (or a missing
+#    `status:`) is drift, because /state and /activity render the value
+#    verbatim — a synonym like `active` silently splits one column into two, and
+#    an absent status renders blank. Documented in docs/file-formats.md; this
+#    rule is the enforcement, not the source. Live plans only; archive not scanned.
+#
+#    Checked by value rather than by blacklisting one typo: the previous rule
+#    flagged only the hyphenated `in-progress`, which nothing in the tree ever
+#    used, while `active` and missing-status plans passed clean.
 for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
-    if [ "$(extract_fm_field "$f" status)" = "in-progress" ]; then
-        emit "WARN:  $f status 'in-progress' — use 'in_progress' (underscore) for uniformity"
-    fi
+    st=$(extract_fm_field "$f" status)
+    case "$st" in
+        draft|in_progress|done) ;;
+        "")
+            emit "WARN:  $f has no status — add one of: draft, in_progress, done (/state and /activity render it blank)"
+            ;;
+        in-progress)
+            emit "WARN:  $f status 'in-progress' — use 'in_progress' (underscore)"
+            ;;
+        *)
+            emit "WARN:  $f status '$st' is not a plan status — use one of: draft, in_progress, done"
+            ;;
+    esac
 done
 
 # 9. Investigations must be tied to a task lifecycle — a live investigation
