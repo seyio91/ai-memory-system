@@ -36,13 +36,27 @@
 
 set -euo pipefail
 
-MEM="${MEMORY_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-PROJECTS_DIR="$MEM/projects"
+# Tree resolution is delegated to _lib.sh, which resolves MEMORY_DIR exactly as
+# every other script does (${MEMORY_DIR:-self-locate}) and then sources
+# config.local.sh from it. This script used to reimplement that under its own
+# name, MEMORY_ROOT, and assign MEMORY_DIR="$MEM" BEFORE sourcing _lib.sh -- so
+# a user-set MEMORY_DIR was silently discarded and the self-located tree synced
+# instead. Aimed at a sandbox tree, it wrote symlinks into the real repos.
+#
+# MEMORY_ROOT is deprecated. It is still honoured, and loudly, so that setting
+# it never quietly selects a different tree than it used to -- that would be the
+# same silent wrong-tree failure this fix removes. Drop the shim at the next
+# major; docs/scripts.md marks the row deprecated.
+if [ -n "${MEMORY_ROOT:-}" ]; then
+    echo "WARN: MEMORY_ROOT is deprecated — use MEMORY_DIR (honouring MEMORY_ROOT for now)" >&2
+    MEMORY_DIR="$MEMORY_ROOT"
+fi
 
-# Shared helpers (projects_root, resolve_repo_path, extract_fm_field). Pin
-# MEMORY_DIR to MEM so the resolver reads from the same tree we're syncing.
-MEMORY_DIR="$MEM"
+# Shared helpers: projects_root, resolve_repo_path, extract_fm_field.
 . "$(dirname "$0")/_lib.sh"
+
+MEM="$MEMORY_DIR"
+PROJECTS_DIR="$MEM/projects"
 
 HARNESS="all"
 MODE="link"
