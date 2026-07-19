@@ -7,12 +7,13 @@
 ## Active
 
 ### Session-scoped project pin → [plan](plans/session-project-pin.md)
-- [ ] Phase 1 — probe whether Codex supplies `session_id`; add `session_pin_file` to `hooks/lib.sh`
-- [ ] Phase 2 — write the pin at SessionStart (non-compact, `hook_chunk_is_first`); prune stale `*.project`
-- [ ] Phase 3 — read the pin in `inject.sh`; validate, fall back to cwd on every failure path
-- [ ] Phase 4 — breadcrumb: `session:` always, `pinned:` only on divergence (both formatters)
-- [ ] Phase 5 — `memory-pin.sh --session` + `commands/pin.md`; **live-exercise the default path**
-- [ ] Phase 6 — docs, changelog fragment, mutation-test each control, full suite, branch + PR
+- [x] Phase 1 — Codex **does** supply `session_id` (captured stdin dump, `domain/codex.md`) and registers the same shared scripts, so this is cross-harness coverage, not a no-op; `session_pin_file` + `prune_session_pins` added
+- [x] Phase 2 — pin written at SessionStart (non-compact, `hook_chunk_is_first`); `*.project` swept after `AI_MEMORY_PIN_RETAIN_DAYS`
+- [x] Phase 3 — `inject.sh` honours the pin, validates the project dir exists, falls back to cwd on every failure path
+- [x] Phase 4 — breadcrumb: `session:` always, `pinned:` only on divergence, both formatters
+- [x] Phase 5 — `memory-pin.sh --session` + `commands/pin.md`. Live-exercised the **pin flow** on the real tree (SessionStart in git-cli → prompt from the memory tree → still git-cli, note emitted). The `--session` *repin* was deliberately **not** run live: it upserts `repo_path` and would overwrite `memory.md`'s `$MEMORY_DIR` sentinel; covered by 3 unit assertions instead
+- [x] Phase 6 — docs, changelog fragment, three controls mutation-tested (5/2/1 fails), suite 50/0, **PR #87**
+- [ ] Confirm on a **new** session that `<memory:active>` carries the `session:` line (needs a fresh prompt through Claude's own hook plane — only the user can trigger it)
 
 ## Done
 _(checked items stay above until the file is rolled)_
