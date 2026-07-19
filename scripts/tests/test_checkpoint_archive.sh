@@ -185,4 +185,103 @@ assert_contains "$(cat "$PDIR_LAST/working.md")" "## Checkpoints" "last-section 
 assert_contains "$(cat "$PDIR_LAST/working.md")" "_(none yet — rolled " "last-section reset written"
 assert_not_contains "$(cat "$PDIR_LAST/working.md")" "### 2026-07-05" "last-section old checkpoint removed from working file"
 
+# === --section rolls the learnings section, and ONLY it =====================
+# This is what /promote-memory calls. Its Step 6 used to `mv` the whole
+# working.md and start a fresh empty one, destroying Checkpoints and Open
+# threads along with it. The heading also carries parentheses — matched as a
+# literal, since an awk regex would read them as grouping, miss the section,
+# and still exit 0 having rolled nothing.
+LEARN="Cross-project learnings (pending promotion)"
+PDIR_L="$(mkproject "$MEM" learn)"
+cat > "$PDIR_L/working.md" <<'EOF'
+# Working — learn
+
+## Cross-project learnings (pending promotion)
+
+- rtk ls returns empty on a non-en_US locale — bisect the env, not the story.
+
+## Checkpoints
+
+### 2026-07-05 — in-flight, must survive
+
+**Next:**
+- unfinished work
+
+## Open threads (not blocking)
+
+- keep this too
+EOF
+before_cp="$(section "$PDIR_L/working.md" "## Checkpoints")"
+before_ot="$(section "$PDIR_L/working.md" "## Open threads (not blocking)")"
+
+run "$ARCHIVE" --section "$LEARN" "$PDIR_L/working.md"
+assert_exit 0 "$code" "--section roll exits 0"
+learn_snap="$(snapshot_path)"
+assert_file "$learn_snap" "--section writes a snapshot"
+assert_contains "$(cat "$learn_snap")" "rtk ls returns empty" "snapshot carries the learning body"
+assert_contains "$(cat "$learn_snap")" "# Archived cross-project learnings (pending promotion) — learn —" \
+    "snapshot header names the rolled section"
+assert_contains "$out" "rolled $LEARN for learn" "report names the rolled section"
+
+learned_after="$(section "$PDIR_L/working.md" "## Cross-project learnings (pending promotion)")"
+assert_contains "$learned_after" "_(none yet — rolled " "learnings body reset to placeholder"
+assert_not_contains "$learned_after" "rtk ls returns empty" "promoted learning removed from working file"
+
+# The whole point: siblings are byte-identical, including an in-flight checkpoint.
+assert_eq "$before_cp" "$(section "$PDIR_L/working.md" "## Checkpoints")" \
+    "Checkpoints untouched — /checkpoint-archive still owns that section"
+assert_eq "$before_ot" "$(section "$PDIR_L/working.md" "## Open threads (not blocking)")" \
+    "Open threads untouched — owned by neither command"
+
+# A section that is absent must no-op, not roll a neighbour by accident.
+PDIR_ABS="$(mkproject "$MEM" absent)"
+cat > "$PDIR_ABS/working.md" <<'EOF'
+# Working — absent
+
+## Checkpoints
+
+### 2026-07-05 — DONE
+EOF
+before_abs="$(cat "$PDIR_ABS/working.md")"
+run "$ARCHIVE" --section "$LEARN" "$PDIR_ABS/working.md"
+assert_exit 0 "$code" "missing --section no-ops with exit 0"
+assert_contains "$out" "nothing to roll" "missing --section reports nothing to roll"
+assert_eq "$before_abs" "$(cat "$PDIR_ABS/working.md")" "missing --section leaves the file byte-identical"
+
+# Bad invocations fail loudly rather than defaulting to Checkpoints.
+run "$ARCHIVE" --section
+assert_exit 2 "$code" "--section with no value exits 2"
+run "$ARCHIVE" --bogus "$PDIR_L/working.md"
+assert_exit 2 "$code" "unknown flag exits 2"
+
+# === two rolls in one minute must not clobber each other ====================
+# The stamp is minute-resolution. Rolling learnings and then checkpoints — what
+# /promote-memory followed by /checkpoint-archive does — produced the SAME
+# filename, and the second snapshot silently overwrote the first, destroying
+# audit trail. Caught by live exercise, not by any assertion that existed then.
+PDIR_C="$(mkproject "$MEM" collide)"
+cat > "$PDIR_C/working.md" <<'EOF'
+# Working — collide
+
+## Cross-project learnings (pending promotion)
+
+- learning body, must reach its own snapshot
+
+## Checkpoints
+
+### 2026-07-05 — DONE checkpoint body, must reach a different snapshot
+EOF
+run "$ARCHIVE" --section "$LEARN" "$PDIR_C/working.md"
+assert_exit 0 "$code" "first roll exits 0"
+first_snap="$(snapshot_path)"
+run "$ARCHIVE" "$PDIR_C/working.md"
+assert_exit 0 "$code" "second roll in the same minute exits 0"
+second_snap="$(snapshot_path)"
+
+assert_not_contains "$first_snap" "-2.md" "first snapshot has no collision suffix"
+assert_file "$first_snap" "first snapshot still exists after the second roll"
+assert_contains "$(cat "$first_snap")" "learning body" "first snapshot keeps the learnings it captured"
+assert_contains "$(cat "$second_snap")" "checkpoint body" "second snapshot holds the checkpoints"
+assert_contains "$second_snap" "-2.md" "collision suffix appended to the second snapshot"
+
 finish
