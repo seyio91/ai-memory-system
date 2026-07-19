@@ -66,6 +66,29 @@ if [ "$COMPACT" = true ]; then
     exit 0
 fi
 
+# Pin the project for this session. Resolved once, here, and honoured by inject.sh
+# on every later prompt no matter where cwd wanders — a session that cd's into
+# another repo must keep writing memory to the project it is ABOUT.
+#
+# Written on every non-compact SessionStart, so the invariant is "the pin equals
+# the project resolved at the last SessionStart"; resume and /clear re-pin
+# naturally and no stale pin can outlive its session with nothing able to clear
+# it. The compact path returns above without writing: compaction keeps the same
+# session_id, so the pin from startup still stands.
+#
+# Guarded by hook_chunk_is_first because this script is registered once per chunk
+# entry (12) and would otherwise write the same file twelve times per session.
+# Every failure here is swallowed: a pin that cannot be written leaves resolution
+# exactly as it was before this feature existed.
+if hook_chunk_is_first; then
+    PIN=$(session_pin_file "$SESSION_ID")
+    if [ -n "$PIN" ] && [ -n "$PROJECT" ]; then
+        mkdir -p "$STATE_DIR" 2>/dev/null || true
+        printf '%s\n' "$PROJECT" > "$PIN" 2>/dev/null || true
+    fi
+    prune_session_pins
+fi
+
 OUTPUT=$(render_full "$PROJECT")
 [ -z "$OUTPUT" ] && exit 0
 

@@ -41,12 +41,24 @@ xml_render_full() {
     printf '%s' "$out"
 }
 
-# xml_render_breadcrumb <project> <cwd> — read records on stdin, print the
-# `<memory:active ...>` breadcrumb: a project pointer, absolute paths to the
-# present memory files, and a re-read directive for compaction recovery.
+# xml_render_breadcrumb <project> <cwd> [session_id] [cwd_project] — read records
+# on stdin, print the `<memory:active ...>` breadcrumb: a project pointer,
+# absolute paths to the present memory files, and a re-read directive for
+# compaction recovery.
+#
+# The trailing two args are optional and omitted by older callers, so the render
+# is unchanged when they are absent. `session_id` is advertised so /pin can target
+# THIS session's pin file — the agent cannot otherwise learn its own session id,
+# since the hook stdin that carries it is consumed by a different process.
+# `cwd_project` is what cwd alone would have resolved to; when it disagrees with
+# the project actually in force, say so rather than silently ignoring the cd.
 xml_render_breadcrumb() {
-    local project="$1" cwd="$2" kind path name out=""
+    local project="$1" cwd="$2" session="${3:-}" cwd_project="${4:-}" kind path name out=""
     out+="<memory:active project=\"$project\" cwd=\"$cwd\">"$'\n'
+    [ -n "$session" ] && out+="session: $session"$'\n'
+    if [ -n "$cwd_project" ] && [ "$cwd_project" != "$project" ]; then
+        out+="pinned: $project (cwd resolves to '$cwd_project'; /pin to change)"$'\n'
+    fi
     while IFS=$'\t' read -r kind path name; do
         case "$kind" in
             identity) out+="identity: $path"$'\n' ;;

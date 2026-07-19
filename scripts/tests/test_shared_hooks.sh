@@ -97,8 +97,22 @@ compare_xml_context() {
 }
 
 if command -v python3 >/dev/null 2>&1; then
-    compare_xml_context "shared xml inject: breadcrumb matches Claude payload" "$(json_payload "hi" "$WORK/sub" "s1")"
-    compare_xml_context "shared xml inject: @memory full matches Claude payload" "$(json_payload "reload @memory" "$WORK" "s2")"
+    # Parity with the frozen pre-migration Claude hook is asserted on the payload
+    # WITHOUT a session_id: that is the pre-session-pin feature set, and it must
+    # stay byte-identical forever. The legacy fixture is a reference snapshot and
+    # is never edited to match new behaviour — that would defeat its purpose.
+    compare_xml_context "shared xml inject: breadcrumb matches Claude payload" "$(json_payload "hi" "$WORK/sub" "")"
+    compare_xml_context "shared xml inject: @memory full matches Claude payload" "$(json_payload "reload @memory" "$WORK" "")"
+
+    # With a session_id the shared hook adds exactly one line — the session
+    # pointer /pin needs — immediately after the opening tag, and changes nothing
+    # else. Asserted as legacy-plus-one-line rather than by eyeballing a literal,
+    # so any OTHER drift from the legacy bytes still fails here.
+    sess_payload="$(json_payload "hi" "$WORK/sub" "s1")"
+    sess_shared="$(printf '%s' "$sess_payload" | AI_MEMORY_HOOK_FORMAT=xml bash "$SHARED_INJECT" | additional_context)"
+    sess_legacy="$(printf '%s' "$(json_payload "hi" "$WORK/sub" "")" | bash "$CLAUDE_INJECT" | additional_context)"
+    sess_expected="$(printf '%s' "$sess_legacy" | awk 'NR==1 {print; print "session: s1"; next} {print}')"
+    assert_eq "$sess_expected" "$sess_shared" "shared xml inject: session_id adds exactly the session line"
 
     old_session="$(printf '{"cwd":"%s","session_id":"ss-normal"}' "$WORK" | bash "$OLD_SESSION")"
     new_session="$(printf '{"cwd":"%s","session_id":"ss-normal"}' "$WORK" | bash "$NEW_SESSION")"
