@@ -36,6 +36,29 @@ _sanitize_session_key() {
         | sed 's/[^a-z0-9][^a-z0-9]*/-/g; s/^-*//; s/-*$//'
 }
 
+# _resolve_git_path <start-dir> <rev-parse-flag> — print the flag's directory as a
+# fully resolved absolute path, or fail.
+#
+# Both rev-parse forms MUST be normalized before they can be compared. git returns
+# --git-dir as an ABSOLUTE path from a subdirectory but --git-common-dir as a
+# RELATIVE one whose depth varies with cwd:
+#
+#   cwd            --git-dir              --git-common-dir
+#   repo root      .git                   .git              equal
+#   projects/      /abs/repo/.git         ../.git           NOT equal
+#   a/b/           /abs/repo/.git         ../../.git        NOT equal
+#
+# Comparing them raw therefore reported "linked worktree" from every non-root cwd
+# of every main checkout. `pwd -P` also resolves symlinks, so a session reached
+# through ~/.claude-memory compares equal to the same repo reached through its
+# real path — a second way the raw comparison could diverge.
+_resolve_git_path() {
+    local start="$1" flag="$2" p
+    p="$(git -C "$start" rev-parse "$flag" 2>/dev/null)" || return 1
+    [ -n "$p" ] || return 1
+    (cd "$start" 2>/dev/null && cd "$p" 2>/dev/null && pwd -P) || return 1
+}
+
 # resolve_session_key <cwd> — print the session key, or empty. Precedence:
 #   1. explicit: nearest .agents/memory-session walking up from cwd (sanitized)
 #   2. auto:     a LINKED git worktree (git-dir != git-common-dir) -> worktree name
@@ -43,7 +66,7 @@ _sanitize_session_key() {
 resolve_session_key() {
     local start_dir="${1:-$PWD}"
     local dir="$start_dir"
-    local marker git_dir git_common_dir
+    local marker git_dir git_common_dir key
     while [ -n "$dir" ] && [ "$dir" != "/" ]; do
         marker="$dir/.agents/memory-session"
         if [ -f "$marker" ]; then
@@ -52,10 +75,25 @@ resolve_session_key() {
         fi
         dir=$(dirname "$dir")
     done
-    git_dir="$(git -C "$start_dir" rev-parse --git-dir 2>/dev/null)" || return 0
-    git_common_dir="$(git -C "$start_dir" rev-parse --git-common-dir 2>/dev/null)" || return 0
+    git_dir="$(_resolve_git_path "$start_dir" --git-dir)" || return 0
+    git_common_dir="$(_resolve_git_path "$start_dir" --git-common-dir)" || return 0
     if [ "$git_dir" != "$git_common_dir" ]; then
-        basename "$git_dir"
+        # Validated, not rewritten — deliberately NOT _sanitize_session_key.
+        # That helper lowercases (right for hand-typed marker content, wrong
+        # here): a worktree named wt-featureB would silently start resolving to
+        # working.wt-featureb.md, orphaning the overlay a session was already
+        # writing — the same silent divergence this fix exists to remove.
+        #
+        # A worktree name is a directory name, so it is already filesystem-safe;
+        # the only real hazards are a leading dot (`.git`, the shipped bug) and a
+        # separator. Reject rather than coerce, and fall back to the shared file:
+        # a wrong-but-well-formed key is harder to notice than no key at all.
+        key="$(basename "$git_dir")"
+        case "$key" in
+            ""|.*|*/*) key="" ;;
+            *[!A-Za-z0-9._-]*) key="" ;;
+        esac
+        [ -n "$key" ] && printf '%s\n' "$key"
     fi
     return 0
 }
