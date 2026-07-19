@@ -71,6 +71,30 @@ The template enforces five sections; lint complains if any is missing:
 -->
 ```
 
+## Plan frontmatter (`projects/<project>/plans/<slug>.md`)
+
+```markdown
+---
+plan: <slug>                  # matches the filename
+status: draft                 # draft | in_progress | done — nothing else
+created: YYYY-MM-DD
+owner: <who>
+completed: YYYY-MM-DD         # written by /plan-done, alongside status: done
+task_provider: notion         # optional — written by /start when a task backs the plan
+task_ref: <full task id>      # optional — full id, never an 8-char prefix
+---
+```
+
+**`status:` takes exactly one of `draft`, `in_progress`, `done`.** That is what the tooling
+produces: `/new-plan` scaffolds `draft`, `/plan-done` writes `done`, and `in_progress` is the
+in-flight value between them. There is no synonym — not `active`, not `complete`, not `closed`,
+and not a hyphenated `in-progress`. `/state` and `/activity` render the value **verbatim**, so a
+synonym silently splits one column into two and a missing `status:` renders blank.
+`lint-memory` rule 8 enforces this; it is the enforcement, not the source of truth — this table is.
+
+> `/plan-archive` *tolerates* reading `complete` or `closed` when deciding whether to prompt, but
+> those are not values to write. Use `done`.
+
 ## Domain file body
 
 Just `## Knowledge`. Entries append as `**[YYYY-MM-DD]** what — why it matters`.

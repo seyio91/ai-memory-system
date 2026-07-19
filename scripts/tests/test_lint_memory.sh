@@ -180,6 +180,48 @@ mv "$M7/projects/good/plans/ok.md.t" "$M7/projects/good/plans/ok.md"
 run_lint
 assert_exit 1 "$CODE" "hyphenated plan status exits 1"
 assert_contains "$OUT" "in_progress" "warning recommends the underscore form"
+
+# every allowed value is clean
+for st in draft in_progress "done"; do
+    cat > "$M7/projects/good/plans/ok.md" <<EOF
+---
+plan: ok
+status: $st
+created: 2026-07-02
+owner: seyi
+---
+# ok
+EOF
+    run_lint
+    assert_exit 0 "$CODE" "plan status '$st' keeps lint clean"
+done
+
+# an off-vocabulary synonym warns — this is the case the old rule missed
+cat > "$M7/projects/good/plans/ok.md" <<'EOF'
+---
+plan: ok
+status: active
+created: 2026-07-02
+owner: seyi
+---
+# ok
+EOF
+run_lint
+assert_exit 1 "$CODE" "off-vocabulary plan status exits 1"
+assert_contains "$OUT" "status 'active' is not a plan status" "warning names the offending value"
+
+# a missing status warns — the other case the old rule missed
+cat > "$M7/projects/good/plans/ok.md" <<'EOF'
+---
+plan: ok
+created: 2026-07-02
+owner: seyi
+---
+# ok
+EOF
+run_lint
+assert_exit 1 "$CODE" "plan with no status exits 1"
+assert_contains "$OUT" "has no status" "warning names the missing status"
 rm -rf "$M7"
 
 # --- stale per-worktree overlay is flagged like a stale working.md ---
