@@ -177,7 +177,7 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `MEMORY_ARCHIVE_RETAIN_DAYS` | `30` | `archive-cleanup.sh` |
 | `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `lib.sh` (per-session `<session_id>.recompact` sentinels) |
 | `MEMORY_RELOAD_TRIGGER` | `@memory` | `inject.sh` — the prompt token that forces a full re-injection |
-| `MEMORY_ROOT` | repo root (self-locating) | `sync-project-skills.sh` **only** — a legacy alias serving the role `MEMORY_DIR` plays everywhere else; do not add new consumers |
+| `MEMORY_ROOT` | unset — falls back to `MEMORY_DIR` | `sync-project-skills.sh` — **deprecated** alias for `MEMORY_DIR`. Still honoured (it takes precedence, and warns on stderr) so setting it never silently switches trees; removed at the next major. Use `MEMORY_DIR`. |
 | `AI_MEMORY_CHANNEL` | `release` | `sync-system.sh` channel selection: `release` checks out the latest stable `v*` tag; `dev` ff-pulls the tracking branch |
 | `AI_MEMORY_MIGRATIONS_DIR` | `$REPO_ROOT/migrations` | `sync-system.sh`, `test_upgrading_doc.sh` (migration directory override) |
 | `AI_MEMORY_APPLIED_VERSION_FILE` | `$REPO_ROOT/.applied-version` | `sync-system.sh` (migration high-water marker override) |
