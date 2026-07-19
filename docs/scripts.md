@@ -176,6 +176,8 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `MEMORY_STALE_DAYS` | `30` | `lint-memory.sh` |
 | `MEMORY_ARCHIVE_RETAIN_DAYS` | `30` | `archive-cleanup.sh` |
 | `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `lib.sh` (per-session `<session_id>.recompact` sentinels) |
+| `MEMORY_RELOAD_TRIGGER` | `@memory` | `inject.sh` — the prompt token that forces a full re-injection |
+| `MEMORY_ROOT` | repo root (self-locating) | `sync-project-skills.sh` **only** — a legacy alias serving the role `MEMORY_DIR` plays everywhere else; do not add new consumers |
 | `AI_MEMORY_CHANNEL` | `release` | `sync-system.sh` channel selection: `release` checks out the latest stable `v*` tag; `dev` ff-pulls the tracking branch |
 | `AI_MEMORY_MIGRATIONS_DIR` | `$REPO_ROOT/migrations` | `sync-system.sh`, `test_upgrading_doc.sh` (migration directory override) |
 | `AI_MEMORY_APPLIED_VERSION_FILE` | `$REPO_ROOT/.applied-version` | `sync-system.sh` (migration high-water marker override) |
@@ -183,6 +185,7 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `AI_MEMORY_UPGRADING_DOC` | `$REPO_ROOT/UPGRADING.md` | Test seam, not for production use; `test_upgrading_doc.sh` doc path override |
 | `AI_MEMORY_SKILL_ROOTS` | `skills:.skill-cache` | `_lib.sh:skill_roots` → all skills tools (enumeration roots, colon-separated) |
 | `AI_MEMORY_SKILL_CACHE` | `$MEMORY_DIR/.skill-cache` | `_lib.sh:skill_cache_dir`, `resolve-skills.sh`, `list-skills.sh` (remote-skill cache) |
+| `AI_MEMORY_SKILL_DATA` | `$MEMORY_DIR/.skill-data` | `_lib.sh:skill_data_root` — per-skill local data root (gitignored); stateful skills store instance-local data here |
 | `MEMORY_TASK_PROVIDER` | `local` | task-provider factory (`local`/`notion`) — see [Task-provider layer](task-provider.md) |
 | `NOTION_TOKEN` | — | `NotionProvider` (integration secret; set in `~/.zshenv`) |
 | `NOTION_DATA_SOURCE_ID` | — | `NotionProvider` (the data-source id, not the database id) |
