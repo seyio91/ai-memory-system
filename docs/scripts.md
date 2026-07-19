@@ -175,7 +175,8 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `CODEX_HISTORY_LINES` | `20` | `codex-mem-checkpoint.sh` |
 | `MEMORY_STALE_DAYS` | `30` | `lint-memory.sh` |
 | `MEMORY_ARCHIVE_RETAIN_DAYS` | `30` | `archive-cleanup.sh` |
-| `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `lib.sh` (per-session `<session_id>.recompact` sentinels) |
+| `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `lib.sh` (per-session `<session_id>.recompact` sentinels and `<session_id>.project` pins) |
+| `AI_MEMORY_PIN_RETAIN_DAYS` | `7` | `lib.sh` — age after which a session project pin is swept. Longer than the `.recompact` sweep on purpose: a sentinel is consumed on the next prompt, a pin must outlive a multi-day session |
 | `MEMORY_RELOAD_TRIGGER` | `@memory` | `inject.sh` — the prompt token that forces a full re-injection |
 | `MEMORY_ROOT` | unset — falls back to `MEMORY_DIR` | `sync-project-skills.sh` — **deprecated** alias for `MEMORY_DIR`. Still honoured (it takes precedence, and warns on stderr) so setting it never silently switches trees; removed at the next major. Use `MEMORY_DIR`. |
 | `AI_MEMORY_CHANNEL` | `release` | `sync-system.sh` channel selection: `release` checks out the latest stable `v*` tag; `dev` ff-pulls the tracking branch |

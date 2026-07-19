@@ -18,7 +18,25 @@ INPUT="$(cat)"
 PROMPT="$(json_field "$INPUT" "prompt")"
 CWD="$(json_field "$INPUT" "cwd")"
 SESSION_ID="$(json_field "$INPUT" "session_id")"
-PROJECT="$(detect_project "$CWD")"
+CWD_PROJECT="$(detect_project "$CWD")"
+PROJECT="$CWD_PROJECT"
+
+# A pin recorded at SessionStart wins over cwd for the rest of the session, so a
+# session that cd's into another repo keeps writing memory to the project it is
+# ABOUT. Absent a pin — no session_id, no file, or a pin naming a project that no
+# longer exists — resolution falls back to the cwd walk exactly as before.
+#
+# The dead-project check is the whole reason the pin is validated rather than
+# trusted: a renamed or deleted project would otherwise put a path that cannot
+# exist into the breadcrumb, which every memory-writing command follows verbatim.
+PIN="$(session_pin_file "$SESSION_ID")"
+if [ -n "$PIN" ] && [ -f "$PIN" ]; then
+    PIN_PROJECT="$(tr -d '[:space:]' < "$PIN" 2>/dev/null || true)"
+    if [ -n "$PIN_PROJECT" ] && [ -d "$MEMORY_DIR/projects/$PIN_PROJECT" ]; then
+        PROJECT="$PIN_PROJECT"
+    fi
+fi
+
 export AI_MEMORY_CWD="$CWD"
 
 emit() {
@@ -56,4 +74,4 @@ if ! hook_chunk_is_first; then
     exit 0
 fi
 
-emit "$(render_breadcrumb "$PROJECT" "$CWD")"
+emit "$(render_breadcrumb "$PROJECT" "$CWD" "$SESSION_ID" "$CWD_PROJECT")"

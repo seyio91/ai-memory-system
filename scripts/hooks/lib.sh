@@ -33,6 +33,32 @@ recompact_sentinel() {
     printf '%s/%s.recompact' "$STATE_DIR" "$1"
 }
 
+# session_pin_file <session_id> — path of the session's project pin, or empty when
+# the harness supplied no session_id (then there is no pin and resolution falls
+# back to the cwd walk, exactly as before this existed).
+#
+# The pin records the project resolved at SessionStart so a session that cd's
+# elsewhere keeps writing memory to the project it is ABOUT. Deliberately a file
+# keyed by session, not an environment variable: env inherits into child
+# processes, so an executor launched in a sibling repo would resolve the
+# ORCHESTRATOR's project instead of the sibling's — strictly worse than the bug
+# this fixes, and the reason executors and subagents keep cwd resolution.
+session_pin_file() {
+    [ -n "${1:-}" ] || return 0
+    printf '%s/%s.project' "$STATE_DIR" "$1"
+}
+
+# Pins outlive their session and must be swept. Retention is deliberately longer
+# than the .recompact sweep (-mtime +2): a sentinel is consumed on the very next
+# prompt, whereas a pin must survive a multi-day session. Pruning a live
+# session's pin degrades to cwd resolution — it never corrupts.
+SESSION_PIN_RETAIN_DAYS="${AI_MEMORY_PIN_RETAIN_DAYS:-7}"
+
+prune_session_pins() {
+    [ -d "$STATE_DIR" ] || return 0
+    find "$STATE_DIR" -name '*.project' -mtime "+$SESSION_PIN_RETAIN_DAYS" -delete 2>/dev/null || true
+}
+
 json_escape() {
     if command -v jq >/dev/null 2>&1; then
         printf '%s' "$1" | jq -Rs .
@@ -211,12 +237,15 @@ emit(slices[idx - 1], len(slices))
 '
 }
 
+# render_breadcrumb <project> [cwd] [session_id] [cwd_project]
+# The trailing two are optional: absent them the breadcrumb renders exactly as it
+# did before session pinning existed.
 render_breadcrumb() {
-    local project="$1" cwd="${2:-}" format="${AI_MEMORY_HOOK_FORMAT:-xml}"
+    local project="$1" cwd="${2:-}" session="${3:-}" cwd_project="${4:-}" format="${AI_MEMORY_HOOK_FORMAT:-xml}"
     [ -z "$project" ] && return 0
     case "$format" in
-        xml) content_sections "$project" identity orchestrator project index working | xml_render_breadcrumb "$project" "$cwd" ;;
-        md)  content_sections "$project" identity orchestrator project index working | md_render_breadcrumb "$project" "$cwd" ;;
+        xml) content_sections "$project" identity orchestrator project index working | xml_render_breadcrumb "$project" "$cwd" "$session" "$cwd_project" ;;
+        md)  content_sections "$project" identity orchestrator project index working | md_render_breadcrumb "$project" "$cwd" "$session" "$cwd_project" ;;
         *)   printf 'unsupported AI_MEMORY_HOOK_FORMAT: %s\n' "$format" >&2; return 2 ;;
     esac
 }

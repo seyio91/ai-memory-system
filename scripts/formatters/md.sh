@@ -31,14 +31,20 @@ md_render() {
     done
 }
 
-# md_render_breadcrumb <project> <cwd> — read records on stdin, print the
-# lightweight active-memory pointer used by per-turn hook injection.
+# md_render_breadcrumb <project> <cwd> [session_id] [cwd_project] — read records
+# on stdin, print the lightweight active-memory pointer used by per-turn hook
+# injection. Trailing args are optional; absent them the render is unchanged.
+# See xml_render_breadcrumb for why session_id and cwd_project are surfaced.
 md_render_breadcrumb() {
-    local project="$1" cwd="$2" kind path name
+    local project="$1" cwd="$2" session="${3:-}" cwd_project="${4:-}" kind path name
     echo "# === ACTIVE MEMORY ==="
     echo
     echo "project: $project"
     echo "cwd: $cwd"
+    [ -n "$session" ] && echo "session: $session"
+    if [ -n "$cwd_project" ] && [ "$cwd_project" != "$project" ]; then
+        echo "pinned: $project (cwd resolves to '$cwd_project'; /pin to change)"
+    fi
     while IFS=$'\t' read -r kind path name; do
         case "$kind" in
             identity) echo "identity: $path" ;;

@@ -11,8 +11,22 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT=""
 CATEGORY=""
 HAVE_CATEGORY=0
+SESSION=""
 while [ $# -gt 0 ]; do
     case "$1" in
+        # --session <id> also repins the LIVE session, whose project is otherwise
+        # fixed at SessionStart and would ignore the marker written below until a
+        # restart. The id comes from the `session:` line of the <memory:active>
+        # breadcrumb: the agent cannot learn it any other way, because the hook
+        # stdin carrying it is consumed by a different process. Targeting one
+        # session by id is deliberate — clearing pins by project name instead
+        # would reach across concurrent sessions.
+        --session)
+            shift
+            [ $# -gt 0 ] || { echo "memory-pin: --session requires a value" >&2; exit 2; }
+            SESSION="$1" ;;
+        --session=*)
+            SESSION="${1#--session=}" ;;
         --category)
             shift
             [ $# -gt 0 ] || { echo "memory-pin: --category requires a value" >&2; exit 2; }
@@ -104,9 +118,20 @@ if [ "$HAVE_CATEGORY" -eq 1 ]; then
     upsert_fm "$MF" category "$CATEGORY"
 fi
 
+# --- live session repin (optional) ---
+# Same path the hooks use; kept in sync via hooks/lib.sh:session_pin_file.
+if [ -n "$SESSION" ]; then
+    STATE_DIR="${MEMORY_STATE_DIR:-$MEMORY_DIR/.sessions}"
+    mkdir -p "$STATE_DIR"
+    printf '%s\n' "$PROJECT" > "$STATE_DIR/$SESSION.project"
+fi
+
 echo "Pinned $TOP -> $PROJECT"
 echo "  repo:      ${REPO:-<none>}"
 echo "  repo_path: $REPO_PATH"
 if [ "$HAVE_CATEGORY" -eq 1 ]; then
     echo "  category:  $CATEGORY"
+fi
+if [ -n "$SESSION" ]; then
+    echo "  session:   $SESSION (live session repinned)"
 fi

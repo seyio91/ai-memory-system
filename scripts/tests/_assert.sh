@@ -54,6 +54,10 @@ assert_file() {
     if [ -e "$1" ]; then _ok "$2"; else _bad "$2"; printf '       missing path: %s\n' "$1"; fi
 }
 
+assert_not_file() {
+    if [ -e "$1" ]; then _bad "$2"; printf '       unexpected path: %s\n' "$1"; else _ok "$2"; fi
+}
+
 finish() {
     printf '%s: %d passed, %d failed\n' "$_TEST_NAME" "$_PASS" "$_FAIL"
     [ "$_FAIL" -eq 0 ] || exit 1
