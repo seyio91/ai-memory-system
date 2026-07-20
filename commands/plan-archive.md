@@ -46,8 +46,18 @@ mv ~/.claude-memory/projects/<active>/plans/$ARGUMENTS.md \
    ~/.claude-memory/projects/<active>/archive/plans/$ARGUMENTS.md
 ```
 
+Step 7b — relink the **live** `todo.md`. Moving the plan leaves every reference to it pointing at a file that no longer exists. In `~/.claude-memory/projects/<active>/todo.md`, rewrite each link target `plans/$ARGUMENTS.md` to `archive/plans/$ARGUMENTS.md`, leaving the link text and surrounding line intact:
+
+```
+### Session-scoped project pin → [plan](plans/session-project-pin.md)
+### Session-scoped project pin → [plan](archive/plans/session-project-pin.md)
+```
+
+Only the live `todo.md`. **Never rewrite links inside `archive/todos/*.md`** — those are point-in-time snapshots of what `todo.md` said the day it was rolled, and editing one to reflect a later event falsifies an audit record. A dangling link in a snapshot is correct; a dangling link in the live file is the bug. If `todo.md` contains no reference to the plan, do nothing and say so in Step 8.
+
 Step 8 — report back:
 - The plan's source → destination paths.
+- The `todo.md` relink: how many link targets were rewritten, or "no todo reference" if none.
 - The investigation outcome, exactly one of:
   - source → destination paths, if one was moved;
   - which file was found and why it was left in place, if a destination collision blocked the move
