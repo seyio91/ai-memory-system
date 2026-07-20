@@ -1,1 +1,0 @@
-The executor/validator sentinel is now `subagent` — orchestrator-relative: it means the calling harness's own subagent plane (Claude's Agent tool, Copilot's background agents), never a specific harness. `claude-subagent` remains an accepted legacy alias, so existing `config.local.sh` files keep working. Defaults, error messages, docs, and doctrine updated to the role-based name.
