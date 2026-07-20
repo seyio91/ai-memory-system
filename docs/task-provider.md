@@ -28,7 +28,7 @@ CAPTURED (backend only, no plan yet)   STARTED (plan file exists, linked)
 | `ping() -> bool` | Backend reachable? |
 | `status_map` (seam) | canonical ↔ native status. Identity for local; option names for Notion; **workflow transitions** for Jira. |
 | `resolve_project(name) -> handle` (seam) | memory project → native handle. Local checks `projects/<name>/`; Notion uses a text property; Jira a pre-existing key that may legitimately fail. |
-| `add_progress(ref, note)` | **Designed, not wired.** Non-abstract **default no-op** so backends opt in. A one-directional, append-only, *summary-level* digest pushed outward at `/checkpoint` (never the full Done/Next/Blockers — those stay in `working.md`). Implemented with the checkpoint wiring later. |
+| `add_progress(ref, note)` | **Designed, not wired — settled WON'T BUILD (2026-07-20).** Non-abstract **default no-op** so backends opt in; that concrete `return None` is load-bearing and must not be "cleaned up" as dead code. Not wired to `/checkpoint` because the two don't line up: this needs a task ref, while a checkpoint is scoped to a project and a session that may cover zero, one, or several tasks. A progress note also has no home on Notion — it is neither a capped `summary` nor a page body (outside the contract) — and checkpoints are frequent enough to have needed `/checkpoint-archive`, so pushing each outward would be one-directional noise. If revisited, a live plan's `task_ref` frontmatter is the strongest ref source, since `/plan-archive` already relies on that seam. |
 
 `Task` is an immutable dataclass: `ref, project, title, summary, status, created`. The canonical status set `{backlog, started, done, archived}` is defined once. `task_ref` is **opaque to the core** — never parsed.
 
