@@ -131,7 +131,7 @@ bash ~/.claude-memory/scripts/regenerate-activity.sh --all && sed -n '1,40p' ~/.
 ```bash
 awk '/## Related Projects/,/^## /' ~/.claude-memory/projects/billing-svc/memory.md
 ```
-  **Say:** the TPE cluster (`billing-svc` / `billing-stacks` / `billing-kubernetes`) — the link lives in the
+  **Say:** the billing cluster (`billing-svc` / `billing-stacks` / `billing-kubernetes`) — the link lives in the
   project where work *starts*, not an umbrella. When a task touches a sibling, it's
   **delegated to a subagent**; the sibling's `memory.md` is never loaded into the main
   thread. Only a summary returns.
