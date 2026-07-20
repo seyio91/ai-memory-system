@@ -108,8 +108,6 @@ The engine is **harness-agnostic** (`install.sh` is a generic manifest-driven in
 > **This tree can only *reference* those skills, never fix them.** `skills.toml` declares them; `resolve-skills.sh` materializes them into the gitignored `.skill-cache/`, which is *referenced, not forked* — so an edit under `.skill-cache/<name>/` is silently discarded on the next resolve. A skill's content change is a **PR against `agent-skills`**, delegated (never loaded). Consequence, learned 2026-07-10: a doctrine contradiction between this tree's `memory.md` and a remote skill's `SKILL.md` is **structurally invisible** to any check that runs here — the doc-vs-code gate cannot see across the repo boundary.
 
 ## Current Goal
-**Prepare to open-source.** The repo goes public with its history intact; content is removed going forward, never scrubbed (see the open-sourcing decision above). `identity.md` and live client references are already out of the tracked tree.
-
 Open build threads, all captured as backlog tasks:
 - **Release automation** — replace `release.sh`'s release-time `git log` drafting with per-PR changelog fragments, then let GitHub Actions assemble and publish. Design in the `release-automation` investigation. Would also make branch protection on `main` possible, which `release.sh` currently forbids by pushing `main` itself.
 - **`@`-sign section-level context loading** — pull a named file or section instead of injecting whole files.
