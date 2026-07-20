@@ -6,16 +6,223 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Changed
+## [1.4.0] - 2026-07-20
+### Added
 
-- **Task providers are now self-contained folders** — `providers/<name>.py` becomes
-  `providers/<name>/` with an `__init__.py` (exposing `PROVIDER`), a `README.md` documenting
-  the backend's expected config/setup, and a captured setup image. The factory imports
-  `taskprovider.providers.<name>` either way, so the flat form still resolves, but new
-  providers use the folder. `check-provider-tests.sh` now discovers package providers as
-  well as flat modules, and **fails closed** (exit 2) if it finds no providers at all rather
-  than passing an empty set. `local/__init__.py` sits one level deeper, so its repo-root
-  fallback moved from `parents[3]` to `parents[4]`.
+- **`/plan-archive` now moves the plan's linked investigation too.** It resolves the
+  investigation by the plan's frontmatter `task_ref` first, falling back to a same-slug
+  filename match, and moves it from `investigations/` to `archive/investigations/` in the
+  same invocation. A destination collision aborts only the investigation move (reported,
+  not silent) and never blocks the plan's own archival.
+- **`lint-memory` gains rule 10: stale investigation detection.** A live
+  `investigations/<slug>.md` whose `task_ref` matches a plan already in `archive/plans/`
+  now warns — the work shipped and the investigation was left behind. The check is
+  purely local frontmatter comparison and never calls the task provider.
+Codex memory base moves from a generated `~/.codex/AGENTS.md` to live `SessionStart`
+hook injection — a plain `codex` (no alias, no wrapper) now gets full memory.
+`AGENTS.md` becomes a hand-owned static base (migration converts a generated one,
+seeding from `AGENTS.local.md`); `codex-mem.sh --executor-bare` suppresses all
+injection via `AI_MEMORY_SKIP_INJECT=1`.
+- **GitHub Copilot CLI is now a first-class harness.** `install.sh --harness copilot`
+  wires user-level `sessionStart`, `preToolUse`, `preCompact`, and `postToolUse` hooks
+  for live markdown memory injection, guarded executor runs, compaction recovery, and
+  a Copilot CLI executor face with a read-only `view,grep,glob` mode.
+- **Identity and orchestration doctrine are now separate files.** `install.sh` seeds a gitignored `orchestrator.md` from tracked `orchestrator.template.md`, injects it directly after `identity.md` in every harness payload, and ships the `brainstorming` workflow skill in-engine under `skills/brainstorming/` instead of as a remote catalog entry.
+Investigations are tied to the task lifecycle: a live `investigations/<slug>.md`
+must carry a frontmatter `task_ref` (`lint-memory` warns on orphans), and moves to
+`archive/investigations/` when its task closes and the consuming plan ships.
+- **Release pipeline — Phase B: fully automated publish via GitHub Actions.** When
+  `changelog.d/` fragments land on `main`, `release-pr.yml` opens a "Release vX.Y.Z" PR carrying
+  the assembled CHANGELOG for review; merging it triggers `release-publish.yml`, which tags,
+  pushes, and creates the GitHub Release. The human merge is the sole authorization gate.
+  - `release.sh` gains `--prepare` (assemble + delete fragments + commit on a `release/*` branch;
+    no tag, no push; refuses on `main`) and `--publish` (tag the merged release commit + push +
+    GitHub Release). It stays the single release implementation — the Actions are thin triggers.
+  - `--publish` is keyed on the CHANGELOG carrying the `## [version]` section, not on a commit
+    subject, so it works whatever merge strategy the Release PR uses (merge commit, squash, or
+    rebase), and is idempotent on re-run.
+  - The auto-opened Release PR uses the `RELEASE_PAT` secret (not the default `GITHUB_TOKEN`) so
+    it actually gets CI — PRs opened with `GITHUB_TOKEN` don't trigger workflow runs.
+- **Release pipeline automation — Phase A** (changelog fragments + computed versioning).
+  - CI now runs the full suite on every PR and `main` push (`.github/workflows/tests.yml`),
+    matrix ubuntu + macOS — macOS holds the Bash 3.2 portability line; shellcheck is installed
+    so the gate fires.
+  - Per-PR **news fragments** land in `changelog.d/<id>.<kind>.md`
+    (`breaking | feature | fix | upgrade`). `scripts/assemble-changelog.sh` turns them into a
+    CHANGELOG section deterministically and computes the next version from the fragment kinds.
+  - `release.sh` consumes fragments when present (assembling the section and deleting the
+    fragments in the release commit), makes the version argument optional (computed from
+    fragments when omitted), and gains a non-interactive `--ci` mode that also creates the
+    GitHub Release. It stays the single release implementation — CI is a trigger, not a second
+    code path.
+- **The active project is now resolved once per session, not on every prompt.** `SessionStart` records the
+  resolved project in `$MEMORY_STATE_DIR/<session_id>.project` and every later prompt honours it, so a session
+  that `cd`s into another repository keeps writing memory to the project it is *about*. Previously resolution
+  re-walked from `cwd` each prompt, so a shell command that changed directory silently repointed
+  `/checkpoint`, `/promote-memory`, and every plan or todo edit at a different project's memory — with the
+  breadcrumb reporting the new project as if it were correct.
+- **`<memory:active>` gained two lines.** `session:` always (the hook's `session_id`, which `/pin` needs to
+  repin a live session — the agent cannot learn it otherwise, since the hook stdin carrying it is consumed by
+  a separate process), and `pinned:` only when `cwd` resolves to a different project than the one in force,
+  so a deliberate `cd` is explained rather than silently ignored.
+- **`/pin` and `memory-pin.sh` take `--session <id>`**, rewriting the live session's pin alongside the marker
+  and reverse map. Without it the marker is still written, but the running session keeps its project until
+  restart — `/pin` now says so explicitly instead of appearing to work.
+- **Executors and subagents keep resolving from their own `cwd`, by design.** That is what makes cross-project
+  delegation work. The pin is a session-keyed *file* rather than an environment variable precisely because env
+  inherits into child processes: an exported project would follow an executor into a sibling repo and resolve
+  the orchestrator's project there — worse than the bug being fixed, and a live defect in the antigravity
+  harness today, tracked separately.
+- Every failure path degrades to the previous behaviour rather than corrupting: no `session_id`, no pin file,
+  a pin naming a deleted or renamed project, or an unwritable state directory all fall back to the `cwd` walk.
+  Pins are swept after `AI_MEMORY_PIN_RETAIN_DAYS` (default 7) — deliberately longer than the `.recompact`
+  sweep, because a sentinel is consumed on the next prompt while a pin must outlive a multi-day session.
+The executor/validator sentinel is now `subagent` — orchestrator-relative: it means the calling harness's own subagent plane (Claude's Agent tool, Copilot's background agents), never a specific harness. `claude-subagent` remains an accepted legacy alias, so existing `config.local.sh` files keep working. Defaults, error messages, docs, and doctrine updated to the role-based name.
+
+### Fixed
+
+- **Three latent portability bugs surfaced by the new CI** (first run on ubuntu + macOS).
+  - `file_mtime`/lint read mtime with BSD `stat -f %m` first; on GNU/Linux `-f` is
+    `--file-system` (a valid *different* mode, not a clean failure), so it polluted the value
+    → `/state` last-touched ordering was wrong and stale files went unflagged on Linux. Now the
+    GNU form (`stat -c %Y`) is tried first — it fails cleanly on BSD.
+  - `manifest_get` returned on the first key match while reading `< <(_mf_pairs …)`, closing the
+    pipe mid-write so the producer's `printf` took `SIGPIPE` ("write error: Broken pipe"). It now
+    buffers the pairs before searching.
+  - The Antigravity statusline built its Nerd-Font glyphs with `$'\uXXXX'`, which needs bash
+    4.2+; under the repo's own bash-3.2 target they stayed literal. Now emitted with `printf`
+    octal, matching the emoji fallback.
+  - CI pins shellcheck to an exact version (0.11.0) via the official binary instead of
+    apt/brew, whose per-runner versions flagged `SC2015` differently → the lint is now
+    deterministic and reproducible locally. Two pre-existing `A && B || C` lines
+    (`drivers/hook.sh`, `deny-match.sh`) were rewritten clean regardless.
+- **`check-docs.sh` no longer resolves a `Used by` cell to a test fixture.** `resolve_script()` matches by
+  basename and takes `head -1` over the code roots, and `scripts/tests/fixtures/` was in scope — so
+  `session_start_memory.sh` resolved to the `claude-legacy-hooks` fixture instead of the real
+  `scripts/hooks/` consumer. Two failure modes, both live: a false FAIL against a legitimate row (which is
+  what blocked documenting `AI_MEMORY_SKIP_INJECT`), and the fail-open mirror — a fixture that happens to
+  contain the var certifies a consumer that no longer uses it, in the control built to prevent exactly that.
+  `tests/fixtures/` is now pruned; `tests/` itself stays in scope, because the table legitimately names test
+  scripts as consumers (`AI_MEMORY_UPGRADING_DOC` → `test_upgrading_doc.sh`). Mutation-verified in both
+  directions.
+- **Three more environment overrides are documented** (34 rows, up from 31). `AI_MEMORY_SKIP_INJECT` — the
+  previously undiscoverable kill switch for *all* memory injection, the escape hatch when injection itself
+  misbehaves. `AI_MEMORY_HARNESSES_DIR` — a test seam, labelled as one. `AI_MEMORY_ROLE` — set *by*
+  `executor.sh` and read by `release.sh`, which refuses a release cut while it is set; documented so that
+  refusal is diagnosable, not because anyone should set it by hand.
+- **The gate's own "what it does not catch" section named a var that had since gained a row.** It cited
+  `AI_MEMORY_SKILL_DATA` as the example of an unchecked var and stayed stale after that changed. It now names
+  the *mechanism* — both axes iterate table rows, so an undocumented var is unreachable by construction, and
+  `0 findings` describes the table's accuracy rather than the code's coverage. A prose section no axis reads
+  is where citations rot silently.
+- **Three user-facing environment overrides are now documented.** `MEMORY_RELOAD_TRIGGER` (the prompt
+  token that forces a full re-injection, default `@memory`), `AI_MEMORY_SKILL_DATA` (per-skill local data
+  root, default `$MEMORY_DIR/.skill-data`), and `MEMORY_ROOT` were all readable knobs — each consumed as a
+  plain `${VAR:-default}` and settable by any user — but absent from the `docs/scripts.md` table, so
+  `check-docs.sh` could not see them. The gate only checks documented vars *forward* into code; a knob that
+  was never documented is invisible to it in both directions. The table now carries 30 rows, up from 27.
+- **`MEMORY_ROOT` is documented as a legacy alias, not a general knob.** It is read by
+  `sync-project-skills.sh` alone, filling the role `MEMORY_DIR` plays in every other script. The row says so
+  explicitly and warns against new consumers, so documenting it records the inconsistency rather than
+  blessing it.
+- **`link-skills.sh` now prunes dangling store-shaped symlinks.** The link pass only ever walked
+  skills that still exist, so a link stranded by a skill rename or by a move of the memory tree was
+  never revisited and survived indefinitely — two such links (`dashboarding`, `tempo`) persisted
+  across both a rename and a full tree relocation without any check noticing. A link is now removed
+  only when it is dangling **and** its target sits directly under a `skills/` or `.skill-cache/`
+  directory **and** the target basename matches the link name; anything else is reported as a `WARN`
+  and left untouched. The match is deliberately on *shape* rather than on the currently-configured
+  store roots, because a moved tree leaves links pointing at a root that is no longer configured —
+  the exact case that would otherwise slip through. `--dry-run` reports prunes without removing, and
+  the summary line gains a `N pruned` count.
+- **`lint-memory` rule 8 now checks the plan `status:` vocabulary instead of one typo.** It previously
+  flagged only the hyphenated `in-progress` — a spelling nothing in the tree had ever used — while real
+  drift passed clean: synonyms like `active`, and plans carrying no `status:` at all. The rule now accepts
+  exactly `draft`, `in_progress`, `done` (what the tooling itself produces: `/new-plan` scaffolds `draft`,
+  `/plan-done` writes `done`) and warns on anything else, naming the offending value, with a dedicated hint
+  for the `in-progress` near-miss and for a missing field. This matters because `/state` and `/activity`
+  render `status:` verbatim — a synonym splits one report column into two, and an absent status renders
+  blank.
+- **The plan frontmatter contract is now documented.** `docs/file-formats.md` gains a *Plan frontmatter*
+  section giving the full field list and the status vocabulary. Previously the only place the canonical set
+  was written down was inside rule 8's own comment, so the convention was undiscoverable to anyone not
+  reading the linter — which is how it drifted in the first place. The doc is the source of truth; the rule
+  is the enforcement.
+- **Memory injection reached the model whole again on Claude — it had been silently truncated to a
+  2KB preview.** `harnesses/claude/manifest` declared no `session_chunks` / `inject_chunks`, so the
+  count defaulted to `1` and `emit_hook_chunk` took a `1/1` fast path that returned the payload
+  unmeasured. The entire memory base then went out as a single hook message against Claude Code's
+  ~10,000-character `additionalContext` cap, so the harness spilled it to a file and only a 2KB
+  preview of `identity.md` survived into context. The hook exited `0` and nothing reported the
+  degradation — a session looked normal while running with almost no memory. The base is now fanned
+  across 12 ordered entries of ≤9,000-byte slices, the same shape Codex already used.
+- **Chunked injection no longer depends on hook delivery order.** Claude runs same-event hook entries
+  **concurrently** and concatenates them by completion, so registration order is not delivery order
+  (entries registered 1..12 were observed arriving 2,3,4,1,5). Because slicing happens on line
+  boundaries, an out-of-order chunk bisects a content block and the reassembled payload is corrupt.
+  Every slice now carries a self-describing `<memory:chunk index="N" of="M">` envelope so the model
+  can reassemble regardless of arrival order. Codex delivers in registration order and was never
+  affected — the behaviour was verified per-harness rather than assumed from one.
+- **An oversized base is now loud instead of silent.** When the payload outgrows its chunk budget the
+  existing overflow marker fires — `[ai-memory: memory base truncated — raise session_chunks in the
+  harness manifest]` — rather than the harness quietly spilling to a file. Raising `session_chunks` /
+  `inject_chunks` in the harness manifest is the fix when you see it.
+- **`/plan-archive` now relinks the live `todo.md`.** Moving a plan to `archive/plans/` left every
+  `todo.md` reference pointing at a file that no longer existed, and nothing caught it — the command
+  read `todo.md` only to count unchecked boxes, and `lint-memory` checks that `plans/` exists as
+  scaffold but never validates link targets. The dangling link then survived until the next
+  `/todo-archive` roll, which can be weeks. A new Step 7b rewrites `plans/<slug>.md` to
+  `archive/plans/<slug>.md` in the live file only. Snapshots under `archive/todos/` are deliberately
+  left alone: they record what `todo.md` said the day it was rolled, so editing one to reflect a later
+  move would falsify an audit record — a dangling link there is correct.
+- **`/promote-memory` no longer destroys the rest of `working.md`.** Its Step 6 moved the *entire* file to
+  `archive/working/` and started a fresh empty one, so a single promotion also wiped `## Checkpoints` —
+  including mid-flight entries owned by `/checkpoint-archive` — and any free-form section such as
+  `## Open threads` that no command owns. It now rolls only `## Cross-project learnings (pending
+  promotion)`, leaving every sibling section byte-identical. This contradicted the command's own opening
+  line, which had always said checkpoint archival was separate.
+- **`checkpoint-archive.sh` grew a `--section <heading>` flag** (default `Checkpoints`, so the existing
+  two-arg form is unchanged) and both commands now share it rather than keeping two copies of a
+  fence-aware, overlay-aware section rewriter. The heading is matched as a literal string, not a regex:
+  the learnings heading contains parentheses, which a regex reads as grouping — it would miss the section,
+  roll nothing, and still exit 0.
+- **`/promote-memory`'s abort condition was inconsistent with its own candidate scan.** Step 3 reads both
+  `## Cross-project learnings` and `## Checkpoints`, but Step 2 aborted whenever the learnings section held
+  only its placeholder — making a lesson recorded in a checkpoint unpromotable. It now aborts only when
+  both sources are empty. A learning promoted out of a checkpoint leaves that checkpoint in place and may
+  be offered again until checkpoints are rolled; `/checkpoint-archive` remains the sole owner of that
+  section.
+- **`release-pr.yml` no longer stalls after a Release PR is closed.** Its "is a Release PR
+  already open?" guard used `gh pr view <branch>`, which also matches a *closed* PR — so once a
+  Release PR was closed (rather than merged), the next fragment change saw the stale closed PR
+  and skipped opening a fresh one, silently halting auto-proposed releases. It now checks for an
+  **open** PR only (`gh pr list --head <branch> --state open`).
+- **`sync-project-skills.sh` now honours `MEMORY_DIR` — it was silently ignoring it.** The script resolved
+  the tree into its own `MEMORY_ROOT` and then assigned `MEMORY_DIR="$MEM"` *before* sourcing `_lib.sh`, so a
+  user-set `MEMORY_DIR` was discarded and the self-located tree was synced instead. It was the one script in
+  the tree that ignored the system's universal tree override, and it did so without a word: pointed at a
+  sandbox with `MEMORY_DIR=…`, it happily wrote skill symlinks into the real repos named by the *other*
+  tree's `repo_path`s. Tree resolution is now delegated to `_lib.sh`, the same `${MEMORY_DIR:-self-locate}`
+  path every other script uses, so `config.local.sh` is also read from the tree actually being synced.
+- **`MEMORY_ROOT` is deprecated.** It is still read and still takes precedence, but prints a deprecation
+  notice to stderr. Honouring it is deliberate: silently ignoring it would reintroduce the identical
+  wrong-tree failure for anyone who had set it. It is removed at the next major.
+- **The `working:` breadcrumb no longer advertises a file that does not exist.** From any subdirectory of a
+  main checkout — at any depth, in any repo — `resolve_session_key` reported a linked worktree and keyed the
+  scratchpad on the literal string `.git`, so the per-prompt breadcrumb named
+  `projects/<project>/working..git.md`. Nothing on disk matched. `/checkpoint` is instructed to use that path
+  *verbatim* and explicitly warned against hand-building `working.md`, so following it would have created a
+  phantom file, reported success, and left the real working memory untouched — the guard rail that exists to
+  protect concurrent sessions was what routed the write into nowhere.
+- **Cause: two `git rev-parse` forms were compared in different shapes.** git returns `--git-dir` absolute
+  from a subdirectory but `--git-common-dir` relative, with a depth-dependent prefix (`../.git`,
+  `../../.git`). They only compared equal at the repo root, so every other cwd looked like a linked worktree.
+  Both are now resolved to real absolute paths before comparison, which also makes a repo reached through a
+  symlink compare equal to the same repo reached directly.
+- **A derived worktree key is now validated, and rejected rather than coerced.** Empty, dot-leading, or
+  separator-bearing keys fall back to the shared `working.md`; a wrong-but-well-formed key is harder to
+  notice than no key at all. The check deliberately does not reuse the marker sanitizer, which lowercases —
+  that would have silently moved an existing `working.wt-featureB.md` to `working.wt-featureb.md`.
 
 ## [1.3.0] - 2026-07-15
 
