@@ -193,10 +193,11 @@ Interactive Codex re-prompts `/hooks` trust once when a hook command changes —
 upgrading. Headless executor runs bypass trust automatically
 (`--dangerously-bypass-hook-trust`) and are unaffected.
 
-`arm_recompact.sh` survives this release as a compatibility shim (it delegates to
+`arm_recompact.sh` survived this release as a compatibility shim (it delegated to
 the shared session-start script) so a stale `~/.codex/hooks.json` from a manual
-`git pull` that hasn't re-run `install.sh` keeps working. It is removed in the next
-release.
+`git pull` that hadn't re-run `install.sh` kept working. It has since been deleted.
+Re-running `install.sh` (or `sync-system.sh`, which calls it) sweeps the stale
+entry — that sweep is what makes the deletion safe, and it is still in place.
 
 **The canonical slash-command store moved: `harnesses/claude/commands/` → repo-level
 `commands/`.**

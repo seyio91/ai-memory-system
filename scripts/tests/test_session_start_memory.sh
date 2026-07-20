@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Codex arm_recompact.sh (compatibility shim -> shared session_start_memory.sh):
+# scripts/hooks/session_start_memory.sh -- compaction-arm behaviour:
 # SessionStart(source=compact) writes the .recompact sentinel that inject.sh
 # consumes on the next prompt; startup injects the base instead of arming.
+#
+# Was test_codex_arm_recompact.sh, exercising the codex shim that delegated here.
+# The shim is deleted; every assertion below was always about THIS script's
+# behaviour, so they carry over unchanged. Renamed so run-tests.sh --changed maps
+# session_start_memory.sh -> test_session_start_memory.sh by naming convention
+# rather than relying on the basename-grep fallback.
 . "$(dirname "$0")/_assert.sh"
 
 REPO="$(cd "$SCRIPTS_DIR/.." && pwd)"
-ARM="$REPO/harnesses/codex/hooks/arm_recompact.sh"
+ARM="$REPO/scripts/hooks/session_start_memory.sh"
 
 MEM="$(new_sandbox)"
 WORK="$(new_sandbox)"
