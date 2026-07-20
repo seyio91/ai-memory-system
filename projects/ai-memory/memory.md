@@ -17,9 +17,9 @@ Three layers (Karpathy LLM-Wiki pattern):
 Moving parts: one `UserPromptSubmit` hook (the shared `scripts/hooks/inject.sh`, format-parameterized) emits `<memory:*>` blocks; slash commands in `~/.claude/commands/`; scripts in `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`, `link-skills.sh`, `executor.sh`, `codex-mem.sh`, the `taskprovider/` package + `taskctl`) with dependency-free bash-3.2 tests under `scripts/tests/`.
 
 ## Current State
-Functional and in daily use across the real engagements indexed in `index.md`. This checkout is the distributable **source copy** and the dev instance: `origin = seyio91/ai-memory-system` (private, headed public), `AI_MEMORY_CHANNEL=dev` so a sync never flips it onto a tag.
+Functional and in daily use across the real engagements indexed in `index.md`. This checkout is the distributable **source copy**, `origin = seyio91/ai-memory-system` — **public since 2026-07-20**. Channel and all other per-instance choices live in gitignored `config.local.sh` — never described here, since tracked memory ships to every consumer.
 
-The engine is **harness-agnostic** (`install.sh` is a generic manifest-driven installer; `claude`/`codex`/`antigravity` are registered harnesses; the marker is `.agents/memory-project`; the executor resolves roles from the manifest) and **versioned**: consumer instances sync to stable `v*` tags, never to a moving `main`. Latest tag `v1.1.0`; `v1.0.0` is a trap tag (see Gotchas). Design records live in Architecture Decisions below.
+The engine is **harness-agnostic** (`install.sh` is a generic manifest-driven installer; `claude`/`codex`/`antigravity` are registered harnesses; the marker is `.agents/memory-project`; the executor resolves roles from the manifest) and **versioned**: consumer instances sync to stable `v*` tags, never to a moving `main`. `v1.0.0` is a trap tag (see Gotchas); `v1.1.0` is the first safe one. The current latest is deliberately **not** recorded here — it rots on every release, and `git tag -l 'v*' | sort -V | tail -1` is authoritative. Design records live in Architecture Decisions below.
 
 ## Architecture Decisions
 - **Markdown over a DB** — markdown files are the durable store; normal editor, diff, grep, and git workflows are the database interface.
