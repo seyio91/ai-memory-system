@@ -4,7 +4,56 @@ on:
   pull_request:
 
 jobs:
+  # Decides whether the suite has anything to say about this PR. Always runs and
+  # always reports, so a required status check is never left waiting — that is the
+  # whole reason this is a gate job and not `paths-ignore`, which skips the workflow
+  # entirely, reports NO status, and deadlocks branch protection.
+  #
+  # Fails CLOSED: anything unexpected (empty diff, failed fetch) runs the suite.
+  # An exemption list that rots must not silently skip checks that should have run.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run_suite: ${{ steps.decide.outputs.run_suite }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide whether to run the suite
+        id: decide
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          # Root community files with NO test surface. Verified, not assumed:
+          # lint-memory.sh globs only domain/*.md and projects/*/...; check-docs
+          # parses only docs/scripts.md; the tests matching README use it purely
+          # as a sandbox fixture filename.
+          #
+          # docs/** is deliberately NOT here — docs/scripts.md is machine-checked
+          # and docs/ ships to consumers in every release tag.
+          exempt='README\.md|CONTRIBUTING\.md|SECURITY\.md|CODE_OF_CONDUCT\.md'
+
+          run=true
+          if git fetch -q --depth=0 origin "$BASE" 2>/dev/null || git fetch -q origin "$BASE"; then
+            changed=$(git diff --name-only "origin/$BASE...HEAD" || true)
+            if [ -n "$changed" ]; then
+              remaining=$(printf '%s\n' "$changed" | grep -vxE "$exempt" || true)
+              [ -n "$remaining" ] || run=false
+              printf 'changed files:\n%s\n' "$changed"
+            fi
+          fi
+
+          echo "run_suite=$run" >> "$GITHUB_OUTPUT"
+          if [ "$run" = false ]; then
+            echo "::notice::Only exempt root community files changed — skipping the suite."
+          fi
+
   suite:
+    needs: gate
+    if: needs.gate.outputs.run_suite == 'true'
     strategy:
       fail-fast: false
       matrix:
