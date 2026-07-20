@@ -61,8 +61,22 @@ trap 'rm -rf "$TMP"' EXIT
 
 # resolve_script <basename> -> absolute path, or empty. Searches only the code
 # roots, so archive/ and .skill-cache/ copies can never satisfy a check.
+#
+# tests/fixtures/ is PRUNED. Resolution is by basename with `head -1`, and a
+# fixture can share a basename with a real consumer: scripts/hooks/
+# session_start_memory.sh collides with scripts/tests/fixtures/
+# claude-legacy-hooks/session_start_memory.sh, and find returned the FIXTURE
+# first. Both directions are broken by that. The loud one is a false FAIL
+# against a real row; the dangerous one is fail-open -- a fixture that happens
+# to contain the var certifies a consumer that no longer uses it.
+#
+# tests/ ITSELF stays in scope: the table legitimately names test scripts as
+# consumers (AI_MEMORY_UPGRADING_DOC -> test_upgrading_doc.sh). Only fixtures
+# are excluded, because a fixture is sample data, not a consumer.
 resolve_script() {
-    find "$ROOT/scripts" "$ROOT/harnesses" "$ROOT/migrations" -name "$1" -type f 2>/dev/null | head -1
+    find "$ROOT/scripts" "$ROOT/harnesses" "$ROOT/migrations" \
+        -path '*/tests/fixtures/*' -prune -o \
+        -name "$1" -type f -print 2>/dev/null | head -1
 }
 
 # sources_of <file> -> basenames of .sh files it sources.

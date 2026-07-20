@@ -142,8 +142,14 @@ Deliberate, and stated so nobody mistakes a green stage for a stronger claim:
 - **Semantic prose promises.** `/sync-system --dry-run` once documented "mutates nothing" while
   running `git fetch --tags`. The flag *exists*, so no symbol check can see it.
 - **Counts.** A hand-written "27 test files" is drift by construction. Delete the count; don't pin it.
-- **Anything outside this table.** `AI_MEMORY_SKILL_DATA` is documented in
-  [Claude harness](harnesses/claude.md) but has no row here, so it is unchecked.
+- **Anything outside this table.** Both axes iterate table *rows*, so a var that was never added
+  is unreachable by construction — it cannot fail a check that never enumerates it. `0 findings`
+  is a statement about the table's accuracy, not about the code's coverage. Closing that needs a
+  third, reverse (code → docs) axis, which does not exist yet.
+  Note the trap this bullet itself fell into: it previously cited `AI_MEMORY_SKILL_DATA` as the
+  worked example of an unchecked var, and stayed that way after the var gained a row in #83.
+  Prefer naming the *mechanism* over any specific var here — this section is prose no axis reads,
+  so a citation in it rots silently.
 - **Cross-repo contradictions.** A remote skill in `.skill-cache/` is *referenced, not forked*; its
   `SKILL.md` cannot be seen from this tree.
 - **Comments count as matches.** `AI_MEMORY_EXECUTOR_CMD_<key>` passes the forward axis only because
@@ -178,6 +184,7 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `MEMORY_STATE_DIR` | `$MEMORY_DIR/.sessions` | `lib.sh` (per-session `<session_id>.recompact` sentinels and `<session_id>.project` pins) |
 | `AI_MEMORY_PIN_RETAIN_DAYS` | `7` | `lib.sh` — age after which a session project pin is swept. Longer than the `.recompact` sweep on purpose: a sentinel is consumed on the next prompt, a pin must outlive a multi-day session |
 | `MEMORY_RELOAD_TRIGGER` | `@memory` | `inject.sh` — the prompt token that forces a full re-injection |
+| `AI_MEMORY_SKIP_INJECT` | unset | `inject.sh`, `session_start_memory.sh` — set to any non-empty value to suppress **all** memory injection: no startup base, no breadcrumb, no re-injection. The escape hatch when injection itself is misbehaving |
 | `MEMORY_ROOT` | unset — falls back to `MEMORY_DIR` | `sync-project-skills.sh` — **deprecated** alias for `MEMORY_DIR`. Still honoured (it takes precedence, and warns on stderr) so setting it never silently switches trees; removed at the next major. Use `MEMORY_DIR`. |
 | `AI_MEMORY_CHANNEL` | `release` | `sync-system.sh` channel selection: `release` checks out the latest stable `v*` tag; `dev` ff-pulls the tracking branch |
 | `AI_MEMORY_MIGRATIONS_DIR` | `$REPO_ROOT/migrations` | `sync-system.sh`, `test_upgrading_doc.sh` (migration directory override) |
@@ -198,6 +205,8 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | `executor.sh` — command template for a generic CLI executor |
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `subagent` | `executor.sh` — used when the preferred CLI binary is absent |
 | `AI_MEMORY_GUARD_OUTPUT` | unset | `guard.sh` — output envelope selector; `copilot-json` emits Copilot `permissionDecision` JSON instead of legacy exit-2 deny |
+| `AI_MEMORY_HARNESSES_DIR` | `$REPO_ROOT/harnesses` | Test seam, not for production use; `executor.sh` manifest-directory override |
+| `AI_MEMORY_ROLE` | unset | Set **by** `executor.sh` to the resolved role, read by `release.sh` — a release cut refuses while it is set, so an executor can never publish. Documented to make that refusal diagnosable; not a knob to set by hand |
 
 `REPO_ROOT` is the checkout root. In a normal install it is the same directory as
 `MEMORY_DIR`, but they diverge if `MEMORY_DIR` is overridden.
