@@ -15,7 +15,7 @@ __pycache__/
 
 # ── Personal memory content: ship templates, ignore the real data ──
 
-# Real index is regenerated from frontmatter; ship index.template.md only
+# Real index is regenerated from frontmatter; ship templates/index.template.md only
 /index.md
 
 # Derived on-demand "In Flight" snapshot (scripts/regenerate-state.sh) — a
@@ -61,7 +61,7 @@ __pycache__/
 # One-shot system overview generated for external review — local, not published
 /docs/system-overview.md
 
-# Per-environment overrides (secrets/paths) — ship config.local.sh.example only
+# Per-environment overrides (secrets/paths) — ship templates/config.local.sh.example only
 /config.local.sh
 
 # Machine-written migration high-water mark for sync-system.sh.
@@ -71,10 +71,10 @@ __pycache__/
 # scripts/deny-list.txt; local entries are additive-only.
 /scripts/deny-list.local.txt
 
-# Per-instance remote-skill choices — ship skills.toml.example as the tracked
-# catalog, then copy/prune it locally as skills.toml.
+# Per-instance remote-skill choices — ship templates/skills.toml.example as the
+# tracked catalog, then copy/prune it locally as skills.toml. No negation needed:
+# this rule is root-anchored, so the templates/ copy was never in scope.
 /skills.toml
-!/skills.toml.example
 
 # Per-instance authored skills. The whole folder is ignored by one line — drop a
 # skill dir in and it fans out locally (link-skills.sh) without any per-skill
@@ -98,11 +98,11 @@ __pycache__/
 # Your identity.md is per-instance, like config.local.sh and skills.toml. It was
 # tracked until v1.0.0, which made it a trap: install.sh tells you to edit it, and
 # sync-system.sh's dirty-tracked-file guard then aborts every sync. install.sh seeds
-# it from the tracked identity.template.md whenever it is missing.
+# it from the tracked templates/identity.template.md whenever it is missing.
 /identity.md
 
 # Your orchestrator.md is per-instance workflow doctrine. install.sh seeds it from
-# orchestrator.template.md whenever missing; edits are local like identity.md.
+# templates/orchestrator.template.md whenever missing; edits are local like identity.md.
 /orchestrator.md
 
 # Stray terraform state from validator probes (echo-PWNED-style tests)

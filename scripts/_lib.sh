@@ -6,7 +6,7 @@ MEMORY_DIR="${MEMORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 # Per-environment overrides (gitignored). Lives next to the memory tree; set
 # AI_MEMORY_PROJECTS_ROOT, MEMORY_TASK_PROVIDER, etc. here so they reach scripts,
-# hooks, and subagents that don't inherit your shell rc. See config.local.sh.example.
+# hooks, and subagents that don't inherit your shell rc. See templates/config.local.sh.example.
 [ -f "$MEMORY_DIR/config.local.sh" ] && . "$MEMORY_DIR/config.local.sh"
 
 # Shared content selection + the working.md overlay resolver
@@ -84,7 +84,7 @@ skill_manifest() {
 
 # skill_manifest_template — path to the tracked remote-skill catalog template.
 skill_manifest_template() {
-    printf '%s\n' "$MEMORY_DIR/skills.toml.example"
+    printf '%s\n' "$MEMORY_DIR/templates/skills.toml.example"
 }
 
 # list_skill_dirs — print every skill dir (one absolute path per line, no trailing

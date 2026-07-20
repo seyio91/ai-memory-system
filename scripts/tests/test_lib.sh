@@ -172,7 +172,7 @@ $SK/.skill-cache" "$(skill_roots)" "skill_roots default = authored + remote cach
 assert_eq "$SK/.skill-cache" "$(skill_cache_dir)" "skill_cache_dir default"
 assert_eq "$SK/skills.toml" "$(skill_manifest)" "skill_manifest default -> root skills.toml"
 assert_eq "$SK/skills.toml" "$(skill_manifest local)" "skill_manifest ignores legacy scope arg"
-assert_eq "$SK/skills.toml.example" "$(skill_manifest_template)" "skill_manifest_template -> root catalog template"
+assert_eq "$SK/templates/skills.toml.example" "$(skill_manifest_template)" "skill_manifest_template -> templates/ catalog template"
 
 dirs="$(list_skill_dirs)"
 assert_contains "$dirs" "$SK/skills/auth-a" "list_skill_dirs yields authored skill"

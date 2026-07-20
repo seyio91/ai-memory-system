@@ -7,8 +7,8 @@
 
 | File | Seed template | Purpose | Tracked? |
 |------|---------------|---------|----------|
-| `identity.md` | `identity.template.md` | Role, stack, communication style, defaults, and hard rules | no |
-| `orchestrator.md` | `orchestrator.template.md` | Workflow doctrine: task tiers, brainstorm gate, orchestrator/executor/validator roles, Task Contract, and cross-project rules | no |
+| `identity.md` | `templates/identity.template.md` | Role, stack, communication style, defaults, and hard rules | no |
+| `orchestrator.md` | `templates/orchestrator.template.md` | Workflow doctrine: task tiers, brainstorm gate, orchestrator/executor/validator roles, Task Contract, and cross-project rules | no |
 
 Existing files are never overwritten. Precedence is:
 `identity.md` hard rules > `orchestrator.md` workflow doctrine > project memory.

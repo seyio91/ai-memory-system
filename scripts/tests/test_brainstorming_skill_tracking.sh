@@ -17,7 +17,7 @@ else
 fi
 
 assert_file "$REPO/skills/brainstorming/SKILL.md" "brainstorming skill ships in skills/"
-assert_not_contains "$(cat "$REPO/skills.toml.example")" "brainstorming" \
-    "skills.toml.example has no brainstorming remote entry"
+assert_not_contains "$(cat "$REPO/templates/skills.toml.example")" "brainstorming" \
+    "templates/skills.toml.example has no brainstorming remote entry"
 
 finish

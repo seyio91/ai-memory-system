@@ -19,10 +19,14 @@ cp -R "$REPO/scripts" "$FAKE/scripts"
 cp -R "$REPO/harnesses" "$FAKE/harnesses"
 cp -R "$REPO/commands" "$FAKE/commands"
 cp "$REPO/install.sh" "$FAKE/install.sh"
-printf '# identity template\n' > "$FAKE/identity.template.md"
-printf '# orchestrator template\n' > "$FAKE/orchestrator.template.md"
-printf '# index template\n'    > "$FAKE/index.template.md"
-printf '# skills template\n[[skills]]\nname = "template-skill"\nurl = "https://example.invalid/skills.git"\nref = "main"\n' > "$FAKE/skills.toml.example"
+# Seed templates live under templates/, not the repo root. If these fixture paths
+# and install.sh ever disagree, install seeds nothing and every assertion below
+# still passes on the pre-existing files -- so keep them in lockstep.
+mkdir -p "$FAKE/templates"
+printf '# identity template\n' > "$FAKE/templates/identity.template.md"
+printf '# orchestrator template\n' > "$FAKE/templates/orchestrator.template.md"
+printf '# index template\n'    > "$FAKE/templates/index.template.md"
+printf '# skills template\n[[skills]]\nname = "template-skill"\nurl = "https://example.invalid/skills.git"\nref = "main"\n' > "$FAKE/templates/skills.toml.example"
 mkdir -p "$FAKE/skills/demo-skill"
 printf -- '---\nname: demo-skill\ndescription: demo\n---\n# demo\n' > "$FAKE/skills/demo-skill/SKILL.md"
 mkdir -p "$FAKE/agents"
@@ -99,7 +103,13 @@ assert_contains "$(cat "$SBROOT/log.claude")" "Hook entries were auto-merged" "c
 assert_file "$FAKE/skills.toml"                   "root skills.toml seeded from template"
 assert_file "$FAKE/orchestrator.md"               "orchestrator.md seeded from template"
 assert_eq "# orchestrator template" "$(cat "$FAKE/orchestrator.md")" "orchestrator.md seeded as an exact template copy"
-assert_eq "$(cat "$FAKE/skills.toml.example")" "$(cat "$FAKE/skills.toml")" "skills.toml seeded as an exact template copy"
+assert_eq "$(cat "$FAKE/templates/skills.toml.example")" "$(cat "$FAKE/skills.toml")" "skills.toml seeded as an exact template copy"
+assert_eq "# identity template" "$(cat "$FAKE/identity.md")" "identity.md seeded as an exact template copy"
+assert_eq "# index template" "$(cat "$FAKE/index.md")" "index.md seeded as an exact template copy"
+# No seed template may be left at the repo root -- a stray root copy would let a
+# half-migrated install.sh keep working and hide the real path from this suite.
+assert_eq "0" "$(find "$FAKE" -maxdepth 1 \( -name '*.template.md' -o -name '*.example' \) | grep -c .)" \
+    "no seed template remains at the fake repo root"
 assert_contains "$(cat "$SBROOT/log.claude")" "seeded skills.toml from template" "install reports the skills.toml seed step"
 set +e; [ -d "$FAKE/.skill-cache/template-skill" ]
 # Intentional status capture around a negative assertion.

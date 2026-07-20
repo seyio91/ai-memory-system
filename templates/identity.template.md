@@ -35,5 +35,5 @@
 ## Workflow Doctrine
 
 Workflow doctrine lives in `orchestrator.md`, seeded from
-`orchestrator.template.md`. `identity.md` should stay focused on role, defaults,
+`templates/orchestrator.template.md`. `identity.md` should stay focused on role, defaults,
 hard rules, and communication style.

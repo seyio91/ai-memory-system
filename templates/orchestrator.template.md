@@ -1,6 +1,6 @@
 # Orchestrator — workflow doctrine
 
-This file is per-instance, seeded from `orchestrator.template.md`; edit it freely.
+This file is per-instance, seeded from `templates/orchestrator.template.md`; edit it freely.
 Precedence: `identity.md` hard rules > this file > project memory.
 
 ## Orchestration

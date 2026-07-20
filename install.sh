@@ -159,9 +159,9 @@ fi
 # skills_dir the manifest names (Claude ~/.claude/skills, Codex ~/.agents/skills).
 SKILLS_DIR="$(manifest_get "$MANIFEST" skills_dir)"
 AGENTS_DIR="$(manifest_get "$MANIFEST" agents_dir)"
-if [ ! -f "$REPO_ROOT/skills.toml" ] && [ -f "$REPO_ROOT/skills.toml.example" ]; then
+if [ ! -f "$REPO_ROOT/skills.toml" ] && [ -f "$REPO_ROOT/templates/skills.toml.example" ]; then
     step "Seed remote-skill manifest"
-    cp "$REPO_ROOT/skills.toml.example" "$REPO_ROOT/skills.toml"
+    cp "$REPO_ROOT/templates/skills.toml.example" "$REPO_ROOT/skills.toml"
     info "seeded skills.toml from template — prune what you don't want, then run scripts/resolve-skills.sh"
 fi
 if [ -n "$SKILLS_DIR" ] && [ -d "$REPO_ROOT/skills" ]; then
@@ -227,7 +227,7 @@ fi
 step "Recording install location -> config.local.sh"
 CONFIG_LOCAL="$REPO_ROOT/config.local.sh"
 if [ ! -f "$CONFIG_LOCAL" ]; then
-    printf '#!/usr/bin/env bash\n# Per-environment overrides (gitignored). See config.local.sh.example.\n' > "$CONFIG_LOCAL"
+    printf '#!/usr/bin/env bash\n# Per-environment overrides (gitignored). See templates/config.local.sh.example.\n' > "$CONFIG_LOCAL"
     info "created config.local.sh"
 fi
 TMP_CL="$(mktemp)"
@@ -243,9 +243,9 @@ info "set MEMORY_DIR=$REPO_ROOT"
 
 # ---- shared: seed personal files from templates ---------------------------
 step "Seed personal files from templates (only if missing)"
-[ -f "$REPO_ROOT/identity.md" ] || { cp "$REPO_ROOT/identity.template.md" "$REPO_ROOT/identity.md"; info "created identity.md from template"; }
-[ -f "$REPO_ROOT/orchestrator.md" ] || { cp "$REPO_ROOT/orchestrator.template.md" "$REPO_ROOT/orchestrator.md"; info "created orchestrator.md from template"; }
-[ -f "$REPO_ROOT/index.md" ]    || { cp "$REPO_ROOT/index.template.md" "$REPO_ROOT/index.md";    info "created index.md from template"; }
+[ -f "$REPO_ROOT/identity.md" ] || { cp "$REPO_ROOT/templates/identity.template.md" "$REPO_ROOT/identity.md"; info "created identity.md from template"; }
+[ -f "$REPO_ROOT/orchestrator.md" ] || { cp "$REPO_ROOT/templates/orchestrator.template.md" "$REPO_ROOT/orchestrator.md"; info "created orchestrator.md from template"; }
+[ -f "$REPO_ROOT/index.md" ]    || { cp "$REPO_ROOT/templates/index.template.md" "$REPO_ROOT/index.md";    info "created index.md from template"; }
 mkdir -p "$REPO_ROOT/tasks" "$REPO_ROOT/archive/tasks"
 
 # ---- manual steps (harness-specific) --------------------------------------
