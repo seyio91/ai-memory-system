@@ -155,11 +155,11 @@ Skills now have one meaningful axis: **source**.
 
 The old generic/local authored split is retired. There is no tracked in-tree authored skill store. Sharing an authored skill means publishing it to a remote repo and adding it to the catalog/manifest; there is no copy-fork middle category.
 
-**The manifest (TOML, you maintain the list).** Remote skills are declared one `[[skills]]` entry per skill in a single root manifest. The repo ships a tracked `skills.toml.example` catalog; `install.sh` seeds a per-instance `skills.toml` from it only when missing, then you prune what you do not want and run `scripts/resolve-skills.sh`.
+**The manifest (TOML, you maintain the list).** Remote skills are declared one `[[skills]]` entry per skill in a single root manifest. The repo ships a tracked `templates/skills.toml.example` catalog; `install.sh` seeds a per-instance `skills.toml` from it only when missing, then you prune what you do not want and run `scripts/resolve-skills.sh`.
 
 | File | Scope | Tracked? |
 |------|-------|----------|
-| `skills.toml.example` | catalog template | yes |
+| `templates/skills.toml.example` | catalog template | yes |
 | `skills.toml` | per-instance remote choices | no (gitignored) |
 
 ```toml

@@ -48,8 +48,8 @@ Two steps it leaves to you:
 1. **Register settings** — merge the hook entries and the `statusLine` from `harnesses/claude/settings.hooks.json` into `~/.claude/settings.json`.
 2. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (or merge into your existing one).
 
-Then edit `identity.md` (start from `identity.template.md`) and `orchestrator.md`
-(start from `orchestrator.template.md`), onboard a repo with `/pin <project>`,
+Then edit `identity.md` (start from `templates/identity.template.md`) and `orchestrator.md`
+(start from `templates/orchestrator.template.md`), onboard a repo with `/pin <project>`,
 and start a session. To install from a different clone path, set `MEMORY_DIR` to
 that path before running `install.sh`.
 
@@ -96,14 +96,17 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── LICENSE
 ├── .gitignore                         # Ships templates + engine; ignores your real memory data
 ├── identity.md                        # Hard rules, injected once per session (per-instance, git-ignored)
-├── identity.template.md               # Generic starting point for identity.md
 ├── orchestrator.md                    # Workflow doctrine, injected once per session (per-instance, git-ignored)
-├── orchestrator.template.md           # Generic starting point for orchestrator.md
 ├── CHANGELOG.md                       # Thin changelog shell; release.sh finalizes sections
 ├── UPGRADING.md                       # Channel, rollback, semver, and migration notes
 ├── .applied-version                   # Migration high-water marker (gitignored)
 ├── index.md                           # Lifecycle prose + AUTOGEN roster (git-ignored; regenerated)
-├── index.template.md                  # Template for index.md
+├── templates/                         # Tracked seed files install.sh copies when a target is missing
+│   ├── identity.template.md           #   → identity.md
+│   ├── orchestrator.template.md       #   → orchestrator.md
+│   ├── index.template.md              #   → index.md
+│   ├── skills.toml.example            #   → skills.toml (remote-skill catalog)
+│   └── config.local.sh.example        #   reference for the generated config.local.sh
 ├── domain/                            # Cross-project knowledge (one file per topic)
 │   ├── _template.md                   #   committed; real domain/<topic>.md files are git-ignored
 │   └── <topic>.md                     #   your knowledge files (loaded on demand via index match)
@@ -118,8 +121,7 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 │       └── scripts/                   #   codex-mem.sh (Codex wrapper), codex-mem-checkpoint.sh
 ├── agents/                            # Bundled subagent definitions → ~/.claude/agents (link-agents.sh)
 ├── skills/                            # Authored per-instance skills → ~/.claude/skills (gitignored except .gitkeep)
-├── skills.toml.example                 # Tracked remote-skill catalog template
-├── skills.toml                         # Per-instance remote-skill manifest (gitignored)
+├── skills.toml                         # Per-instance remote-skill manifest (gitignored; seeded from templates/)
 ├── .skill-cache/                       # Remote skills materialized here by resolve-skills.sh — gitignored
 │   └── skills.lock                     #   pins each resolved commit (never committed)
 ├── migrations/                         # Forward-only instance migrations; see migrations/README.md
@@ -219,7 +221,7 @@ The forward map lets a checkout name its project. The reverse map lets a project
 | Host (laptop) | `$HOME/Projects` (default) |
 | Sandbox / container | `/workspace` |
 
-**Per-environment config — `config.local.sh`.** `scripts/_lib.sh` and `taskctl` source a gitignored `config.local.sh` (next to the memory tree) if present, so per-machine values reach scripts, hooks, and subagents that don't inherit your shell rc. Copy `config.local.sh.example` and set `AI_MEMORY_PROJECTS_ROOT`, `MEMORY_TASK_PROVIDER`, etc. there. (`MEMORY_DIR` itself must come from the env, since it's needed to *find* the config file.)
+**Per-environment config — `config.local.sh`.** `scripts/_lib.sh` and `taskctl` source a gitignored `config.local.sh` (next to the memory tree) if present, so per-machine values reach scripts, hooks, and subagents that don't inherit your shell rc. Copy `templates/config.local.sh.example` and set `AI_MEMORY_PROJECTS_ROOT`, `MEMORY_TASK_PROVIDER`, etc. there. (`MEMORY_DIR` itself must come from the env, since it's needed to *find* the config file.)
 
 **Populate it with `memory-pin` (or `/pin`).** Run from *inside* a checkout:
 
