@@ -82,7 +82,7 @@ it to a remote and reference it via the catalog; there is no tracked in-tree
 authored skill anymore). The only axis left is source: authored `skills/` vs
 remote `.skill-cache/`.
 
-- [x] Move `skills-local/*` → `skills/` (incl. per-instance `fiter-infrastructure-analyzer` + `.gitkeep`); remove `skills-local/`
+- [x] Move `skills-local/*` → `skills/` (incl. per-instance `client-a-infrastructure-analyzer` + `.gitkeep`); remove `skills-local/`
 - [x] `.gitignore`: `/skills-local/*` → `/skills/*`, `!/skills-local/.gitkeep` → `!/skills/.gitkeep`
 - [x] `_lib.sh` `skill_roots` → `skills` + `.skill-cache` (drop `skills-local`)
 - [x] Sweep all `skills-local` references (scripts, hooks, tests) to the single `skills/` authored dir; retire the generic/local target/flag distinction (authored target is always `skills/`)
@@ -90,7 +90,7 @@ remote `.skill-cache/`.
 - [x] Full suite green
 
 ### Additional success criteria (Phase 6)
-- `skills-local/` no longer exists; `skills/` is gitignored per-instance (except `.gitkeep`); `fiter-infrastructure-analyzer` lives under `skills/` and still enumerates.
+- `skills-local/` no longer exists; `skills/` is gitignored per-instance (except `.gitkeep`); `client-a-infrastructure-analyzer` lives under `skills/` and still enumerates.
 - `skill_roots` = `skills` + `.skill-cache`; no `skills-local` references remain in scripts/hooks/docs/tests (outside `archive/`).
 - Docs clearly state the two-location model (authored `skills/` vs remote `.skill-cache/`) and that the generic/local authored split is retired.
 - Suite green.

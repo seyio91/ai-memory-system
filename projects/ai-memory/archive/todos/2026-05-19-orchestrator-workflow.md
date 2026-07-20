@@ -17,7 +17,7 @@
 
 **Phase 2 — Directory scaffolding**
 - [x] Add `plans/`, `todo.md`, `archive/plans/.gitkeep`, `archive/todos/.gitkeep` to `projects/_template/`
-- [x] Backfill missing dirs/files in `fiter-argo-apps`, `fiter-charts`, `fiter-infrastructure`
+- [x] Backfill missing dirs/files in `client-a-argo-apps`, `client-a-charts`, `client-a-infrastructure`
 - [x] Update `scripts/new-project.sh` to scaffold the new structure (no code change needed — `cp -r` inherits `_template/` updates)
 - [x] Update `scripts/lint-memory.sh` to flag missing `todo.md` / `plans/` / `archive/`
 

@@ -8,10 +8,10 @@
 
 ### Reorg follow-ups → [plan](plans/reorg-followups.md)
 
-- [x] **A.** Fill `fiter-modules/memory.md` (grounded in real `fiter-enterprise-tf-modules` repo)
+- [x] **A.** Fill `client-a-modules/memory.md` (grounded in real `client-a-enterprise-tf-modules` repo)
 - [x] **B.** Create `domain/fineract.md` + `domain/shell.md`
-- [x] **C.** Point `fiter-infrastructure` + `fiter-infra-scaffolder` at the new domain files (kept repo-specific detail)
-- [x] **D.** Promote `fiter-modules/working.md` learning → `claude-memory-system` Gotchas; archived + cleared working.md
+- [x] **C.** Point `client-a-infrastructure` + `client-a-infra-scaffolder` at the new domain files (kept repo-specific detail)
+- [x] **D.** Promote `client-a-modules/working.md` learning → `claude-memory-system` Gotchas; archived + cleared working.md
 - [x] **E.** Regenerated index (idempotent); lint exit 0
 
 ## Done

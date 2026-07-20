@@ -8,10 +8,10 @@ owner: orchestrator
 
 # Reorganize follow-ups (the three flagged items)
 
-## A. Fill `fiter-modules/memory.md` (grounded in the real repo)
-Repo = `fiter-enterprise-tf-modules` (FITER1), checkout `~/Downloads/personal/fiter/fiter_modules`,
-remote `git@github.com:FITER1/fiter-enterprise-tf-modules.git`. Shared remote Terraform modules
-library consumed by `fiter-infrastructure`, `fiter-infra-scaffolder` (v0.2.0/v0.3.0), `fiter-ec2`.
+## A. Fill `client-a-modules/memory.md` (grounded in the real repo)
+Repo = `client-a-enterprise-tf-modules` (<org>), checkout `~/Downloads/personal/client-a/client_a_modules`,
+remote `git@github.com:<org>/client-a-enterprise-tf-modules.git`. Shared remote Terraform modules
+library consumed by `client-a-infrastructure`, `client-a-infra-scaffolder` (v0.2.0/v0.3.0), `client-a-ec2`.
 - Replace template placeholders; 5 required sections + frontmatter (topic/scope/summary + `repo` + `tags`).
 - Record local checkout as a body "Repo path:" line (mirrors access-eks house style); do NOT set
   `repo_path` frontmatter (no back-pin / non-default projects root → would trip lint).
@@ -29,13 +29,13 @@ library consumed by `fiter-infrastructure`, `fiter-infra-scaffolder` (v0.2.0/v0.
 - Each: frontmatter (topic, triggers, summary) + `## Knowledge` entries.
 
 ## C. Reference domain files from project files (keep repo-specific delta)
-- `fiter-infrastructure` + `fiter-infra-scaffolder`: trim the *general* statement to a pointer at
+- `client-a-infrastructure` + `client-a-infra-scaffolder`: trim the *general* statement to a pointer at
   `domain/fineract.md` / `domain/shell.md`, keep the repo-specific detail (PR #83, `794df0b`, file paths).
 
 ## D. Promote the pending learning
-- `fiter-modules/working.md` "Open learnings" (plan-mode default path vs canonical memory-system plan
+- `client-a-modules/working.md` "Open learnings" (plan-mode default path vs canonical memory-system plan
   path) → `claude-memory-system/memory.md` Known Constraints / Gotchas. Clear it from working.md
   (snapshot to `archive/working/` per promote convention).
 
 ## E. Finalize
-- `regenerate-index.sh` (new domain rows; fiter-modules now has real topic/summary/tags). Lint exit 0.
+- `regenerate-index.sh` (new domain rows; client-a-modules now has real topic/summary/tags). Lint exit 0.

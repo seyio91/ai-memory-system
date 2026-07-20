@@ -13,7 +13,7 @@
 - [x] Phase 2 — `/task` command (multi-verb, active-project default)
 - [x] Phase 3 — `/start` command (by-ref, project-agnostic, brainstorm flow)
 - [x] Phase 4 — Docs (README slash table, tree, flip /start to implemented)
-- [x] Phase 5 — Verify harness/lint ✅ + live demo on fiter-argo-apps task (deploy-apache-superset → started) ✅
+- [x] Phase 5 — Verify harness/lint ✅ + live demo on client-a-argo-apps task (deploy-apache-superset → started) ✅
 - [x] Phase 1 — Contract + CLI boundary (`scripts/taskprovider/`)
 - [x] Phase 2 — Local provider (`FileTaskProvider`)
 - [x] Phase 3 — Test local provider (lifecycle green, offline) ⟵ gate before Notion ✅ PASSED

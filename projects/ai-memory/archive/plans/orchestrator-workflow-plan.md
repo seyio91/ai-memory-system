@@ -39,7 +39,7 @@ Codify a three-role workflow into the memory system so every non-trivial task is
 
 ### Phase 2 — Directory scaffolding
 - Add `plans/`, `todo.md`, `archive/plans/.gitkeep`, `archive/todos/.gitkeep` to `projects/_template/`.
-- Backfill the same in existing projects that don't have them: `claude-memory-system` (this one — partially done), `fiter-argo-apps`, `fiter-charts`, `fiter-infrastructure` (already has `plans/` and `todo.md`).
+- Backfill the same in existing projects that don't have them: `claude-memory-system` (this one — partially done), `client-a-argo-apps`, `client-a-charts`, `client-a-infrastructure` (already has `plans/` and `todo.md`).
 - Update `scripts/new-project.sh` to scaffold the new structure.
 - Update `scripts/lint-memory.sh` to flag missing `todo.md` / `plans/` / `archive/`.
 
@@ -63,7 +63,7 @@ Because `codex-mem.sh` already concatenates `identity.md` and project memory int
 ## Risks / open questions
 - **Codex network access in workspace-write**: needs verification that `gh` works with `-c sandbox_workspace_write.network_access=true`. Fallback: ad-hoc `--sandbox danger-full-access` for explicit gh-heavy tasks (with user nod).
 - **Validator drift**: if the validator subagent re-reads the plan and disagrees with the orchestrator's intent, we need a tiebreaker — default: user adjudicates, not auto-retry.
-- **Existing plans/todos in `fiter-infrastructure`**: don't migrate; existing structure already matches.
+- **Existing plans/todos in `client-a-infrastructure`**: don't migrate; existing structure already matches.
 
 ## Acceptance
 - A new task started in any project flows through this loop end-to-end without me (orchestrator) executing the heavy work.

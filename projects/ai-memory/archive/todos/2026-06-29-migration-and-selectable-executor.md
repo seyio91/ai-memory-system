@@ -11,7 +11,7 @@ Migration, follow-ups, validation, and cleanup all done. Plan `status: done`.
 - [x] **Validation C spot-check** — `/pin ai-memory` wrote forward marker `.claude/memory-project` + reverse frontmatter (backfilled missing `repo:` URL); `taskctl list <proj> <status>` returns valid JSON across backlog/started/done
 - [x] 3 `install.sh`-untouched files (`excalidraw-diagram` skill, `kubernetes-specialist` + `terraform-engineer` agents) were content-identical → switched to repo symlinks (selectable-executor plan Task 9)
 - [x] Removed stale `~/.claude/commands/plan.md` (superseded by `/new-plan`)
-- [x] Resolved `modules-myccv-s3` `repo_path` lint warning — corrected stray `../`; lint fully clean
+- [x] Resolved `modules-client-b-s3` `repo_path` lint warning — corrected stray `../`; lint fully clean
 - [x] Cleanup done: removed `~/Projects/ai-memory-old` (840K rollback tree) + all 14 `~/.claude/**/*.bak-*` files
 
 ### Migration execution gates

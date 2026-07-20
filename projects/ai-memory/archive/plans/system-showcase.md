@@ -43,8 +43,8 @@ markdown + hooks.*
 - **Narrative over feature-list**: capabilities are revealed as beats in the
   "compounding memory" story; the killer beat is capture → new session → recall →
   "it's just a file."
-- **TPE cluster as the Related-Projects centerpiece**: `tpe` / `tpe-stacks` /
-  `tpe-kubernetes` are a real related set AND share the `tpe` category, so cross-project
+- **Client-C cluster as the Related-Projects centerpiece**: `client-c` / `client-c-stacks` /
+  `client-c-kubernetes` are a real related set AND share the `client-c` category, so cross-project
   relationships and category grouping reinforce each other in one beat.
 - **Diagram format** (user decision): Mermaid for the durable, in-repo, diffable set;
   Excalidraw only for the 1–2 most-shown hero diagrams.
@@ -58,11 +58,11 @@ markdown + hooks.*
 ## Decisions (locked)
 - Audience: technical adopters. Format: live interactive. Budget: ~60 min. Goal: educate/document.
 - Runs against the **real system + real projects**; write-beats on a **new repo** + gitignored projects only.
-- Categories are set (platform / myccv / tpe) → `/state` + `/activity` grouping is demo-ready.
-- Related Projects centerpiece = TPE cluster.
+- Categories are set (platform / client-b / client-c) → `/state` + `/activity` grouping is demo-ready.
+- Related Projects centerpiece = Client-C cluster.
 - Diagrams: Mermaid + 1–2 Excalidraw heroes.
 - Artifact homes: `docs/showcase.md`, `docs/demo-runbook.md`, diagrams under `docs/diagrams/`.
-- **Fresh-repo onboarding target = `/Users/sobaweya/Projects/ccv-terraform/flexo`** — verified git repo, currently unpinned (no marker), no `projects/flexo` yet, origin `git@github.com:CCV-Group/flexo.git`. Genuinely cold onboard for the `/new-project`/`/pin` → capture → `/promote-memory` chain. **Kept post-demo** as a real project (no revert); the onboarding beat is a permanent, authentic addition.
+- **Fresh-repo onboarding target = `/Users/<user>/Projects/client-b-terraform/client-b-app`** — verified git repo, currently unpinned (no marker), no `projects/client-b-app` yet, origin `git@github.com:<org>/client-b-app.git`. Genuinely cold onboard for the `/new-project`/`/pin` → capture → `/promote-memory` chain. **Kept post-demo** as a real project (no revert); the onboarding beat is a permanent, authentic addition.
 - **Reveal the injected `<memory:*>` block via SessionStart output** (not a manual `inject_memory.sh` run) — start a fresh session in the repo and show the injected payload as it actually arrives.
 - **Capture→recall across a session boundary via `/checkpoint`** — checkpoint into `working.md`, start a new session, show the checkpoint recalled on SessionStart.
 
@@ -93,4 +93,4 @@ markdown + hooks.*
 ## Risks / open questions
 - **60-min budget is tight** for all three tiers; Phase 5 timing may force trimming Tier-3 depth (harness-agnostic or O/E/V) to a diagram + narration rather than a full live run.
 - Excalidraw hero fidelity vs. time: heroes are polish; if Phase 2 runs long, ship Mermaid versions and upgrade later.
-_Resolved (folded into Decisions): fresh-repo target = `ccv-terraform/flexo` (**kept** as a real project post-demo — no revert path in the runbook); reveal via SessionStart output; capture→recall via `/checkpoint`._
+_Resolved (folded into Decisions): fresh-repo target = `client-b-terraform/client-b-app` (**kept** as a real project post-demo — no revert path in the runbook); reveal via SessionStart output; capture→recall via `/checkpoint`._

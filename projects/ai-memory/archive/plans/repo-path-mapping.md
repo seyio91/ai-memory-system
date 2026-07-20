@@ -31,12 +31,12 @@ Three new **optional** fields (validated only when present):
 
 ```yaml
 ---
-topic: ccv-terraform
+topic: client-b-terraform
 scope: project
-summary: SBP landing-zone Terraform — Okta, EKS, TPE onboarding   # serves as "description"
+summary: Landing-zone Terraform — Okta, EKS, Client-C onboarding   # serves as "description"
 tags: [terraform, aws, okta, eks]                                 # new
-repo: git@github.com:org/ccv-terraform.git                        # new — portable fallback
-repo_path: ccv-terraform                                          # new — relative to AI_MEMORY_PROJECTS_ROOT
+repo: git@github.com:org/client-b-terraform.git                        # new — portable fallback
+repo_path: client-b-terraform                                          # new — relative to AI_MEMORY_PROJECTS_ROOT
 ---
 ```
 

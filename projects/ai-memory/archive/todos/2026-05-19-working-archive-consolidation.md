@@ -26,7 +26,7 @@
 **Phase 4 — Verify**
 - [x] `find projects -name working_archive -type d` returns empty
 - [x] `bash scripts/lint-memory.sh` clean
-- [x] Spot-check a migrated snapshot opens correctly at new path (fiter-charts/archive/working/2026-05-19-1515.md readable)
+- [x] Spot-check a migrated snapshot opens correctly at new path (client-a-charts/archive/working/2026-05-19-1515.md readable)
 
 ## Done
 _(checked items stay above until the file is rolled)_

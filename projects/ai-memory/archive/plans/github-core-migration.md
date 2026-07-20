@@ -60,14 +60,14 @@ reusable across machines.
 - [x] Validation C — `/pin` forward marker + reverse frontmatter (backfilled `repo:`); `taskctl list` valid JSON
 - [x] Remove stale local `~/.claude/commands/plan.md` (→ `plan.md.bak-20260629-144555`)
 - [x] Decided + executed: 3 install.sh-untouched files were content-identical → now repo symlinks (done in selectable-executor plan Task 9)
-- [x] Fix `modules-myccv-s3` repo_path warning — stray `../` corrected; lint fully clean
+- [x] Fix `modules-client-b-s3` repo_path warning — stray `../` corrected; lint fully clean
 - [ ] Cleanup backups & `-old` tree after confidence period
 
 ## Key locations
 - **Rollback handle:** `~/Projects/ai-memory-old` (original tree, untouched)
 - **Backups:** `~/backups/ai-memory-premigration-*.tar.gz`, `premig-data-manifest.txt`, `settings.json.premigration.bak`, `CLAUDE.md.premigration.bak`
 - **Detailed gated runbook (transient):** `~/.claude/plans/delightful-tickling-cerf.md`
-- **Lint:** fully clean (the former `modules-myccv-s3` `repo_path` warning was a stray `../`, now fixed)
+- **Lint:** fully clean (the former `modules-client-b-s3` `repo_path` warning was a stray `../`, now fixed)
 
 ## Risks / open questions
 - Codex-primary executor model is now active — confirm it's wanted, or revert CLAUDE.md.

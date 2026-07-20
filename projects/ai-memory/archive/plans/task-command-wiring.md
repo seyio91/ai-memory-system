@@ -42,7 +42,7 @@ Settled after two clarifications (multi-verb `/task`; by-ref project-agnostic `/
 - README: Slash-commands table rows, commands tree entries, flip the `/start` section to implemented, note `/task`. Keep coherent with brainstorming + provider sections.
 
 ### Phase 5 — Verify + live demo
-- Harness green, lint 0, index unchanged. Then demo `/start` on the user's real `fiter-argo-apps` captured task (their stated goal).
+- Harness green, lint 0, index unchanged. Then demo `/start` on the user's real `client-a-argo-apps` captured task (their stated goal).
 
 ## Risks / open questions
 - Active project ≠ task project on cross-project `/start`: plan must land in the task's project (handled by reading project from `get`, not the breadcrumb).

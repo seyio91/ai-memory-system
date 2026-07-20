@@ -18,7 +18,7 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - A post-run boundary check rejects a `target-read-only` skill run that leaves the target repo dirty, or whose memory-repo diff touches anything outside `skills/<self>/` (i.e. `projects/`, `working.md`, `index.md`, or another skill's dir). Verified with a deliberate-violation fixture.
 - A skill creator scaffolds a new skill to the schema (frontmatter incl. `tier`, and for first-party workflow skills the self-rating block) and ends by passing `validate-skills.sh`.
 - A skill installer normalizes an existing/remote skill into the schema, validates, places it in `skills/<name>/`, and links via the existing `link-skills.sh`/`sync-project-skills.sh`. It does **not** inject self-rating into imported skills by default.
-- The self-rating block is applied to first-party workflow skills only (`renovate-manager`, `observability-check`, `fiter-infrastructure-analyzer`, `brainstorming`); reference packs and imported skills are untouched. Aggregation over `skills/*/` produces a per-skill score summary.
+- The self-rating block is applied to first-party workflow skills only (`renovate-manager`, `observability-check`, `client-a-infrastructure-analyzer`, `brainstorming`); reference packs and imported skills are untouched. Aggregation over `skills/*/` produces a per-skill score summary.
 - README + `identity.md` document the `tier` field, the three write zones, and the own-folder rule.
 - All scripts are macOS bash-3.2 compatible with dependency-free tests under `scripts/tests/`.
 
@@ -72,7 +72,7 @@ Generalize the conventions `renovate-manager` already implements by hand — a d
 - [x] **Marker-derived membership** — `_lib.sh:skills_with_partial` derives the loop set from block presence (no static first-party list → no drift). Both `apply-partial --all` and `skill-ratings --all` read it.
 - [x] **Aggregator** — `scripts/skill-ratings.sh` (per-skill latest/avg/count from `skills/*/self-rating.md`; `LC_ALL=C` pins the decimal point; `--all` lists in-loop skills with no ratings yet).
 - [x] **Creator integration** — `new-skill.sh --kind workflow` injects the block via `apply-partial --force`. `install-skill.sh` still does NOT inject (imported skills clean).
-- [x] **Applied to the four** first-party workflow skills (renovate-manager, observability-check, fiter-infrastructure-analyzer, brainstorming); block is on-request-only. Docs in README + identity.md. 32-assertion test + creator-test additions; full suite green.
+- [x] **Applied to the four** first-party workflow skills (renovate-manager, observability-check, client-a-infrastructure-analyzer, brainstorming); block is on-request-only. Docs in README + identity.md. 32-assertion test + creator-test additions; full suite green.
 
 ## Risks / open questions
 - ~~Boundary-check seam (#11)~~ — **settled + built** (Approach A): shared `skill-boundary-check.sh` + Claude PostToolUse/Stop triggers. Codex trigger deferred. See `## Design` + Phase 3.

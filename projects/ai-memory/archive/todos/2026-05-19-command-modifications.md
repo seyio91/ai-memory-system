@@ -26,7 +26,7 @@
 
 **Phase 5 — Verify**
 - [x] `bash scripts/lint-memory.sh` clean
-- [x] `bash scripts/archive-cleanup.sh --dry-run` reports 0 deletions on the active project's archive (--days 1 --all-projects finds the 2026-05-17 fiter-infrastructure snapshot, confirming the threshold logic)
+- [x] `bash scripts/archive-cleanup.sh --dry-run` reports 0 deletions on the active project's archive (--days 1 --all-projects finds the 2026-05-17 client-a-infrastructure snapshot, confirming the threshold logic)
 - [x] Read-through of the rewritten `/promote-memory` end-to-end
 
 ### Workflow carve-out: research vs actionable

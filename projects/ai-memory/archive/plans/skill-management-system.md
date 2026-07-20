@@ -47,7 +47,7 @@ Unifying rule: **generic = declared/stored in a tracked location; local = in a g
   no copy).
 - Local, remote, and generic skills are all first-class locally — validated, boundary-checked, rated —
   differing only in git tracking + provenance.
-- The `fiter-infrastructure-analyzer` one-off is migrated to `skills-local/` and its individual gitignore
+- The `client-a-infrastructure-analyzer` one-off is migrated to `skills-local/` and its individual gitignore
   line removed.
 - Docs describe the 2×2 taxonomy, the update flow, and the cache. Full suite green.
 
@@ -86,7 +86,7 @@ where," yielding dirs across `skills/` + `skills-local/` + `.skill-cache/` (over
 - **Centralized enumeration** (`_lib.sh:list_skill_dirs`) over all roots — added once, not per script.
 - **All skills first-class locally** — fan-out, validation, boundary, ratings apply regardless of
   scope/source; only git tracking + provenance differ.
-- **Migrate `fiter-infrastructure-analyzer`** to `skills-local/`; drop its individual gitignore line.
+- **Migrate `client-a-infrastructure-analyzer`** to `skills-local/`; drop its individual gitignore line.
 - Per-repo `projects/*/skills/` axis unchanged; generic-authored remains the default.
 - **Manifest format = TOML** (revised 2026-07-07): `skills/skills.toml` + `skills-local/skills.toml`,
   parsed by python3's stdlib `tomllib` (3.11+) — no pip dependency (the task provider already sets the
@@ -112,7 +112,7 @@ where," yielding dirs across `skills/` + `skills-local/` + `.skill-cache/` (over
 
 ### Phase 2 — Authored-skill authoring + migration
 - `new-skill.sh --local` → `skills-local/`; `install-skill.sh --from` clarified as authored-fork.
-- `git mv skills/fiter-infrastructure-analyzer skills-local/`; drop its `.gitignore` line.
+- `git mv skills/client-a-infrastructure-analyzer skills-local/`; drop its `.gitignore` line.
 - Route `skill-boundary-check.sh` / `apply-partial.sh` / `skill-ratings.sh` through `list_skill_dirs`.
 
 ### Phase 3 — Remote source layer (manifest + resolver + cache)
