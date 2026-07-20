@@ -207,7 +207,7 @@ assert_contains "$chj" '"matcher": "^Bash$|apply_patch"' "codex: guard matcher r
 assert_contains "$chj" "scripts/hooks/guard.sh" "codex: guard command -> shared guard.sh"
 assert_contains "$chj" '"SessionStart"' "codex: SessionStart hook registered (base injects via hook, post-flip)"
 assert_contains "$chj" "scripts/hooks/session_start_memory.sh" "codex: SessionStart command -> shared session-start script"
-assert_not_contains "$chj" "arm_recompact.sh" "codex: SessionStart no longer wired to arm_recompact (shim only for stale hooks.json)"
+assert_not_contains "$chj" "arm_recompact.sh" "codex: SessionStart never wired to arm_recompact (shim deleted; name survives only in hook.sh's stale-entry sweep set)"
 if command -v python3 >/dev/null 2>&1; then
     set +e
     CODEX_HOOKS="$FHOME/.codex/hooks.json" FAKE_REPO="$FAKE" python3 - <<'PY' >"$SBROOT/codex-hooks-count.out" 2>&1

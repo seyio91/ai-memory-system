@@ -399,6 +399,12 @@ bak = os.environ["AIM_BAK"]
 ours = (
     "scripts/hooks/inject.sh",
     "scripts/hooks/guard.sh",
+    # The shim file itself is DELETED, but this marker stays. A stale pre-flip
+    # ~/.codex/hooks.json (manual `git pull`, no re-install) still names it, and
+    # the target no longer exists -- so dropping the marker leaves that entry
+    # unswept and codex errors on every SessionStart. Deleting a hook script and
+    # retiring its sweep marker are two different releases; this is the second
+    # half of the first. Same role as inject_memory.sh below.
     "arm_recompact.sh",
     "session_start_memory.sh",
     "block_task_tools.sh",

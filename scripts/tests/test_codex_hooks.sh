@@ -114,8 +114,9 @@ expected_session = [
 if session_cmds != expected_session:
     sys.stderr.write("session command mismatch\nexpected=%r\nactual=%r\n" % (expected_session, session_cmds))
     sys.exit(1)
-# The old arm_recompact.sh must NOT be wired by the flipped manifest (it survives only as
-# a compatibility shim reachable via a stale pre-flip hooks.json, not a fresh registration).
+# The old arm_recompact.sh must NOT be wired by the flipped manifest. The shim file is now
+# deleted outright, so a fresh registration naming it would point at nothing; its name
+# survives only in hook.sh's sweep set, which REMOVES stale entries rather than writing them.
 if any("arm_recompact.sh" in h.get("command", "") for g in ss for h in g.get("hooks", []) if isinstance(h, dict)):
     sys.stderr.write("flipped codex manifest still wires arm_recompact.sh\n")
     sys.exit(1)
@@ -147,6 +148,26 @@ assert_eq "0" "$(grep -c 'inject_memory.sh' "$LEGACY")" \
 assert_eq "12" "$(grep -c 'scripts/hooks/inject.sh' "$LEGACY")" \
     "codex hooks_json: current chunked inject.sh entries present after sweep"
 
+# Stale pre-flip entry naming the DELETED arm_recompact.sh must be swept on re-sync.
+# This is the assertion the shim's deletion rests on: the file is gone, so an unswept
+# entry points at nothing and codex errors on every SessionStart. Drop "arm_recompact.sh"
+# from hook.sh's `ours` tuple and this fails.
+STALE_ARM="$TMP/stale-arm-hooks.json"
+cat > "$STALE_ARM" <<'JSON'
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "bash /Users/x/.claude-memory/harnesses/codex/hooks/arm_recompact.sh" } ] }
+    ]
+  }
+}
+JSON
+_hook_register_codex_json "$STALE_ARM"
+assert_eq "0" "$(grep -c 'arm_recompact.sh' "$STALE_ARM")" \
+    "codex hooks_json: stale arm_recompact.sh entry swept after the shim's deletion"
+assert_eq "12" "$(grep -c 'scripts/hooks/session_start_memory.sh' "$STALE_ARM")" \
+    "codex hooks_json: SessionStart repointed at the shared script after the sweep"
+
 BAD="$TMP/bad-hooks.json"
 printf '[1, 2, 3]\n' > "$BAD"
 set +e
@@ -160,10 +181,11 @@ assert_eq "0" "$(find "$TMP" -name 'bad-hooks.json.bak-*' | grep -c .)" \
 assert_contains "$(cat "$TMP/bad.err")" "not a JSON object" "codex hooks_json top-level array: says why it refused"
 
 # --- Phase 1: session_bootstrap command is format-wrapped from the manifest `format` ---
-# The real codex manifest still wires SessionStart -> arm_recompact (compaction_arm); the
-# session_bootstrap md path lands when Phase 3 flips the manifest. Prove the engine threads
-# format=md into the SessionStart command NOW, via a synthetic manifest, so the fix is
-# guarded independently of that flip.
+# Uses a synthetic manifest so the assertion is independent of what the real codex
+# manifest happens to wire. (Historical note: this predates the Phase-3 flip, when the
+# real manifest still wired SessionStart -> arm_recompact; that shim is now deleted and
+# the real manifest wires session_start_memory.sh. The synthetic fixture is why this test
+# needed no change through either event.)
 SYN_MF="$TMP/synthetic-md.manifest"
 SYN_SCRIPT="$TMP/session_start_stub.sh"
 : > "$SYN_SCRIPT"
