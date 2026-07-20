@@ -52,6 +52,13 @@ cp "$CHECK" "$FX/scripts/check-docs.sh"
 printf 'FX_EXEMPT  # prose cell, deliberately unowned\n' >"$FX/.docscheck-exempt"
 printf '#!/usr/bin/env bash\necho "${FX_EXEMPT:-}"\n' >"$FX/scripts/exempt_user.sh"
 
+# tests/ is a legitimate consumer location; tests/fixtures/ is sample data.
+# only_fx.sh exists ONLY under fixtures, so the two policies give opposite
+# verdicts and neither depends on find(1)'s enumeration order.
+mkdir -p "$FX/scripts/tests/fixtures/legacy"
+printf '#!/usr/bin/env bash\necho "${FX_TEST_SEAM:-}"\n' >"$FX/scripts/tests/test_seam.sh"
+printf '#!/usr/bin/env bash\necho "${FX_FIXTURE_ONLY:-}"\n' >"$FX/scripts/tests/fixtures/legacy/only_fx.sh"
+
 TABLE="$FX/docs/scripts.md"
 HDR='| Var | Default | Used by |
 |-----|---------|---------|'
@@ -130,6 +137,29 @@ assert_contains "$OUT" "absent from all code roots" "…self-reference cannot ce
 table '| `FX_DEEP` | x | `top.sh` |'
 run
 assert_not_contains "$OUT" "nor anything it sources" "source-following runs (sed regex is not silently broken)"
+
+# --- REGRESSION: tests/fixtures/ is not a consumer -------------------------
+# resolve_script() matches by basename and takes `head -1`, so a fixture sharing
+# a basename with a real script can win. In the real tree scripts/hooks/
+# session_start_memory.sh collides with a claude-legacy-hooks fixture, and find
+# returned the fixture -- which would have failed the AI_MEMORY_SKIP_INJECT row
+# against sample data. The fail-open mirror is worse: a fixture that happens to
+# contain the var certifies a consumer that no longer uses it.
+#
+# only_fx.sh exists ONLY under tests/fixtures/, so this is order-independent:
+# pruned -> resolves to nothing -> "does not exist". Drop the -path prune from
+# resolve_script and the fixture resolves, contains FX_FIXTURE_ONLY, and the row
+# passes -- mutation-verified in both directions.
+table '| `FX_FIXTURE_ONLY` | x | `only_fx.sh` |'
+run
+assert_exit 1 "$RC" "a script that exists only under tests/fixtures/ is not a consumer"
+assert_contains "$OUT" "does not exist" "…fixtures resolve to nothing, not to sample data"
+
+# The complement: tests/ itself MUST stay resolvable. The real table names
+# test_upgrading_doc.sh as a consumer, so pruning all of tests/ would break it.
+table '| `FX_TEST_SEAM` | x | `test_seam.sh` |'
+run
+assert_exit 0 "$RC" "tests/ (not fixtures/) is still a legitimate consumer location"
 
 # --- setup errors ----------------------------------------------------------
 printf 'no table here\n' >"$TABLE"
