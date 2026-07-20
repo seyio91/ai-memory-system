@@ -1,6 +1,7 @@
 ---
 plan: session-project-pin
-status: draft
+status: done
+completed: 2026-07-20
 created: 2026-07-20
 owner: claude (orchestrator)
 ---
