@@ -186,7 +186,7 @@ them all.
 Both are projections like `index.md` — they can't drift, and their output files
 (`state.md`, `activity.md`) are gitignored and generated live.
 
-**The architectural payoff is Related Projects.** The TPE cluster —
+**The architectural payoff is Related Projects.** The billing cluster —
 `billing-svc` / `billing-stacks` / `billing-kubernetes`, which is also the `billing-svc` category — is a genuine
 related set spanning repos. Two principles make it work:
 
@@ -318,7 +318,7 @@ companion **[demo-runbook.md](demo-runbook.md)**.
 | 1 | Files, injected not retrieved | 1 | 12m | Open real `identity.md` + project `memory.md` + `working.md`; reveal `<memory:*>` via **SessionStart** | Excalidraw H2: injection flow |
 | 2 | Project detection, no collision | 1 | 8m | `.agents/memory-project` in a real repo; `cd` between two repos → breadcrumb switches | Mermaid 1: marker walk-up |
 | 3 | Onboarding + repo↔project map | 2 | 7m | **Onboard `payments-svc` cold** (`/new-project`/`/pin`); `/reindex` (tie to PR #23) | — |
-| 4 | State · activity · Related Projects | 2/3 | 12m | Live `/state` + `/activity` (category-grouped); TPE cluster `## Related Projects` | Mermaid 2: delegate-don't-load |
+| 4 | State · activity · Related Projects | 2/3 | 12m | Live `/state` + `/activity` (category-grouped); billing cluster `## Related Projects` | Mermaid 2: delegate-don't-load |
 | 5 | O/E/V + promotion | 3 | 10m | `executor.sh --which`; `/checkpoint` then `/promote-memory` on `payments-svc` | Mermaid 3: O/E/V + promotion |
 | 6 | Harness-agnostic + rigor | 3 | 6m | `install.sh --list`; Codex `AGENTS.md`; `run-tests.sh` → 27/27 | Mermaid 4: manifest→drivers→targets |
 | — | Try-it-yourself / Q&A | — | ~8m built into beats | pointer to runbook | — |
