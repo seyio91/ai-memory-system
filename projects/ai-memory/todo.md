@@ -6,7 +6,7 @@
 
 ## Active
 
-### Move root seed templates into `templates/` → [plan](plans/move-root-templates.md)
+### Move root seed templates into `templates/` → [plan](archive/plans/move-root-templates.md)
 - [x] Phase 1 — move the five files; `install.sh` seed paths, `_lib.sh:skill_manifest_template`, `.gitignore` negation + comments
 - [x] Phase 2 — tests (`test_install_harness.sh`, `test_lib.sh`, `test_brainstorming_skill_tracking.sh`); mutation-check that fixtures exercise the new path
 - [x] Phase 3 — docs (`install.md`, `file-formats.md`, `harnesses/claude.md`), changelog fragment, full suite, branch + PR
