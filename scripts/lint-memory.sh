@@ -57,6 +57,9 @@ if [ -f "$INDEX" ]; then
     done
     for f in "$MEMORY_DIR"/domain/*.md; do
         [ -e "$f" ] || continue
+        # The domain scaffold carries a placeholder `topic: <topic>` and can
+        # never appear in the index — mirrors the */_template/* skip above.
+        case "$f" in */_template.md) continue;; esac
         topic=$(extract_fm_field "$f" "topic")
         [ -z "$topic" ] && topic="$(basename "$f" .md)"
         if ! grep -qF "| $topic |" "$INDEX"; then
@@ -147,6 +150,13 @@ for f in "$MEMORY_DIR"/projects/*/working.md "$MEMORY_DIR"/projects/*/working.*.
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
     [ -s "$f" ] || continue
+    # A working file holding only headings and `_(placeholder)_` lines has
+    # nothing to promote or checkpoint, so its mtime is not evidence of
+    # neglect — warning on it is noise that trains the reader to ignore the
+    # check. `[ -s ]` above only catches a zero-BYTE file, not an empty one.
+    if [ -z "$(grep -vE '^[[:space:]]*$|^#{1,6}[[:space:]]|^_\(.*\)_[[:space:]]*$' "$f")" ]; then
+        continue
+    fi
     # GNU form first: `stat -c` fails cleanly on BSD, but BSD's `stat -f` is a
     # valid *different* mode on GNU and pollutes the value. See regenerate-state.sh.
     MTIME=$(stat -c %Y "$f" 2>/dev/null || stat -f %m "$f" 2>/dev/null)

@@ -232,6 +232,38 @@ run_lint
 assert_contains "$OUT" "working.wt-old.md stale" "lint flags a stale worktree overlay"
 rm -rf "$M8"
 
+# --- a working file holding only headings/placeholders is not "stale" ---
+# Both halves matter: the skip must fire on the placeholder file AND must not
+# swallow a genuinely stale one, or it silences the check it is narrowing.
+M8B="$(new_sandbox)"; export MEMORY_DIR="$M8B"; build_clean "$M8B"
+printf '# Working — good\n\n## Cross-project learnings (pending promotion)\n\n_(none yet)_\n\n## Checkpoints\n' \
+    > "$M8B/projects/good/working.md"
+touch -t 202001010000 "$M8B/projects/good/working.md"
+run_lint
+assert_not_contains "$OUT" "working.md stale" "placeholder-only working.md is not flagged stale"
+printf '# Working — good\n\n## Checkpoints\n\n### old\nreal content\n' > "$M8B/projects/good/working.md"
+touch -t 202001010000 "$M8B/projects/good/working.md"
+run_lint
+assert_contains "$OUT" "working.md stale" "working.md with real content is still flagged stale"
+rm -rf "$M8B"
+
+# --- the domain scaffold is excluded from the orphan check ---
+M8C="$(new_sandbox)"; export MEMORY_DIR="$M8C"; build_clean "$M8C"
+cat > "$M8C/domain/_template.md" <<'EOF'
+---
+topic: <topic>
+triggers: [<trigger>]
+summary: <one-line summary>
+---
+
+# Domain: <Name>
+
+## Knowledge
+EOF
+run_lint
+assert_not_contains "$OUT" "_template.md orphan" "domain scaffold is not reported as an orphan"
+rm -rf "$M8C"
+
 # --- investigations must carry a task_ref (lifecycle anchor) ---
 M9="$(new_sandbox)"; export MEMORY_DIR="$M9"; build_clean "$M9"
 mkdir -p "$M9/projects/good/investigations" "$M9/projects/good/archive/investigations"
