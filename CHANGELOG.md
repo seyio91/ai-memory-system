@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-08-02
+### Fixed
+
+- **The codex `arm_recompact.sh` compatibility shim is deleted.** It survived one release (v1.4.0) so a
+  stale pre-flip `~/.codex/hooks.json` — from a manual `git pull` that never re-ran `install.sh` — kept
+  working by delegating to the shared session-start script. That grace period is over.
+  **Its name is deliberately retained in the hook-registration sweep set** (`scripts/drivers/hook.sh`), and
+  that retention is what makes the deletion safe: re-running `install.sh` (or `sync-system.sh`, which calls
+  it) rewrites the stale entry to point at `scripts/hooks/session_start_memory.sh`. Dropping the marker
+  along with the file would leave a stale entry aimed at a path that no longer exists, and codex would
+  error on every `SessionStart` — deleting a hook script and retiring its sweep marker are two different
+  releases. The sweep is now covered by a test that was mutation-verified against exactly that mistake.
+- **`test_codex_arm_recompact.sh` → `test_session_start_memory.sh`.** Every assertion in it was always
+  about `scripts/hooks/session_start_memory.sh`'s compaction-arm behaviour rather than the shim's, so all
+  six carry over unchanged. The rename also makes `run-tests.sh --changed` map
+  `session_start_memory.sh` → `test_session_start_memory.sh` by naming convention instead of relying on
+  the basename-grep fallback.
+- **`lint-memory.sh` no longer warns on two things that can never be acted on.** A `working.md`
+  holding only section headings and `_(none yet)_` placeholders is no longer reported as stale —
+  it has nothing to promote or checkpoint, so its mtime was never evidence of neglect (`[ -s ]`
+  only caught a zero-byte file). And `domain/_template.md` is no longer reported as an index
+  orphan: its placeholder `topic: <topic>` can never appear in the catalog, so `/reindex` could
+  never clear it. The domain loop now skips the scaffold, mirroring the `*/_template/*` skip the
+  project loop already had. Both narrowings are mutation-tested in both directions, so a stale
+  file with real content is still flagged.
+- **The five seed templates moved from the repo root into `templates/`.**
+  `config.local.sh.example`, `identity.template.md`, `index.template.md`, `orchestrator.template.md`,
+  and `skills.toml.example` are engine inputs that `install.sh` copies when a target is missing — not
+  files a user opens — and they crowded the root alongside the actual front door (`README.md`,
+  `install.sh`, `UPGRADING.md`). Basenames are unchanged; this is a path move only, so every mention
+  in older `CHANGELOG.md` / `UPGRADING.md` sections still greps.
+  **No migration is needed and none is shipped:** `install.sh` seeds only when the target is absent,
+  an existing instance already has all five live files, and the new `install.sh` ships in the same tag
+  as the moved templates. Nothing on a consumer instance resolves a template path at runtime.
+- **`skill_manifest_template()` now returns `templates/skills.toml.example`.** The `.gitignore`
+  negation that kept the old root path tracked is dropped rather than repointed — the `/skills.toml`
+  rule is root-anchored, so the `templates/` copy was never in its scope. Both directions are now
+  asserted: the five templates are tracked, and their five live counterparts stay ignored.
+
 ## [1.4.0] - 2026-07-20
 ### Added
 
