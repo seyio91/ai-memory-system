@@ -19,7 +19,7 @@
 - [x] Phase 4 — rename `brainstorming` → `design-brainstorm` (+ `.gitignore` negation; fixed a vacuous check-ignore control)
 - [x] Phase 5 — record expand–contract sequencing (domain files are gitignored — local only)
 - [x] Checkpoint — full test run + lint + live `/new-plan` exercise + human review
-- [ ] Phase 6 — changelog fragment + `git-cli ship` (no merge)  (needs: checkpoint)
+- [x] Phase 6 — changelog fragment + `git-cli ship` → PR #100, CI green, unmerged
 - [ ] Post-merge — `/plan-done`, `/plan-archive`, `taskctl set-status … done`  (needs: P6 merged by a human)
 
 ## Done

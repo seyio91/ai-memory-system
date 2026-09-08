@@ -265,7 +265,13 @@ phase. A plan is not done while its PR is unmerged, and executors may not merge,
 `/plan-archive` and the task-status flip belong after the human merges, not here.)*
 - `assemble-changelog.sh --check` exits 0 and `--bump` computes `1.5.0` (minor — a `feature`
   fragment is present) ✅
-- the PR is open, CI green, **unmerged** ✅
+- the PR is open, CI green, **unmerged** ✅ — [#100](https://github.com/seyio91/ai-memory-system/pull/100);
+  `gate` pass (correctly did *not* skip the suite — this change touches `scripts/`, `commands/`,
+  `docs/`), `suite (ubuntu-latest)` pass 2m53s, `suite (macos-latest)` pass 5m25s
+- **CI independently confirms the signing diagnosis:** the suite passes on both runners with **no**
+  `GIT_CONFIG_COUNT` workaround, because CI has no global `commit.gpgsign`. The 44 local failures
+  are environmental, not code — which is also why this defect could sit unnoticed: it is invisible
+  to CI and only ever bites a developer who signs commits.
 - **After merge, separately:** `/plan-done`, `/plan-archive` (which also archives the linked
   investigation), and `taskctl set-status <ref> done`.
 
