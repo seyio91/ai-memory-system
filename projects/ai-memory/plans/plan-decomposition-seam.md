@@ -102,16 +102,26 @@ Re-derived every file reference at `1b81abb`.
 **Depends:** none
 **Verify:** every file path named in this plan resolves at `git rev-parse HEAD`. ✅
 
-### Phase 1 — Per-phase criteria in the Task Contract
-- Extend the Task Contract section of `identity.md`: plan-tier work carries per-phase checkable
-  criteria in addition to the plan-level set; the Validator may be invoked per phase.
-- Extend the `commands/new-plan.md` Step 3 scaffold so each `### Phase N` emits a `**Verify:**`
-  line, with template guidance that a criterion must be checkable by reading output, running a
-  command, or inspecting state.
+### Phase 1 — Per-phase criteria in the Task Contract — DONE 2026-09-08
+**Correction found during execution:** the Task Contract is **not** in `identity.md` (2040 bytes,
+no such section) — it lives in `orchestrator.md` → `### Task Contract`, seeded from the tracked
+`templates/orchestrator.template.md`. Both copies had to change: the template ships to consumers,
+the live file is gitignored per-instance. `docs/workflow.md:34` already cited the right location;
+`commands/new-plan.md` cited `identity.md` **twice** (lines 27, 46) — a third stale cross-reference
+in the same family as the `status: active` bug, fixed here.
 
-**Depends:** none
-**Verify:** `scripts/lint-memory.sh` passes; `identity.md` contains the per-phase wording; a
-freshly scaffolded plan file contains a `**Verify:**` line under its phase heading.
+- Added four bullets to the Task Contract in `templates/orchestrator.template.md` **and** the live
+  `orchestrator.md`: two-level criteria (plan + phase), validate-per-phase rather than only
+  terminally, and the rule that a phase whose `**Verify:**` cannot be written is mis-drawn.
+- `commands/new-plan.md`: scaffold now emits a `**Verify:**` line under `### Phase 1`; the
+  `## Success criteria` guidance now says plan-wide and points per-phase criteria at the phase
+  line; both `identity.md → Task Contract` references corrected to `orchestrator.md`.
+
+**Depends:** Phase 0
+**Verify:** `lint-memory.sh` clean for these files ✅; `Two levels: plan and phase` present in both
+`orchestrator.md` and `templates/orchestrator.template.md` ✅; scaffold emits `**Verify:**` ✅;
+zero remaining `identity.md → Task Contract` references ✅; full suite 50/50 green ✅ (under the
+signing workaround below).
 
 ### Phase 2 — Decomposition rule as `/new-plan` Step 3.5
 - Insert Step 3.5 into `commands/new-plan.md`, between the scaffold write and the user prompt.
@@ -138,6 +148,9 @@ skipped step numbers; the step sequence is read end-to-end once to confirm no st
   `platform-sandbox/platform-overview-dashboard.md` both carry it. Change Step 3 to
   `status: in_progress` and fix those two plans. Folded in here rather than shipped as its own
   PR because this phase already edits `start.md`.
+  - **Executed:** three plans carried it, not two — `git-cli/cut-the-first-release.md` was below
+    the `tail` cutoff when the list was first drawn. Exactly the truncation failure this project
+    already records; the sweep must be a full grep, not a paged read. Lint 19 → 16 warnings.
 
 **Depends:** Phase 1
 **Verify:** a scaffolded plan emits both `**Verify:**` and `**Depends:**` per phase; `start.md`
@@ -191,11 +204,15 @@ change.
   true when written). `harnesses/claude/CLAUDE.md` is concept-only — leave it.
 
 **Depends:** Phase 0
-**Verify:** `git grep -n 'brainstorming'` returns hits only in `CHANGELOG.md`, `archive/`,
-`on-demand-project-load.md`, and this plan; `rtk proxy grep -n brainstorming orchestrator.md`
-returns nothing; `run-tests.sh` passes in full with its printed file count reconciled against the
-`tests: N passed` counter; `find ~/.claude/skills -maxdepth 1` shows `design-brainstorm` and no
-dangling `brainstorming` link.
+**Verify:** *(corrected during execution — the original said `grep brainstorming orchestrator.md`
+must return nothing, which contradicts the skill-name-vs-concept rule decided in this same phase.
+The activity is still called brainstorming, so prose hits are expected and correct.)*
+- no **skill-name** references remain: `git grep '`brainstorming`'` (backticked) and
+  `git grep 'invoke the \*\*brainstorming\*\*'` both empty; surviving bare-word hits are the
+  activity ("skip brainstorming", "executors never brainstorm") and are intentional ✅
+- `~/.claude/skills/` shows `design-brainstorm`, the old link pruned, nothing dangling ✅
+- `run-tests.sh` full, green, file count reconciled ✅
+- the `.gitignore` negation control is **mutation-tested in both directions** ✅
 
 ### Phase 5 — Record expand–contract sequencing
 - Add an expand–contract entry (add new form alongside old → migrate call sites in batches →
@@ -207,11 +224,33 @@ dangling `brainstorming` link.
 domain file was created).
 
 ### Checkpoint — before shipping
-- [ ] Full `scripts/run-tests.sh` run, file count reconciled against the summary counter
-- [ ] `scripts/lint-memory.sh` clean
-- [ ] A scaffolded throwaway plan exercised end-to-end through `/new-plan` on its **default**
-      path — prose commands are not covered by any executable test
-- [ ] Human review before the PR opens
+
+> **The suite cannot go green on this machine unmodified** (found in Phase 1). Fixtures inherit
+> the developer's global git config, and `commit.gpgsign`/`tag.gpgsign=true` breaks 44 assertions
+> across `test_release`, `test_sync_channels`, `test_assemble_changelog` with errors that read as
+> release-logic bugs. Until task `isolate-test-fixtures-from-the-developer-s-global-git-config`
+> lands, run the suite as:
+> ```
+> GIT_CONFIG_COUNT=2 \
+>   GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false \
+>   GIT_CONFIG_KEY_1=tag.gpgsign    GIT_CONFIG_VALUE_1=false \
+>   ./scripts/run-tests.sh
+> ```
+> Reconciliation note: `run-tests.sh` prints **53** `PASS`/`FAIL` lines but reports
+> `tests: 50 passed` — the extra 3 are the python `unittest`, `check-docs`, and `shellcheck`
+> gates, which sit outside the bash-file counter. 53 vs 50 is correct, not a truncation.
+
+- [x] Full `scripts/run-tests.sh` run, file count reconciled against the summary counter —
+      `tests: 50 passed, 0 failed`, no banners, 53 `PASS` lines = 50 bash files + python +
+      check-docs + shellcheck
+- [x] `scripts/lint-memory.sh` clean — 16 warnings, all pre-existing in other projects, none
+      from this change
+- [x] A scaffolded throwaway plan exercised end-to-end through `/new-plan` on its **default**
+      path — prose commands are not covered by any executable test. Ran `/new-plan
+      throwaway-scaffold-check`: Steps 1-3 produced all 9 sections exactly once, including the
+      new `**Depends:**` / `**Verify:**` lines, lint-clean at `status: draft`; throwaway deleted.
+      Steps 4-5 are conversational prompts with no file effect.
+- [x] Human review before the PR opens — approved 2026-09-08
 
 ### Phase 6 — Ship
 - Write the `changelog.d/<id>.<kind>.md` fragment (`feature`) while the reasoning is live.
@@ -221,8 +260,20 @@ domain file was created).
   `git-cli commit --all` + `git push`.
 
 **Depends:** Phases 1, 2, 3, 4, 5
-**Verify:** the fragment exists and names the right kind; the PR is open with CI green; the task
-ref reports `done`; `plans/plan-decomposition-seam.md` has moved to `archive/plans/`.
+**Verify:** *(corrected during execution — the original folded post-merge bookkeeping into this
+phase. A plan is not done while its PR is unmerged, and executors may not merge, so `/plan-done`,
+`/plan-archive` and the task-status flip belong after the human merges, not here.)*
+- `assemble-changelog.sh --check` exits 0 and `--bump` computes `1.5.0` (minor — a `feature`
+  fragment is present) ✅
+- the PR is open, CI green, **unmerged** ✅ — [#100](https://github.com/seyio91/ai-memory-system/pull/100);
+  `gate` pass (correctly did *not* skip the suite — this change touches `scripts/`, `commands/`,
+  `docs/`), `suite (ubuntu-latest)` pass 2m53s, `suite (macos-latest)` pass 5m25s
+- **CI independently confirms the signing diagnosis:** the suite passes on both runners with **no**
+  `GIT_CONFIG_COUNT` workaround, because CI has no global `commit.gpgsign`. The 44 local failures
+  are environmental, not code — which is also why this defect could sit unnoticed: it is invisible
+  to CI and only ever bites a developer who signs commits.
+- **After merge, separately:** `/plan-done`, `/plan-archive` (which also archives the linked
+  investigation), and `taskctl set-status <ref> done`.
 
 ## Risks / open questions
 

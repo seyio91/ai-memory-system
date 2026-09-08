@@ -1,4 +1,4 @@
-Begin work on a captured task: pull it from the backlog, run the design gate (brainstorm for feature-with-open-design, else straight to plan), create the linked plan in the task's own project, push the refined summary back, and flip the task to `started`. This is the `/start` half of the task-provider ↔ brainstorming integration.
+Begin work on a captured task: pull it from the backlog, run the design gate (brainstorm for feature-with-open-design, else straight to plan), create the linked plan in the task's own project, push the refined summary back, and flip the task to `started`. This is the `/start` half of the task-provider ↔ design-brainstorm integration.
 
 Argument: `$ARGUMENTS` — a task `<ref>` (optional), plus an optional `--worktree` / `--no-worktree` flag. Parse a `--worktree` or `--no-worktree` token out of `$ARGUMENTS`; the remaining token is the `<ref>`. The flag governs Step 4.5 (feature-isolation worktree); absent, Step 4.5 asks.
 
@@ -13,20 +13,20 @@ Argument: `$ARGUMENTS` — a task `<ref>` (optional), plus an optional `--worktr
 - Read `project`, `title`, `summary`, `status` from the result. **The task's `project` may differ from the active project — always use the task's own `project` from here on** (refs are globally unique in the flat store, so you can start a task from any session).
 - If `status` is not `backlog`, warn the user it is already `<status>` and confirm before continuing.
 
-### Step 2 — classify (the gate, per identity.md → Brainstorm gate)
+### Step 2 — classify (the gate, per orchestrator.md → Brainstorm gate)
 Classify the pulled `summary` (treat it as the initial request):
-- **Feature with open design questions** (new functionality / subsystem / integration / real architecture decision) → **invoke the `brainstorming` skill** with `title` + `summary` as the seed. Run its full process (clarify → 2-3 approaches → sectioned design). Its output is the approved design.
+- **Feature with open design questions** (new functionality / subsystem / integration / real architecture decision) → **invoke the `design-brainstorm` skill** with `title` + `summary` as the seed. Run its full process (clarify → 2-3 approaches → sectioned design). Its output is the approved design.
 - **Quick or settled-shape** (mechanical change, known target, small fix) → skip brainstorming; draft a one-line Goal and approach directly from the summary.
 
 ### Step 3 — scaffold the plan in the TASK's project
 - Slug = kebab-case of the title (or reuse `<ref>`). Target path: `~/.claude-memory/projects/<task-project>/plans/<slug>.md`. If it already exists, abort and tell the user (pick another slug or edit it).
-- Write the standard plan scaffold (same shape `/new-plan` produces): frontmatter `plan`, `status: active`, `created` (today, from the identity injection — do not invent), `owner: claude (orchestrator)`, **plus** `task_provider: <MEMORY_TASK_PROVIDER or "local">` and `task_ref: <ref>`. Record `<ref>` **verbatim and in full** (the backend's complete id — for Notion the full page UUID, never an 8-char abbreviation; short ids are ambiguous and rejected by the API). Body sections: `## Goal`, `## Success criteria`, `## Design`, `## Decisions (locked)`, `## Phases`, `## Risks / open questions`.
+- Write the standard plan scaffold (same shape `/new-plan` produces): frontmatter `plan`, `status: in_progress` (**not** `active` — `lint-memory.sh` only accepts `draft`, `in_progress`, `done`, and every plan scaffolded with `active` is born lint-dirty), `created` (today, from the identity injection — do not invent), `owner: claude (orchestrator)`, **plus** `task_provider: <MEMORY_TASK_PROVIDER or "local">` and `task_ref: <ref>`. Record `<ref>` **verbatim and in full** (the backend's complete id — for Notion the full page UUID, never an 8-char abbreviation; short ids are ambiguous and rejected by the API). Body sections: `## Goal`, `## Success criteria`, `## Design`, `## Decisions (locked)`, `## Phases`, `## Risks / open questions`.
 - Fold the approved design in: `## Goal` ← the clarified one-or-two-sentence purpose; `## Success criteria` ← criteria derived with the user; `## Design` ← chosen approach + one-line note per rejected alternative; `## Risks` ← deferred items. (For settled/quick tasks: Goal from the summary, a one-line Design, best-effort Success criteria.) Leave `## Phases` for the normal decomposition step.
 
 ### Step 4 — link, push back, flip status
 - Push the clarified Goal back to the backend as the refined summary: `"$TASKCTL" update <ref> --summary "<the clarified Goal text>"`. **The summary is capped at 500 chars** — a verbose Goal hard-fails this step. Keep the Goal to one or two sentences; if the design needs more room, it belongs in the plan (and, before `/start`, in `projects/<project>/investigations/<slug>.md`), referenced **by name, never by path** — a path rots the moment the plan is archived, and the task already carries its `project`.
 - Flip the lifecycle: `"$TASKCTL" set-status <ref> started`.
-- Add a todo item in the task's project: append `### <title> → [plan](plans/<slug>.md)` with unchecked Phase boxes to `projects/<task-project>/todo.md` (under `## Active`).
+- Add a todo item in the task's project: append `### <title> → [plan](plans/<slug>.md)` with unchecked Phase boxes to `projects/<task-project>/todo.md` (under `## Active`). **Mirror each phase's `**Depends:**` line onto its checkbox as `(needs: Pn)`** — `todo.md` is what gets read on resume and after compaction, so a dependency that lives only in the plan is invisible at exactly the moment it matters. Independent phases carry no annotation, which is how the orchestrator spots what can be fanned out in parallel.
 
 ### Step 4.5 — enter a feature-isolation worktree (optional, Claude-only)
 Applies **only when Step 2 classified the task as a Tier-3 feature** (brainstorm ran). Skip entirely for quick/settled tasks — they don't warrant an isolated checkout.

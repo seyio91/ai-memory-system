@@ -82,8 +82,8 @@ __pycache__/
 # the empty folder in git.
 /skills/*
 !/skills/.gitkeep
-!/skills/brainstorming/
-!/skills/brainstorming/**
+!/skills/design-brainstorm/
+!/skills/design-brainstorm/**
 
 # Remote-skill cache: content is materialized per-instance by resolve-skills.sh from
 # root skills.toml and pinned by .skill-cache/skills.lock. Never committed — remote
