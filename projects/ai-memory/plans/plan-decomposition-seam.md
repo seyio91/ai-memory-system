@@ -84,6 +84,24 @@ TDD step cycle. Phases are sized to one executor delegation each.
 
 ## Phases
 
+### Phase 0 — Refresh this plan against `main` — DONE 2026-09-08
+The plan was authored while the checkout was detached at `v1.4.0`, 7 commits behind `origin/main`.
+Re-derived every file reference at `1b81abb`.
+
+- `orchestrator.template.md` → `templates/orchestrator.template.md` (`a0084a4`); root seed
+  templates all moved.
+- Phase 4's real surface re-measured: 43 hits / 14 tracked files + the gitignored
+  `orchestrator.md`. Two new files found that the original list missed — `skills.toml` and
+  `docs/knowledge-lifecycle.md`.
+- Established the **skill-name vs. concept** distinction; `harnesses/claude/CLAUDE.md` is
+  concept-only and stays.
+- `test_skill_ratings.sh` identified as fixture-coupled, not prose.
+- `lint-memory.sh` drift checked — does not affect Phases 1 or 5 (see Risks).
+- Runner glob confirmed as `"$TESTS"/test_*.sh`, so the test-file rename stays in-suite.
+
+**Depends:** none
+**Verify:** every file path named in this plan resolves at `git rev-parse HEAD`. ✅
+
 ### Phase 1 — Per-phase criteria in the Task Contract
 - Extend the Task Contract section of `identity.md`: plan-tier work carries per-phase checkable
   criteria in addition to the plan-level set; the Validator may be invoked per phase.
@@ -126,25 +144,58 @@ skipped step numbers; the step sequence is read end-to-end once to confirm no st
 documents the mirror; `_template/todo.md` documents the annotation.
 
 ### Phase 4 — Rename `brainstorming` → `design-brainstorm`
-- `git mv skills/brainstorming skills/design-brainstorm` (preserving `self-rating.md`).
-- Update invocation references in: `orchestrator.template.md`, the live `orchestrator.md`,
-  `commands/new-plan.md`, `commands/start.md`, `README.md`, `docs/workflow.md`,
-  `docs/harnesses/claude.md`, `docs/install.md`, `docs/knowledge-lifecycle.md`,
-  `docs/showcase.md`, `docs/task-provider.md`, and `projects/ai-memory/memory.md`.
-- Rename `scripts/tests/test_brainstorming_skill_tracking.sh` and update the skill name inside it
-  and inside `scripts/tests/test_skill_ratings.sh`.
-- **Confirm the renamed test file is still reached by the runner's glob** before trusting a green
-  run — a test the glob misses is silently ungated.
-- Re-run `scripts/link-skills.sh` and confirm the old symlink in `~/.claude/skills/` is pruned,
-  not left dangling.
-- Do **not** touch `CHANGELOG.md` (history) or anything under `projects/*/archive/`.
 
-**Depends:** none
-**Verify:** `grep -rn 'brainstorming' --include='*.md' --include='*.sh'` over the tree returns
-hits only in `CHANGELOG.md`, `archive/`, `.skill-cache/`, and the
-`planning-decomposition-seam` investigation; `run-tests.sh` passes with its file count reconciled
-against `tests: N passed`; `ls -l ~/.claude/skills/` shows `design-brainstorm` and no dangling
-`brainstorming` link (corroborated with `find`, not a bare `ls`).
+**Rename the skill, not the concept.** Two kinds of reference exist and only one moves:
+the **skill name** (`skills/brainstorming/`, "invoke the **brainstorming** skill") renames; the
+**concept** ("the brainstorm gate", "executors never brainstorm", "a brainstorm is an activity")
+stays. A blind `sed` over-rewrites — `harnesses/claude/CLAUDE.md` is concept-only and must not
+change.
+
+- `git mv skills/brainstorming skills/design-brainstorm` (preserving `self-rating.md`).
+- Update **skill-name** references in the 12 tracked files below (hit counts re-derived at
+  `1b81abb`; treat as a floor, re-grep before editing):
+
+  | File | Hits | Note |
+  |---|---|---|
+  | `scripts/tests/test_skill_ratings.sh` | 14 | **the hard one** — see below |
+  | `commands/start.md` | 4 | also gets the `status: active` fix (Phase 3) |
+  | `docs/harnesses/claude.md` | 3 | |
+  | `docs/task-provider.md` | 3 | |
+  | `templates/orchestrator.template.md` | 3 | **moved from repo root in `a0084a4`** |
+  | `docs/workflow.md` | 2 | |
+  | `skills/brainstorming/SKILL.md` | 2 | moves with the dir |
+  | `skills.toml` | 2 | comments citing it as the authored-not-remote example |
+  | `scripts/tests/test_brainstorming_skill_tracking.sh` | 5 | + rename the file itself |
+  | `README.md` | 1 | |
+  | `commands/new-plan.md` | 1 | |
+  | `docs/install.md`, `docs/knowledge-lifecycle.md`, `docs/showcase.md` | 1 each | |
+
+- **`scripts/tests/test_skill_ratings.sh` is not a text substitution.** It uses `brainstorming` as
+  a *live fixture*: `seed_skill brainstorming`, then `cp`/`cmp`/`grep` against
+  `$MEM/skills/brainstorming/SKILL.md` across 14 sites. The fixture identity changes with the
+  rename; re-read the file and edit it deliberately rather than sedding it.
+- **`test_brainstorming_skill_tracking.sh` asserts a negative** —
+  `assert_not_contains templates/skills.toml.example "brainstorming"`. After the rename that
+  assertion must test the *new* name, or it passes vacuously forever.
+- Rename the test file to `test_design_brainstorm_skill_tracking.sh`. The runner globs
+  `"$TESTS"/test_*.sh` (`run-tests.sh:87,167`), so the new name is still reached — **confirm this
+  empirically** rather than trusting the glob read.
+- Update the **gitignored per-instance `orchestrator.md`** (3 hits) alongside its tracked seed
+  `templates/orchestrator.template.md`. `git grep` cannot see it; it will not show up in any
+  tracked-file sweep.
+- Re-run `scripts/link-skills.sh` and confirm the old `~/.claude/skills/brainstorming` symlink is
+  pruned, not stranded — this tree's own gotcha is that a link whose source vanished is never
+  revisited.
+- Do **not** touch: `CHANGELOG.md` (history), `projects/*/archive/**`, `.skill-cache/`, or
+  `projects/ai-memory/investigations/on-demand-project-load.md` (a historical record of what was
+  true when written). `harnesses/claude/CLAUDE.md` is concept-only — leave it.
+
+**Depends:** Phase 0
+**Verify:** `git grep -n 'brainstorming'` returns hits only in `CHANGELOG.md`, `archive/`,
+`on-demand-project-load.md`, and this plan; `rtk proxy grep -n brainstorming orchestrator.md`
+returns nothing; `run-tests.sh` passes in full with its printed file count reconciled against the
+`tests: N passed` counter; `find ~/.claude/skills -maxdepth 1` shows `design-brainstorm` and no
+dangling `brainstorming` link.
 
 ### Phase 5 — Record expand–contract sequencing
 - Add an expand–contract entry (add new form alongside old → migrate call sites in batches →
@@ -175,11 +226,19 @@ ref reports `done`; `plans/plan-decomposition-seam.md` has moved to `archive/pla
 
 ## Risks / open questions
 
-- **Phase 4's blast radius was under-estimated at decision time.** The rename was chosen on an
-  estimate of ~3 files; the real surface is 12 markdown files plus 2 test files. The decision
-  still holds — the churn is mechanical and entirely in-tree — but if it proves noisier than
-  expected, the documented fallback is the `orchestrator.md` disambiguation rule, accepting that
-  it competes with the SessionStart injection.
+- **Phase 4's blast radius was under-estimated twice, and it is not purely mechanical.** Chosen on
+  an estimate of ~3 files; the first correction said 12 + 2 tests; Phase 0 measured **43 hits
+  across 14 tracked files, plus 3 in the gitignored `orchestrator.md`** that no tracked-file sweep
+  can see. More importantly, `test_skill_ratings.sh` (14 hits) uses `brainstorming` as a live
+  *fixture*, not as prose — so the phase contains real editing, not find-and-replace. The decision
+  still holds, but this is now the largest phase by some margin. Fallback if it turns noisy
+  mid-flight: the `orchestrator.md` disambiguation rule, accepting that it competes with the
+  SessionStart injection. **Three successive estimates were low — do not size this phase again
+  without re-grepping.**
+- **Checked and clear:** `f3bd068` changed `lint-memory.sh`, but only to narrow two false
+  positives (skip `domain/_template.md` in the orphan check; skip placeholder-only `working.md` in
+  the staleness check). Frontmatter validation is untouched, so the `lint-memory.sh`-based
+  `**Verify:**` lines in Phases 1 and 5 stand as written.
 - **Nothing executable gates a prose command.** Phases 2 and 3 change `/new-plan` and `/start`,
   which no test in `scripts/tests/` runs. The checkpoint's live end-to-end exercise on the
   *default* path is the only real gate.

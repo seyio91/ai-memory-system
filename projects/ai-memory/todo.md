@@ -12,7 +12,7 @@
 - [x] Phase 3 — docs (`install.md`, `file-formats.md`, `harnesses/claude.md`), changelog fragment, full suite, branch + PR
 
 ### Close the plan-decomposition seam in the Tier-3 pipeline → [plan](plans/plan-decomposition-seam.md)
-- [ ] Phase 0 — refresh the plan against `main` (5 files drifted since `v1.4.0`)
+- [x] Phase 0 — refresh the plan against `main` (43 hits / 14 files re-measured; 2 new files found)
 - [ ] Phase 1 — per-phase criteria in the Task Contract  (needs: P0)
 - [ ] Phase 2 — decomposition rule as `/new-plan` Step 3.5  (needs: P1)
 - [ ] Phase 3 — declared dependency edges  (needs: P1)
