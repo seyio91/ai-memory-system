@@ -18,8 +18,9 @@
 - [x] Phase 3 — declared dependency edges (+ `status: active` bug; 3 plans fixed, not 2)
 - [x] Phase 4 — rename `brainstorming` → `design-brainstorm` (+ `.gitignore` negation; fixed a vacuous check-ignore control)
 - [x] Phase 5 — record expand–contract sequencing (domain files are gitignored — local only)
-- [ ] Checkpoint — full test run + lint + live `/new-plan` exercise + human review  (needs: P1,P2,P3,P4,P5)
+- [x] Checkpoint — full test run + lint + live `/new-plan` exercise + human review
 - [ ] Phase 6 — changelog fragment + `git-cli ship` (no merge)  (needs: checkpoint)
+- [ ] Post-merge — `/plan-done`, `/plan-archive`, `taskctl set-status … done`  (needs: P6 merged by a human)
 
 ## Done
 _(checked items stay above until the file is rolled)_

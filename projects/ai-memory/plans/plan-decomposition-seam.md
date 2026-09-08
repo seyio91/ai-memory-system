@@ -240,11 +240,17 @@ domain file was created).
 > `tests: 50 passed` — the extra 3 are the python `unittest`, `check-docs`, and `shellcheck`
 > gates, which sit outside the bash-file counter. 53 vs 50 is correct, not a truncation.
 
-- [ ] Full `scripts/run-tests.sh` run, file count reconciled against the summary counter
-- [ ] `scripts/lint-memory.sh` clean
-- [ ] A scaffolded throwaway plan exercised end-to-end through `/new-plan` on its **default**
-      path — prose commands are not covered by any executable test
-- [ ] Human review before the PR opens
+- [x] Full `scripts/run-tests.sh` run, file count reconciled against the summary counter —
+      `tests: 50 passed, 0 failed`, no banners, 53 `PASS` lines = 50 bash files + python +
+      check-docs + shellcheck
+- [x] `scripts/lint-memory.sh` clean — 16 warnings, all pre-existing in other projects, none
+      from this change
+- [x] A scaffolded throwaway plan exercised end-to-end through `/new-plan` on its **default**
+      path — prose commands are not covered by any executable test. Ran `/new-plan
+      throwaway-scaffold-check`: Steps 1-3 produced all 9 sections exactly once, including the
+      new `**Depends:**` / `**Verify:**` lines, lint-clean at `status: draft`; throwaway deleted.
+      Steps 4-5 are conversational prompts with no file effect.
+- [x] Human review before the PR opens — approved 2026-09-08
 
 ### Phase 6 — Ship
 - Write the `changelog.d/<id>.<kind>.md` fragment (`feature`) while the reasoning is live.
@@ -254,8 +260,14 @@ domain file was created).
   `git-cli commit --all` + `git push`.
 
 **Depends:** Phases 1, 2, 3, 4, 5
-**Verify:** the fragment exists and names the right kind; the PR is open with CI green; the task
-ref reports `done`; `plans/plan-decomposition-seam.md` has moved to `archive/plans/`.
+**Verify:** *(corrected during execution — the original folded post-merge bookkeeping into this
+phase. A plan is not done while its PR is unmerged, and executors may not merge, so `/plan-done`,
+`/plan-archive` and the task-status flip belong after the human merges, not here.)*
+- `assemble-changelog.sh --check` exits 0 and `--bump` computes `1.5.0` (minor — a `feature`
+  fragment is present) ✅
+- the PR is open, CI green, **unmerged** ✅
+- **After merge, separately:** `/plan-done`, `/plan-archive` (which also archives the linked
+  investigation), and `taskctl set-status <ref> done`.
 
 ## Risks / open questions
 
