@@ -204,11 +204,15 @@ change.
   true when written). `harnesses/claude/CLAUDE.md` is concept-only — leave it.
 
 **Depends:** Phase 0
-**Verify:** `git grep -n 'brainstorming'` returns hits only in `CHANGELOG.md`, `archive/`,
-`on-demand-project-load.md`, and this plan; `rtk proxy grep -n brainstorming orchestrator.md`
-returns nothing; `run-tests.sh` passes in full with its printed file count reconciled against the
-`tests: N passed` counter; `find ~/.claude/skills -maxdepth 1` shows `design-brainstorm` and no
-dangling `brainstorming` link.
+**Verify:** *(corrected during execution — the original said `grep brainstorming orchestrator.md`
+must return nothing, which contradicts the skill-name-vs-concept rule decided in this same phase.
+The activity is still called brainstorming, so prose hits are expected and correct.)*
+- no **skill-name** references remain: `git grep '`brainstorming`'` (backticked) and
+  `git grep 'invoke the \*\*brainstorming\*\*'` both empty; surviving bare-word hits are the
+  activity ("skip brainstorming", "executors never brainstorm") and are intentional ✅
+- `~/.claude/skills/` shows `design-brainstorm`, the old link pruned, nothing dangling ✅
+- `run-tests.sh` full, green, file count reconciled ✅
+- the `.gitignore` negation control is **mutation-tested in both directions** ✅
 
 ### Phase 5 — Record expand–contract sequencing
 - Add an expand–contract entry (add new form alongside old → migrate call sites in batches →

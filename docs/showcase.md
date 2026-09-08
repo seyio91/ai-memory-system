@@ -43,7 +43,7 @@ column points to where each capability is toured.
 | Selectable executor backend | Executor is config-driven, not hardcoded (subagent, Codex CLI, …) | `AI_MEMORY_EXECUTOR` | 5 |
 | Knowledge lifecycle | Capture → graduate scratch notes into durable wiki / skills | `/checkpoint` · `/promote-memory` | 5 |
 | Task provider | Pluggable capture→plan→execute backend (local + Notion) | `/task` · `/start` | — |
-| Design gate | Collaborative brainstorming before feature-tier work | `brainstorming` skill | — |
+| Design gate | Collaborative brainstorming before feature-tier work | `design-brainstorm` skill | — |
 | Skills subsystem | Canonical skill store + symlink, static validation, self-rating | `skills/` · `link-skills.sh` | — |
 
 **Platform & rigor**

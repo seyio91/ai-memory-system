@@ -75,7 +75,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 ### Capture → plan → execute
 
 - **`/task` capture** — record intent into a backlog with no plan/todo/index churn; it becomes real work only when you `/start` it.
-- **`/start` design gate** — pulls a captured task, classifies it, and for feature-sized work routes through the `brainstorming` skill (clarify → compare approaches → fold the approved design into the plan) before scaffolding.
+- **`/start` design gate** — pulls a captured task, classifies it, and for feature-sized work routes through the `design-brainstorm` skill (clarify → compare approaches → fold the approved design into the plan) before scaffolding.
 - **Investigations** — long-form pre-start findings live in `projects/<project>/investigations/<slug>.md`, referenced by name so backend task records stay thin.
 - **Feature isolation** — `/start --worktree` routes a feature into its own git worktree so its execution doesn't collide with other in-flight work.
 

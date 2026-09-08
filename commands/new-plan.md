@@ -28,7 +28,7 @@ owner: claude (orchestrator)
 - <criterion>
 
 ## Design
-<for feature-tier plans this is populated by the brainstorming skill: the chosen approach (unit boundaries/interfaces, data flow, error handling) plus a one-line note per rejected alternative and why it lost — a lightweight decision record. For settled-shape plans (mechanical refactors, renames, migrations) that skipped brainstorming, a one-line statement of the known approach suffices.>
+<for feature-tier plans this is populated by the `design-brainstorm` skill: the chosen approach (unit boundaries/interfaces, data flow, error handling) plus a one-line note per rejected alternative and why it lost — a lightweight decision record. For settled-shape plans (mechanical refactors, renames, migrations) that skipped brainstorming, a one-line statement of the known approach suffices.>
 - <chosen approach>
 - <alternative considered → why rejected>
 

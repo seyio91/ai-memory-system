@@ -16,8 +16,8 @@
 - [x] Phase 1 — per-phase criteria in the Task Contract (Task Contract is in `orchestrator.md`, not `identity.md`)
 - [x] Phase 2 — decomposition rule as `/new-plan` Step 3.5
 - [x] Phase 3 — declared dependency edges (+ `status: active` bug; 3 plans fixed, not 2)
-- [ ] Phase 4 — rename `brainstorming` → `design-brainstorm`  (needs: P0)
-- [ ] Phase 5 — record expand–contract sequencing
+- [x] Phase 4 — rename `brainstorming` → `design-brainstorm` (+ `.gitignore` negation; fixed a vacuous check-ignore control)
+- [x] Phase 5 — record expand–contract sequencing (domain files are gitignored — local only)
 - [ ] Checkpoint — full test run + lint + live `/new-plan` exercise + human review  (needs: P1,P2,P3,P4,P5)
 - [ ] Phase 6 — changelog fragment + `git-cli ship` (no merge)  (needs: checkpoint)
 

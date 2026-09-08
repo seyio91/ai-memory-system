@@ -1,4 +1,4 @@
-Begin work on a captured task: pull it from the backlog, run the design gate (brainstorm for feature-with-open-design, else straight to plan), create the linked plan in the task's own project, push the refined summary back, and flip the task to `started`. This is the `/start` half of the task-provider ↔ brainstorming integration.
+Begin work on a captured task: pull it from the backlog, run the design gate (brainstorm for feature-with-open-design, else straight to plan), create the linked plan in the task's own project, push the refined summary back, and flip the task to `started`. This is the `/start` half of the task-provider ↔ design-brainstorm integration.
 
 Argument: `$ARGUMENTS` — a task `<ref>` (optional), plus an optional `--worktree` / `--no-worktree` flag. Parse a `--worktree` or `--no-worktree` token out of `$ARGUMENTS`; the remaining token is the `<ref>`. The flag governs Step 4.5 (feature-isolation worktree); absent, Step 4.5 asks.
 
@@ -13,9 +13,9 @@ Argument: `$ARGUMENTS` — a task `<ref>` (optional), plus an optional `--worktr
 - Read `project`, `title`, `summary`, `status` from the result. **The task's `project` may differ from the active project — always use the task's own `project` from here on** (refs are globally unique in the flat store, so you can start a task from any session).
 - If `status` is not `backlog`, warn the user it is already `<status>` and confirm before continuing.
 
-### Step 2 — classify (the gate, per identity.md → Brainstorm gate)
+### Step 2 — classify (the gate, per orchestrator.md → Brainstorm gate)
 Classify the pulled `summary` (treat it as the initial request):
-- **Feature with open design questions** (new functionality / subsystem / integration / real architecture decision) → **invoke the `brainstorming` skill** with `title` + `summary` as the seed. Run its full process (clarify → 2-3 approaches → sectioned design). Its output is the approved design.
+- **Feature with open design questions** (new functionality / subsystem / integration / real architecture decision) → **invoke the `design-brainstorm` skill** with `title` + `summary` as the seed. Run its full process (clarify → 2-3 approaches → sectioned design). Its output is the approved design.
 - **Quick or settled-shape** (mechanical change, known target, small fix) → skip brainstorming; draft a one-line Goal and approach directly from the summary.
 
 ### Step 3 — scaffold the plan in the TASK's project
