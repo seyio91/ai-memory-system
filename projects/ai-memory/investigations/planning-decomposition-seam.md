@@ -110,10 +110,12 @@ validation *starts*: terminal-only validation is structurally late.
 - **`superpowers:writing-plans` is an unreferenced parallel answer** to finding 2. It is
   installed, it is stronger than the external skill on task structure, and nothing in this tree
   points at it — `/new-plan` does not mention it, `orchestrator.md` does not gate it.
-- **The 500-char `summary` cap may not be enforced by the local provider.** The one task in the
-  `ai-memory` backlog (`author-dd-k8s-skill-…`) carries a summary several thousand characters
-  long. Either the cap is Notion-only or that record bypassed `capture`. Unverified; noted for
-  follow-up, out of scope here.
+- ~~**The 500-char `summary` cap may not be enforced by the local provider.**~~ **Disproven
+  2026-09-08.** `taskctl capture` rejected a 661-char and then a 517-char summary with an explicit
+  error naming the cap, so the local provider enforces it correctly. The oversized
+  `author-dd-k8s-skill-…` backlog record therefore did *not* come through `capture` — it was
+  written to the flat store directly, or predates the gate. No provider bug; nothing to follow up
+  on the cap itself.
 
 ## Conclusion
 

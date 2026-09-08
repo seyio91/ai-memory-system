@@ -24,7 +24,7 @@ owner: claude (orchestrator)
 <one paragraph: what problem this plan solves>
 
 ## Success criteria
-<the checkable conditions that define "done" — each one a Validator could verify by reading output, running a command, or inspecting state. Required for plan-tier work (see identity.md → Task Contract). If the user did not state criteria, draft best-effort ones from session context; never leave this blank.>
+<the checkable conditions that define "done" for the WHOLE plan — each one a Validator could verify by reading output, running a command, or inspecting state. Required for plan-tier work (see orchestrator.md → Task Contract). If the user did not state criteria, draft best-effort ones from session context; never leave this blank. Per-phase criteria go on each phase's `**Verify:**` line, not here.>
 - <criterion>
 
 ## Design
@@ -39,10 +39,12 @@ owner: claude (orchestrator)
 ### Phase 1 — <name>
 - <step>
 
+**Verify:** <the checkable condition for THIS phase alone — same bar as Success criteria: readable output, a runnable command, or inspectable state. If you cannot write one, the phase is too vague to delegate or is really two phases; redraw it (see orchestrator.md → Task Contract).>
+
 ## Risks / open questions
 - <bullet>
 ```
 
-Step 4 — ask the user one line: "Plan scaffolded at `<path>`. Want me to draft the Goal, Success criteria, and Phases from session context, or will you fill it in yourself?" Then act on the answer. If the user opts to fill it in, do not invent content — except **Success criteria**, where if the user proceeds to execution without stating them, draft best-effort criteria from context and surface them for confirmation (per identity.md → Task Contract).
+Step 4 — ask the user one line: "Plan scaffolded at `<path>`. Want me to draft the Goal, Success criteria, and Phases from session context, or will you fill it in yourself?" Then act on the answer. If the user opts to fill it in, do not invent content — except **Success criteria**, where if the user proceeds to execution without stating them, draft best-effort criteria from context and surface them for confirmation (per orchestrator.md → Task Contract).
 
 Step 5 — remind the user to add a checkbox item in `projects/<active>/todo.md` linking to the new plan (use the existing `### <topic> → [plan](plans/<name>.md)` pattern).

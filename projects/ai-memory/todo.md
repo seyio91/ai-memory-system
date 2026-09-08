@@ -13,7 +13,7 @@
 
 ### Close the plan-decomposition seam in the Tier-3 pipeline → [plan](plans/plan-decomposition-seam.md)
 - [x] Phase 0 — refresh the plan against `main` (43 hits / 14 files re-measured; 2 new files found)
-- [ ] Phase 1 — per-phase criteria in the Task Contract  (needs: P0)
+- [x] Phase 1 — per-phase criteria in the Task Contract (Task Contract is in `orchestrator.md`, not `identity.md`)
 - [ ] Phase 2 — decomposition rule as `/new-plan` Step 3.5  (needs: P1)
 - [ ] Phase 3 — declared dependency edges  (needs: P1)
 - [ ] Phase 4 — rename `brainstorming` → `design-brainstorm`  (needs: P0)

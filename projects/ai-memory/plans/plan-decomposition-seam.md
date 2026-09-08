@@ -102,16 +102,26 @@ Re-derived every file reference at `1b81abb`.
 **Depends:** none
 **Verify:** every file path named in this plan resolves at `git rev-parse HEAD`. ✅
 
-### Phase 1 — Per-phase criteria in the Task Contract
-- Extend the Task Contract section of `identity.md`: plan-tier work carries per-phase checkable
-  criteria in addition to the plan-level set; the Validator may be invoked per phase.
-- Extend the `commands/new-plan.md` Step 3 scaffold so each `### Phase N` emits a `**Verify:**`
-  line, with template guidance that a criterion must be checkable by reading output, running a
-  command, or inspecting state.
+### Phase 1 — Per-phase criteria in the Task Contract — DONE 2026-09-08
+**Correction found during execution:** the Task Contract is **not** in `identity.md` (2040 bytes,
+no such section) — it lives in `orchestrator.md` → `### Task Contract`, seeded from the tracked
+`templates/orchestrator.template.md`. Both copies had to change: the template ships to consumers,
+the live file is gitignored per-instance. `docs/workflow.md:34` already cited the right location;
+`commands/new-plan.md` cited `identity.md` **twice** (lines 27, 46) — a third stale cross-reference
+in the same family as the `status: active` bug, fixed here.
 
-**Depends:** none
-**Verify:** `scripts/lint-memory.sh` passes; `identity.md` contains the per-phase wording; a
-freshly scaffolded plan file contains a `**Verify:**` line under its phase heading.
+- Added four bullets to the Task Contract in `templates/orchestrator.template.md` **and** the live
+  `orchestrator.md`: two-level criteria (plan + phase), validate-per-phase rather than only
+  terminally, and the rule that a phase whose `**Verify:**` cannot be written is mis-drawn.
+- `commands/new-plan.md`: scaffold now emits a `**Verify:**` line under `### Phase 1`; the
+  `## Success criteria` guidance now says plan-wide and points per-phase criteria at the phase
+  line; both `identity.md → Task Contract` references corrected to `orchestrator.md`.
+
+**Depends:** Phase 0
+**Verify:** `lint-memory.sh` clean for these files ✅; `Two levels: plan and phase` present in both
+`orchestrator.md` and `templates/orchestrator.template.md` ✅; scaffold emits `**Verify:**` ✅;
+zero remaining `identity.md → Task Contract` references ✅; full suite 50/50 green ✅ (under the
+signing workaround below).
 
 ### Phase 2 — Decomposition rule as `/new-plan` Step 3.5
 - Insert Step 3.5 into `commands/new-plan.md`, between the scaffold write and the user prompt.
@@ -207,6 +217,22 @@ dangling `brainstorming` link.
 domain file was created).
 
 ### Checkpoint — before shipping
+
+> **The suite cannot go green on this machine unmodified** (found in Phase 1). Fixtures inherit
+> the developer's global git config, and `commit.gpgsign`/`tag.gpgsign=true` breaks 44 assertions
+> across `test_release`, `test_sync_channels`, `test_assemble_changelog` with errors that read as
+> release-logic bugs. Until task `isolate-test-fixtures-from-the-developer-s-global-git-config`
+> lands, run the suite as:
+> ```
+> GIT_CONFIG_COUNT=2 \
+>   GIT_CONFIG_KEY_0=commit.gpgsign GIT_CONFIG_VALUE_0=false \
+>   GIT_CONFIG_KEY_1=tag.gpgsign    GIT_CONFIG_VALUE_1=false \
+>   ./scripts/run-tests.sh
+> ```
+> Reconciliation note: `run-tests.sh` prints **53** `PASS`/`FAIL` lines but reports
+> `tests: 50 passed` — the extra 3 are the python `unittest`, `check-docs`, and `shellcheck`
+> gates, which sit outside the bash-file counter. 53 vs 50 is correct, not a truncation.
+
 - [ ] Full `scripts/run-tests.sh` run, file count reconciled against the summary counter
 - [ ] `scripts/lint-memory.sh` clean
 - [ ] A scaffolded throwaway plan exercised end-to-end through `/new-plan` on its **default**

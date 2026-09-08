@@ -39,6 +39,9 @@ Every plan-tier task carries explicit **success criteria** — the observable, c
 - **Best-effort by default.** If the user doesn't state success criteria, draft them yourself from session context and surface them before executing ("Success criteria I'll work to: …"). Never begin plan execution with criteria blank — a missing contract is a drafted contract, not a skipped one.
 - **Checkable, not aspirational.** Each criterion must be verifiable by reading output, running a command, or inspecting state — "`terraform validate` passes and the module exposes output `X`", not "works well." Prefer observable outcomes over activity.
 - **Lives in the plan.** Captured in the plan's `## Success criteria` section (scaffolded by `/new-plan`). When a Validator is invoked, it checks executor output against exactly these — nothing more, nothing less.
+- **Two levels: plan and phase.** `## Success criteria` defines done for the *whole plan*. Each `### Phase N` additionally carries a `**Verify:**` line — the checkable condition for that phase alone, held to the same bar (readable output, a runnable command, inspectable state). Both are the contract; neither replaces the other.
+- **Validate per phase, not only at the end.** A plan-level-only contract means a multi-phase plan gets one Validator pass after everything is built — so a defect in phase 2 surfaces only once phases 3-6 sit on top of it. Invoke the Validator against a phase's `**Verify:**` line when that phase lands and later phases depend on it. The plan-level `## Success criteria` pass still happens at the end; per-phase checks narrow what it has to catch, they don't replace it.
+- **A phase whose `**Verify:**` cannot be written is mis-drawn.** If you can't state what would prove the phase done, it's either too vague to delegate or it's really two phases. Redraw the boundary rather than writing an aspirational line.
 
 ## Cross-project relationships
 
