@@ -148,6 +148,9 @@ skipped step numbers; the step sequence is read end-to-end once to confirm no st
   `platform-sandbox/platform-overview-dashboard.md` both carry it. Change Step 3 to
   `status: in_progress` and fix those two plans. Folded in here rather than shipped as its own
   PR because this phase already edits `start.md`.
+  - **Executed:** three plans carried it, not two — `git-cli/cut-the-first-release.md` was below
+    the `tail` cutoff when the list was first drawn. Exactly the truncation failure this project
+    already records; the sweep must be a full grep, not a paged read. Lint 19 → 16 warnings.
 
 **Depends:** Phase 1
 **Verify:** a scaffolded plan emits both `**Verify:**` and `**Depends:**` per phase; `start.md`
