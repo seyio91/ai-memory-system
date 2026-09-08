@@ -1,6 +1,6 @@
 ---
 plan: plan-decomposition-seam
-status: active
+status: in_progress
 created: 2026-09-08
 owner: claude (orchestrator)
 task_provider: local
@@ -113,6 +113,13 @@ skipped step numbers; the step sequence is read end-to-end once to confirm no st
 - Update `commands/start.md` Step 4 so the `todo.md` items it appends carry `(needs: Pn)` mirrored
   from the plan's `**Depends:**` lines.
 - Update `projects/_template/todo.md` guidance to document the `(needs: Pn)` convention.
+- **Bug fix, found 2026-09-08:** `commands/start.md` Step 3 instructs writing `status: active`
+  into plan frontmatter, but `lint-memory.sh` rejects `active` (valid: `draft`, `in_progress`,
+  `done`). Every plan `/start` has ever scaffolded is born lint-dirty —
+  `platform-charts/automate-chart-docs-in-ci.md` and
+  `platform-sandbox/platform-overview-dashboard.md` both carry it. Change Step 3 to
+  `status: in_progress` and fix those two plans. Folded in here rather than shipped as its own
+  PR because this phase already edits `start.md`.
 
 **Depends:** Phase 1
 **Verify:** a scaffolded plan emits both `**Verify:**` and `**Depends:**` per phase; `start.md`

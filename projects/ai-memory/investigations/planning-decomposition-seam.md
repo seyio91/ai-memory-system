@@ -2,6 +2,7 @@
 investigation: planning-decomposition-seam
 created: 2026-09-08
 status: complete
+task_ref: close-the-plan-decomposition-seam-in-the-tier-3-pipeline
 summary: Comparison of two external planning skills against this system's Tier-3 pipeline; identifies the undefined decomposition seam between `/new-plan`'s `## Phases` and executor delegation
 ---
 
