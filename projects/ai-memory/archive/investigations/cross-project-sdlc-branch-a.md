@@ -1,7 +1,7 @@
 ---
 kind: investigation
 slug: cross-project-sdlc-branch-a
-status: imported ideation branch
+status: concluded — ideation branch folded into the shipped initiative layer
 created: 2026-08-14
 task_ref: 3bcf6850-c619-8111-b3b5-ed0e6497569d
 ---

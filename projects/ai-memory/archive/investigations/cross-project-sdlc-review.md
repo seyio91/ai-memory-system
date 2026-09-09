@@ -1,7 +1,7 @@
 ---
 kind: investigation
 slug: cross-project-sdlc-review
-status: active ideation
+status: concluded — design shipped as the initiative layer; trigger follow-on in plans/initiative-consultation-triggers.md
 created: 2026-08-14
 task_ref: 3bcf6850-c619-8111-b3b5-ed0e6497569d
 ---

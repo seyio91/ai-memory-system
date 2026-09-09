@@ -15,10 +15,10 @@
 
 ### Initiative consultation triggers → [plan](plans/initiative-consultation-triggers.md)
 - [x] Phase A — snapshot + staleness + `--ack` in `initiative-status.sh`, seeded-defect tests (38/38 under bash 3.2) — validated 8/8
-- [ ] Phase B — session-start hook alert (subprocess reuse of the Phase A check, guarded, payload-tail verified), tests (needs: PA)
-- [ ] Phase C — `/checkpoint` question (live-exercised), doctrine + stream-first rule, docs + changelog (needs: PA)
+- [x] Phase B — session-start hook alert in `session_start_memory.sh` (NOT `inject.sh`; subprocess call to `initiative-status.sh`, guarded, alert inserted before `working` so the tail is preserved), 14 new assertions in `test_session_start_memory.sh` — suite 51/51 files green under `/bin/bash` 3.2; mutation-tested in both directions (neutered emission → stale assertions fail; alert appended after `working` → tail assertion fails); real-tree probe emits no alert (no `ai-memory` Target) with payload intact
+- [x] Phase C — `/checkpoint` Step 3a (live-exercised on its default path), phase-completion + stream-first doctrine byte-identical in template + local mirror, `docs/initiatives.md`, changelog fragment (needs: PA)
 - [ ] Checkpoint — pre-PR gate: full suite, lint, live exercise of the prose commands, human review (needs: PB, PC)
-- [ ] Phase D — fiter breadcrumb rows to mechanism wording (main), stamp + archive seed investigation, record falsification test (needs: PB, PC)
+- [x] Phase D — fiter rows rewritten to mechanism wording (both gitignored, local-only); seed investigation already carried `task_ref` (archives with the plan at close-out); four `cross-project-sdlc-*` investigations concluded + archived; composition falsification test armed in `working.md` → `## Open threads` (needs: PB, PC)
 
 ## Done
 _(checked items stay above until the file is rolled)_
