@@ -46,7 +46,8 @@ motivates the task.
 1. **Rehoming candidate.** A bullet in `## Known Constraints / Gotchas` (or `## Architecture
    Decisions`) that contains **no project-scoped proper noun** is a candidate for a domain file.
    Cheap signal, and it correctly separates the worked example: the four rehomed bullets named
-   nothing local, while the one that stayed named `FiterDevWorkloadPartiallyScaledUp`. Build the
+   nothing local, while the one that stayed named `AcmeDevWorkloadPartiallyScaledUp` (fixture
+   naming — see `fixtures/README.md` → Sanitization). Build the
    local-noun set per project from things already on disk — the project name, `repo`/`repo_path`
    frontmatter, sibling names in `## Related Projects`, and capitalised or hyphenated identifiers
    that appear nowhere in `domain/`.
