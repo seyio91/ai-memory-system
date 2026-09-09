@@ -1,6 +1,7 @@
 ---
 plan: initiative-consultation-triggers
-status: in_progress
+status: done
+completed: 2026-09-09
 created: 2026-08-15
 owner: claude (orchestrator)
 task_ref: 3bcf6850-c619-8157-a3d4-e0942a39c3a8
