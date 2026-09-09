@@ -35,6 +35,10 @@ __pycache__/
 /projects/*
 !/projects/_template
 
+# Live cross-project initiatives carry client data; ship the template only.
+/initiatives/*
+!/initiatives/_template.md
+
 # The ai-memory meta-project documents THIS repo (no client data) — track its
 # durable artifacts AND its archive (past work stays visible in git; the memory
 # system just never loads archive/). Only the volatile live scratch is local.

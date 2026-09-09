@@ -34,6 +34,8 @@ emit_autogen() {
     printf '\n'
 
     # Domain: topic + triggers + summary. Path is derivable as domain/<topic>.md.
+    # initiatives/ is deliberately excluded: it is live work state, discovered
+    # through project breadcrumbs and derivation (decided 2026-08-14).
     printf '## Domain\n\n'
     printf '| Topic | Triggers | Summary |\n'
     printf '|-------|----------|---------|\n'

@@ -246,6 +246,116 @@ for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
     done
 done
 
+# 11. Initiatives are live, cross-project work state rather than catalogued
+#     knowledge. Check only top-level instances: the scaffold and closed archive
+#     are deliberately excluded.
+for f in "$MEMORY_DIR"/initiatives/*.md; do
+    [ -e "$f" ] || continue
+    case "$f" in */_template.md) continue;; esac
+
+    require_fm "$f" kind slug status created
+    kind=$(extract_fm_field "$f" kind)
+    initiative_slug=$(extract_fm_field "$f" slug)
+    initiative_status=$(extract_fm_field "$f" status)
+    filename_slug=$(basename "$f" .md)
+
+    if [ -n "$kind" ] && [ "$kind" != "initiative" ]; then
+        emit "WARN:  $f kind '$kind' is not 'initiative'"
+    fi
+    if [ -n "$initiative_slug" ] && [ "$initiative_slug" != "$filename_slug" ]; then
+        emit "WARN:  $f slug '$initiative_slug' does not match filename '$filename_slug'"
+    fi
+    case "$initiative_status" in
+        active|closed|"") ;;
+        *) emit "WARN:  $f status '$initiative_status' is not an initiative status — use one of: active, closed" ;;
+    esac
+
+    target_ids=()
+    target_modes=()
+    target_stages=()
+    target_depends=()
+    while IFS='|' read -r target_id target_mode target_stages_present target_depends_on; do
+        [ -n "$target_id" ] || continue
+        target_ids[${#target_ids[@]}]="$target_id"
+        target_modes[${#target_modes[@]}]="$target_mode"
+        target_stages[${#target_stages[@]}]="$target_stages_present"
+        target_depends[${#target_depends[@]}]="$target_depends_on"
+    done < <(
+        awk '
+            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
+            in_targets && /^## / { exit }
+            in_targets && /^### / {
+                if (have_target) {
+                    print target "|" mode "|" stages "|" depends
+                }
+                target = substr($0, 5)
+                mode = ""
+                stages = ""
+                depends = ""
+                have_target = 1
+                next
+            }
+            in_targets && have_target && /^- execution_mode: / {
+                mode = $0
+                sub(/^- execution_mode: /, "", mode)
+                next
+            }
+            in_targets && have_target && /^- stages: / {
+                stages = "present"
+                next
+            }
+            in_targets && have_target && /^- depends_on: / {
+                depends = $0
+                sub(/^- depends_on: /, "", depends)
+            }
+            END {
+                if (in_targets && have_target) {
+                    print target "|" mode "|" stages "|" depends
+                }
+            }
+        ' "$f"
+    )
+
+    if [ ${#target_ids[@]} -gt 0 ]; then
+        for i in "${!target_ids[@]}"; do
+            for j in "${!target_ids[@]}"; do
+                [ "$i" -ge "$j" ] && continue
+                if [ "${target_ids[$i]}" = "${target_ids[$j]}" ]; then
+                    emit "WARN:  $f duplicate Target id '${target_ids[$i]}'"
+                fi
+            done
+
+            if [ "${target_modes[$i]}" = "software_adw" ] && [ -z "${target_stages[$i]}" ]; then
+                emit "WARN:  $f Target '${target_ids[$i]}' execution_mode 'software_adw' has no stages"
+            fi
+            if [ "${target_modes[$i]}" != "software_adw" ] && [ -n "${target_stages[$i]}" ]; then
+                emit "WARN:  $f Target '${target_ids[$i]}' has stages but execution_mode is '${target_modes[$i]}'"
+            fi
+
+            remaining_depends="${target_depends[$i]}"
+            while [ -n "$remaining_depends" ]; do
+                case "$remaining_depends" in
+                    *,*) dependency=${remaining_depends%%,*}; remaining_depends=${remaining_depends#*,} ;;
+                    *) dependency=$remaining_depends; remaining_depends="" ;;
+                esac
+                dependency=$(printf '%s\n' "$dependency" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+                [ "$dependency" = "none" ] && continue
+                dependency_id=$(printf '%s\n' "$dependency" | sed 's/[[:space:]]*(stage: [^)]*)[[:space:]]*$//')
+                resolved=0
+                for known_target in "${target_ids[@]}"; do
+                    if [ "$known_target" = "$dependency_id" ]; then
+                        resolved=1
+                        break
+                    fi
+                done
+                if [ "$resolved" -eq 0 ]; then
+                    emit "WARN:  $f Target '${target_ids[$i]}' depends_on unresolved Target id '$dependency_id'"
+                fi
+            done
+        done
+    fi
+done
+
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
     exit 0

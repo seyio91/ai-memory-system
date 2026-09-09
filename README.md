@@ -70,6 +70,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 - **Selectable executor backends** — `executor.sh` resolves `task` (write), `explore` (read-only scout), and `validate` (read-only check) roles to Claude subagents, Codex, Antigravity, or a generic CLI, per harness manifest.
 - **Cross-model validation** — the `validate` role defaults to a *different* model from the executor, so CLI-executor output is checked by an independent, read-only invocation by default.
 - **Cross-project relationships** — a project can declare related repos; the orchestrator delegates sibling-scoped work rather than loading every sibling's memory into the main thread.
+- **Initiatives** — decision streams plus cross-project Targets, with local derived readiness and dependency order rather than another authored status record.
 - **Bundled specialist agents** — ready Claude subagents for Azure, DevOps, Kubernetes, and Terraform work.
 
 ### Capture → plan → execute
@@ -133,6 +134,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 | [docs/harnesses/antigravity.md](docs/harnesses/antigravity.md) | Antigravity (`agy`): live `PreInvocation` injection, the `PreToolUse` enforcement guard + read-only executor, skills/commands via `~/.agents/skills`, the memory-aware statusline |
 | [docs/harnesses/adding-a-harness.md](docs/harnesses/adding-a-harness.md) | Register a new harness by manifest — archetype, surfaces, launch wrapper, detection |
 | [docs/workflow.md](docs/workflow.md) | Orchestrator / Executor / Validator roles, the Task Contract, executor selection, cross-project relationships |
+| [docs/initiatives.md](docs/initiatives.md) | Cross-project initiative format, lifecycle, readiness derivation, and deferred controls |
 | [docs/task-provider.md](docs/task-provider.md) | The pluggable task backend (local + Notion), the contract, `/start`, adding a provider |
 | [docs/file-formats.md](docs/file-formats.md) | Frontmatter, the required project-memory sections, `working.md` shape, domain-file body |
 | [docs/scripts.md](docs/scripts.md) | Every script + its invocations, and the environment-override table |

@@ -15,6 +15,7 @@
 | `regenerate-index.sh` | Rebuild `index.md` AUTOGEN block | `regenerate-index.sh` (idempotent) |
 | `regenerate-state.sh` | Derive the on-demand **In Flight** snapshot (`/state`), grouped by category | `regenerate-state.sh [--stdout]`, `regenerate-state.sh <category> --stdout` → `state.md` (gitignored) |
 | `regenerate-activity.sh` | **Activity report** (`/activity`) — plans created in a window, grouped by category | `regenerate-activity.sh (<category>\|--all) [--since <N>[d]] [--stdout]` → `activity.md` (gitignored) |
+| `initiative-status.sh` | Derive one initiative's local Target readiness table | `initiative-status.sh <slug>` |
 | `lint-memory.sh` | Mechanical lint | exit 0 if clean, 1 if any WARN/ERROR |
 | `archive-cleanup.sh` | Prune old `archive/` files | `archive-cleanup.sh [--all-projects] [--days N]` (dry-run, then confirm) |
 | `sync-system.sh` | Sync an instance to its configured channel, run pending migrations, then re-run `install.sh` | `sync-system.sh`, `sync-system.sh --to <ref>`, `sync-system.sh --to=<ref>`, `sync-system.sh --dry-run`, `sync-system.sh --no-pull`, `sync-system.sh --update`; `--to` with `--no-pull` is a usage error (exit 2) |
