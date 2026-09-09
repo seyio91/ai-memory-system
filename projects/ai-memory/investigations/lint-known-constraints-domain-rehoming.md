@@ -102,13 +102,14 @@ motivates the task.
 
 ## Success criteria
 
-- Running the linter against the pre-trim `fiter-argo-apps` `memory.md` — fixture at
-  `projects/ai-memory/fixtures/fiter-argo-apps-memory-2026-08-30-pre-trim.md`, 16,873 B, 57 bullets
-  — flags the bullets that were in fact rehomed, and does **not** flag the
-  `FiterDevWorkloadPartiallyScaledUp` one that correctly stayed. The fixture's `README.md` carries
+- Running the linter against the pre-trim project `memory.md` — fixture at
+  `projects/ai-memory/fixtures/project-memory-2026-08-30-pre-trim.md`, 16,859 B, 57 bullets
+  (pseudonymised; this repo is public — see the fixture `README.md` → Sanitization) — flags the
+  bullets that were in fact rehomed, and does **not** flag the
+  `AcmeDevWorkloadPartiallyScaledUp` one that correctly stayed. The fixture's `README.md` carries
   the full label set: 8 true positives, 3 true negatives, 2 known duplicates, 1 contradiction.
 - The duplicate check flags the two known duplicates in that same fixture.
-- The event-residue check flags both known cases in `## Current State` (`oxygen` fully removed;
+- The event-residue check flags both known cases in `## Current State` (`tenant-c` fully removed;
   `provisioning-service-db` … `until PR #235`) and does **not** flag the standing facts sitting in
   the same paragraph. Both are present in the fixture.
 - No warning is emitted for any bullet that names a project-local identifier.
