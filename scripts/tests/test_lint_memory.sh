@@ -42,7 +42,34 @@ x
 ## Current Goal
 x
 EOF
+    write_clean_initiative "$m/initiatives/clean-initiative.md"
     MEMORY_DIR="$m" bash "$SCRIPTS_DIR/regenerate-index.sh" >/dev/null
+}
+
+write_clean_initiative() { # write_clean_initiative <file>
+    local f="$1"
+    mkdir -p "$(dirname "$f")"
+    cat > "$f" <<'EOF'
+---
+kind: initiative
+slug: clean-initiative
+status: active
+created: 2026-08-14
+---
+
+# Clean initiative
+
+## Targets
+
+### good/prepare
+- execution_mode: software_adw
+- stages: plan, implement
+- depends_on: none
+
+### good/review
+- execution_mode: interactive
+- depends_on: good/prepare (stage: implement)
+EOF
 }
 
 # --- clean tree ---
@@ -349,5 +376,125 @@ EOF
 run_lint
 assert_exit 0 "$CODE" "investigation whose plan is still live keeps lint clean (not stale)"
 rm -rf "$M11"
+
+# --- clean initiative modeled on initiatives/_template.md passes all rules ---
+MI1="$(new_sandbox)"; export MEMORY_DIR="$MI1"; build_clean "$MI1"
+run_lint
+assert_exit 0 "$CODE" "clean initiative keeps lint clean"
+assert_not_contains "$OUT" "clean-initiative.md" "clean initiative produces no findings"
+rm -rf "$MI1"
+
+# --- initiative frontmatter fields are required ---
+MI2="$(new_sandbox)"; export MEMORY_DIR="$MI2"; build_clean "$MI2"
+grep -v '^created:' "$MI2/initiatives/clean-initiative.md" > "$MI2/initiatives/clean-initiative.md.t"
+mv "$MI2/initiatives/clean-initiative.md.t" "$MI2/initiatives/clean-initiative.md"
+run_lint
+assert_exit 1 "$CODE" "initiative missing frontmatter exits 1"
+assert_contains "$OUT" "clean-initiative.md missing frontmatter fields: created" "initiative missing created -> ERROR"
+rm -rf "$MI2"
+
+# --- initiative kind must be initiative ---
+MI3="$(new_sandbox)"; export MEMORY_DIR="$MI3"; build_clean "$MI3"
+sed 's/^kind: initiative$/kind: project/' "$MI3/initiatives/clean-initiative.md" > "$MI3/initiatives/clean-initiative.md.t"
+mv "$MI3/initiatives/clean-initiative.md.t" "$MI3/initiatives/clean-initiative.md"
+run_lint
+assert_contains "$OUT" "kind 'project' is not 'initiative'" "initiative kind mismatch warns"
+rm -rf "$MI3"
+
+# --- initiative slug must match its filename ---
+MI4="$(new_sandbox)"; export MEMORY_DIR="$MI4"; build_clean "$MI4"
+mv "$MI4/initiatives/clean-initiative.md" "$MI4/initiatives/different-filename.md"
+run_lint
+assert_contains "$OUT" "slug 'clean-initiative' does not match filename 'different-filename'" "initiative slug mismatch warns"
+rm -rf "$MI4"
+
+# --- initiative status vocabulary is active|closed ---
+MI5="$(new_sandbox)"; export MEMORY_DIR="$MI5"; build_clean "$MI5"
+sed 's/^status: active$/status: draft/' "$MI5/initiatives/clean-initiative.md" > "$MI5/initiatives/clean-initiative.md.t"
+mv "$MI5/initiatives/clean-initiative.md.t" "$MI5/initiatives/clean-initiative.md"
+run_lint
+assert_contains "$OUT" "status 'draft' is not an initiative status" "invalid initiative status warns"
+rm -rf "$MI5"
+
+# --- Target ids must be unique within an initiative ---
+MI6="$(new_sandbox)"; export MEMORY_DIR="$MI6"; build_clean "$MI6"
+cat >> "$MI6/initiatives/clean-initiative.md" <<'EOF'
+
+### good/prepare
+- execution_mode: interactive
+- depends_on: none
+EOF
+run_lint
+assert_contains "$OUT" "duplicate Target id 'good/prepare'" "duplicate Target id warns"
+rm -rf "$MI6"
+
+# --- depends_on edges resolve to a Target in the same initiative ---
+MI7="$(new_sandbox)"; export MEMORY_DIR="$MI7"; build_clean "$MI7"
+awk '
+    !replaced && /^- depends_on: none$/ {
+        print "- depends_on: good/missing"
+        replaced = 1
+        next
+    }
+    { print }
+' "$MI7/initiatives/clean-initiative.md" > "$MI7/initiatives/clean-initiative.md.t"
+mv "$MI7/initiatives/clean-initiative.md.t" "$MI7/initiatives/clean-initiative.md"
+run_lint
+assert_contains "$OUT" "depends_on unresolved Target id 'good/missing'" "unresolved depends_on warns"
+rm -rf "$MI7"
+
+# --- software_adw Targets require stages ---
+MI8="$(new_sandbox)"; export MEMORY_DIR="$MI8"; build_clean "$MI8"
+grep -v '^\- stages:' "$MI8/initiatives/clean-initiative.md" > "$MI8/initiatives/clean-initiative.md.t"
+mv "$MI8/initiatives/clean-initiative.md.t" "$MI8/initiatives/clean-initiative.md"
+run_lint
+assert_contains "$OUT" "execution_mode 'software_adw' has no stages" "software_adw without stages warns"
+rm -rf "$MI8"
+
+# --- non-software_adw Targets cannot carry stages ---
+MI9="$(new_sandbox)"; export MEMORY_DIR="$MI9"; build_clean "$MI9"
+sed '/^### good\/review$/a\
+- stages: should-not-be-here
+' "$MI9/initiatives/clean-initiative.md" > "$MI9/initiatives/clean-initiative.md.t"
+mv "$MI9/initiatives/clean-initiative.md.t" "$MI9/initiatives/clean-initiative.md"
+run_lint
+assert_contains "$OUT" "Target 'good/review' has stages but execution_mode is 'interactive'" "stages on interactive Target warns"
+rm -rf "$MI9"
+
+# --- the initiative scaffold and closed archive are never scanned ---
+MI10="$(new_sandbox)"; export MEMORY_DIR="$MI10"; build_clean "$MI10"
+cat > "$MI10/initiatives/_template.md" <<'EOF'
+---
+kind: wrong
+---
+### duplicate/target
+### duplicate/target
+EOF
+mkdir -p "$MI10/initiatives/archive"
+cat > "$MI10/initiatives/archive/closed.md" <<'EOF'
+---
+kind: wrong
+---
+### duplicate/target
+### duplicate/target
+EOF
+run_lint
+assert_exit 0 "$CODE" "initiative scaffold and archive are not scanned"
+assert_not_contains "$OUT" "initiatives/_template.md" "initiative scaffold is skipped"
+assert_not_contains "$OUT" "initiatives/archive/closed.md" "initiative archive is skipped"
+rm -rf "$MI10"
+
+# --- a /new-initiative scaffold from the REAL tracked template lints clean ---
+# Pins template <-> lint compatibility: the live-exercise of /new-initiative
+# found the template's example Target block parsed as a real malformed Target.
+MI11="$(new_sandbox)"; export MEMORY_DIR="$MI11"; build_clean "$MI11"
+mkdir -p "$MI11/initiatives"
+sed -e 's/^slug: <slug>$/slug: scaffold-check/' \
+    -e 's/^created: YYYY-MM-DD$/created: 2026-08-14/' \
+    "$SCRIPTS_DIR/../initiatives/_template.md" > "$MI11/initiatives/scaffold-check.md"
+run_lint
+assert_exit 0 "$CODE" "freshly scaffolded initiative keeps lint clean"
+assert_not_contains "$OUT" "scaffold-check.md" "scaffolded initiative produces no findings"
+rm -rf "$MI11"
 
 finish

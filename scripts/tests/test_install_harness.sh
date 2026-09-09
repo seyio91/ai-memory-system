@@ -80,6 +80,7 @@ assert_exit 0 "$rc" "claude install exits 0"
 assert_file "$FHOME/.claude/settings.json"       "claude settings.json present"
 assert_file "$FHOME/.claude/statusline.sh"        "statusline linked"
 assert_file "$FHOME/.claude/commands/pin.md"      "native command linked (pin)"
+assert_file "$FHOME/.claude/commands/new-initiative.md" "native command linked (new-initiative)"
 assert_file "$FHOME/.claude/skills/demo-skill"    "skill fanned out"
 assert_file "$FHOME/.claude/agents/demo-agent.md" "agent fanned out"
 for h in inject_memory.sh memory_common.sh session_start_memory.sh block_task_tools.sh; do
@@ -118,6 +119,8 @@ e=$?; set -e
 assert_exit 1 "$e" "install seed step does not resolve remote skills"
 assert_eq "$FAKE/commands/pin.md" \
     "$(readlink "$FHOME/.claude/commands/pin.md")" "command target -> commands/"
+assert_eq "$FAKE/commands/new-initiative.md" \
+    "$(readlink "$FHOME/.claude/commands/new-initiative.md")" "new-initiative target -> commands/"
 assert_contains "$(cat "$FAKE/config.local.sh")" "export MEMORY_DIR=" "config.local.sh stamped in FAKE repo"
 
 # --- idempotent re-run ---

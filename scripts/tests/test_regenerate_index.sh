@@ -21,6 +21,18 @@ summary: A real project summary
 EOF
 : > "$MEM/projects/realproj/working.md"
 
+# Initiatives are live work state, deliberately excluded from the lean catalog.
+mkdir -p "$MEM/initiatives"
+cat > "$MEM/initiatives/not-in-index.md" <<'EOF'
+---
+kind: initiative
+slug: not-in-index
+status: active
+created: 2026-08-14
+---
+# INITIATIVE-MUST-NOT-APPEAR
+EOF
+
 # Domain scaffold must be excluded like the project scaffold is.
 cat > "$MEM/domain/_template.md" <<'EOF'
 ---
@@ -43,6 +55,7 @@ assert_not_contains "$first" "projects/realproj/memory.md"    "project file path
 assert_not_contains "$first" "Working memory"                 "Working-memory section removed"
 assert_not_contains "$first" "/_template/"                    "excludes _template"
 assert_not_contains "$first" "<topic>"                        "excludes domain/_template.md scaffold"
+assert_not_contains "$first" "INITIATIVE-MUST-NOT-APPEAR"      "excludes initiatives from index"
 # Domain table is path-less now: topic + triggers + summary, but no file path.
 assert_contains     "$first" "terraform"                      "lists domain topic"
 assert_not_contains "$first" "domain/terraform.md"            "domain file path NOT in index (derive domain/<topic>.md)"
