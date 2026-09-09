@@ -16,6 +16,8 @@ Step 3 — synthesize the four fields from this session's context:
 
 Be honest. If nothing material happened in this session, say so in Done (e.g. "Discussion only — no artifacts produced") rather than padding. If Next is unclear, write "Awaiting user direction on …".
 
+Step 3a — before writing the checkpoint, check active `initiatives/<slug>.md` files for `kind: initiative`, `status: active`, and a `### <active-project>/...` Target heading. If the active project owns a Target, answer from this session's context: **did this session settle anything that binds another repo?** If yes, append it to that initiative's `## Decision stream` now as the next `D<n>-proposed`, before writing the checkpoint. Do not ask the user. A decision recorded only in a plan, runbook, or project memory has not been recorded.
+
 Step 4 — append the new checkpoint to the end of the `## Checkpoints` section in this exact shape (today's date is in the `<memory:identity>` injection context — use it; do not invent):
 
 ```
@@ -44,4 +46,4 @@ If `## Checkpoints` doesn't exist, create it at the end of the file with this ch
 Step 5 — report back, three lines max:
 - Path written.
 - Heading of the new checkpoint.
-- One-line summary of what was captured (e.g. "agent-friendly Terraform refactor — Track A files ready, awaiting go-ahead").
+- One-line summary of what was captured; include the appended decision-stream id, if any (e.g. "agent-friendly Terraform refactor — Track A files ready, awaiting go-ahead").

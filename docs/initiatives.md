@@ -36,6 +36,13 @@ resolve inside the same initiative.
 The decision stream is append-only: append a new decision and mark an older
 one `SUPERSEDES <id>`; do not rewrite history.
 
+## Stream-first capture
+
+Record a cross-repo decision in the initiative `## Decision stream` at decision
+time as `D<n>-proposed`. Plan, runbook, and project-memory entries are
+projections that carry the stream id; the stream is the record. Check at every
+plan-phase completion and during `/checkpoint`, never at handover.
+
 ## Create and close
 
 Use `/new-initiative <kebab-case-slug>` to scaffold an active instance from
@@ -94,6 +101,19 @@ The warning persists across normal runs. The snapshot refreshes only on its
 first creation, when a decision-stream entry is appended (implicit
 acknowledgment), or with `--ack`; it never self-silences merely because the
 script ran again.
+
+The session-start full payload surfaces stale Targets as one exception-only
+`<memory:initiative-alert>` block. It is never per-prompt and never a status
+table. The hook guard fails open: a crashed checker is silent by design; the
+checker is tested separately.
+
+## Breadcrumb row template
+
+Paste this row into an affected project's `## Related Projects` table:
+
+```markdown
+| *initiative:* `<slug>` | `<when this project's work touches a Target>`. Append `D<n>-proposed` to the stream at decision time; never hand-carry a cross-repo decision to handover; check readiness with `bash scripts/initiative-status.sh <slug>`. | `initiatives/<slug>.md` — decision stream + Targets (pointer only; no status duplicated here). |
+```
 
 ## Deliberately deferred
 

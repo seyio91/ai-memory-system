@@ -401,7 +401,7 @@ if [ "$ACK" -eq 1 ]; then
 elif [ "${#stale_ids[@]}" -gt 0 ]; then
     printf '\n## Stale targets\n\n'
     for i in "${!stale_ids[@]}"; do
-        printf 'WARN: %s advanced (%s -> %s) with no new decision-stream entry — append the missing %s-proposed or ack\n' \
-            "${stale_ids[$i]}" "${stale_old_stages[$i]}" "${stale_new_stages[$i]}" "${stale_ids[$i]}"
+        printf 'WARN: %s advanced (%s -> %s) with no new decision-stream entry — append the missing D<n>-proposed entry or ack\n' \
+            "${stale_ids[$i]}" "${stale_old_stages[$i]}" "${stale_new_stages[$i]}"
     done
 fi

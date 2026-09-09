@@ -110,6 +110,50 @@ render_full() {
     esac
 }
 
+render_initiative_alert() {
+    local project="$1" format="${AI_MEMORY_HOOK_FORMAT:-xml}" dir initiative kind status slug output stale lines=""
+    [ -n "$project" ] || return 0
+    dir="$MEMORY_DIR/initiatives"
+    [ -d "$dir" ] || return 0
+
+    for initiative in "$dir"/*.md; do
+        [ -f "$initiative" ] || continue
+        kind="$(extract_fm_field "$initiative" kind 2>/dev/null || true)"
+        status="$(extract_fm_field "$initiative" status 2>/dev/null || true)"
+        slug="$(extract_fm_field "$initiative" slug 2>/dev/null || true)"
+        [ "$kind" = "initiative" ] && [ "$status" = "active" ] && [ -n "$slug" ] || continue
+        if ! awk -v prefix="$project/" '
+            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
+            in_targets && /^## / { exit }
+            in_targets && /^### / && index(substr($0, 5), prefix) == 1 { found = 1; exit }
+            END { exit(found ? 0 : 1) }
+        ' "$initiative" >/dev/null 2>&1; then
+            continue
+        fi
+        if output="$(
+            (
+                ulimit -t 5 2>/dev/null || true
+                bash "$MEMORY_DIR/scripts/initiative-status.sh" "$slug" 2>/dev/null
+            )
+        )"; then
+            stale="$(printf '%s\n' "$output" | awk '
+                /^## Stale targets[[:space:]]*$/ { in_stale = 1; next }
+                in_stale && /^## / { exit }
+                in_stale && /^WARN: / { print }
+            ')"
+            if [ -n "$stale" ]; then
+                lines="$lines$stale"$'\n'
+            fi
+        fi
+    done
+
+    [ -n "$lines" ] || return 0
+    case "$format" in
+        xml) printf '<memory:initiative-alert>\n%s</memory:initiative-alert>' "$lines" ;;
+        md)  printf '# === INITIATIVE ALERT ===\n\n%s' "$lines" ;;
+    esac
+}
+
 hook_chunk_spec() {
     local spec="${AI_MEMORY_HOOK_CHUNK:-}"
     [ -n "$spec" ] || spec="1/1"

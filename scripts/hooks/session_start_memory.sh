@@ -91,6 +91,24 @@ fi
 
 OUTPUT=$(render_full "$PROJECT")
 [ -z "$OUTPUT" ] && exit 0
+ALERT=$(render_initiative_alert "$PROJECT" || true)
+if [ -n "$ALERT" ]; then
+    case "${AI_MEMORY_HOOK_FORMAT:-xml}" in
+        xml)
+            case "$OUTPUT" in
+                *'<memory:working>'*) OUTPUT="${OUTPUT/<memory:working>/$ALERT$'\n'<memory:working>}" ;;
+                *) OUTPUT="$OUTPUT"$'\n'"$ALERT" ;;
+            esac
+            ;;
+        md)
+            case "$OUTPUT" in
+                *'# === WORKING MEMORY ==='*) OUTPUT="${OUTPUT/# === WORKING MEMORY ===/$ALERT$'\n\n'# === WORKING MEMORY ===}" ;;
+                *) OUTPUT="$OUTPUT"$'\n'"$ALERT" ;;
+            esac
+            ;;
+        *)   OUTPUT="$OUTPUT"$'\n'"$ALERT" ;;
+    esac
+fi
 
 if ! ESC=$(emit_hook_chunk "$OUTPUT" | json_escape_nonempty_stream); then
     exit 0

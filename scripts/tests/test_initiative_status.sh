@@ -153,6 +153,10 @@ plan in_progress draft "$MEM/projects/alpha/plans/draft.md"
 stale="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "advanced Target exits 0 with warning"
 assert_contains "$stale" "WARN: alpha/draft advanced (plan -> implement) with no new decision-stream entry" "advanced Target is stale without a stream entry"
+# The remedy names a DECISION id, not the Target id — the vocabulary the doctrine, docs and
+# breadcrumb rows all use. Pinned because this line is read at session start, not just on the CLI.
+assert_contains "$stale" "append the missing D<n>-proposed entry or ack" "stale warning names the decision-id remedy"
+assert_not_contains "$stale" "alpha/draft-proposed" "stale warning does not glue -proposed onto the Target id"
 
 stale_again="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "repeated stale run exits 0"
