@@ -1,1 +1,0 @@
-- Add the initiative layer: a tracked scaffold and lint rules, `/new-initiative`, local readiness derivation, and initiative documentation.
