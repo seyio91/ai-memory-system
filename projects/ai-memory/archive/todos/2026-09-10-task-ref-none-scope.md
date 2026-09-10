@@ -7,7 +7,9 @@
 
 ## Active
 
-_(no items yet)_
+### Scope `task_ref: none` to plans; drop rule 10 dead guard → [plan](archive/plans/task-ref-none-scope.md)
+- [x] P1 — rule 9 rejects `none`, rule 10 inner guard removed, both pinned by individual mutation tests
+- [x] Checkpoint — full suite + lint (baseline moved 18→17, attributed to concurrent sibling-project work) + human review (needs: P1)
 
 ## Done
 _(checked items stay above until the file is rolled)_
