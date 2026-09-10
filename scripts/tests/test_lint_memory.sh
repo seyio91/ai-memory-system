@@ -309,6 +309,19 @@ created: 2026-07-16
 EOF
 run_lint
 assert_exit 0 "$CODE" "investigation with task_ref keeps lint clean"
+cat > "$M9/projects/good/investigations/plan-only.md" <<'EOF'
+---
+kind: investigation
+task_ref: none
+status: open
+created: 2026-07-16
+---
+# plan-only
+EOF
+run_lint
+assert_exit 1 "$CODE" "investigation with task_ref none exits 1"
+assert_contains "$OUT" "plan-only.md has no task_ref" "task_ref none is not an investigation lifecycle anchor"
+rm "$M9/projects/good/investigations/plan-only.md"
 cat > "$M9/projects/good/investigations/orphan.md" <<'EOF'
 ---
 kind: investigation
@@ -397,7 +410,7 @@ assert_exit 1 "$CODE" "live plan without task_ref exits 1"
 assert_contains "$OUT" "unlinked.md has no task_ref" "unlinked live plan is flagged"
 set_fm "$M12/projects/good/plans/unlinked.md" task_ref none
 run_lint
-assert_exit 0 "$CODE" "task_ref none suppresses live-plan linkage warning"
+assert_exit 0 "$CODE" "rule 12 accepts task_ref none on plans"
 assert_not_contains "$OUT" "unlinked.md has no task_ref" "plan-only marker is silent"
 sed 's/^task_ref: none$/task_ref: real-task-ref-003/' "$M12/projects/good/plans/unlinked.md" > "$M12/projects/good/plans/unlinked.md.t"
 mv "$M12/projects/good/plans/unlinked.md.t" "$M12/projects/good/plans/unlinked.md"
@@ -410,7 +423,7 @@ assert_exit 0 "$CODE" "archived plan without task_ref is exempt"
 assert_not_contains "$OUT" "unlinked.md has no task_ref" "archived plan is never scanned"
 rm -rf "$M12"
 
-# --- `none` is a plan-only marker, never a stale-investigation task reference ---
+# --- `none` is plans-only: rule 9 rejects it while rule 10 skips it ---
 M13="$(new_sandbox)"; export MEMORY_DIR="$M13"; build_clean "$M13"
 mkdir -p "$M13/projects/good/investigations"
 cat > "$M13/projects/good/archive/plans/plan-only.md" <<'EOF'
@@ -433,7 +446,8 @@ created: 2026-09-09
 # plan-only
 EOF
 run_lint
-assert_exit 0 "$CODE" "rule 10 ignores task_ref none"
+assert_exit 1 "$CODE" "rule 9 rejects task_ref none on investigations"
+assert_contains "$OUT" "plan-only.md has no task_ref" "none has no investigation lifecycle anchor"
 assert_not_contains "$OUT" "plan-only.md stale" "none never matches an archived plan"
 rm -rf "$M13"
 
