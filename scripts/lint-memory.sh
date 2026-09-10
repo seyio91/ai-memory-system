@@ -214,13 +214,15 @@ for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
 done
 
 # 9. Investigations must be tied to a task lifecycle — a live investigation
-#    carries a frontmatter `task_ref` (the task it seeds or serves); when that
-#    task closes, the file moves to archive/investigations/. An orphan has no
-#    lifecycle anchor and never gets archived. Live dir only; archive not scanned.
+#    carries a frontmatter `task_ref` (the task it seeds or serves); `none` is
+#    plans-only vocabulary: a plan may be plan-only, an investigation never is.
+#    When that task closes, the file moves to archive/investigations/. An orphan
+#    has no lifecycle anchor and never gets archived. Live dir only; archive not scanned.
 for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
-    if [ -z "$(extract_fm_field "$f" task_ref)" ]; then
+    ref=$(extract_fm_field "$f" task_ref)
+    if [ -z "$ref" ] || [ "$ref" = "none" ]; then
         emit "WARN:  $f has no task_ref — attach the task it serves (or archive it to archive/investigations/)"
     fi
 done
@@ -242,7 +244,7 @@ for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
     for p in "$project_dir"/archive/plans/*.md; do
         [ -e "$p" ] || continue
         plan_ref=$(extract_fm_field "$p" task_ref)
-        if [ "$plan_ref" != "none" ] && [ "$plan_ref" = "$ref" ]; then
+        if [ "$plan_ref" = "$ref" ]; then
             emit "WARN:  $f stale — task_ref matches archived plan $p (work shipped; archive this investigation too)"
             break
         fi
