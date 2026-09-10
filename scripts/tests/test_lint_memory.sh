@@ -196,6 +196,7 @@ plan: ok
 status: in_progress
 created: 2026-07-02
 owner: seyi
+task_ref: none
 ---
 # ok
 EOF
@@ -216,6 +217,7 @@ plan: ok
 status: $st
 created: 2026-07-02
 owner: seyi
+task_ref: none
 ---
 # ok
 EOF
@@ -230,6 +232,7 @@ plan: ok
 status: active
 created: 2026-07-02
 owner: seyi
+task_ref: none
 ---
 # ok
 EOF
@@ -243,6 +246,7 @@ cat > "$M7/projects/good/plans/ok.md" <<'EOF'
 plan: ok
 created: 2026-07-02
 owner: seyi
+task_ref: none
 ---
 # ok
 EOF
@@ -376,6 +380,62 @@ EOF
 run_lint
 assert_exit 0 "$CODE" "investigation whose plan is still live keeps lint clean (not stale)"
 rm -rf "$M11"
+
+# --- live plans must declare task linkage; `none` is the explicit plan-only marker ---
+M12="$(new_sandbox)"; export MEMORY_DIR="$M12"; build_clean "$M12"
+cat > "$M12/projects/good/plans/unlinked.md" <<'EOF'
+---
+plan: unlinked
+status: draft
+created: 2026-09-09
+owner: seyi
+---
+# unlinked
+EOF
+run_lint
+assert_exit 1 "$CODE" "live plan without task_ref exits 1"
+assert_contains "$OUT" "unlinked.md has no task_ref" "unlinked live plan is flagged"
+set_fm "$M12/projects/good/plans/unlinked.md" task_ref none
+run_lint
+assert_exit 0 "$CODE" "task_ref none suppresses live-plan linkage warning"
+assert_not_contains "$OUT" "unlinked.md has no task_ref" "plan-only marker is silent"
+sed 's/^task_ref: none$/task_ref: real-task-ref-003/' "$M12/projects/good/plans/unlinked.md" > "$M12/projects/good/plans/unlinked.md.t"
+mv "$M12/projects/good/plans/unlinked.md.t" "$M12/projects/good/plans/unlinked.md"
+run_lint
+assert_exit 0 "$CODE" "real task_ref suppresses live-plan linkage warning"
+assert_not_contains "$OUT" "unlinked.md has no task_ref" "real task_ref is silent"
+mv "$M12/projects/good/plans/unlinked.md" "$M12/projects/good/archive/plans/unlinked.md"
+run_lint
+assert_exit 0 "$CODE" "archived plan without task_ref is exempt"
+assert_not_contains "$OUT" "unlinked.md has no task_ref" "archived plan is never scanned"
+rm -rf "$M12"
+
+# --- `none` is a plan-only marker, never a stale-investigation task reference ---
+M13="$(new_sandbox)"; export MEMORY_DIR="$M13"; build_clean "$M13"
+mkdir -p "$M13/projects/good/investigations"
+cat > "$M13/projects/good/archive/plans/plan-only.md" <<'EOF'
+---
+plan: plan-only
+status: done
+created: 2026-09-09
+owner: seyi
+task_ref: none
+---
+# plan-only
+EOF
+cat > "$M13/projects/good/investigations/plan-only.md" <<'EOF'
+---
+kind: investigation
+task_ref: none
+status: open
+created: 2026-09-09
+---
+# plan-only
+EOF
+run_lint
+assert_exit 0 "$CODE" "rule 10 ignores task_ref none"
+assert_not_contains "$OUT" "plan-only.md stale" "none never matches an archived plan"
+rm -rf "$M13"
 
 # --- clean initiative modeled on initiatives/_template.md passes all rules ---
 MI1="$(new_sandbox)"; export MEMORY_DIR="$MI1"; build_clean "$MI1"

@@ -37,6 +37,9 @@ skills_with_partial() {
     while IFS= read -r d; do
         grep -Fq "<!-- partial:$partial START" "$d/SKILL.md" && basename "$d"
     done < <(list_skill_dirs)
+    # This is a lister, not a predicate: its status must not be the last grep's,
+    # or a caller under `set -e` dies when the last skill isn't a carrier.
+    return 0
 }
 
 # skill_roots — print the skill store roots, one per line, in precedence order:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# apply-partial.sh — inject/sync a managed partial block into a skill's SKILL.md (#5).
+# apply-partial.sh — inject/sync a managed partial block into a markdown carrier (#5).
 # The one partial we ship is `self-rating`. The canonical text lives once at
 # scripts/partials/<partial>.md; this script splices it into a skill between
 # demarcation markers so a re-run re-syncs from source (idempotent) and an
@@ -7,27 +7,32 @@
 #
 # Loop membership is DERIVED from marker presence — a skill is "in" a partial's
 # loop exactly when its SKILL.md carries the block. So:
-#   * Re-syncing a skill that already has the block needs no flag (idempotent).
-#   * The FIRST injection into a skill is an explicit act and requires --force
+#   * Re-syncing a carrier that already has the block needs no flag (idempotent).
+#   * The FIRST injection into a carrier is an explicit act and requires --force
 #     (new-skill --kind workflow passes it automatically). This is the guard that
 #     keeps self-rating from being injected into an imported/remote skill unless
 #     you ask for it.
-#   * --all re-syncs every skill that already carries this partial (use after
+#   * --all re-syncs every carrier that already has this partial (use after
 #     editing the canonical block source).
 #
 # Usage:
 #   apply-partial.sh --skill <name> [--partial self-rating] [--force]
+#   apply-partial.sh --file <path> [--partial self-rating] [--force]
 #   apply-partial.sh --all [--partial self-rating]   # re-sync all carriers
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/_lib.sh"
 
-SKILL="" PARTIAL="self-rating" FORCE=0 ALL=0
+SKILL="" FILE="" PARTIAL="self-rating" FORCE=0 ALL=0
+need_value() {
+    [ "$#" -ge 2 ] || { printf 'apply-partial: %s needs a value\n' "$1" >&2; exit 2; }
+}
 while [ $# -gt 0 ]; do
     case "$1" in
-        --skill)    SKILL="${2:-}"; shift 2 ;;
-        --partial)  PARTIAL="${2:-}"; shift 2 ;;
+        --skill)    need_value "$@"; SKILL="$2"; shift 2 ;;
+        --file)     need_value "$@"; FILE="$2"; shift 2 ;;
+        --partial)  need_value "$@"; PARTIAL="$2"; shift 2 ;;
         --all)      ALL=1; shift ;;
         --force)    FORCE=1; shift ;;
         -h|--help)  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
@@ -42,15 +47,36 @@ PFILE="$SCRIPT_DIR/partials/$PARTIAL.md"
 START="<!-- partial:$PARTIAL START (managed by scripts/apply-partial.sh — edit scripts/partials/$PARTIAL.md) -->"
 END="<!-- partial:$PARTIAL END -->"
 
-apply_one() {
-    name="$1"
-    case "$name" in *[!A-Za-z0-9._-]*|.|..) printf 'apply-partial: invalid skill name %s\n' "$name" >&2; return 2 ;; esac
-    sdir="$(resolve_skill_dir "$name")" || { printf 'apply-partial: no SKILL.md for skill %s\n' "$name" >&2; return 2; }
-    f="$sdir/SKILL.md"
+canonical_path() {
+    local input="$1" path link dir hops=0
+    case "$input" in
+        /*) path="$input" ;;
+        *) path="$PWD/$input" ;;
+    esac
+    while [ -L "$path" ]; do
+        hops=$((hops + 1))
+        [ "$hops" -le 40 ] || return 1
+        link="$(readlink "$path")" || return 1
+        case "$link" in
+            /*) path="$link" ;;
+            *) path="$(dirname "$path")/$link" ;;
+        esac
+    done
+    dir="$(cd -P "$(dirname "$path")" 2>/dev/null && pwd)" || return 1
+    printf '%s/%s\n' "$dir" "$(basename "$path")"
+}
+
+MEMORY_CANON="$(canonical_path "$MEMORY_DIR")" || {
+    printf 'apply-partial: cannot resolve MEMORY_DIR %s\n' "$MEMORY_DIR" >&2
+    exit 2
+}
+
+apply_target() {
+    local f="$1" label="$2" tmp
     # First injection (no block yet) is an explicit act -> require --force.
     # Re-sync (block already present) is always allowed.
     if ! grep -Fq "<!-- partial:$PARTIAL START" "$f" && [ "$FORCE" != 1 ]; then
-        printf 'apply-partial: %s does not carry the %s block yet — first injection requires --force (new-skill --kind workflow does this; imported/remote skills get it only on request)\n' "$name" "$PARTIAL" >&2
+        printf 'apply-partial: %s does not carry the %s block yet — first injection requires --force\n' "$label" "$PARTIAL" >&2
         return 1
     fi
 
@@ -73,7 +99,15 @@ apply_one() {
     } >> "$tmp"
 
     mv "$tmp" "$f"
-    printf 'applied: %s -> %s\n' "$PARTIAL" "${f#"$MEMORY_DIR"/}"
+    printf 'applied: %s -> %s\n' "$PARTIAL" "${f#"$MEMORY_CANON"/}"
+}
+
+apply_skill() {
+    local name="$1" sdir f vout verr
+    case "$name" in *[!A-Za-z0-9._-]*|.|..) printf 'apply-partial: invalid skill name %s\n' "$name" >&2; return 2 ;; esac
+    sdir="$(resolve_skill_dir "$name")" || { printf 'apply-partial: no SKILL.md for skill %s\n' "$name" >&2; return 2; }
+    f="$sdir/SKILL.md"
+    apply_target "$f" "$name" || return $?
 
     # Validate just this skill (markdown body can't break frontmatter, but the
     # store validator is the contract — isolate this skill's findings by name).
@@ -83,14 +117,40 @@ apply_one() {
     return 0
 }
 
+apply_file() {
+    local input="$1" f
+    f="$(canonical_path "$input")" || { printf 'apply-partial: cannot resolve --file path %s\n' "$input" >&2; return 2; }
+    case "$f" in
+        "$MEMORY_CANON"/*) ;;
+        *) printf 'apply-partial: --file path must be inside MEMORY_DIR: %s\n' "$input" >&2; return 2 ;;
+    esac
+    [ -f "$f" ] || { printf 'apply-partial: no markdown file at %s\n' "$input" >&2; return 2; }
+    apply_target "$f" "$f"
+}
+
 rc=0
-if [ "$ALL" = 1 ]; then
+if [ -n "$SKILL" ] && [ -n "$FILE" ]; then
+    printf 'apply-partial: --skill and --file are mutually exclusive\n' >&2
+    exit 2
+elif [ "$ALL" = 1 ]; then
     carriers="$(skills_with_partial "$PARTIAL")"
-    [ -n "$carriers" ] || { printf 'apply-partial: no skill carries the %s block yet (inject one with --force first)\n' "$PARTIAL" >&2; exit 0; }
-    for s in $carriers; do apply_one "$s" || rc=$?; done
+    found=0
+    for s in $carriers; do
+        found=1
+        apply_skill "$s" || rc=$?
+    done
+    for f in "$MEMORY_DIR"/commands/*.md; do
+        [ -f "$f" ] || continue
+        grep -Fq "<!-- partial:$PARTIAL START" "$f" || continue
+        found=1
+        apply_file "$f" || rc=$?
+    done
+    [ "$found" = 1 ] || printf 'apply-partial: no carrier carries the %s block yet (inject one with --force first)\n' "$PARTIAL" >&2
 elif [ -n "$SKILL" ]; then
-    apply_one "$SKILL" || rc=$?
+    apply_skill "$SKILL" || rc=$?
+elif [ -n "$FILE" ]; then
+    apply_file "$FILE" || rc=$?
 else
-    printf 'apply-partial: --skill <name> or --all required\n' >&2; exit 2
+    printf 'apply-partial: --skill <name>, --file <path>, or --all required\n' >&2; exit 2
 fi
 exit "$rc"

@@ -8,6 +8,7 @@
 | `drivers/{hook,file}.sh` | Archetype install drivers (sourced by install.sh) | `driver_install`, `driver_notes` |
 | `link-command-skills.sh` | Deliver command bodies AS skills (`commands=skill`) | `link-command-skills.sh <commands-src> [skills-dir]` |
 | `gen-commands-doc.sh` | Render a "Memory Commands" reference (`commands=doc`) | `gen-commands-doc.sh <commands-src> <out-file>` |
+| `apply-partial.sh` | Inject or re-sync a managed partial block in a skill or markdown carrier | `apply-partial.sh --skill <name> [--partial self-rating] [--force]`; `apply-partial.sh --file <path> [--partial self-rating] [--force]`; `apply-partial.sh --all [--partial self-rating]` |
 | `codex-mem.sh` | Run codex (executor sandbox/network flags; memory injects via the SessionStart hook, no file build) | `codex-mem.sh`, `codex-mem.sh exec --sandbox read-only "..."` |
 | `codex-mem-checkpoint.sh` | Emit checkpoint scaffold | TTY → opens `$EDITOR`; `--for-codex` → stdout for Codex to consume |
 | `agy.sh` | Antigravity launch wrapper (build context + `exec agy`) | `agy.sh [agy args...]` (alias `agy` to it) |
