@@ -235,11 +235,14 @@ for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
     ref=$(extract_fm_field "$f" task_ref)
-    [ -n "$ref" ] || continue
+    if [ -z "$ref" ] || [ "$ref" = "none" ]; then
+        continue
+    fi
     project_dir=$(dirname "$(dirname "$f")")
     for p in "$project_dir"/archive/plans/*.md; do
         [ -e "$p" ] || continue
-        if [ "$(extract_fm_field "$p" task_ref)" = "$ref" ]; then
+        plan_ref=$(extract_fm_field "$p" task_ref)
+        if [ "$plan_ref" != "none" ] && [ "$plan_ref" = "$ref" ]; then
             emit "WARN:  $f stale — task_ref matches archived plan $p (work shipped; archive this investigation too)"
             break
         fi
@@ -353,6 +356,17 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                 fi
             done
         done
+    fi
+done
+
+# 12. Task linkage — every live plan either serves a task or explicitly records
+#     that it is deliberately plan-only. Archive/plans/ is historical and never
+#     scanned; its task_ref belongs to the completed work, not a live decision.
+for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
+    [ -e "$f" ] || continue
+    case "$f" in *"/_template/"*) continue;; esac
+    if [ -z "$(extract_fm_field "$f" task_ref)" ]; then
+        emit "WARN:  $f has no task_ref — link the task it serves, or set task_ref: none if deliberately plan-only"
     fi
 done
 
