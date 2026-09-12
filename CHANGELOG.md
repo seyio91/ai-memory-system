@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-10
+### Added
+
+- **Initiative consultation now has decision-time triggers.** Snapshot-based
+  staleness detection persists until `--ack` or a stream append, an
+  exception-only session-start alert surfaces stale Targets, and `/checkpoint`
+  plus phase completion capture cross-repo decisions as `-proposed` in the
+  stream first; plan, runbook, and project-memory entries reference that record.
+- Add the initiative layer: a tracked scaffold and lint rules, `/new-initiative`, local readiness derivation, and initiative documentation.
+- **`/new-plan` no longer skips the task lifecycle.** It takes `--task <ref>` or
+  `--no-task` and otherwise asks once, then runs the same linking step as
+  `/start` — both commands now share one injected `task-link` partial rather
+  than separate copies. `apply-partial.sh` gained a `--file` target mode to
+  carry it. A new lint rule flags a live plan with no `task_ref`; `task_ref: none`
+  is the explicit marker for deliberately plan-only work.
+
+### Fixed
+
+- Scope `task_ref: none` to plans: investigations now warn because they always require a task lifecycle anchor.
+
 ## [1.5.0] - 2026-09-08
 ### Added
 
