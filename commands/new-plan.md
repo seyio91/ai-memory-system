@@ -41,7 +41,7 @@ owner: claude (orchestrator)
 - <step>
 
 **Depends:** <the phases that must land before this one can start, e.g. `Phase 1` — or `none` when it is independent and safe to run in parallel. Mirror this onto the `todo.md` checkbox as `(needs: Pn)`.>
-**Verify:** <the checkable condition for THIS phase alone — same bar as Success criteria: readable output, a runnable command, or inspectable state. If you cannot write one, the phase is too vague to delegate or is really two phases; redraw it (see orchestrator.md → Task Contract).>
+**Verify:** <the checkable condition for THIS phase alone — same bar as Success criteria: readable output, a runnable command, or inspectable state; a phase that introduces a cache, lock, pool, background worker, deduplicated or in-flight work, or external process must also state concurrency, cancellation, timeout and failure-caching behaviour (see orchestrator.md → Task Contract).>
 
 ## Risks / open questions
 - <bullet>
