@@ -72,3 +72,11 @@
 # Fallback used when the preferred CLI executor's binary is missing.
 # Empty string = hard-fail instead of falling back.
 # export AI_MEMORY_EXECUTOR_FALLBACK="claude-subagent"
+
+# --- Executor credentials (codex CLI) -------------------------------------
+# The codex sandbox cannot reach the macOS keychain, so a delegated run gets
+# `gh ... HTTP 401` and an HTTPS `git push` finds no credential. Set to 1 to
+# fetch the token from the keyring at launch (never stored on disk, follows
+# rotation). Default off: the executor holds no credential, and the
+# orchestrator opens the PR after the executor commits and pushes.
+# export AI_MEMORY_EXECUTOR_GH_TOKEN=1
