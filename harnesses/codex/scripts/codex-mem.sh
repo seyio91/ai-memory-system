@@ -18,6 +18,9 @@ fi
 # the hand-owned AGENTS.md / repo docs either. Use it for read-only review/analysis subagents
 # that don't need identity/project memory — keeps the orchestrator's fan-out lean. The
 # deny-rules guardrails still apply (they load from ~/.codex/rules/, not AGENTS.md).
+#
+# Both executor modes are credential-free by default; AI_MEMORY_EXECUTOR_GH_TOKEN=1 opts
+# into a keychain-fetched GH_TOKEN for the run (see the block below).
 EXECUTOR_FLAGS=()
 EXECUTOR_MODE=false
 EXECUTOR_BARE=false
@@ -33,6 +36,43 @@ case "${1:-}" in
             --skip-git-repo-check
             -c sandbox_workspace_write.network_access=true
         )
+        # codex re-applies .git as read-only under workspace-write, so an executor can
+        # edit files but never commit ("Unable to create .git/index.lock: Operation not
+        # permitted"). Widen the sandbox to this repo's git dir(s); non-repo cwd = no-op.
+        GIT_ROOTS=()
+        for d in "$(git rev-parse --absolute-git-dir 2>/dev/null || true)" \
+                 "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"; do
+            [ -n "$d" ] || continue
+            case " ${GIT_ROOTS[*]-} " in *" $d "*) continue ;; esac
+            GIT_ROOTS+=("$d")
+        done
+        if [ "${#GIT_ROOTS[@]}" -gt 0 ]; then
+            roots_json=""
+            for d in "${GIT_ROOTS[@]}"; do roots_json="$roots_json${roots_json:+,}\"$d\""; done
+            EXECUTOR_FLAGS+=(-c "sandbox_workspace_write.writable_roots=[$roots_json]")
+        fi
+        # Opt-in (AI_MEMORY_EXECUTOR_GH_TOKEN=1, typically from config.local.sh): the
+        # sandbox cannot reach the macOS keychain, so gh 401s and HTTPS pushes find no
+        # credential. Fetch from the keyring at launch — the token lives only in this
+        # run's env, never at rest, and follows rotation. Loud if it can't be fetched.
+        if [ "${AI_MEMORY_EXECUTOR_GH_TOKEN:-0}" = "1" ]; then
+            gh_token="$(gh auth token 2>/dev/null || true)"
+            if [ -z "$gh_token" ]; then
+                echo "codex-mem: AI_MEMORY_EXECUTOR_GH_TOKEN=1 but 'gh auth token' returned nothing — run 'gh auth login'" >&2
+            else
+                export GH_TOKEN="$gh_token"
+                # gh is the credential helper too, else an HTTPS remote still has no
+                # password. Skipped if the caller already set a git env-config chain.
+                if [ -z "${GIT_CONFIG_COUNT:-}" ]; then
+                    export GIT_CONFIG_COUNT=1
+                    export GIT_CONFIG_KEY_0=credential.helper
+                    export GIT_CONFIG_VALUE_0='!gh auth git-credential'
+                else
+                    echo "codex-mem: GIT_CONFIG_COUNT already set — leaving credential.helper alone (HTTPS pushes may fail)" >&2
+                fi
+            fi
+            unset gh_token
+        fi
         if [ "$EXECUTOR_BARE" = true ]; then
             EXECUTOR_FLAGS+=(-c project_doc_max_bytes=0)
             # Suppress ALL memory injection through the native hooks (base + breadcrumb).

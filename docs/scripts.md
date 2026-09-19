@@ -206,6 +206,7 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `AI_MEMORY_EXECUTOR` | `subagent` | `executor.sh` — legacy single var; fallback for `task`/`explore` only. `subagent` = the orchestrator's own subagent plane (`claude-subagent` accepted as legacy alias) |
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | `executor.sh` — command template for a generic CLI executor |
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `subagent` | `executor.sh` — used when the preferred CLI binary is absent |
+| `AI_MEMORY_EXECUTOR_GH_TOKEN` | `0` | `codex-mem.sh` — `1` fetches `gh auth token` at launch and exports `GH_TOKEN` + a `gh` git credential helper into the executor run. The codex sandbox cannot read the macOS keychain, so `gh` 401s and HTTPS pushes find no credential without it. Opt-in: a credential-free executor is the default |
 | `AI_MEMORY_GUARD_OUTPUT` | unset | `guard.sh` — output envelope selector; `copilot-json` emits Copilot `permissionDecision` JSON instead of legacy exit-2 deny |
 | `AI_MEMORY_HARNESSES_DIR` | `$REPO_ROOT/harnesses` | Test seam, not for production use; `executor.sh` manifest-directory override |
 | `AI_MEMORY_ROLE` | unset | Set **by** `executor.sh` to the resolved role, read by `release.sh` — a release cut refuses while it is set, so an executor can never publish. Documented to make that refusal diagnosable; not a knob to set by hand |
