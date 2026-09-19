@@ -168,6 +168,19 @@ plane_token() {
     esac
 }
 
+validator_preamble() {
+    local agent="$REPO_ROOT/agents/validator.md" first body
+    [ -f "$agent" ] || { printf 'executor --run: validator prompt missing: %s\n' "$agent" >&2; return 1; }
+    IFS= read -r first < "$agent" || { printf 'executor --run: validator prompt unreadable: %s\n' "$agent" >&2; return 1; }
+    [ "$first" = '---' ] || { printf 'executor --run: validator prompt has no frontmatter: %s\n' "$agent" >&2; return 1; }
+    body="$(awk 'NR == 1 { next } closed { print; next } $0 == "---" { closed = 1; next } END { if (!closed) exit 1 }' "$agent")" || {
+        printf 'executor --run: validator prompt has unterminated frontmatter: %s\n' "$agent" >&2
+        return 1
+    }
+    [ -n "$body" ] || { printf 'executor --run: validator prompt body is empty: %s\n' "$agent" >&2; return 1; }
+    printf '%s' "$body"
+}
+
 # --- arg parse: optional --role, then the mode ---
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -213,6 +226,14 @@ case "$MODE" in
         resolve || exit $?
         if [ "$R_PLANE" = subagent ]; then
             printf 'EXECUTOR_USE_SUBAGENT\n'; exit 3
+        fi
+        if [ "$ROLE" = validate ]; then
+            preamble="$(validator_preamble)" || exit 1
+            PROMPT="${preamble}
+
+--- CALLER-SUPPLIED VALIDATION INPUTS ---
+
+${PROMPT}"
         fi
         q="$(shq "$PROMPT")"
         cmd="${R_CMD//\{prompt\}/$q}"

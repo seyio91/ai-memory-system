@@ -30,6 +30,10 @@
 > can't self-select a weak model, as `subagent` carries no `:model` suffix). The
 > independence that makes validation meaningful comes from the **separate invocation against the
 > Success criteria** — now reinforced by model decorrelation.
+>
+> The fixed validator prompt is [`agents/validator.md`](../agents/validator.md): Claude invokes
+> its `validator` subagent type, while CLI `--run` prepends its body; callers supply only repo,
+> plan, phase, and commits.
 
 ## Task Contract
 

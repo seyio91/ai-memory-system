@@ -291,7 +291,44 @@ run --role validate --run "check the diff"
 assert_exit 0 "$CODE" "--run validate exits 0 via stub"
 args="$(cat "$WMARK")"
 assert_contains "$args" "--ro" "--run validate uses exec_readonly (wwbin --ro)"
+assert_contains "$args" "You are read-only: verify work and never repair it." "--run validate prepends validator prompt"
+assert_contains "$args" "--- CALLER-SUPPLIED VALIDATION INPUTS ---" "--run validate separates fixed prompt from caller input"
+assert_contains "$args" "check the diff" "--run validate retains caller input"
 assert_eq "validate" "$(cat "$RMARK")" "--run (validate) exports AI_MEMORY_ROLE=validate"
+
+# task and explore prompts remain unmodified.
+export AI_MEMORY_EXECUTOR_TASK=ww
+run --run "task prompt"
+assert_exit 0 "$CODE" "--run task exits 0 via stub"
+args="$(cat "$WMARK")"
+assert_not_contains "$args" "CALLER-SUPPLIED VALIDATION INPUTS" "--run task does not prepend validator prompt"
+assert_eq "task prompt" "${args#*--do }" "--run task preserves its prompt byte-for-byte"
+
+export AI_MEMORY_EXECUTOR_EXPLORE=ww
+run --role explore --run "explore prompt"
+assert_exit 0 "$CODE" "--run explore exits 0 via stub"
+args="$(cat "$WMARK")"
+assert_not_contains "$args" "CALLER-SUPPLIED VALIDATION INPUTS" "--run explore does not prepend validator prompt"
+assert_eq "explore prompt" "${args#*--ro }" "--run explore preserves its prompt byte-for-byte"
+
+# A standalone executor copy has no canonical agent file: validate must fail
+# before dispatching a bare caller prompt.
+mkdir -p "$MEM/scripts"
+cp "$EXE" "$MEM/scripts/executor.sh"
+cp "$SCRIPTS_DIR/_lib.sh" "$SCRIPTS_DIR/manifest.sh" "$MEM/scripts/"
+run_missing() {
+    local tmp_out tmp_err
+    tmp_out="$BIN/.missing-o"; tmp_err="$BIN/.missing-e"
+    set +e
+    bash "$MEM/scripts/executor.sh" "$@" >"$tmp_out" 2>"$tmp_err"; CODE=$?
+    set -e
+    OUT="$(cat "$tmp_out")"; ERR="$(cat "$tmp_err")"
+}
+run_missing --role validate --run "must not be bare"
+assert_exit 1 "$CODE" "--run validate fails when validator prompt is missing"
+assert_contains "$ERR" "validator prompt missing" "missing validator prompt fails loudly"
+assert_eq "" "$OUT" "missing validator prompt does not dispatch caller input"
+unset AI_MEMORY_EXECUTOR_EXPLORE
 unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_VALIDATE
 
 export PATH="$OLDPATH"

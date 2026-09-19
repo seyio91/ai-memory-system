@@ -1,0 +1,1 @@
+- Add a single-source validator prompt for Claude subagents and CLI validation runs.
