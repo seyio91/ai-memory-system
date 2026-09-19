@@ -38,6 +38,23 @@ classes:
 - failures cached as results
 - external calls or processes with no timeout
 - state that works one call at a time but not under concurrent calls
+- work that outlives every caller that wanted it (background, shared, or
+  deduplicated work with no cancellation once the last interested caller
+  leaves)
+- identity or keys derived from incidental data (filenames, positions,
+  display strings) instead of the canonical field
+- silent degradation: a required value missing turned into a zero value,
+  empty string, or default instead of failing at construction or startup
+- network listeners or clients without transport-level timeouts (header,
+  read, write, idle)
+
+Grade by consequence under a plausible input, not by current exposure. "Low
+exposure today" or "only reachable locally" is not a reason to downgrade
+unless the plan explicitly scopes that path out.
+
+For every new default, fallback, or zero-value return in the diff, ask "what
+happens when the input this relies on is absent or malformed?" For every
+piece of background or shared work, ask "what stops it, and when?"
 
 Grade each finding as bug, risk, or nit. Include `file:line` and a concrete
 failure scenario.
