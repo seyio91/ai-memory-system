@@ -13,7 +13,7 @@
 - [x] P3 — Retire `plan:` (needs: P2)
 - [x] P4 — `task:` requirement and uniqueness (needs: P1)
 - [x] P5 — `/start` lookup, docs, changelog (needs: P2)
-- [ ] Checkpoint — pre-ship (suite, lint set diff, live exercises, human review)
+- [x] Checkpoint — pre-ship (suite, lint set diff, live exercises done; human review = [PR #110](https://github.com/seyio91/ai-memory-system/pull/110))
 
 ## Done
 _(checked items stay above until the file is rolled)_
