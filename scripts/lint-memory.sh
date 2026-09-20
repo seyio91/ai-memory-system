@@ -254,6 +254,13 @@ done
 # 11. Initiatives are live, cross-project work state rather than catalogued
 #     knowledge. Check only top-level instances: the scaffold and closed archive
 #     are deliberately excluded.
+
+# Cross-file accumulator for rule 15a — populated per-Target inside the loop
+# below, compared once after every initiative file has been scanned.
+ALL_TASK_REFS=()
+ALL_TASK_TARGET_IDS=()
+ALL_TASK_TARGET_FILES=()
+
 for f in "$MEMORY_DIR"/initiatives/*.md; do
     [ -e "$f" ] || continue
     case "$f" in */_template.md) continue;; esac
@@ -358,6 +365,130 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                 fi
             done
         done
+    fi
+
+    # 13. A Target status is an optional assertion. When present, its first
+    #     machine-readable token must use the shared status vocabulary.
+    while IFS='|' read -r target_id target_status; do
+        case "$target_status" in
+            open|"open "*|blocked|"blocked "*|done|"done "*|closed|"closed "*) ;;
+            *) emit "WARN:  $f Target '$target_id' status must begin with open, blocked, done, or closed" ;;
+        esac
+    done < <(
+        awk '
+            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
+            in_targets && /^## / { exit }
+            in_targets && /^### / {
+                target = substr($0, 5)
+                next
+            }
+            in_targets && target != "" && /^- status: / {
+                status = $0
+                sub(/^- status: /, "", status)
+                print target "|" status
+            }
+        ' "$f"
+    )
+
+    # 14. A live Target must be decomposed into a task. Non-terminal (open or
+    #     blocked) status is a live assertion and needs a `- task:` pointer;
+    #     done/closed are terminal and exempt; a Target with NO `- status:`
+    #     line at all is undeclared, not live — lint checks what is asserted,
+    #     it does not derive. `status (historical):` is not a status line
+    #     (matched by rule 13's `^- status: ` above, same exclusion here).
+    #
+    #     Also feeds rule 15a: every Target|task pair with a non-empty task is
+    #     appended to the cross-file accumulator declared before this loop.
+    while IFS='|' read -r target_id target_status target_task; do
+        [ -n "$target_id" ] || continue
+        case "$target_status" in
+            open|"open "*|blocked|"blocked "*)
+                if [ -z "$target_task" ]; then
+                    emit "WARN:  $f Target '$target_id' is open/blocked but has no task"
+                fi
+                ;;
+        esac
+        if [ -n "$target_task" ]; then
+            ALL_TASK_REFS[${#ALL_TASK_REFS[@]}]="$target_task"
+            ALL_TASK_TARGET_IDS[${#ALL_TASK_TARGET_IDS[@]}]="$target_id"
+            ALL_TASK_TARGET_FILES[${#ALL_TASK_TARGET_FILES[@]}]="$f"
+        fi
+    done < <(
+        awk '
+            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
+            in_targets && /^## / { exit }
+            in_targets && /^### / {
+                if (have_target) {
+                    print target "|" status "|" task
+                }
+                target = substr($0, 5)
+                status = ""
+                task = ""
+                have_target = 1
+                next
+            }
+            in_targets && have_target && /^- status: / {
+                status = $0
+                sub(/^- status: /, "", status)
+                next
+            }
+            in_targets && have_target && /^- task: / {
+                task = $0
+                sub(/^- task: /, "", task)
+                next
+            }
+            END {
+                if (in_targets && have_target) {
+                    print target "|" status "|" task
+                }
+            }
+        ' "$f"
+    )
+done
+
+# 15. Task/plan uniqueness, joined on the task ref.
+#
+#     (a) A task ref must appear on at most one Target across ALL live
+#         initiative files — the accumulator above was filled per-Target while
+#         scanning them; compare it pairwise once, here, after every file has
+#         contributed.
+for i in "${!ALL_TASK_REFS[@]}"; do
+    for j in "${!ALL_TASK_REFS[@]}"; do
+        [ "$i" -ge "$j" ] && continue
+        if [ "${ALL_TASK_REFS[$i]}" = "${ALL_TASK_REFS[$j]}" ]; then
+            emit "WARN:  ${ALL_TASK_TARGET_FILES[$j]} task '${ALL_TASK_REFS[$i]}' on Target '${ALL_TASK_TARGET_IDS[$j]}' is already used by Target '${ALL_TASK_TARGET_IDS[$i]}' in ${ALL_TASK_TARGET_FILES[$i]}"
+        fi
+    done
+done
+
+#     (b) At most one live plan may carry a given task ref. `none` is
+#         plans-only vocabulary meaning deliberately plan-only and is never
+#         compared. Matching is full-string equality, never a prefix — the
+#         same rule Phase 2's derivation relies on. Archive is not scanned:
+#         only live plans can collide with a live Target.
+SEEN_TASK_REFS=""
+for i in "${!ALL_TASK_REFS[@]}"; do
+    ref="${ALL_TASK_REFS[$i]}"
+    [ "$ref" = "none" ] && continue
+    case "$SEEN_TASK_REFS" in
+        *"|$ref|"*) continue ;;
+    esac
+    SEEN_TASK_REFS="${SEEN_TASK_REFS}|$ref|"
+
+    matching_plans=()
+    for p in "$MEMORY_DIR"/projects/*/plans/*.md; do
+        [ -e "$p" ] || continue
+        case "$p" in *"/_template/"*) continue;; esac
+        plan_ref=$(extract_fm_field "$p" task_ref)
+        [ "$plan_ref" = "$ref" ] || continue
+        matching_plans[${#matching_plans[@]}]="$p"
+    done
+    if [ "${#matching_plans[@]}" -gt 1 ]; then
+        joined=""
+        for p in "${matching_plans[@]}"; do
+            joined="${joined:+$joined, }$p"
+        done
+        emit "WARN:  task '$ref' is claimed by multiple live plans: $joined"
     fi
 done
 

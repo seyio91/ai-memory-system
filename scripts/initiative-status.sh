@@ -2,9 +2,17 @@
 #
 # initiative-status.sh — derive an initiative readiness table from local files.
 #
-# software_adw mapping: no plan pointer -> not-started; plan status draft ->
-# plan; in_progress -> implement; done or an archived plan -> complete; a
-# missing project memory, repo_path checkout, or resolvable plan -> unknown.
+# Terminal short-circuit (any execution_mode): a `- status:` line whose first
+# token is `done` or `closed` is echoed as-is with no filesystem lookup.
+#
+# software_adw mapping (non-terminal): a `- task: <ref>` is joined against
+# `projects/<project>/plans/*.md` frontmatter `task_ref` (full-string match);
+# no live match falls back to `archive/plans/*.md`. No task -> not-started;
+# exactly one live match maps its plan status draft -> plan, in_progress ->
+# implement, done -> complete; exactly one archived match -> complete; zero
+# matches anywhere -> not-started; two or more matches in either location ->
+# unknown (fail closed, every matching path named). A missing project memory
+# or repo_path checkout -> unknown.
 # The table is intentionally hand-derivable: it reads only the initiative,
 # project memory, plan, and todo files; it makes no network or provider calls.
 #
@@ -62,19 +70,19 @@ target_ids=()
 target_modes=()
 target_stages=()
 target_depends=()
-target_plans=()
+target_tasks=()
 target_actors=()
 target_statuses=()
 sep=$(printf '\034')
 
 # Keep the Targets boundaries and headings aligned with lint-memory.sh rule 11.
-while IFS="$sep" read -r target_id target_mode target_stages_value target_depends_on target_plan target_actor target_status; do
+while IFS="$sep" read -r target_id target_mode target_stages_value target_depends_on target_task target_actor target_status; do
     [ -n "$target_id" ] || continue
     target_ids[${#target_ids[@]}]="$target_id"
     target_modes[${#target_modes[@]}]="$target_mode"
     target_stages[${#target_stages[@]}]="$target_stages_value"
     target_depends[${#target_depends[@]}]="$target_depends_on"
-    target_plans[${#target_plans[@]}]="$target_plan"
+    target_tasks[${#target_tasks[@]}]="$target_task"
     target_actors[${#target_actors[@]}]="$target_actor"
     target_statuses[${#target_statuses[@]}]="$target_status"
 done < <(
@@ -82,16 +90,16 @@ done < <(
         /^## Targets[[:space:]]*$/ { in_targets = 1; next }
         in_targets && /^## / { exit }
         in_targets && /^### / {
-            if (have_target) print target sep mode sep stages sep depends sep plan sep actor sep status
-            target = substr($0, 5); mode = ""; stages = ""; depends = ""; plan = ""; actor = ""; status = ""; have_target = 1; next
+            if (have_target) print target sep mode sep stages sep depends sep task sep actor sep status
+            target = substr($0, 5); mode = ""; stages = ""; depends = ""; task = ""; actor = ""; status = ""; have_target = 1; next
         }
         in_targets && have_target && /^- execution_mode: / { mode = $0; sub(/^- execution_mode: /, "", mode); next }
         in_targets && have_target && /^- stages: / { stages = $0; sub(/^- stages: /, "", stages); next }
         in_targets && have_target && /^- depends_on: / { depends = $0; sub(/^- depends_on: /, "", depends); next }
-        in_targets && have_target && /^- plan: / { plan = $0; sub(/^- plan: /, "", plan); next }
+        in_targets && have_target && /^- task: / { task = $0; sub(/^- task: /, "", task); next }
         in_targets && have_target && /^- next_actor: / { actor = $0; sub(/^- next_actor: /, "", actor); next }
         in_targets && have_target && /^- status: / { status = $0; sub(/^- status: /, "", status) }
-        END { if (in_targets && have_target) print target sep mode sep stages sep depends sep plan sep actor sep status }
+        END { if (in_targets && have_target) print target sep mode sep stages sep depends sep task sep actor sep status }
     ' "$INITIATIVE"
 )
 
@@ -145,6 +153,37 @@ resolve_checkout() {
     return 0
 }
 
+# first_token — print the first whitespace-delimited token of $1.
+first_token() {
+    # shellcheck disable=SC2086
+    set -- $1
+    printf '%s\n' "${1:-}"
+}
+
+# find_task_plans <dir> <task_ref> — print, one per line, every "$dir"/*.md
+# whose frontmatter task_ref equals <task_ref> exactly (never a prefix match).
+find_task_plans() {
+    local dir="$1" ref="$2" f fref
+    [ -d "$dir" ] || return 0
+    for f in "$dir"/*.md; do
+        [ -f "$f" ] || continue
+        fref="$(extract_fm_field "$f" task_ref)"
+        [ "$fref" = "$ref" ] && printf '%s\n' "$f"
+    done
+    return 0
+}
+
+# join_paths — print args as a comma-separated, MEMORY_DIR-relative list, for
+# evidence that must name every matching path (fail-closed duplicate reports).
+join_paths() {
+    local out="" p
+    for p in "$@"; do
+        [ -n "$out" ] && out="$out, "
+        out="$out${p#"$MEMORY_DIR"/}"
+    done
+    printf '%s' "$out"
+}
+
 todo_counts() {
     local todo="$1" plan_rel="$2"
     [ -f "$todo" ] || { printf 'todo missing'; return; }
@@ -160,6 +199,17 @@ todo_counts() {
 derived=()
 evidence=()
 for i in "${!target_ids[@]}"; do
+    # Terminal short-circuit, any execution_mode: a first-word done/closed
+    # assertion is load-bearing and stops the lookup before the mode switch.
+    status_token="$(first_token "${target_statuses[$i]}")"
+    case "$status_token" in
+        done|closed)
+            derived[${#derived[@]}]="${target_statuses[$i]}"
+            evidence[${#evidence[@]}]="asserted in initiative"
+            continue
+            ;;
+    esac
+
     mode="${target_modes[$i]}"
     if [ "$mode" != "software_adw" ]; then
         if [ -n "${target_statuses[$i]}" ]; then
@@ -172,54 +222,72 @@ for i in "${!target_ids[@]}"; do
         continue
     fi
 
-    plan_pointer="${target_plans[$i]}"
-    if [ -z "$plan_pointer" ]; then
-        derived[${#derived[@]}]="not-started"
-        evidence[${#evidence[@]}]="no plan pointer"
-        continue
-    fi
-
     target_project="${target_ids[$i]%%/*}"
-    if ! resolve_checkout "$target_project"; then
-        derived[${#derived[@]}]="unknown"
-        evidence[${#evidence[@]}]="$RESOLVE_REASON"
+    task_ref="${target_tasks[$i]}"
+
+    if [ -n "$task_ref" ]; then
+        if ! resolve_checkout "$target_project"; then
+            derived[${#derived[@]}]="unknown"
+            evidence[${#evidence[@]}]="$RESOLVE_REASON"
+            continue
+        fi
+
+        live_matches=()
+        while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            live_matches[${#live_matches[@]}]="$line"
+        done < <(find_task_plans "$MEMORY_DIR/projects/$target_project/plans" "$task_ref")
+
+        if [ "${#live_matches[@]}" -eq 1 ]; then
+            plan_file="${live_matches[0]}"
+            plan_name="$(basename "$plan_file")"
+            plan_rel="${plan_file#"$MEMORY_DIR"/}"
+            plan_status="$(extract_fm_field "$plan_file" status)"
+            todo_evidence="$(todo_counts "$MEMORY_DIR/projects/$target_project/todo.md" "plans/$plan_name")"
+            case "$plan_status" in
+                draft) derived[${#derived[@]}]="plan" ;;
+                in_progress) derived[${#derived[@]}]="implement" ;;
+                done) derived[${#derived[@]}]="complete" ;;
+                *)
+                    derived[${#derived[@]}]="unknown"
+                    evidence[${#evidence[@]}]="plan status unparseable: ${plan_status:-missing}; $todo_evidence"
+                    continue
+                    ;;
+            esac
+            evidence[${#evidence[@]}]="plan: $plan_rel; plan status: $plan_status; $todo_evidence"
+            continue
+        elif [ "${#live_matches[@]}" -ge 2 ]; then
+            derived[${#derived[@]}]="unknown"
+            evidence[${#evidence[@]}]="task $task_ref: multiple live plans carry it: $(join_paths "${live_matches[@]}")"
+            continue
+        fi
+
+        archived_matches=()
+        while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            archived_matches[${#archived_matches[@]}]="$line"
+        done < <(find_task_plans "$MEMORY_DIR/projects/$target_project/archive/plans" "$task_ref")
+
+        if [ "${#archived_matches[@]}" -eq 1 ]; then
+            plan_file="${archived_matches[0]}"
+            plan_name="$(basename "$plan_file")"
+            plan_rel="${plan_file#"$MEMORY_DIR"/}"
+            derived[${#derived[@]}]="complete"
+            evidence[${#evidence[@]}]="archived plan: $plan_rel; $(todo_counts "$MEMORY_DIR/projects/$target_project/todo.md" "plans/$plan_name")"
+            continue
+        elif [ "${#archived_matches[@]}" -ge 2 ]; then
+            derived[${#derived[@]}]="unknown"
+            evidence[${#evidence[@]}]="task $task_ref: multiple archived plans carry it: $(join_paths "${archived_matches[@]}")"
+            continue
+        fi
+
+        derived[${#derived[@]}]="not-started"
+        evidence[${#evidence[@]}]="task $task_ref: no plan carries it"
         continue
     fi
 
-    expected="projects/$target_project/plans/"
-    case "$plan_pointer" in
-        "$expected"*.md) plan_name="${plan_pointer#"$expected"}" ;;
-        *)
-            derived[${#derived[@]}]="unknown"
-            evidence[${#evidence[@]}]="plan pointer unresolvable: $plan_pointer"
-            continue
-            ;;
-    esac
-    plan_file="$MEMORY_DIR/$plan_pointer"
-    archived="$MEMORY_DIR/projects/$target_project/archive/plans/$plan_name"
-    if [ -f "$archived" ]; then
-        derived[${#derived[@]}]="complete"
-        evidence[${#evidence[@]}]="archived plan: projects/$target_project/archive/plans/$plan_name; $(todo_counts "$MEMORY_DIR/projects/$target_project/todo.md" "plans/$plan_name")"
-        continue
-    fi
-    if [ ! -f "$plan_file" ]; then
-        derived[${#derived[@]}]="unknown"
-        evidence[${#evidence[@]}]="plan missing: $plan_pointer"
-        continue
-    fi
-    plan_status="$(extract_fm_field "$plan_file" status)"
-    todo_evidence="$(todo_counts "$MEMORY_DIR/projects/$target_project/todo.md" "plans/$plan_name")"
-    case "$plan_status" in
-        draft) derived[${#derived[@]}]="plan" ;;
-        in_progress) derived[${#derived[@]}]="implement" ;;
-        done) derived[${#derived[@]}]="complete" ;;
-        *)
-            derived[${#derived[@]}]="unknown"
-            evidence[${#evidence[@]}]="plan status unparseable: ${plan_status:-missing}; $todo_evidence"
-            continue
-            ;;
-    esac
-    evidence[${#evidence[@]}]="plan status: $plan_status; $todo_evidence"
+    derived[${#derived[@]}]="not-started"
+    evidence[${#evidence[@]}]="no task pointer"
 done
 
 # Snapshot-based staleness is deliberately separate from derivation above so a
@@ -351,7 +419,11 @@ for i in "${!target_ids[@]}"; do
             fi
             if [ "${derived[$dep_index]}" = "complete" ]; then
                 result="satisfied"
-            elif [ "${target_modes[$dep_index]}" = "interactive" ]; then
+            elif [ -n "${target_statuses[$dep_index]}" ]; then
+                # A terminal assertion satisfies a dependency in ANY mode, and
+                # satisfies a stage-qualified one too — a frozen Target has no
+                # derivable stage. `closed` (abandoned/retracted) deliberately
+                # does not satisfy: an abandoned prerequisite must not unblock.
                 case "${target_statuses[$dep_index]}" in
                     done*) result="satisfied" ;;
                 esac
