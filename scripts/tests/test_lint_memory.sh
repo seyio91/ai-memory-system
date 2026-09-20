@@ -571,4 +571,191 @@ assert_exit 0 "$CODE" "freshly scaffolded initiative keeps lint clean"
 assert_not_contains "$OUT" "scaffold-check.md" "scaffolded initiative produces no findings"
 rm -rf "$MI11"
 
+# --- Target status tokens are optional, but valid when asserted ---
+# Carries a task so rule 14 (open Target needs a task) does not also fire —
+# this fixture is exercising rule 13's token grammar only.
+MI12="$(new_sandbox)"; export MEMORY_DIR="$MI12"; build_clean "$MI12"
+cat >> "$MI12/initiatives/clean-initiative.md" <<'EOF'
+- task: 10000000-0000-4000-8000-000000000001
+- status: open — awaiting review
+EOF
+run_lint
+assert_exit 0 "$CODE" "valid Target status token passes"
+assert_not_contains "$OUT" "status must begin" "valid Target status token does not warn"
+rm -rf "$MI12"
+
+# --- a status assertion needs a machine-readable first token ---
+MI13="$(new_sandbox)"; export MEMORY_DIR="$MI13"; build_clean "$MI13"
+cat >> "$MI13/initiatives/clean-initiative.md" <<'EOF'
+- status: awaiting review
+EOF
+run_lint
+assert_exit 1 "$CODE" "tokenless Target status exits 1"
+assert_contains "$OUT" "clean-initiative.md Target 'good/review' status must begin" "tokenless Target status warns with Target id"
+rm -rf "$MI13"
+
+# --- markdown emphasis is not a machine-readable status token ---
+MI14="$(new_sandbox)"; export MEMORY_DIR="$MI14"; build_clean "$MI14"
+cat >> "$MI14/initiatives/clean-initiative.md" <<'EOF'
+- status: **DONE — historical result**
+EOF
+run_lint
+assert_exit 1 "$CODE" "emphasised Target status exits 1"
+assert_contains "$OUT" "clean-initiative.md Target 'good/review' status must begin" "emphasised Target status warns"
+rm -rf "$MI14"
+
+# --- software_adw Targets may omit an asserted status entirely ---
+MI15="$(new_sandbox)"; export MEMORY_DIR="$MI15"; build_clean "$MI15"
+run_lint
+assert_exit 0 "$CODE" "Target with no status line passes"
+assert_not_contains "$OUT" "status must begin" "Target with no status line does not warn"
+rm -rf "$MI15"
+
+# --- historical status prose is outside the machine-readable grammar ---
+MI16="$(new_sandbox)"; export MEMORY_DIR="$MI16"; build_clean "$MI16"
+cat >> "$MI16/initiatives/clean-initiative.md" <<'EOF'
+- status (historical): **DONE — historical result**
+EOF
+run_lint
+assert_exit 0 "$CODE" "historical Target status passes"
+assert_not_contains "$OUT" "status must begin" "historical Target status does not warn"
+rm -rf "$MI16"
+
+# --- rule 14: a live (open/blocked) Target must carry a task ---
+MI17="$(new_sandbox)"; export MEMORY_DIR="$MI17"; build_clean "$MI17"
+cat >> "$MI17/initiatives/clean-initiative.md" <<'EOF'
+
+### good/no-task
+- execution_mode: interactive
+- depends_on: none
+- status: open — needs decomposition
+EOF
+run_lint
+assert_exit 1 "$CODE" "open Target without a task exits 1"
+assert_contains "$OUT" "Target 'good/no-task' is open/blocked but has no task" "warning names the undecomposed Target"
+rm -rf "$MI17"
+
+# --- rule 14: an open Target with a task passes ---
+MI18="$(new_sandbox)"; export MEMORY_DIR="$MI18"; build_clean "$MI18"
+cat >> "$MI18/initiatives/clean-initiative.md" <<'EOF'
+
+### good/has-task
+- execution_mode: interactive
+- task: 20000000-0000-4000-8000-000000000002
+- depends_on: none
+- status: open — decomposed
+EOF
+run_lint
+assert_exit 0 "$CODE" "open Target with a task keeps lint clean"
+assert_not_contains "$OUT" "has no task" "task-bearing open Target does not warn"
+rm -rf "$MI18"
+
+# --- rule 14: a terminal (done/closed) Target is exempt even without a task ---
+MI19="$(new_sandbox)"; export MEMORY_DIR="$MI19"; build_clean "$MI19"
+cat >> "$MI19/initiatives/clean-initiative.md" <<'EOF'
+
+### good/finished
+- execution_mode: interactive
+- depends_on: none
+- status: done — shipped
+EOF
+run_lint
+assert_exit 0 "$CODE" "terminal Target without a task keeps lint clean"
+assert_not_contains "$OUT" "has no task" "terminal Target does not warn"
+rm -rf "$MI19"
+
+# --- rule 14: a Target asserting no status line at all is undeclared, not
+#     live — exempt. This is the shape of six real dispatch Targets today. ---
+MI20="$(new_sandbox)"; export MEMORY_DIR="$MI20"; build_clean "$MI20"
+run_lint
+assert_exit 0 "$CODE" "Target with no status line and no task keeps lint clean"
+assert_not_contains "$OUT" "has no task" "statusless Target does not warn"
+rm -rf "$MI20"
+
+# --- rule 15a: a task ref must appear on at most one Target, across ALL live
+#     initiative files (a single file here is enough to exercise the check). ---
+MI21="$(new_sandbox)"; export MEMORY_DIR="$MI21"; build_clean "$MI21"
+sed '/^### good\/prepare$/a\
+- task: 30000000-0000-4000-8000-000000000003
+' "$MI21/initiatives/clean-initiative.md" > "$MI21/initiatives/clean-initiative.md.t"
+mv "$MI21/initiatives/clean-initiative.md.t" "$MI21/initiatives/clean-initiative.md"
+cat >> "$MI21/initiatives/clean-initiative.md" <<'EOF'
+
+### good/duplicate-task
+- execution_mode: interactive
+- task: 30000000-0000-4000-8000-000000000003
+- depends_on: none
+EOF
+run_lint
+assert_exit 1 "$CODE" "one task on two Targets exits 1"
+assert_contains "$OUT" "task '30000000-0000-4000-8000-000000000003'" "warning names the shared task"
+assert_contains "$OUT" "good/prepare" "warning names the first Target"
+assert_contains "$OUT" "good/duplicate-task" "warning names the second Target"
+rm -rf "$MI21"
+
+# --- rule 15b: at most one live plan may carry a given task_ref ---
+MI22="$(new_sandbox)"; export MEMORY_DIR="$MI22"; build_clean "$MI22"
+sed '/^### good\/prepare$/a\
+- task: 40000000-0000-4000-8000-000000000004
+' "$MI22/initiatives/clean-initiative.md" > "$MI22/initiatives/clean-initiative.md.t"
+mv "$MI22/initiatives/clean-initiative.md.t" "$MI22/initiatives/clean-initiative.md"
+cat > "$MI22/projects/good/plans/plan-a.md" <<'EOF'
+---
+plan: plan-a
+status: draft
+created: 2026-09-01
+owner: seyi
+task_ref: 40000000-0000-4000-8000-000000000004
+---
+# plan-a
+EOF
+cat > "$MI22/projects/good/plans/plan-b.md" <<'EOF'
+---
+plan: plan-b
+status: draft
+created: 2026-09-01
+owner: seyi
+task_ref: 40000000-0000-4000-8000-000000000004
+---
+# plan-b
+EOF
+run_lint
+assert_exit 1 "$CODE" "one task_ref on two live plans exits 1"
+assert_contains "$OUT" "task '40000000-0000-4000-8000-000000000004'" "warning names the shared task_ref"
+assert_contains "$OUT" "plan-a.md" "warning names the first plan"
+assert_contains "$OUT" "plan-b.md" "warning names the second plan"
+rm -rf "$MI22"
+
+# --- rule 15b: `task_ref: none` is plans-only vocabulary and is never
+#     compared, even when a Target's task field is (degenerately) `none`. ---
+MI23="$(new_sandbox)"; export MEMORY_DIR="$MI23"; build_clean "$MI23"
+sed '/^### good\/prepare$/a\
+- task: none
+' "$MI23/initiatives/clean-initiative.md" > "$MI23/initiatives/clean-initiative.md.t"
+mv "$MI23/initiatives/clean-initiative.md.t" "$MI23/initiatives/clean-initiative.md"
+cat > "$MI23/projects/good/plans/plan-c.md" <<'EOF'
+---
+plan: plan-c
+status: draft
+created: 2026-09-01
+owner: seyi
+task_ref: none
+---
+# plan-c
+EOF
+cat > "$MI23/projects/good/plans/plan-d.md" <<'EOF'
+---
+plan: plan-d
+status: draft
+created: 2026-09-01
+owner: seyi
+task_ref: none
+---
+# plan-d
+EOF
+run_lint
+assert_exit 0 "$CODE" "task_ref none on two live plans does not warn"
+assert_not_contains "$OUT" "claimed by multiple live plans" "task_ref none is exempt from plan uniqueness"
+rm -rf "$MI23"
+
 finish

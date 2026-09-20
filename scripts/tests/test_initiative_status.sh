@@ -41,11 +41,19 @@ cat > "$MEM/projects/alpha/todo.md" <<'EOF'
 EOF
 printf '# Todo\n' > "$MEM/projects/beta/todo.md"
 
-plan() { printf '%s\n' '---' "plan: $2" "status: $1" '---' > "$3"; }
-plan draft draft "$MEM/projects/alpha/plans/draft.md"
-plan in_progress progress "$MEM/projects/alpha/plans/progress.md"
-plan "done" "done" "$MEM/projects/alpha/plans/done.md"
-plan draft archived "$MEM/projects/alpha/archive/plans/archived.md"
+# plan_tr <status> <slug> <task_ref> <path> — a plan carrying a task_ref, for
+# the task-keyed join (find_task_plans matches this field, never the filename).
+plan_tr() { printf '%s\n' '---' "plan: $2" "status: $1" "task_ref: $3" '---' > "$4"; }
+plan_tr draft draft t-draft-001 "$MEM/projects/alpha/plans/draft.md"
+plan_tr in_progress progress t-progress-001 "$MEM/projects/alpha/plans/progress.md"
+plan_tr "done" "done" t-done-001 "$MEM/projects/alpha/plans/done.md"
+plan_tr draft archived t-archived-001 "$MEM/projects/alpha/archive/plans/archived.md"
+plan_tr in_progress task-live-plan task-live-001 "$MEM/projects/alpha/plans/task-live-plan.md"
+# Archived under a name unrelated to its task_ref — proves the join resolves
+# by task_ref even when the archived plan was renamed on disk.
+plan_tr draft renamed-on-disk task-archived-001 "$MEM/projects/alpha/archive/plans/renamed-on-disk.md"
+plan_tr draft dup-a task-dup-001 "$MEM/projects/alpha/plans/dup-a.md"
+plan_tr draft dup-b task-dup-001 "$MEM/projects/alpha/plans/dup-b.md"
 
 cat > "$MEM/initiatives/ready.md" <<'EOF'
 ---
@@ -63,22 +71,22 @@ created: 2026-08-14
 - next_actor: human
 ### alpha/draft
 - execution_mode: software_adw
-- plan: projects/alpha/plans/draft.md
+- task: t-draft-001
 - stages: discover -> plan -> implement -> validate
 - depends_on: none
 ### alpha/progress
 - execution_mode: software_adw
-- plan: projects/alpha/plans/progress.md
+- task: t-progress-001
 - stages: discover -> plan -> implement -> validate
 - depends_on: alpha/draft (stage: plan)
 ### alpha/done
 - execution_mode: software_adw
-- plan: projects/alpha/plans/done.md
+- task: t-done-001
 - stages: discover -> plan -> implement -> validate
 - depends_on: alpha/progress (stage: implement)
 ### alpha/archived
 - execution_mode: software_adw
-- plan: projects/alpha/plans/archived.md
+- task: t-archived-001
 - stages: discover -> plan -> implement -> validate
 - depends_on: alpha/done (stage: validate)
 ### beta/interactive
@@ -87,46 +95,110 @@ created: 2026-08-14
 - status: done (asserted by test)
 ### beta/by-complete
 - execution_mode: software_adw
-- plan: projects/beta/plans/missing.md
+- task: t-missing-001
 - stages: discover -> plan -> implement
 - depends_on: alpha/done (stage: not-real)
 ### beta/by-interactive
 - execution_mode: software_adw
-- plan: projects/beta/plans/missing.md
+- task: t-missing-001
 - stages: discover -> plan -> implement
 - depends_on: beta/interactive
 ### beta/unknown-dependent
 - execution_mode: software_adw
-- plan: projects/beta/plans/missing.md
+- task: t-missing-001
 - stages: discover -> plan -> implement
 - depends_on: beta/by-complete (stage: implement)
 ### ghost/missing-checkout
 - execution_mode: software_adw
-- plan: projects/ghost/plans/x.md
+- task: t-ghost-001
 - stages: discover -> plan
 - depends_on: none
 ### alpha/bad-stage
 - execution_mode: software_adw
-- plan: projects/alpha/plans/draft.md
+- task: t-draft-001
 - stages: discover -> plan -> implement
 - depends_on: alpha/progress (stage: release)
 ### beta/behind
 - execution_mode: software_adw
-- plan: projects/beta/plans/missing.md
+- task: t-missing-001
 - stages: discover -> plan -> implement
 - depends_on: alpha/draft (stage: implement)
+### alpha/task-live
+- execution_mode: software_adw
+- task: task-live-001
+- stages: discover -> plan -> implement -> validate
+- depends_on: none
+### alpha/task-archived
+- execution_mode: software_adw
+- task: task-archived-001
+- stages: discover -> plan -> implement -> validate
+- depends_on: none
+### alpha/task-not-started
+- execution_mode: software_adw
+- task: task-missing-001
+- stages: discover -> plan -> implement -> validate
+- depends_on: none
+### alpha/task-duplicate
+- execution_mode: software_adw
+- task: task-dup-001
+- stages: discover -> plan -> implement
+- depends_on: none
+### ghost/task-missing-checkout
+- execution_mode: software_adw
+- task: task-ghost-001
+- stages: discover -> plan
+- depends_on: none
+### alpha/frozen-done
+- execution_mode: software_adw
+- task: task-should-be-ignored
+- stages: discover -> plan -> implement -> validate
+- depends_on: none
+- status: done (frozen; lookup must not run)
+### alpha/frozen-closed
+- execution_mode: software_adw
+- stages: discover -> plan -> implement -> validate
+- depends_on: none
+- status: closed (frozen; lookup must not run)
+### alpha/dep-on-frozen-done-stage
+- execution_mode: software_adw
+- stages: discover -> plan -> implement -> validate
+- depends_on: alpha/frozen-done (stage: implement)
+- next_actor: human
+### alpha/dep-on-frozen-done-plain
+- execution_mode: software_adw
+- stages: discover -> plan -> implement -> validate
+- depends_on: alpha/frozen-done
+- next_actor: human
+### alpha/dep-on-frozen-closed-stage
+- execution_mode: software_adw
+- stages: discover -> plan -> implement -> validate
+- depends_on: alpha/frozen-closed (stage: implement)
+- next_actor: human
+### alpha/dep-on-live-task-stage
+- execution_mode: software_adw
+- stages: discover -> plan -> implement -> validate
+- depends_on: alpha/task-live (stage: implement)
+- next_actor: human
 ## Closure
 Open.
 EOF
 
 out="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "ready initiative exits 0"
-assert_contains "$out" "| alpha/no-plan | software_adw | not-started | no plan pointer" "no plan maps to not-started"
-assert_contains "$out" "| alpha/draft | software_adw | plan | plan status: draft; todo: 1 open, 1 done" "draft maps to plan with todo counts"
-assert_contains "$out" "| alpha/progress | software_adw | implement | plan status: in_progress" "in_progress maps to implement"
-assert_contains "$out" "| alpha/done | software_adw | complete | plan status: done" "done maps to complete"
+assert_contains "$out" "| alpha/no-plan | software_adw | not-started | no task pointer" "no task and no plan maps to not-started"
+assert_contains "$out" "| alpha/draft | software_adw | plan | plan: projects/alpha/plans/draft.md; plan status: draft; todo: 1 open, 1 done" "draft maps to plan with todo counts"
+assert_contains "$out" "| alpha/progress | software_adw | implement | plan: projects/alpha/plans/progress.md; plan status: in_progress" "in_progress maps to implement"
+assert_contains "$out" "| alpha/done | software_adw | complete | plan: projects/alpha/plans/done.md; plan status: done" "done maps to complete"
 assert_contains "$out" "| alpha/archived | software_adw | complete | archived plan:" "archived plan maps to complete"
 assert_contains "$out" "| beta/interactive | interactive | done (asserted by test) | asserted in initiative" "interactive echoes asserted status"
+assert_contains "$out" "| alpha/task-live | software_adw | implement | plan: projects/alpha/plans/task-live-plan.md; plan status: in_progress" "task join finds live plan and maps its status"
+assert_contains "$out" "| alpha/task-archived | software_adw | complete | archived plan: projects/alpha/archive/plans/renamed-on-disk.md" "task join finds an archived plan renamed on disk (filename matching would lose this)"
+assert_contains "$out" "| alpha/task-not-started | software_adw | not-started | task task-missing-001: no plan carries it" "task with no plan anywhere is not-started"
+assert_contains "$out" "| alpha/task-duplicate | software_adw | unknown |" "duplicate task match fails closed to unknown"
+assert_contains "$out" "multiple live plans carry it: projects/alpha/plans/dup-a.md, projects/alpha/plans/dup-b.md" "duplicate-match evidence names every matching path"
+assert_contains "$out" "| ghost/task-missing-checkout | software_adw | unknown | checkout missing:" "missing checkout via the task path is unknown with reason, same as the plan path"
+assert_contains "$out" "| alpha/frozen-done | software_adw | done (frozen; lookup must not run) | asserted in initiative" "terminal 'done' short-circuits software_adw even with a task present"
+assert_contains "$out" "| alpha/frozen-closed | software_adw | closed (frozen; lookup must not run) | asserted in initiative" "terminal 'closed' short-circuits software_adw with no lookup"
 assert_contains "$out" "alpha/draft (stage: plan) — satisfied" "dependency satisfied by stage position"
 assert_contains "$out" "alpha/done (stage: not-real) — satisfied" "complete dependency is satisfied"
 assert_contains "$out" "beta/interactive — satisfied" "asserted-done interactive dependency is satisfied"
@@ -134,6 +206,21 @@ assert_contains "$out" "beta/by-complete (stage: implement) — unsatisfied (unk
 assert_contains "$out" "alpha/draft (stage: implement) — unsatisfied (at plan, needs implement)" "determinate shortfall labeled, not conflated with unknown"
 assert_contains "$out" "checkout missing:" "missing project checkout is unknown with reason"
 assert_contains "$out" "WARNING: Target 'alpha/bad-stage' depends on undeclared stage 'release'" "undeclared stage emits warning"
+
+# REGRESSION (dependency-satisfaction fix): a terminal `done` assertion on a
+# software_adw Target must satisfy a dependent's dependency mode-agnostically —
+# a frozen Target has no derivable stage, so this must not be gated on
+# execution_mode being interactive. Freezing a software_adw Target used to
+# break exactly the stage-qualified case below.
+assert_contains "$out" "alpha/frozen-done (stage: implement) — satisfied" "(a) frozen software_adw done satisfies a STAGE-QUALIFIED dependency"
+assert_contains "$out" "alpha/frozen-done — satisfied" "(b) frozen software_adw done satisfies an unqualified dependency"
+# (c) `closed` deliberately never satisfies, frozen or not — an abandoned
+# prerequisite must not unblock its dependents.
+assert_contains "$out" "alpha/frozen-closed (stage: implement) — unsatisfied (unknown)" "(c) frozen software_adw closed does NOT satisfy a dependency"
+# (d) a non-frozen software_adw Target (task-joined, not asserted) still
+# resolves a stage-qualified dependency through ordinary stage comparison —
+# proving the mode-agnostic fix did not shortcut this existing path.
+assert_contains "$out" "alpha/task-live (stage: implement) — satisfied" "(d) non-frozen software_adw dependency still resolves via normal stage comparison"
 
 missing="$(bash "$SCRIPT" absent 2>&1)"; rc=$?
 assert_exit 1 "$rc" "missing initiative exits nonzero"
@@ -149,7 +236,7 @@ snapshot="$MEM/initiatives/.state/ready.snapshot"
 assert_file "$snapshot" "first run writes a snapshot"
 assert_not_contains "$out" "## Stale targets" "first run reports no stale Targets"
 
-plan in_progress draft "$MEM/projects/alpha/plans/draft.md"
+plan_tr in_progress draft t-draft-001 "$MEM/projects/alpha/plans/draft.md"
 stale="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "advanced Target exits 0 with warning"
 assert_contains "$stale" "WARN: alpha/draft advanced (plan -> implement) with no new decision-stream entry" "advanced Target is stale without a stream entry"
@@ -173,7 +260,7 @@ snapshot_after_stream="$(cat "$snapshot")"
 assert_contains "$snapshot_after_stream" "alpha/draft implement" "stream append refreshes Target snapshot"
 assert_contains "$snapshot_after_stream" "stream-entries 1" "stream append refreshes stream count"
 
-plan "done" draft "$MEM/projects/alpha/plans/draft.md"
+plan_tr "done" draft t-draft-001 "$MEM/projects/alpha/plans/draft.md"
 before_ack="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "stale Target before ack exits 0"
 assert_contains "$before_ack" "WARN: alpha/draft advanced (implement -> complete) with no new decision-stream entry" "second advance is stale before ack"
@@ -186,7 +273,7 @@ fresh="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "unchanged stages exit 0"
 assert_not_contains "$fresh" "advanced" "unchanged Target is never stale"
 
-plan "done" progress "$MEM/projects/alpha/plans/progress.md"
+plan_tr "done" progress t-progress-001 "$MEM/projects/alpha/plans/progress.md"
 interactive_guard="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "interactive guard run exits 0"
 assert_contains "$interactive_guard" "WARN: alpha/progress advanced (implement -> complete) with no new decision-stream entry" "software Target still reports stale"

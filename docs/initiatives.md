@@ -26,12 +26,22 @@ created: YYYY-MM-DD
 
 Its `## Targets` section contains one `### <project>/<slug>` heading per
 Target. IDs are unique within the file. Common fields are `execution_mode:`,
-optional full-UUID `task:`, optional `plan: projects/<project>/plans/<file>.md`,
-`depends_on:`, and `next_actor:`. `software_adw` Targets additionally declare
-an ordered `stages:` list (`discover -> design -> plan`, for example).
-Interactive Targets carry an asserted `status:` instead and never declare
-stages. `lint-memory.sh` checks these structural rules and that dependency IDs
-resolve inside the same initiative.
+optional full-UUID `task:`, `depends_on:`, and `next_actor:`. `task:` is the
+only pointer a Target carries: it names the Target's work, and the plan that
+carries it out is found by matching that ref against plan frontmatter
+`task_ref`, never authored on the Target itself. `software_adw` Targets
+additionally declare an ordered `stages:` list (`discover -> design -> plan`,
+for example). Interactive Targets carry an asserted `status:` instead and
+never declare stages. `lint-memory.sh` checks these structural rules and that
+dependency IDs resolve inside the same initiative.
+
+A Target may assert a terminal status in any `execution_mode`:
+`status: done — <prose>` or `status: closed — <prose>`. The full grammar is
+`open | blocked | done | closed — <free prose>`; the first token is
+load-bearing; the rest is free text. A `done`- or `closed`-prefixed assertion
+short-circuits derivation entirely — no plan lookup, no checkout resolution —
+which is how a finished or abandoned Target stays readable without a task or
+a plan to point at.
 
 The decision stream is append-only: append a new decision and mark an older
 one `SUPERSEDES <id>`; do not rewrite history.
@@ -42,6 +52,18 @@ Record a cross-repo decision in the initiative `## Decision stream` at decision
 time as `D<n>-proposed`. Plan, runbook, and project-memory entries are
 projections that carry the stream id; the stream is the record. Check at every
 plan-phase completion and during `/checkpoint`, never at handover.
+
+`/start <ref>` first resolves the task, then read-only greps initiative files
+for its exact full `- task: <ref>` line. No match is silent. On one match it
+reads the initiative and reports the slug, Target id, `execution_mode`,
+`depends_on`, and that Target's `initiative-status.sh` row, including whether
+dependencies are satisfied; an unsatisfied dependency stops for user direction
+before planning. It reads `## Decision stream` before the design gate, and any
+new cross-repo decision settled during planning is appended as the next
+`D<n>-proposed` at decision time. Multiple matches are an error: lint rule 15a
+forbids one task on more than one Target. `/start` never writes the initiative:
+the Target names the task and the plan is derived by matching `task_ref`, so
+starting work requires no Target update.
 
 ## Create and close
 
@@ -69,18 +91,32 @@ stage/status, evidence, dependency satisfaction, and next actor.
 
 | Software ADW fact | Derived stage |
 |---|---|
-| no `plan:` pointer | `not-started` |
-| live plan `status: draft` | `plan` |
-| live plan `status: in_progress` | `implement` |
-| live plan `status: done`, or matching plan in `archive/plans/` | `complete` |
-| project memory, `repo_path` checkout, plan pointer, or plan cannot resolve | `unknown` |
+| terminal `status:` asserted (`done` or `closed`, any mode) | echoed as-is, no lookup |
+| no `task:` | `not-started` |
+| `task:` present but no plan's `task_ref` matches it, anywhere | `not-started` |
+| `task:` matches exactly one live plan, `status: draft` | `plan` |
+| `task:` matches exactly one live plan, `status: in_progress` | `implement` |
+| `task:` matches exactly one live plan, `status: done` | `complete` |
+| `task:` matches exactly one plan in `archive/plans/` (no live match) | `complete` |
+| `task:` matches two or more **live** plans | `unknown`, every path named |
+| no live match, two or more **archived** plans | `unknown`, every path named |
+| project memory or `repo_path` checkout cannot resolve | `unknown` |
+
+A live plan wins over an archived one carrying the same task: re-planned work
+resolves to the plan in flight, not the one already filed away.
+
+A plan's `task_ref: none` is never a match for any Target — it means that plan
+was not born from a Target, and it stays invisible to this join by design.
 
 Todo checkbox counts are evidence, not an independent status. Interactive
 Targets echo their asserted `status:` (or `no status asserted`). A dependency
 with `(stage: X)` is satisfied when its Target is complete, or has reached at
-least X in its declared stages; an asserted-done interactive Target also
-satisfies dependencies. Unknown facts fail closed. A requested stage not in
-the depended Target's declared list produces a warning.
+least X in its declared stages; a Target with a `done`-prefixed asserted
+status also satisfies a dependency — stage-qualified or not, since a frozen
+Target has no derivable stage to compare. A `closed`-prefixed assertion
+deliberately does *not* satisfy a dependency: an abandoned prerequisite must
+not unblock its dependents. Unknown facts fail closed. A requested stage not
+in the depended Target's declared list produces a warning.
 
 ## Staleness detection
 

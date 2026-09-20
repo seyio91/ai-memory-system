@@ -68,7 +68,7 @@ repo_path: $MEMORY_DIR
 # Project: proj
 EOF
 printf '# Todo\n' > "$MEM/projects/proj/todo.md"
-printf '%s\n' '---' 'plan: seeded' 'status: draft' '---' > "$MEM/projects/proj/plans/seeded.md"
+printf '%s\n' '---' 'plan: seeded' 'status: draft' 'task_ref: t-seeded-001' '---' > "$MEM/projects/proj/plans/seeded.md"
 printf '# Working\n\nWORKING-TAIL\n' > "$MEM/projects/proj/working.md"
 cat > "$MEM/initiatives/dispatch.md" <<'EOF'
 ---
@@ -81,7 +81,7 @@ created: 2026-08-15
 ## Targets
 ### proj/seeded
 - execution_mode: software_adw
-- plan: projects/proj/plans/seeded.md
+- task: t-seeded-001
 - stages: discover -> plan -> implement -> validate
 - depends_on: none
 ## Closure

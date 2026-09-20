@@ -13,6 +13,14 @@ Argument: `$ARGUMENTS` — a task `<ref>` (optional), plus an optional `--worktr
 - Read `project`, `title`, `summary`, `status` from the result. **The task's `project` may differ from the active project — always use the task's own `project` from here on** (refs are globally unique in the flat store, so you can start a task from any session).
 - If `status` is not `backlog`, warn the user it is already `<status>` and confirm before continuing.
 
+### Step 1.5 — is this task part of an initiative?
+- After Step 1 resolved the ref, run `grep -l -- '- task: <ref>' ~/.claude-memory/initiatives/*.md`, substituting the exact full ref — never a prefix. A short Notion UUID silently fails to match.
+- No hit: say nothing; most tasks are not initiative-backed, and a message every time is noise. Continue to Step 2.
+- One hit: read the initiative file. Report its slug, the Target id (the `### <project>/<slug>` heading containing the task), its `execution_mode`, and its `depends_on` line. Then run `bash ~/.claude-memory/scripts/initiative-status.sh <slug>` and quote that Target's row: derived stage and whether its dependencies are satisfied. Select the row by **anchoring on the id column** — `grep '^| <target-id> |'` — never by searching for the id anywhere in the output: Targets cite each other in their evidence and `next_actor` prose, so a bare match returns several rows and the first one belongs to a different Target (measured: 5 matches vs 1 anchored). If a dependency is unsatisfied, stop and ask the user before planning work that cannot land.
+- Read the initiative's `## Decision stream` before Step 2's design gate: a recorded cross-repo decision can constrain the design. Any new cross-repo decision settled while planning belongs there as the next `D<n>-proposed` at decision time, not at handover.
+- This step is **read-only**: never edit the initiative file. The Target names the task; the plan is found by matching `task_ref`, so nothing on the Target changes when work starts.
+- More than one matching initiative must not happen (lint rule 15a forbids it). Report every match and stop.
+
 ### Step 2 — classify (the gate, per orchestrator.md → Brainstorm gate)
 Classify the pulled `summary` (treat it as the initial request):
 - **Feature with open design questions** (new functionality / subsystem / integration / real architecture decision) → **invoke the `design-brainstorm` skill** with `title` + `summary` as the seed. Run its full process (clarify → 2-3 approaches → sectioned design). Its output is the approved design.
