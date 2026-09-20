@@ -12,7 +12,7 @@
 - [x] P2 — Task-keyed derivation (needs: P1)
 - [x] P3 — Retire `plan:` (needs: P2)
 - [x] P4 — `task:` requirement and uniqueness (needs: P1)
-- [ ] P5 — `/start` lookup, docs, changelog (needs: P2)
+- [x] P5 — `/start` lookup, docs, changelog (needs: P2)
 - [ ] Checkpoint — pre-ship (suite, lint set diff, live exercises, human review)
 
 ## Done

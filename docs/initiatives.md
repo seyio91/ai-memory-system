@@ -53,6 +53,18 @@ time as `D<n>-proposed`. Plan, runbook, and project-memory entries are
 projections that carry the stream id; the stream is the record. Check at every
 plan-phase completion and during `/checkpoint`, never at handover.
 
+`/start <ref>` first resolves the task, then read-only greps initiative files
+for its exact full `- task: <ref>` line. No match is silent. On one match it
+reads the initiative and reports the slug, Target id, `execution_mode`,
+`depends_on`, and that Target's `initiative-status.sh` row, including whether
+dependencies are satisfied; an unsatisfied dependency stops for user direction
+before planning. It reads `## Decision stream` before the design gate, and any
+new cross-repo decision settled during planning is appended as the next
+`D<n>-proposed` at decision time. Multiple matches are an error: lint rule 15a
+forbids one task on more than one Target. `/start` never writes the initiative:
+the Target names the task and the plan is derived by matching `task_ref`, so
+starting work requires no Target update.
+
 ## Create and close
 
 Use `/new-initiative <kebab-case-slug>` to scaffold an active instance from
