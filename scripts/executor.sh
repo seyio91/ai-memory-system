@@ -168,6 +168,24 @@ plane_token() {
     esac
 }
 
+# Harness family of the current R_PLANE/R_NAME; model suffix ignored.
+family_of_plane() {
+    case "$R_PLANE" in
+        subagent) printf 'subagent' ;;
+        cli)      printf '%s' "$R_NAME" ;;
+    esac
+}
+
+# Advisory stderr note when task resolves to the same family; never alters stdout/exit.
+warn_if_same_family() {
+    local vfam="$1" tfam
+    tfam="$(ROLE=task; resolve >/dev/null 2>&1 && family_of_plane)"
+    [ -n "$tfam" ] || return 0
+    [ "$vfam" = "$tfam" ] || return 0
+    printf 'executor: validate and task both resolve to %s — validation is not decorrelated; set AI_MEMORY_EXECUTOR_VALIDATE to another harness, or label the final pass '\''decorrelated: no'\''\n' "$vfam" >&2
+    return 0
+}
+
 validator_preamble() {
     local agent="$REPO_ROOT/agents/validator.md" first body
     [ -f "$agent" ] || { printf 'executor --run: validator prompt missing: %s\n' "$agent" >&2; return 1; }
@@ -204,6 +222,8 @@ case "$MODE" in
     --which)
         resolve || exit $?
         plane_token
+        # `if`, not `[ ] &&`: this branch's last status is the exit code.
+        if [ "$ROLE" = validate ]; then warn_if_same_family "$(family_of_plane)"; fi
         ;;
     --run)
         # Parse the remaining args: an optional --clean flag (either side of the
