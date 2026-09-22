@@ -203,6 +203,7 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `AI_MEMORY_EXECUTOR_TASK` | (legacy `AI_MEMORY_EXECUTOR` → `subagent`) | `executor.sh` — write-capable executor role — see [Workflow › Executor selection](workflow.md#executor-selection) |
 | `AI_MEMORY_EXECUTOR_EXPLORE` | (legacy `AI_MEMORY_EXECUTOR` → `subagent`) | `executor.sh` — read-only executor role — see [Workflow › Executor selection](workflow.md#executor-selection) |
 | `AI_MEMORY_EXECUTOR_VALIDATE` | `subagent` | `executor.sh` — read-only validator role; defaults to the orchestrator plane (does **not** chain to the legacy var) → cross-model validation by default |
+| `AI_MEMORY_ORCHESTRATOR` | *(unset)* | `executor.sh` — harness running the main session; names the subagent plane's family for the same-family `--which` warning. Unset: `codex` when `CODEX_THREAD_ID` is set, `claude` when `CLAUDECODE=1`, else `subagent` |
 | `AI_MEMORY_EXECUTOR` | `subagent` | `executor.sh` — legacy single var; fallback for `task`/`explore` only. `subagent` = the orchestrator's own subagent plane (`claude-subagent` accepted as legacy alias) |
 | `AI_MEMORY_EXECUTOR_CMD_<key>` | — | `executor.sh` — command template for a generic CLI executor |
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `subagent` | `executor.sh` — used when the preferred CLI binary is absent |

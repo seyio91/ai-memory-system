@@ -472,6 +472,7 @@ export PATH="$OLDPATH"
 # or the same cli:<name>, model suffix ignored), prints exactly one advisory
 # line to stderr. stdout/exit code for --which are byte-identical either way.
 unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_EXPLORE AI_MEMORY_EXECUTOR_VALIDATE
+unset CLAUDECODE AI_MEMORY_ORCHESTRATOR CODEX_THREAD_ID
 
 # Register a 'codex' harness in the sandboxed registry, reusing the codex stub
 # binary already created earlier in this file ($BIN/codex, still on disk).
@@ -521,7 +522,42 @@ assert_eq "subagent" "$OUT" "same-family(5): task --which stdout unaffected"
 assert_exit 0 "$CODE" "same-family(5): task --which exit 0"
 assert_eq "" "$ERR" "same-family(5): task role never emits the warning"
 
-unset AI_MEMORY_EXECUTOR_VALIDATE AI_MEMORY_EXECUTOR_TASK
+samefam_msg() { printf "executor: validate and task both resolve to %s — validation is not decorrelated; set AI_MEMORY_EXECUTOR_VALIDATE to another harness, or label the final pass 'decorrelated: no'" "$1"; }
+
+# --- (6) cli:codex vs cli:codex -> same family ---
+export AI_MEMORY_EXECUTOR_VALIDATE=codex AI_MEMORY_EXECUTOR_TASK=codex
+run --role validate --which
+assert_eq "cli:codex" "$OUT" "same-family(6): stdout unchanged (cli:codex)"
+assert_exit 0 "$CODE" "same-family(6): exit 0"
+assert_eq "$(samefam_msg codex)" "$ERR" "same-family(6): two cli:codex roles warn"
+
+# --- (7) Codex-orchestrated session: subagent IS codex ---
+export AI_MEMORY_EXECUTOR_VALIDATE=subagent AI_MEMORY_EXECUTOR_TASK=codex AI_MEMORY_ORCHESTRATOR=codex
+run --role validate --which
+assert_eq "subagent" "$OUT" "same-family(7): stdout unchanged (subagent)"
+assert_exit 0 "$CODE" "same-family(7): exit 0"
+assert_eq "$(samefam_msg codex)" "$ERR" "same-family(7): subagent under a codex orchestrator matches cli:codex"
+
+# --- (8) CLAUDECODE=1 names the subagent plane 'claude'; cli:codex stays distinct ---
+unset AI_MEMORY_ORCHESTRATOR; export CLAUDECODE=1
+run --role validate --which
+assert_eq "subagent" "$OUT" "same-family(8): stdout unchanged (subagent)"
+assert_exit 0 "$CODE" "same-family(8): exit 0"
+assert_eq "" "$ERR" "same-family(8): claude subagent vs cli:codex -> no warning"
+export AI_MEMORY_EXECUTOR_TASK=subagent
+run --role validate --which
+assert_eq "subagent" "$OUT" "same-family(8b): stdout unchanged (subagent)"
+assert_exit 0 "$CODE" "same-family(8b): exit 0"
+assert_eq "$(samefam_msg claude)" "$ERR" "same-family(8b): claude subagent vs claude subagent warns as claude"
+
+# --- (9) CODEX_THREAD_ID (codex shell) marks subagent as codex, and wins over an inherited CLAUDECODE ---
+export AI_MEMORY_EXECUTOR_TASK=codex CODEX_THREAD_ID=t-1
+run --role validate --which
+assert_eq "subagent" "$OUT" "same-family(9): stdout unchanged (subagent)"
+assert_exit 0 "$CODE" "same-family(9): exit 0"
+assert_eq "$(samefam_msg codex)" "$ERR" "same-family(9): codex session subagent vs cli:codex warns"
+
+unset AI_MEMORY_EXECUTOR_VALIDATE AI_MEMORY_EXECUTOR_TASK CLAUDECODE CODEX_THREAD_ID
 export PATH="$OLDPATH"
 
 finish
