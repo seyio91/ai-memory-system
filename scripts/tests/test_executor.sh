@@ -464,4 +464,64 @@ assert_exit 3 "$CODE" "--run --clean on the subagent plane exits 3 (--clean is a
 unset AI_MEMORY_EXECUTOR_VALIDATE
 export PATH="$OLDPATH"
 
+# ============ same-family advisory warning (validate vs task) ============
+# `--role validate --which` additionally resolves what `--role task --which`
+# would print (in a subshell, per warn_if_same_family — ROLE/R_* from the
+# validate resolution must survive untouched) and, iff the two land on the
+# same harness FAMILY (subagent plane incl. the legacy claude-subagent alias,
+# or the same cli:<name>, model suffix ignored), prints exactly one advisory
+# line to stderr. stdout/exit code for --which are byte-identical either way.
+unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_EXPLORE AI_MEMORY_EXECUTOR_VALIDATE
+
+# Register a 'codex' harness in the sandboxed registry, reusing the codex stub
+# binary already created earlier in this file ($BIN/codex, still on disk).
+mk_manifest codex 'name = codex' 'archetype = file' 'format = md' \
+    'exec_cmd = codex --executor {prompt}' \
+    'exec_readonly = codex exec --sandbox read-only {prompt}' \
+    'exec_probe = codex'
+export PATH="$BIN:$PATH"
+
+SAMEFAM_MSG="executor: validate and task both resolve to subagent — validation is not decorrelated; set AI_MEMORY_EXECUTOR_VALIDATE to another harness, or label the final pass 'decorrelated: no'"
+
+# --- (1) validate=subagent, task=subagent -> warns, exact one-line message ---
+export AI_MEMORY_EXECUTOR_VALIDATE=subagent
+export AI_MEMORY_EXECUTOR_TASK=subagent
+run --role validate --which
+assert_eq "subagent" "$OUT" "same-family(1): stdout unchanged (subagent)"
+assert_exit 0 "$CODE" "same-family(1): exit 0"
+assert_eq "$SAMEFAM_MSG" "$ERR" "same-family(1): exact one-line warning, validate=task=subagent"
+
+# --- (2) validate=subagent, task=claude-subagent (legacy alias) -> warns ---
+export AI_MEMORY_EXECUTOR_TASK=claude-subagent
+run --role validate --which
+assert_eq "subagent" "$OUT" "same-family(2): stdout unchanged (subagent)"
+assert_exit 0 "$CODE" "same-family(2): exit 0"
+assert_eq "$SAMEFAM_MSG" "$ERR" "same-family(2): warns on legacy claude-subagent alias"
+
+# --- (3) validate=subagent, task=codex (stub present) -> different families, no warning ---
+export AI_MEMORY_EXECUTOR_TASK=codex
+run --role validate --which
+assert_eq "subagent" "$OUT" "same-family(3): stdout unchanged (subagent)"
+assert_exit 0 "$CODE" "same-family(3): exit 0"
+assert_eq "" "$ERR" "same-family(3): different families -> no warning"
+
+# --- (4) validate=codex (stub present), task=subagent -> different families, no warning ---
+export AI_MEMORY_EXECUTOR_VALIDATE=codex
+export AI_MEMORY_EXECUTOR_TASK=subagent
+run --role validate --which
+assert_eq "cli:codex" "$OUT" "same-family(4): stdout unchanged (cli:codex)"
+assert_exit 0 "$CODE" "same-family(4): exit 0"
+assert_eq "" "$ERR" "same-family(4): different families -> no warning"
+
+# --- (5) --role task --which never prints the warning, even when same-family ---
+export AI_MEMORY_EXECUTOR_VALIDATE=subagent
+export AI_MEMORY_EXECUTOR_TASK=subagent
+run --role task --which
+assert_eq "subagent" "$OUT" "same-family(5): task --which stdout unaffected"
+assert_exit 0 "$CODE" "same-family(5): task --which exit 0"
+assert_eq "" "$ERR" "same-family(5): task role never emits the warning"
+
+unset AI_MEMORY_EXECUTOR_VALIDATE AI_MEMORY_EXECUTOR_TASK
+export PATH="$OLDPATH"
+
 finish
