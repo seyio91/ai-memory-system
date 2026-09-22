@@ -168,10 +168,14 @@ plane_token() {
     esac
 }
 
-# Harness family of the current R_PLANE/R_NAME; model suffix ignored.
+# Harness family of the current R_PLANE/R_NAME; model suffix ignored. The subagent
+# plane is the orchestrator's own harness: AI_MEMORY_ORCHESTRATOR, else CLAUDECODE=1.
 family_of_plane() {
     case "$R_PLANE" in
-        subagent) printf 'subagent' ;;
+        subagent)
+            if [ -n "${AI_MEMORY_ORCHESTRATOR:-}" ]; then printf '%s' "$AI_MEMORY_ORCHESTRATOR"
+            elif [ "${CLAUDECODE:-}" = 1 ]; then printf 'claude'
+            else printf 'subagent'; fi ;;
         cli)      printf '%s' "$R_NAME" ;;
     esac
 }

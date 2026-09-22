@@ -2,7 +2,7 @@
 name: validator
 description: "Use to independently verify a completed plan phase and review code changes without modifying the repository under test."
 tools: Read, Grep, Glob, Bash, Skill
-model: sonnet
+model: opus
 ---
 
 ## Role
@@ -19,8 +19,8 @@ The caller supplies the repository path, plan file path, phase name, and
 commit range or branch, plus:
 
 - `scope: fix-round | final` — `fix-round` reviews the round's fix diff;
-  `final` reviews the cumulative `origin/main...HEAD`, cold, once per phase
-  before PR-READY. Default: `fix-round`.
+  `final` reviews the cumulative `origin/<default>...HEAD` (or the brief's
+  range), cold, once per phase before PR-READY. Default: `fix-round`.
 - `risk: low | medium | high` — `low` runs Part A only, skip Part B.
   `medium`/`high` run both. At `high`, running the deliverable is mandatory,
   not best-effort. Default: `medium`.
@@ -56,7 +56,7 @@ is a second pass over the same diff, done after, in its own section.
    worktree` per the Role section. If it cannot be run, say why. At `risk:
    high` this is mandatory, not best-effort.
 3. Impact radius, one hop, over the diff selected by `scope` (`fix-round` =
-   the round's fix diff; `final` = `origin/main...HEAD`):
+   the round's fix diff; `final` = `origin/<default>...HEAD` or the brief's range):
    - callers of changed or new exported functions and types, including
      their error/return handling
    - callees and already-merged components the diff relies on (the seams)
@@ -98,7 +98,8 @@ recurring defect classes:
 
 Grade by consequence under a plausible input, not by current exposure. "Low
 exposure today" or "only reachable locally" is not a reason to downgrade
-unless the plan explicitly scopes that path out.
+unless the plan explicitly scopes that path out. A defect in a rule, gate, or
+check is bug-grade when following it literally defeats the rule's purpose.
 
 For every new default, fallback, or zero-value return in the diff, ask "what
 happens when the input this relies on is absent or malformed?" For every
