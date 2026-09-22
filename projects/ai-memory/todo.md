@@ -13,5 +13,11 @@
 - [x] P3 — doctrine and docs (needs: P1)
 - [x] Pre-PR checkpoint — suite, lint diff, live `scope: final` run, PR (needs: P1, P2, P3)
 
+### Writable temp dir for codex read-only validator runs → [plan](plans/codex-validator-scratch-dir.md)
+- [ ] P1 — resolver: `exec_validate`
+- [ ] P2 — `codex-mem.sh --validator`
+- [ ] P3 — prompt and docs
+- [ ] Pre-PR checkpoint — live codex run, suite, lint diff, PR (needs: P1, P2, P3)
+
 ## Done
 _(checked items stay above until the file is rolled)_

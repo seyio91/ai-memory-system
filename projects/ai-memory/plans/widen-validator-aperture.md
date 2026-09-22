@@ -1,6 +1,7 @@
 ---
 plan: widen-validator-aperture
-status: in_progress
+status: done
+completed: 2026-09-22
 created: 2026-09-22
 owner: claude (orchestrator)
 task_provider: notion
