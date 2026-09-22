@@ -17,8 +17,10 @@
 | Orchestrator | main session | per harness | Plans, decomposes into `todo.md` items, delegates non-trivial work. **Handles short tasks directly when delegating would be more overhead than the work. Handles all research/exploration directly — no plan/todo/executor for read-only investigation.** |
 | Executor | selectable via `AI_MEMORY_EXECUTOR[_TASK]` (see [Executor selection](#executor-selection)) | per executor | Writes code/config in the workspace; runs read-only commands; never applies/merges to infra. `subagent` (in-harness Agent tool, `sonnet`/`haiku`) by default; `codex` or another CLI when configured. |
 | Validator | selectable via `AI_MEMORY_EXECUTOR_VALIDATE` (resolve via `executor.sh --role validate --which`); **read-only**; defaults to the orchestrator's agent plane | per validator | Independent check on executor output. **Read-only** — it verifies, never repairs — so it resolves through the harness's `exec_readonly` face and degrades to the subagent plane when a harness has no read-only mode. When its var is unset it defaults to `subagent` (the orchestrator's own plane), **not** the executor's value, so validation is **cross-model by default** — a CLI executor is checked by a decorrelated model. Independence still also comes from it being a **separate, fresh invocation** against the plan's `## Success criteria` (see [Task Contract](#task-contract)) — each criterion pass/fail with evidence, Part A scope capped to exactly those. Invoked on orchestrator's judgment when correctness matters: code writes, terraform changes, GitOps-visible ops, multi-step state. |
-**For code phases, validation has two parts:** Part A verifies the contract; Part B reviews the branch diff and grades findings bug / risk / nit.
-**A PR opens only when Part A passes and Part B has no bug-grade finding;** report the two parts separately.
+**For code phases, validation has two parts:** Part A verifies the contract; Part B reviews the diff selected by `scope` (`fix-round` = the round's fix diff, default; `final` = `origin/main...HEAD`, once per phase before PR-READY) and grades findings bug / risk / nit. Defect classes and the cold-first review procedure are single-sourced in [`agents/validator.md`](../agents/validator.md).
+**Risk tiers** (`risk:`, chosen by orchestrator judgement): `low` (prose/docs/consumer-less config) → Part A only; `medium` (ordinary code) → Part A + fix-round review, one final pass; `high` (untrusted input, exec/argv, shared state, output consumed by later phases, security) → all of it, cross-model final pass and run-it mandatory.
+**A PR opens only when Part A passes and Part B has no bug-grade finding;** report the two parts separately. The validator reports, it never fixes.
+**Round cap:** a round is one validator verdict on the branch, counting PR-bot review rounds that triggered fixes. At 5 rounds still NOT-READY, stop and escalate to the user with bug-grade findings per round (converging?), recurring defect classes, and options: continue with a named scope, narrow the phase, accept documented risks, or redesign. Where a PR bot exists, open the PR as draft and triage its findings before marking ready — a bonus layer, not the mechanism.
 
 > **Validator = read-only, cross-model by default, separate invocation.** The orchestrator runs
 > `scripts/executor.sh --role validate --which` and invokes that backend (`subagent[:model]` →
@@ -29,7 +31,10 @@
 > explicitly to pin a specific validator (nothing enforces a capability floor — the default just
 > can't self-select a weak model, as `subagent` carries no `:model` suffix). The
 > independence that makes validation meaningful comes from the **separate invocation against the
-> Success criteria** — now reinforced by model decorrelation.
+> Success criteria** — now reinforced by model decorrelation. `--which` also warns on stderr
+> when validate and task resolve to the same harness family; for the once-per-phase `scope:
+> final` pass, either set `AI_MEMORY_EXECUTOR_VALIDATE` to another family or label the report
+> `decorrelated: no`.
 >
 > The fixed validator prompt is [`agents/validator.md`](../agents/validator.md): Claude invokes
 > its `validator` subagent type, while CLI `--run` prepends its body; callers supply only repo,
