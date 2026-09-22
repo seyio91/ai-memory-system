@@ -8,10 +8,10 @@
 ## Active
 
 ### Widen the validator's aperture → [plan](plans/widen-validator-aperture.md)
-- [ ] P1 — validator prompt
-- [ ] P2 — same-family warning
-- [ ] P3 — doctrine and docs (needs: P1)
-- [ ] Pre-PR checkpoint — suite, lint diff, live `scope: final` run, PR (needs: P1, P2, P3)
+- [x] P1 — validator prompt
+- [x] P2 — same-family warning
+- [x] P3 — doctrine and docs (needs: P1)
+- [x] Pre-PR checkpoint — suite, lint diff, live `scope: final` run, PR (needs: P1, P2, P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_
