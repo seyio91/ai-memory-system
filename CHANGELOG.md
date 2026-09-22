@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-22
+### Added
+
+`AI_MEMORY_EXECUTOR_GH_TOKEN=1` (opt-in, `config.local.sh`) makes `codex-mem.sh --executor`
+fetch `gh auth token` at launch and export `GH_TOKEN` plus a `gh` git credential helper into
+the run. The codex sandbox cannot read the macOS keychain, so without it `gh` returns
+HTTP 401 and an HTTPS `git push` finds no credential. Default stays credential-free: the
+executor commits and pushes, the orchestrator opens the PR. Loud on stderr if `gh auth token`
+comes back empty, and it leaves an existing `GIT_CONFIG_COUNT` chain alone.
+- **Initiative consultation now has decision-time triggers.** Snapshot-based
+  staleness detection persists until `--ack` or a stream append, an
+  exception-only session-start alert surfaces stale Targets, and `/checkpoint`
+  plus phase completion capture cross-repo decisions as `-proposed` in the
+  stream first; plan, runbook, and project-memory entries reference that record.
+- **Initiative Targets now join work through tasks.** A Target names its task;
+  readiness finds the plan by full `task_ref` in live plans, then archived
+  plans, with duplicate matches failing closed. `done`/`closed` terminal
+  assertions short-circuit derivation in every mode, and Target `status:` now
+  begins with machine-readable `open`, `blocked`, `done`, or `closed`.
+  `lint-memory.sh` adds rules 13 (status token), 14 (a live Target needs a
+  task), and 15 (a task appears on at most one Target and one live plan).
+  `/start` now read-only reports initiative membership and readiness.
+- Add the initiative layer: a tracked scaffold and lint rules, `/new-initiative`, local readiness derivation, and initiative documentation.
+- **`/new-plan` no longer skips the task lifecycle.** It takes `--task <ref>` or
+  `--no-task` and otherwise asks once, then runs the same linking step as
+  `/start` — both commands now share one injected `task-link` partial rather
+  than separate copies. `apply-partial.sh` gained a `--file` target mode to
+  carry it. A new lint rule flags a live plan with no `task_ref`; `task_ref: none`
+  is the explicit marker for deliberately plan-only work.
+- Add a single-source validator prompt for Claude subagents and CLI validation runs.
+- **Validator rounds are now scoped and capped.** The orchestrator briefs fix rounds with `scope: fix-round` and runs one `scope: final` cold pass over `origin/main...HEAD` per phase before PR-READY, decorrelated by model family where possible. `risk:` (low/medium/high) sets how much of Part B runs. Rounds cap at 5 (PR-bot rounds that triggered fixes count) before escalating to the user. Defect classes are single-sourced in `agents/validator.md`; the doctrine only points at them.
+- **Validator Part B checks four more defect classes.** Added from a real review miss (platform-agent PR #3): background/shared work with no cancellation once its last caller leaves, identity or keys derived from incidental data instead of the canonical field, silent degradation of a missing required value into a zero/empty/default, and network listeners or clients without transport-level timeouts. Findings are now graded by consequence under a plausible input, not current exposure, and the review prompt asks explicitly what happens when a new default's input is absent or malformed and what stops background/shared work.
+- **Code-phase validation now includes independent review.** Part A verifies the plan contract; Part B reviews the branch diff, with PR creation gated on Part A passing and no bug-grade finding.
+
+### Fixed
+
+Codex executor can commit again: `codex-mem.sh --executor` adds the repo's git dir to
+`sandbox_workspace_write.writable_roots`. codex's `workspace-write` sandbox remounts `.git`
+read-only, so `git add`/`git commit` failed with `Unable to create .git/index.lock:
+Operation not permitted` while working-tree edits succeeded. No-op outside a git repo.
+- Scope `task_ref: none` to plans: investigations now warn because they always require a task lifecycle anchor.
+- **Validator follow-ups.** The same-family warning now treats the subagent plane as the orchestrator's harness (`AI_MEMORY_ORCHESTRATOR`, else detected from `CODEX_THREAD_ID` / `CLAUDECODE=1`), so a Codex-orchestrated session validating a `cli:codex` executor is flagged. `scope: final` uses the default branch's merge base instead of a hardcoded `origin/main`. `risk: high` escalates instead of falling back to a same-model final pass. The validator defaults to Opus and grades a rule defect as a bug when following it literally defeats the rule's purpose.
+
 ## [1.5.0] - 2026-09-08
 ### Added
 
