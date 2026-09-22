@@ -33,9 +33,10 @@
 > independence that makes validation meaningful comes from the **separate invocation against the
 > Success criteria** — now reinforced by model decorrelation. `--which` also warns on stderr
 > when validate and task resolve to the same harness family (the subagent plane counts as the
-> orchestrator's harness: `AI_MEMORY_ORCHESTRATOR`, else `claude` under `CLAUDECODE=1`); for the once-per-phase `scope:
-> final` pass, set `AI_MEMORY_EXECUTOR_VALIDATE` to another family; only if none is available,
-> run it same-model and label the report `decorrelated: no`.
+> orchestrator's harness: `AI_MEMORY_ORCHESTRATOR`, else `codex` under `CODEX_THREAD_ID`, else
+> `claude` under `CLAUDECODE=1`); for the once-per-phase `scope:
+> final` pass, set `AI_MEMORY_EXECUTOR_VALIDATE` to another family; only if none is available
+> (never at `risk: high` — escalate), run it same-model and label the report `decorrelated: no`.
 >
 > The fixed validator prompt is [`agents/validator.md`](../agents/validator.md): Claude invokes
 > its `validator` subagent type, while CLI `--run` prepends its body; callers supply only repo,
