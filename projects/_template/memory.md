@@ -16,7 +16,11 @@ summary: <one-line description for the index — replace before use>
 One-line description. Stack, scale, ownership.
 
 ## Current State
-What's deployed and stable vs. what's in flight.
+What's deployed and stable vs. what's in flight. A standing description, not a
+log: no dated entries, no "PR #N merged". It should read the same whether or
+not something shipped today. Session history and what-landed-when go in
+`working.md`; actionable work goes in `todo.md`. A write here is checked by
+`scripts/check-changelog-drift.sh`.
 
 ## Architecture Decisions
 Locked-in choices (with the why if non-obvious). Things that are off the table.

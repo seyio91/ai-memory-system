@@ -39,6 +39,8 @@ Base path: `~/.claude-memory/`
 
 - **Unsure where it belongs yet** → also append to the active project's `working.md`; classify on promotion.
 
+**`memory.md` holds what stays true; `working.md` holds what happened.** The wiki tier records decisions, constraints and standing state — never a dated log of PRs merged or work shipped. Git already holds the events, and a memory file that grows an append-only changelog costs context on every session start while burying the durable entries under it. If you are about to write `**<date>:** … merged`, that paragraph belongs in `working.md`. Enforced after every write by `scripts/hooks/memory_write_guard.sh`, which reports drift back to you in the same turn.
+
 **Checkpoint before pauses, tool switches, or session end.** Append or update a checkpoint in the active project's `working.md` capturing: task / done / next / blockers. Update it as work progresses, not only at the end. Use `/checkpoint` for structured capture, or write directly when the rhythm is informal. Checkpoints survive into Codex sessions via the codex-mem adapter.
 
 **Promote durable scratchpad entries** with `/promote-memory`. The command lets you target a domain file (cross-project) or the active project's `memory.md` (under a `## Decisions Log` section).
