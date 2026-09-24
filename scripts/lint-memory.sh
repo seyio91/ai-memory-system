@@ -174,14 +174,16 @@ done
 #    are deliberately narrow to spare legit single-anchor gotchas like
 #    "fixed in PR #83 via ..." or "restored in <hash>" — only multi-PR / "X merged" /
 #    "complete as of" framings, which are unambiguously changelog.
-CHANGELOG_RE='merged via PR|PRs #[0-9]|PR #[0-9]+ merged|complete as of'
+#    The patterns live in check-changelog-drift.sh so that this sweep and the
+#    memory-write hook share one definition — a rule enforced in two places
+#    with two copies of the regex is a rule that will disagree with itself.
 for f in "$MEMORY_DIR"/projects/*/memory.md "$MEMORY_DIR"/domain/*.md; do
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
-    while IFS=: read -r lineno _; do
-        [ -n "$lineno" ] || continue
-        emit "WARN:  $f:$lineno changelog drift — reads as an event, not a decision (rewrite present-tense or drop)"
-    done < <(grep -nE "$CHANGELOG_RE" "$f" 2>/dev/null)
+    while IFS= read -r finding; do
+        [ -n "$finding" ] || continue
+        emit "WARN:  changelog drift — ${finding#"$MEMORY_DIR"/}"
+    done < <("$SCRIPT_DIR/check-changelog-drift.sh" "$f" 2>/dev/null)
 done
 
 # 8. Plan status vocabulary — a live plan carries exactly one of `draft`,
