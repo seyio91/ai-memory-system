@@ -39,17 +39,54 @@ In both cases the terminal handoff is the same: `/new-plan`, with the approved d
 
 Work through these in order. Each is a step you can track in `todo.md` if the task already has one.
 
-1. **Explore context.** Read the active project's `memory.md` (it's already injected), the relevant files, and recent commits. If you were reached from `/start`, the captured task's summary is your starting intent — read it first. Don't ask the user what the code or the summary already tells you.
+1. **Explore context.** Read the active project's `memory.md` (it's already injected), the relevant files, and recent commits — enough to ask a good first round, not an exhaustive survey. If you were reached from `/start`, the captured task's summary is your starting intent — read it first. Don't ask the user what the code or the summary already tells you; fetch further facts as questions need them (see *Asking questions in rounds*).
 2. **Scope check.** If the request is actually several independent features ("build chat + billing + analytics"), say so before refining details. Help decompose into separate features; each gets its own brainstorm → plan cycle. Don't spend questions polishing something that needs splitting first.
-3. **Clarify intent.** Ask about purpose, constraints, and what "done" looks like. One question at a time when the answer genuinely shapes the design; batch a few when the task is well-specified and you're just confirming. Prefer multiple-choice when it's faster for the user. Stop asking once you can state the goal and the success criteria back accurately.
+3. **Clarify intent.** Ask about purpose, constraints, and what "done" looks like, in rounds (see *Asking questions in rounds*). Prefer multiple-choice when it's faster for the user. Stop asking once you can state the goal and the success criteria back accurately.
 4. **Propose 2-3 approaches.** With trade-offs and a recommendation, leading with the one you'd pick and why. This is where alternatives get surfaced and rejected on the record, not silently.
 5. **Present the design in sections.** Scale each section to its complexity — a sentence or two when straightforward, a paragraph when nuanced. Cover the pieces that matter: unit boundaries and interfaces, data flow, error handling, testing. Get a quick approval after each section; go back and revise when something doesn't land.
 
 Design for clear boundaries: each unit should have one job, a well-defined interface, and be understandable and testable on its own. A file that wants to grow large is usually doing too much.
 
+## Asking questions in rounds
+
+Steps 3–5 put questions to the user. Ask them in **rounds** — not one at a time, not all at once.
+
+Treat the design as a **tree**: each decision has further decisions hanging off it. The **frontier** is every open decision whose prerequisites are already settled — the questions you can ask now without guessing at an answer you haven't heard yet. Ask the whole frontier in one round, then wait. Answers settle decisions and push the frontier outward; recompute it and ask the next round. A question that depends on another question still open in this round belongs to a *later* round, not this one.
+
+Count rounds, not questions. A clear feature may need one round of three questions — that is a success, not a shortcut.
+
+Put each round to the user with the **`AskUserQuestion` tool** when the harness has it:
+
+- One tool question per frontier question, with a short `header` and 2–4 options phrased as *answers* (not yes/no), so there's no ambiguity about what agreeing means.
+- Put your recommended option **first** and suffix its label with `(Recommended)`; use the option `description` for the one-line reason.
+- The tool takes at most 4 questions per call. A frontier larger than that is still one round — send it as consecutive calls before recomputing.
+- A question with no natural option set (open-ended "what should X contain?") goes in plain text alongside the call — the tool's automatic "Other" is not a substitute for a real open question.
+
+Without the tool (e.g. a Codex session), ask the round as a numbered list with your recommendation on its own line under each question, so the user can reply by number ("1 A, 2 yes, 3 no — because…").
+
+**Facts are yours; decisions are the user's.** When a frontier question needs a fact the environment can answer — code, config, git history, live read-only state — look it up; never ask the user. For anything beyond a quick read, dispatch an `Explore` sub-agent in the background. Don't block on it: a running lookup is an unsettled prerequisite, so only the questions downstream of it wait — ask the rest of the frontier now.
+
+Decisions are the user's: put each one to them and wait. Never answer your own decision question and carry on. This matters most when reached from `/start`: a captured task summary states intent, it does not settle design decisions it didn't explicitly make.
+
+**Some questions talking can't settle.** "How should this feel?", "Is this fast enough?", "Will the controller actually behave the way its docs say?" — these need something to react to or measure, not another rephrasing. When you hit one, stop asking it. Record it under `## Risks / open questions` with what would settle it, and propose a **spike as the plan's first phase** so the answer lands before the work that depends on it. Branches hanging off that question stay open; design only what doesn't depend on it.
+
+**Reopen, don't paper over.** The frontier is your judgement, not a computed graph. Sometimes an answer changes a decision already settled, or two questions you put in the same round turn out to interact. When that happens, name the earlier decision it affects and reopen that branch — and everything downstream of it — in the next round. Don't quietly reconcile the conflict yourself.
+
+## Closing gate
+
+The dialogue is done when the frontier is empty: every branch of the design tree visited, nothing left silently assumed.
+
+Before `/new-plan`, play the design back in one short message:
+
+- **Decided** — each decision the user made, one line each.
+- **Assumed** — anything you are taking as given that the user never explicitly decided: defaults you picked, facts you looked up that the design rests on, scope you inferred. This list is the point of the gate.
+- **Deferred** — what goes to `## Risks / open questions`.
+
+Then ask the user to confirm you share the same understanding. Do not scaffold the plan until they do. A correction reopens the affected branch as a new round.
+
 ## Output: fold the design into the plan
 
-Once the design is approved, the terminal step is **`/new-plan <name>`**, then write the approved design into the scaffolded sections of `projects/<active>/plans/<name>.md`:
+Once the closing gate passes, the terminal step is **`/new-plan <name>`**, then write the approved design into the scaffolded sections of `projects/<active>/plans/<name>.md`:
 
 - **`## Goal`** ← the clarified purpose (one or two sentences). When reached from `/start`, this clarified Goal is also what `/start` pushes back to the task as the refined summary — so keep it clean and self-contained.
 - **`## Success criteria`** ← the checkable conditions derived *with* the user during clarification. This is the Task Contract — brainstorming is what makes these collaboratively-derived rather than orchestrator-guessed.
@@ -67,7 +104,7 @@ An **investigation** (`projects/<project>/investigations/<slug>.md`) is a differ
 - **YAGNI ruthlessly** — cut features that aren't needed from every design.
 - **Explore alternatives** — always 2-3 approaches before settling.
 - **Incremental validation** — present in sections, approve as you go.
-- **Be flexible** — go back and re-clarify when something stops making sense.
+- **Be flexible** — when an answer unsettles an earlier decision, reopen that branch rather than working around it.
 - **Don't over-ask** — the goal is a good-enough design fast, not an interrogation. A short design for a clear feature is a success, not a shortcut.
 
 ## What this skill deliberately does not do
