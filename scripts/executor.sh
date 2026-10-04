@@ -21,7 +21,8 @@
 #   executor.sh [--role ...] --show                    -> human-readable diagnostics
 #
 # A registered harness resolves through its manifest: exec=subagent -> subagent
-# plane; else exec_cmd (task) / exec_readonly (explore/validate), gated on
+# plane; else exec_cmd (task) / exec_readonly (explore) / exec_validate falling
+# back to exec_readonly (validate), gated on
 # exec_probe being on PATH. A harness with no read-only mode is skipped for
 # `explore`/`validate` (degrades to the subagent plane), never run write-capable.
 # An unregistered name falls back to a legacy AI_MEMORY_EXECUTOR_CMD_<key> template.
@@ -79,7 +80,7 @@ cmd_template() {
 #   0 resolved | 1 CLI unavailable | 2 unknown / no execute face
 R_PLANE="" R_NAME="" R_MODEL="" R_CMD="" R_LASTMSG=""
 resolve_value() {
-    local value="$1" harness model mf cmd mflag probe
+    local value="$1" harness model mf cmd mflag probe keys
     harness="${value%%:*}"; model=""
     case "$value" in *:*) model="${value#*:}" ;; esac
     R_PLANE="" R_NAME="$harness" R_MODEL="$model" R_CMD="" R_LASTMSG=""
@@ -95,9 +96,11 @@ resolve_value() {
     if [ -n "$mf" ]; then
         if [ "$(manifest_get "$mf" exec)" = subagent ]; then R_PLANE=subagent; return 0; fi
         case "$ROLE" in explore|validate)
-            cmd="$(manifest_get "$mf" exec_readonly)"
+            keys=exec_readonly cmd=""
+            if [ "$ROLE" = validate ]; then keys="exec_validate/exec_readonly"; cmd="$(manifest_get "$mf" exec_validate)"; fi
+            [ -n "$cmd" ] || cmd="$(manifest_get "$mf" exec_readonly)"
             if [ -z "$cmd" ]; then
-                printf 'executor: harness %s has no read-only mode (exec_readonly) — %s degrades to the subagent plane\n' "$harness" "$ROLE" >&2
+                printf 'executor: harness %s has no read-only mode (%s) — %s degrades to the subagent plane\n' "$harness" "$keys" "$ROLE" >&2
                 R_PLANE=subagent; R_MODEL=""; return 0
             fi
             ;;

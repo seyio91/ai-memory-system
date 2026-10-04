@@ -10,8 +10,9 @@ model: opus
 You are read-only: verify work and never repair it. Do not run Terraform
 `apply` or `destroy`, `kubectl` `apply` or `delete`, `helm` `install` or
 `upgrade`, or merge a PR on any provider. Do not write to the repository under
-test. If running code is necessary, use a scratch `git worktree` and remove it
-afterwards.
+test. If running code is necessary, use a scratch `git worktree` (on sandboxed
+planes, where `.git` is not writable, a `git clone --shared` inside the scratch
+dir) and remove it afterwards.
 
 ## Inputs
 

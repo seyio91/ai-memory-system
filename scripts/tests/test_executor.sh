@@ -285,6 +285,26 @@ run --role explore --which
 assert_eq "subagent" "$OUT" "explore: degrade drops the foreign model suffix"
 unset AI_MEMORY_EXECUTOR_EXPLORE
 
+# validate prefers exec_validate; falls back to exec_readonly; explore ignores exec_validate
+mk_manifest wv  'name = wv' 'archetype = file' 'format = md' \
+    'exec_cmd = wwbin --do {prompt}' 'exec_readonly = wwbin --ro {prompt}' \
+    'exec_validate = wwbin --vv {prompt}' 'exec_probe = wwbin'
+export AI_MEMORY_EXECUTOR_VALIDATE=wv
+run --role validate --run "x"
+assert_contains "$(cat "$WMARK")" "--vv" "validate: exec_validate preferred over exec_readonly"
+export AI_MEMORY_EXECUTOR_VALIDATE=ww
+run --role validate --run "x"
+assert_contains "$(cat "$WMARK")" "--ro" "validate: only exec_readonly -> exec_readonly used"
+export AI_MEMORY_EXECUTOR_VALIDATE=tt
+run --role validate --which
+assert_eq "subagent" "$OUT" "validate: neither key -> subagent degrade"
+assert_contains "$ERR" "exec_validate/exec_readonly" "validate degrade names both keys"
+export AI_MEMORY_EXECUTOR_EXPLORE=wv
+run --role explore --run "x"
+assert_contains "$(cat "$WMARK")" "--ro" "explore: uses exec_readonly despite exec_validate"
+assert_eq "" "$(grep -o -e '--vv' "$WMARK")" "explore: must ignore exec_validate"
+unset AI_MEMORY_EXECUTOR_EXPLORE
+
 # validate --run uses exec_readonly AND advertises the validate role
 export AI_MEMORY_EXECUTOR_VALIDATE=ww
 run --role validate --run "check the diff"
