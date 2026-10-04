@@ -7,7 +7,7 @@
 
 ## Active
 
-### Widen the validator's aperture → [plan](plans/widen-validator-aperture.md)
+### Widen the validator's aperture → [plan](archive/plans/widen-validator-aperture.md)
 - [x] P1 — validator prompt
 - [x] P2 — same-family warning
 - [x] P3 — doctrine and docs (needs: P1)
