@@ -34,6 +34,7 @@ commands       = skill
 # gates availability on the codex bin.
 exec_cmd        = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh --executor {prompt}
 exec_readonly   = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh exec --dangerously-bypass-hook-trust --sandbox read-only {prompt}
+exec_validate   = $MEMORY_DIR/harnesses/codex/scripts/codex-mem.sh --validator {prompt}
 exec_model_flag = --model {model}
 # clean-output flag for `executor.sh --run --clean`: `codex exec -o <file>` writes ONLY the final
 # agent message to <file>, so the caller gets a uniform, transcript-free result (probe-verified the

@@ -24,6 +24,7 @@ fi
 EXECUTOR_FLAGS=()
 EXECUTOR_MODE=false
 EXECUTOR_BARE=false
+VALIDATOR_MODE=false
 case "${1:-}" in
     --executor|--executor-bare)
         [ "$1" = "--executor-bare" ] && EXECUTOR_BARE=true
@@ -80,7 +81,32 @@ case "${1:-}" in
             export AI_MEMORY_SKIP_INJECT=1
         fi
         ;;
+    --validator)
+        # Validator shorthand: workspace-write sandbox rooted in a throwaway scratch dir,
+        # network off, the repo and its .git never writable — so a validator can run builds
+        # and tests (caches land in the scratch) but cannot modify the repo under test.
+        shift
+        VALIDATOR_MODE=true
+        SCRATCH="$(mktemp -d)"
+        trap 'rm -rf "$SCRATCH"' EXIT
+        trap 'exit 143' HUP INT TERM
+        export GOCACHE="$SCRATCH/gocache" GOTMPDIR="$SCRATCH/gotmp"
+        mkdir -p "$GOCACHE" "$GOTMPDIR"
+        EXECUTOR_FLAGS=(
+            exec
+            --dangerously-bypass-hook-trust
+            --sandbox workspace-write
+            --skip-git-repo-check
+            -C "$SCRATCH"
+        )
+        ;;
 esac
+
+# In validator mode codex runs as a child (no exec) so the EXIT trap can remove the scratch.
+if [ "$VALIDATOR_MODE" = "true" ]; then
+    codex ${EXECUTOR_FLAGS[@]+"${EXECUTOR_FLAGS[@]}"} "$@" </dev/null
+    exit $?
+fi
 
 # In executor mode, redirect stdin from /dev/null so codex doesn't block waiting
 # for stdin EOF when invoked from a harness that holds stdin open (e.g. via a

@@ -81,4 +81,37 @@ else
     _bad "bare: AGENTS.md NOT written"
 fi
 
+# --- validator mode: scratch-dir sandbox, repo never writable, scratch removed on exit ---
+cat > "$BIN/codex" <<EOF
+#!/usr/bin/env bash
+printf '%s ' "\$@" > "$CAPTURE"
+printf 'GOCACHE=%s\nGOTMPDIR=%s\n' "\${GOCACHE:-}" "\${GOTMPDIR:-}" > "$ENVCAP"
+exit "\${STUB_EXIT:-0}"
+EOF
+chmod +x "$BIN/codex"
+for want in 0 7; do
+    : > "$CAPTURE"; : > "$ENVCAP"
+    set +e
+    (cd "$WORK" && HOME="$FHOME" STUB_EXIT=$want bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --validator "check it") >/dev/null 2>&1; CODE=$?
+    set -e
+    assert_exit "$want" "$CODE" "validator: codex exit $want propagated"
+    vargs="$(cat "$CAPTURE")"
+    scratch="${vargs##*-C }"; scratch="${scratch%% *}"
+    assert_contains "$vargs" "--sandbox workspace-write" "validator($want): workspace-write sandbox"
+    assert_contains "$vargs" "check it"                  "validator($want): passes through the prompt"
+    assert_not_contains "$vargs" "writable_roots"        "validator($want): no writable_roots"
+    assert_not_contains "$vargs" "network_access=true"   "validator($want): network stays off"
+    case "$scratch" in
+        ""|"$WORK"*|"$MEM"*) _bad "validator($want): scratch is outside the repo" ;;
+        *) _ok "validator($want): scratch is outside the repo" ;;
+    esac
+    assert_contains "$(cat "$ENVCAP")" "GOCACHE=$scratch/"      "validator($want): GOCACHE under scratch"
+    assert_contains "$(cat "$ENVCAP")" "GOTMPDIR=$scratch/"     "validator($want): GOTMPDIR under scratch"
+    if [ -n "$scratch" ] && [ ! -e "$scratch" ]; then
+        _ok "validator($want): scratch removed after exit"
+    else
+        _bad "validator($want): scratch removed after exit"
+    fi
+done
+
 finish
