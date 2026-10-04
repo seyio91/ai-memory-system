@@ -90,9 +90,21 @@ case "${1:-}" in
         SCRATCH="$(mktemp -d)"
         CODEX_PID=""
         trap 'rm -rf "$SCRATCH"' EXIT
-        # Forward cancellation to the codex child and wait for it before exiting, so the
-        # EXIT trap only removes the scratch once codex is gone.
-        trap '[ -n "$CODEX_PID" ] && kill -TERM "$CODEX_PID" 2>/dev/null; [ -n "$CODEX_PID" ] && wait "$CODEX_PID" 2>/dev/null; exit 143' HUP INT TERM
+        # Forward cancellation to codex; KILL it after a 5s grace so the EXIT trap always
+        # removes the scratch, even when codex ignores TERM.
+        stop_codex() {
+            if [ -n "$CODEX_PID" ]; then
+                kill -TERM "$CODEX_PID" 2>/dev/null || true
+                for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+                    kill -0 "$CODEX_PID" 2>/dev/null || break
+                    sleep 0.25
+                done
+                kill -KILL "$CODEX_PID" 2>/dev/null || true
+                wait "$CODEX_PID" 2>/dev/null || true
+            fi
+            exit 143
+        }
+        trap stop_codex HUP INT TERM
         export GOCACHE="$SCRATCH/gocache" GOTMPDIR="$SCRATCH/gotmp"
         mkdir -p "$GOCACHE" "$GOTMPDIR"
         EXECUTOR_FLAGS=(

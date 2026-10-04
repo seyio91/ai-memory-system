@@ -116,43 +116,47 @@ for want in 0 7; do
     fi
 done
 
-# --- validator mode: TERM to the wrapper stops codex and removes scratch (exit 143) ---
-PIDF="$BIN/stub-pid"; : > "$PIDF"; : > "$CAPTURE"
-cat > "$BIN/codex" <<EOF
+# --- validator mode: TERM to the wrapper stops codex (KILL after grace if it ignores TERM)
+#     and removes scratch (exit 143) ---
+for smode in plain ignore-term; do
+    PIDF="$BIN/stub-pid"; : > "$PIDF"; : > "$CAPTURE"
+    cat > "$BIN/codex" <<EOF
 #!/usr/bin/env bash
 printf '%s ' "\$@" > "$CAPTURE"
 echo \$\$ > "$PIDF"
+[ "$smode" = ignore-term ] && trap '' TERM
 exec sleep 30
 EOF
-chmod +x "$BIN/codex"
-(cd "$WORK" && HOME="$FHOME" exec bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --validator "sleepy") >/dev/null 2>&1 &
-WPID=$!
-for _ in $(seq 1 50); do [ -s "$PIDF" ] && [ -s "$CAPTURE" ] && break; sleep 0.1; done
-SPID="$(cat "$PIDF")"
-sargs="$(cat "$CAPTURE")"; sscratch="${sargs##*-C }"; sscratch="${sscratch%% *}"
-sleep 0.2
-kill -TERM "$WPID" 2>/dev/null || true
-for _ in $(seq 1 50); do
-    kill -0 "$WPID" 2>/dev/null || break
-    sleep 0.1
+    chmod +x "$BIN/codex"
+    (cd "$WORK" && HOME="$FHOME" exec bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --validator "sleepy") >/dev/null 2>&1 &
+    WPID=$!
+    for _ in $(seq 1 50); do [ -s "$PIDF" ] && [ -s "$CAPTURE" ] && break; sleep 0.1; done
+    SPID="$(cat "$PIDF")"
+    sargs="$(cat "$CAPTURE")"; sscratch="${sargs##*-C }"; sscratch="${sscratch%% *}"
+    sleep 0.2
+    kill -TERM "$WPID" 2>/dev/null || true
+    for _ in $(seq 1 100); do
+        kill -0 "$WPID" 2>/dev/null || break
+        sleep 0.1
+    done
+    if kill -0 "$WPID" 2>/dev/null; then
+        WCODE=hung; kill -KILL "$WPID" 2>/dev/null || true
+    else
+        set +e; wait "$WPID"; WCODE=$?; set -e
+    fi
+    if [ -n "$SPID" ] && ! kill -0 "$SPID" 2>/dev/null; then
+        _ok "validator signal ($smode): codex child gone after TERM"
+    else
+        _bad "validator signal ($smode): codex child gone after TERM"
+        [ -n "$SPID" ] && kill -KILL "$SPID" 2>/dev/null || true
+    fi
+    if [ -n "$sscratch" ] && [ ! -e "$sscratch" ]; then
+        _ok "validator signal ($smode): scratch removed"
+    else
+        _bad "validator signal ($smode): scratch removed"
+        [ -n "$sscratch" ] && rm -rf "$sscratch"
+    fi
+    assert_exit 143 "$WCODE" "validator signal ($smode): wrapper exits 143"
 done
-if kill -0 "$WPID" 2>/dev/null; then
-    WCODE=hung; kill -KILL "$WPID" 2>/dev/null || true
-else
-    set +e; wait "$WPID"; WCODE=$?; set -e
-fi
-if [ -n "$SPID" ] && ! kill -0 "$SPID" 2>/dev/null; then
-    _ok "validator signal: codex child gone after TERM"
-else
-    _bad "validator signal: codex child gone after TERM"
-    [ -n "$SPID" ] && kill -KILL "$SPID" 2>/dev/null || true
-fi
-if [ -n "$sscratch" ] && [ ! -e "$sscratch" ]; then
-    _ok "validator signal: scratch removed"
-else
-    _bad "validator signal: scratch removed"
-    [ -n "$sscratch" ] && rm -rf "$sscratch"
-fi
-assert_exit 143 "$WCODE" "validator signal: wrapper exits 143"
 
 finish
