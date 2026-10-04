@@ -99,7 +99,9 @@ for want in 0 7; do
     scratch="${vargs##*-C }"; scratch="${scratch%% *}"
     assert_contains "$vargs" "--sandbox workspace-write" "validator($want): workspace-write sandbox"
     assert_contains "$vargs" "check it"                  "validator($want): passes through the prompt"
-    assert_not_contains "$vargs" "writable_roots"        "validator($want): no writable_roots"
+    assert_not_contains "$vargs" 'writable_roots=["'     "validator($want): no non-empty writable_roots"
+    assert_contains "$vargs" "sandbox_workspace_write.network_access=false" "validator($want): network_access pinned off"
+    assert_contains "$vargs" "sandbox_workspace_write.writable_roots=[]"    "validator($want): writable_roots pinned empty"
     assert_not_contains "$vargs" "network_access=true"   "validator($want): network stays off"
     case "$scratch" in
         ""|"$WORK"*|"$MEM"*) _bad "validator($want): scratch is outside the repo" ;;
@@ -113,5 +115,44 @@ for want in 0 7; do
         _bad "validator($want): scratch removed after exit"
     fi
 done
+
+# --- validator mode: TERM to the wrapper stops codex and removes scratch (exit 143) ---
+PIDF="$BIN/stub-pid"; : > "$PIDF"; : > "$CAPTURE"
+cat > "$BIN/codex" <<EOF
+#!/usr/bin/env bash
+printf '%s ' "\$@" > "$CAPTURE"
+echo \$\$ > "$PIDF"
+exec sleep 30
+EOF
+chmod +x "$BIN/codex"
+(cd "$WORK" && HOME="$FHOME" exec bash "$SCRIPTS_DIR/../harnesses/codex/scripts/codex-mem.sh" --validator "sleepy") >/dev/null 2>&1 &
+WPID=$!
+for _ in $(seq 1 50); do [ -s "$PIDF" ] && [ -s "$CAPTURE" ] && break; sleep 0.1; done
+SPID="$(cat "$PIDF")"
+sargs="$(cat "$CAPTURE")"; sscratch="${sargs##*-C }"; sscratch="${sscratch%% *}"
+sleep 0.2
+kill -TERM "$WPID" 2>/dev/null || true
+for _ in $(seq 1 50); do
+    kill -0 "$WPID" 2>/dev/null || break
+    sleep 0.1
+done
+if kill -0 "$WPID" 2>/dev/null; then
+    WCODE=hung; kill -KILL "$WPID" 2>/dev/null || true
+else
+    set +e; wait "$WPID"; WCODE=$?; set -e
+fi
+if [ -n "$SPID" ] && ! kill -0 "$SPID" 2>/dev/null; then
+    _ok "validator signal: codex child gone after TERM"
+else
+    _bad "validator signal: codex child gone after TERM"
+    [ -n "$SPID" ] && kill -KILL "$SPID" 2>/dev/null || true
+fi
+if [ -n "$sscratch" ] && [ ! -e "$sscratch" ]; then
+    _ok "validator signal: scratch removed"
+else
+    _bad "validator signal: scratch removed"
+    [ -n "$sscratch" ] && rm -rf "$sscratch"
+fi
+assert_exit 143 "$WCODE" "validator signal: wrapper exits 143"
 
 finish

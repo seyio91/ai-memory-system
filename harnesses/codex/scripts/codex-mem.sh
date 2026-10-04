@@ -88,8 +88,11 @@ case "${1:-}" in
         shift
         VALIDATOR_MODE=true
         SCRATCH="$(mktemp -d)"
+        CODEX_PID=""
         trap 'rm -rf "$SCRATCH"' EXIT
-        trap 'exit 143' HUP INT TERM
+        # Forward cancellation to the codex child and wait for it before exiting, so the
+        # EXIT trap only removes the scratch once codex is gone.
+        trap '[ -n "$CODEX_PID" ] && kill -TERM "$CODEX_PID" 2>/dev/null; [ -n "$CODEX_PID" ] && wait "$CODEX_PID" 2>/dev/null; exit 143' HUP INT TERM
         export GOCACHE="$SCRATCH/gocache" GOTMPDIR="$SCRATCH/gotmp"
         mkdir -p "$GOCACHE" "$GOTMPDIR"
         EXECUTOR_FLAGS=(
@@ -98,14 +101,20 @@ case "${1:-}" in
             --sandbox workspace-write
             --skip-git-repo-check
             -C "$SCRATCH"
+            -c sandbox_workspace_write.network_access=false
+            -c 'sandbox_workspace_write.writable_roots=[]'
         )
         ;;
 esac
 
 # In validator mode codex runs as a child (no exec) so the EXIT trap can remove the scratch.
 if [ "$VALIDATOR_MODE" = "true" ]; then
-    codex ${EXECUTOR_FLAGS[@]+"${EXECUTOR_FLAGS[@]}"} "$@" </dev/null
-    exit $?
+    # Background + wait so the HUP/INT/TERM trap fires promptly and can forward the signal.
+    codex ${EXECUTOR_FLAGS[@]+"${EXECUTOR_FLAGS[@]}"} "$@" </dev/null &
+    CODEX_PID=$!
+    rc=0
+    wait "$CODEX_PID" || rc=$?
+    exit "$rc"
 fi
 
 # In executor mode, redirect stdin from /dev/null so codex doesn't block waiting
