@@ -113,3 +113,6 @@ __pycache__/
 terraform.tfstate
 terraform.tfstate.backup
 .terraform/
+
+# Obsidian vault config
+/.obsidian/

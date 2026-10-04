@@ -1,6 +1,6 @@
 ---
 topic: codex
-triggers: [codex, openai-codex, codex-mem, executor, executor-bare, stall, fallback, agents-md, sandbox, hooks, hooks.json, requirements.toml, PreToolUse, UserPromptSubmit, hook-trust, CODEX_HOME]
+triggers: [codex, openai-codex, codex-mem, executor, executor-bare, validator, stall, fallback, agents-md, sandbox, workspace-write, writable_roots, network_access, mktemp, hooks, hooks.json, requirements.toml, PreToolUse, UserPromptSubmit, hook-trust, CODEX_HOME]
 summary: OpenAI Codex CLI — reliability/stall behavior, the codex-mem executor adapter (token-stripping, deny-rules, sandbox), and the native-hooks schema/trust/stdin contract (probe-verified)
 ---
 
@@ -8,6 +8,10 @@ summary: OpenAI Codex CLI — reliability/stall behavior, the codex-mem executor
 
 ## Knowledge
 <!-- Append entries as: **[YYYY-MM-DD]** what — why it matters -->
+
+**[2026-10-04]** **`--sandbox workspace-write` does not pin its own limits — `network_access` and `writable_roots` are inherited from the user's `config.toml`.** A user config enabling network or adding the repo as a writable root silently widens any wrapper that only passes `--sandbox`. Pin both on the command line, which beats `config.toml`: `-c sandbox_workspace_write.network_access=false -c 'sandbox_workspace_write.writable_roots=[]'` (empty TOML array accepted; live-verified on codex-cli 0.157.0, network then fails at DNS). Corollary for `--executor`: its `-c writable_roots=[<.git>]` is the floor of what is writable, not the ceiling. Found by a cross-model validator review of `codex-mem.sh --validator`, not by its tests.
+
+**[2026-10-04]** **"Run code, never write the repo" = `workspace-write` rooted in a scratch dir, not `read-only`.** `--sandbox read-only` blocks `mktemp` under `/tmp` (`mkdtemp failed … Operation not permitted`), so a read-only validator can run nothing — bash tests included. `codex exec --sandbox workspace-write -C <mktemp -d>` (probe-verified 0.150.0 + 0.157.0): scratch and `/tmp` writable; `touch <repo>/x` denied; `git worktree add` denied (`.git/worktrees` not writable); `git clone --shared <repo>` into the scratch works, and the suite runs in the clone. Point `GOCACHE`/`GOTMPDIR` into the scratch. This is `codex-mem.sh --validator` (manifest key `exec_validate`); the `-C` cwd means no project resolves, so the run gets no injected project memory and must be given absolute repo paths.
 
 **[2026-09-20]** **codex `exec` exits 0 when it hits the OpenAI usage limit — the error is prose in the transcript, not an exit code.** Observed twice in one session: the run wrote its file edits, then `ERROR: You've hit your usage limit ... try again at 4:55 PM` appeared mid-transcript and the process **exited 0**, so `executor.sh --run` reported success and the delegation looked complete. What was actually missing was everything after the failure point — in that run, the mutation evidence and the suite execution, i.e. exactly the verification the delegation existed to obtain. Fourth instance of the house pattern (`rtk ls` locale, `git check-ignore` on tracked paths, `skills_with_partial()`): **a failure that is silent AND exits 0 gets attributed to whatever looks suspicious nearby** — here, it would read as the executor simply choosing not to run the tests. **Never accept an executor's report as evidence**: re-run the gates yourself against the tree. Same session, the Claude subagent plane failed the same way for the same reason (session rate limit, HTTP 429), so a fan-out across both planes can be halted by two independent quotas — and only one of them announces itself. See [[agent-tooling]].
 
