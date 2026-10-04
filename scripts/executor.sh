@@ -21,7 +21,8 @@
 #   executor.sh [--role ...] --show                    -> human-readable diagnostics
 #
 # A registered harness resolves through its manifest: exec=subagent -> subagent
-# plane; else exec_cmd (task) / exec_readonly (explore) / exec_validate, else exec_readonly (validate), gated on
+# plane; else exec_cmd (task) / exec_readonly (explore) / exec_validate falling
+# back to exec_readonly (validate), gated on
 # exec_probe being on PATH. A harness with no read-only mode is skipped for
 # `explore`/`validate` (degrades to the subagent plane), never run write-capable.
 # An unregistered name falls back to a legacy AI_MEMORY_EXECUTOR_CMD_<key> template.
@@ -79,7 +80,7 @@ cmd_template() {
 #   0 resolved | 1 CLI unavailable | 2 unknown / no execute face
 R_PLANE="" R_NAME="" R_MODEL="" R_CMD="" R_LASTMSG=""
 resolve_value() {
-    local value="$1" harness model mf cmd mflag probe
+    local value="$1" harness model mf cmd mflag probe keys
     harness="${value%%:*}"; model=""
     case "$value" in *:*) model="${value#*:}" ;; esac
     R_PLANE="" R_NAME="$harness" R_MODEL="$model" R_CMD="" R_LASTMSG=""
