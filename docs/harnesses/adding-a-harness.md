@@ -37,6 +37,7 @@ registration differ.
 | `exec_cmd` | headless command, `{prompt}` placeholder (e.g. `codex exec {prompt}`) |
 | `exec_model_flag` | model flag template, `{model}` (e.g. `--model {model}`) |
 | `exec_readonly` | optional read-only headless command; omit → the harness is a task-role executor only |
+| `exec_validate` | optional validate-role headless command: repo-read-only, scratch-writable (the validator runs code in a scratch dir). Validate-only; falls back to `exec_readonly`, then the subagent plane |
 | `exec_last_message` | optional flag template writing ONLY the final agent message to a file, `{file}` placeholder (e.g. codex `-o {file}`); enables `executor.sh --run --clean` for this harness |
 
 `executor.sh` exports `AI_MEMORY_ROLE` (`task`/`explore`) before running the command,
