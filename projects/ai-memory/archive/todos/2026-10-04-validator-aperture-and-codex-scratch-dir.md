@@ -7,7 +7,17 @@
 
 ## Active
 
-_(no items yet)_
+### Widen the validator's aperture → [plan](archive/plans/widen-validator-aperture.md)
+- [x] P1 — validator prompt
+- [x] P2 — same-family warning
+- [x] P3 — doctrine and docs (needs: P1)
+- [x] Pre-PR checkpoint — suite, lint diff, live `scope: final` run, PR (needs: P1, P2, P3)
+
+### Writable temp dir for codex read-only validator runs → [plan](archive/plans/codex-validator-scratch-dir.md)
+- [x] P1 — resolver: `exec_validate`
+- [x] P2 — `codex-mem.sh --validator`
+- [x] P3 — prompt and docs
+- [x] Pre-PR checkpoint — live codex run, suite, lint diff, PR (needs: P1, P2, P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_

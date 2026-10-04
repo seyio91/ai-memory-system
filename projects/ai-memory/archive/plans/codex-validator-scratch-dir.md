@@ -1,6 +1,7 @@
 ---
 plan: codex-validator-scratch-dir
-status: in_progress
+status: done
+completed: 2026-10-04
 created: 2026-09-22
 owner: claude (orchestrator)
 task_provider: notion
