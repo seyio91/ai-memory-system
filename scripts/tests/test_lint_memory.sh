@@ -758,4 +758,108 @@ assert_exit 0 "$CODE" "task_ref none on two live plans does not warn"
 assert_not_contains "$OUT" "claimed by multiple live plans" "task_ref none is exempt from plan uniqueness"
 rm -rf "$MI23"
 
+# --- rule 16: an oversized memory.md is a budget WARN -----------------------
+M24="$(new_sandbox)"; export MEMORY_DIR="$M24"; build_clean "$M24"
+python3 - "$M24/projects/good/memory.md" <<'PY'
+import sys
+with open(sys.argv[1], "ab") as f:
+    f.write(b"\n" + b"x" * 20000 + b"\n")
+PY
+run_lint
+assert_exit 1 "$CODE" "oversized memory.md exits 1"
+assert_contains "$OUT" "WARN:" "oversized memory.md is a WARN"
+assert_contains "$OUT" "budget" "oversized memory.md names the budget rule"
+assert_not_contains "$OUT" "WARN budget" "lint strips the checker's own WARN label (no doubled 'WARN budget')"
+rm -rf "$M24"
+
+# --- rule 16: a line over 400 bytes is a long-line WARN ---------------------
+M25="$(new_sandbox)"; export MEMORY_DIR="$M25"; build_clean "$M25"
+python3 - "$M25/projects/good/memory.md" <<'PY'
+import sys
+with open(sys.argv[1], "ab") as f:
+    f.write(b"\n" + b"y" * 450 + b"\n")
+PY
+run_lint
+assert_exit 1 "$CODE" "a 450-byte line exits 1"
+assert_contains "$OUT" "WARN:" "long line is a WARN"
+assert_contains "$OUT" "long-line" "long line names the long-line rule"
+assert_not_contains "$OUT" "WARN long-line" "lint strips the checker's own WARN label (no doubled 'WARN long-line')"
+rm -rf "$M25"
+
+# --- rule 16: a rendered session payload over a harness's session_chunks cap
+#     is an ERROR. AI_MEMORY_HARNESSES_DIR is the same test seam
+#     test_check_memory_size.sh uses for the exact same reason: it reads
+#     straight from the environment in check-memory-size.sh (invoked here as
+#     lint's subprocess), so exporting it before run_lint reaches that
+#     subprocess exactly like a direct check-memory-size.sh call would. ---
+M26="$(new_sandbox)"; export MEMORY_DIR="$M26"; build_clean "$M26"
+HARN26="$(new_sandbox)"
+mkdir -p "$HARN26/capped"
+cat > "$HARN26/capped/manifest" <<'EOF'
+name = capped
+format = xml
+session_chunks = 1
+EOF
+python3 - "$M26/projects/good/working.md" <<'PY'
+import sys
+with open(sys.argv[1], "w") as f:
+    for i in range(6):
+        f.write(("w%d" % i) * 1000 + "\n")
+PY
+export AI_MEMORY_HARNESSES_DIR="$HARN26"
+run_lint
+unset AI_MEMORY_HARNESSES_DIR
+assert_exit 1 "$CODE" "over-cap session payload exits 1"
+assert_contains "$OUT" "ERROR:" "over-cap payload is an ERROR"
+assert_contains "$OUT" "payload" "over-cap payload names the payload rule"
+assert_not_contains "$OUT" "ERROR payload" "lint strips the checker's own ERROR label (no doubled 'ERROR payload')"
+rm -rf "$M26" "$HARN26"
+
+# --- rule 16: a MEMORY_DIR path that itself contains ":<digits>: ERROR "
+#     must not misclassify a real WARN finding as ERROR. emit_size_finding's
+#     case patterns test for that shape anywhere in the finding string; a
+#     MEMORY_DIR carrying it ahead of the real <file>:<line>: WARN token used
+#     to match the ERROR arm first. M28's directory name is deliberately
+#     crafted to collide (mirrors the exact repro from the fix's spec).
+#
+#     Built by hand rather than via build_clean/seed_min_tree: those run
+#     regenerate-index.sh, which has its own pre-existing (and separately
+#     tracked, out of scope here) word-splitting bug on a MEMORY_DIR
+#     containing a space — unrelated to emit_size_finding, but it would abort
+#     this case before lint-memory.sh ever ran. A minimal projects/good/
+#     memory.md is all rule 16's long-line check needs. --------------------
+M28_BASE="$(new_sandbox)"
+M28="$M28_BASE/v:1: ERROR x"
+mkdir -p "$M28/projects/good"
+export MEMORY_DIR="$M28"
+cat > "$M28/projects/good/memory.md" <<'EOF'
+---
+topic: good
+scope: project
+summary: A good project
+---
+# Project: good
+EOF
+python3 - "$M28/projects/good/memory.md" <<'PY'
+import sys
+with open(sys.argv[1], "ab") as f:
+    f.write(b"\n" + b"y" * 450 + b"\n")
+PY
+run_lint
+assert_exit 1 "$CODE" "poisoned MEMORY_DIR: a 450-byte line still exits 1"
+assert_contains "$OUT" "WARN:" "poisoned MEMORY_DIR: long-line finding is still classified as WARN"
+assert_not_contains "$OUT" "ERROR:" "poisoned MEMORY_DIR: long-line finding is NOT misclassified as ERROR"
+rm -rf "$M28_BASE"
+
+# --- rule 16: _template is never scanned (parity with every other rule) ----
+M27="$(new_sandbox)"; export MEMORY_DIR="$M27"; build_clean "$M27"
+python3 - "$M27/projects/_template/memory.md" <<'PY'
+import sys
+with open(sys.argv[1], "ab") as f:
+    f.write(b"\n" + b"x" * 20000 + b"\n")
+PY
+run_lint
+assert_exit 0 "$CODE" "oversized _template/memory.md is never scanned"
+rm -rf "$M27"
+
 finish

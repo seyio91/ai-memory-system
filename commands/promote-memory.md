@@ -51,7 +51,7 @@ Step 5 — for each selected candidate, write to its destination (using today's 
   Then append the candidate's `**[YYYY-MM-DD]** <summary>` to the new file's `## Knowledge` section.
 
 - **`[project]`** — engagement-specific learning. Classify before writing:
-  - A durable **decision** (a choice + its rationale) → append `**[YYYY-MM-DD]** <summary>` under `## Decisions Log` (create the section at end of file if absent). Write it present-tense ("infra applies stay CI-only because …"), not as an event ("decided X in PR #N"). If it **supersedes** an existing Decisions Log entry, OVERWRITE that entry — do not append a second one. Append-only is how the log decays into a changelog.
+  - A durable **decision** (a choice + its rationale) → append `<summary>` (no date prefix — this route holds standing decisions, not a changelog) under `## Decisions Log` (create the section at end of file if absent). Write it present-tense ("infra applies stay CI-only because …"), not as an event ("decided X in PR #N"). If it **supersedes** an existing Decisions Log entry, OVERWRITE that entry — do not append a second one. Append-only is how the log decays into a changelog.
   - A **constraint/gotcha** or a reusable **pattern/convention** → fold it into the matching structured section (`## Known Constraints / Gotchas` or `## Architecture Decisions`), NOT Decisions Log. The log is for choices, not for landmines or conventions.
   - A pure **event** (work landed, PR merged, track closed) → do NOT promote; that's git history. (Step 3's present-tense test should already have dropped it.)
 

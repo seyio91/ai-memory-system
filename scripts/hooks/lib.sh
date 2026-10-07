@@ -110,26 +110,63 @@ render_full() {
     esac
 }
 
-render_initiative_alert() {
-    local project="$1" format="${AI_MEMORY_HOOK_FORMAT:-xml}" dir initiative kind status slug output stale lines=""
-    [ -n "$project" ] || return 0
+# _initiative_targets_project <initiative-file> <project> — the CHEAP half of
+# the match test below: true when <initiative-file> is kind:initiative,
+# status:active, carries a slug, and its "## Targets" section has a
+# "### <project>/..." entry. Pure frontmatter reads + one awk scan, no
+# initiative-status.sh involved — extracted so check-memory-size.sh's size
+# prefilter (_cms_project_targeted) can reuse the EXACT same match logic to
+# prove an alert is empty without paying initiative-status.sh's ~0.9s cost.
+_initiative_targets_project() {
+    local initiative="$1" project="$2" kind status slug
+    kind="$(extract_fm_field "$initiative" kind 2>/dev/null || true)"
+    status="$(extract_fm_field "$initiative" status 2>/dev/null || true)"
+    slug="$(extract_fm_field "$initiative" slug 2>/dev/null || true)"
+    [ "$kind" = "initiative" ] && [ "$status" = "active" ] && [ -n "$slug" ] || return 1
+    awk -v prefix="$project/" '
+        /^## Targets[[:space:]]*$/ { in_targets = 1; next }
+        in_targets && /^## / { exit }
+        in_targets && /^### / && index(substr($0, 5), prefix) == 1 { found = 1; exit }
+        END { exit(found ? 0 : 1) }
+    ' "$initiative" >/dev/null 2>&1
+}
+
+# _initiative_has_target <project> — true when ANY active initiative under
+# $MEMORY_DIR/initiatives targets <project>, using ONLY the cheap predicate
+# above (no initiative-status.sh subprocess). check-memory-size.sh's prefilter
+# calls this first: when it says "no", the alert is provably empty and the
+# byte/line bound can proceed unmodified; only a "yes" earns the cost of
+# fetching the real alert text.
+_initiative_has_target() {
+    local project="$1" dir initiative
+    dir="$MEMORY_DIR/initiatives"
+    [ -d "$dir" ] || return 1
+    for initiative in "$dir"/*.md; do
+        [ -f "$initiative" ] || continue
+        _initiative_targets_project "$initiative" "$project" && return 0
+    done
+    return 1
+}
+
+# _compute_initiative_alert_lines <project> — the expensive, format-neutral
+# half of render_initiative_alert: scans initiatives/*.md for a Target under
+# this project (via _initiative_targets_project above) and shells out to
+# initiative-status.sh (the ~0.9s-per-call cost) for each match. Sets the
+# global $_IA_LINES rather than printing to stdout, deliberately: a caller
+# capturing this via $(...) would have any trailing newline silently
+# stripped, which would desync the byte-identical output
+# render_initiative_alert composes from it.
+_IA_LINES=""
+_compute_initiative_alert_lines() {
+    local project="$1" dir initiative slug output stale
+    _IA_LINES=""
     dir="$MEMORY_DIR/initiatives"
     [ -d "$dir" ] || return 0
 
     for initiative in "$dir"/*.md; do
         [ -f "$initiative" ] || continue
-        kind="$(extract_fm_field "$initiative" kind 2>/dev/null || true)"
-        status="$(extract_fm_field "$initiative" status 2>/dev/null || true)"
+        _initiative_targets_project "$initiative" "$project" || continue
         slug="$(extract_fm_field "$initiative" slug 2>/dev/null || true)"
-        [ "$kind" = "initiative" ] && [ "$status" = "active" ] && [ -n "$slug" ] || continue
-        if ! awk -v prefix="$project/" '
-            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
-            in_targets && /^## / { exit }
-            in_targets && /^### / && index(substr($0, 5), prefix) == 1 { found = 1; exit }
-            END { exit(found ? 0 : 1) }
-        ' "$initiative" >/dev/null 2>&1; then
-            continue
-        fi
         if output="$(
             (
                 ulimit -t 5 2>/dev/null || true
@@ -142,10 +179,28 @@ render_initiative_alert() {
                 in_stale && /^WARN: / { print }
             ')"
             if [ -n "$stale" ]; then
-                lines="$lines$stale"$'\n'
+                _IA_LINES="$_IA_LINES$stale"$'\n'
             fi
         fi
     done
+}
+
+# render_initiative_alert <project> — per-format wrapper around
+# _compute_initiative_alert_lines. A caller that has already paid the scan
+# cost once (check-memory-size.sh --payload, across several harness/working
+# combinations for the same project) can skip paying it again by exporting
+# AI_MEMORY_PRECOMPUTED_ALERT_SET=1 and AI_MEMORY_PRECOMPUTED_ALERT=<lines>;
+# absent that, behavior is exactly what it was before this seam existed
+# (session_start_memory.sh never sets it).
+render_initiative_alert() {
+    local project="$1" format="${AI_MEMORY_HOOK_FORMAT:-xml}" lines
+    [ -n "$project" ] || return 0
+    if [ -n "${AI_MEMORY_PRECOMPUTED_ALERT_SET:-}" ]; then
+        lines="${AI_MEMORY_PRECOMPUTED_ALERT:-}"
+    else
+        _compute_initiative_alert_lines "$project"
+        lines="$_IA_LINES"
+    fi
 
     [ -n "$lines" ] || return 0
     case "$format" in
@@ -214,71 +269,8 @@ emit_hook_chunk() {
     case "$idx" in ''|*[!0-9]*) printf 'invalid AI_MEMORY_HOOK_CHUNK: %s\n' "$spec" >&2; return 2 ;; esac
     case "$total" in ''|*[!0-9]*) printf 'invalid AI_MEMORY_HOOK_CHUNK: %s\n' "$spec" >&2; return 2 ;; esac
     [ "$idx" -ge 1 ] && [ "$total" -ge 1 ] || { printf 'invalid AI_MEMORY_HOOK_CHUNK: %s\n' "$spec" >&2; return 2; }
-    printf '%s' "$payload" | AI_MEMORY_CHUNK_INDEX="$idx" AI_MEMORY_CHUNK_TOTAL="$total" python3 -c '
-import os, sys
-
-MAX = 9000
-MARKER = b"[ai-memory: memory base truncated \xe2\x80\x94 raise session_chunks in the harness manifest]\n"
-idx = int(os.environ["AI_MEMORY_CHUNK_INDEX"])
-total = int(os.environ["AI_MEMORY_CHUNK_TOTAL"])
-data = sys.stdin.buffer.read()
-if not data:
-    sys.exit(0)
-
-slices = []
-current = b""
-for line in data.splitlines(keepends=True):
-    if not current:
-        current = line
-    elif len(current) + len(line) <= MAX:
-        current += line
-    else:
-        slices.append(current)
-        current = line
-if current:
-    slices.append(current)
-
-if idx > len(slices):
-    sys.exit(0)
-
-# Hook entries registered 1..N are NOT guaranteed to be delivered in registration
-# order -- Claude ran them concurrently and concatenated by completion (observed
-# 2026-07-18: chunks arrived 2,3,4,1,5). Slices are cut at arbitrary line
-# boundaries, so an out-of-order chunk bisects a <memory:*> block. Frame every
-# slice with its index so a reader can reassemble regardless of arrival order.
-# This is a transport frame, deliberately not balanced against the content tags
-# it may bisect. Inert on codex, which does deliver in order.
-NOTE = (b" note=\"ordered fragments of one memory payload; hook delivery order is"
-        b" not guaranteed -- concatenate by index\"")
-
-def emit(body, of):
-    # No separator before the footer: whether a trailing newline was original or
-    # inserted would be ambiguous on strip, breaking byte-identical reassembly.
-    # Only the final slice can lack one (slices are cut keeping line ends), so at
-    # most one chunk closes on the same line as its last byte.
-    head = b"<memory:chunk index=\"%d\" of=\"%d\"%s>\n" % (
-        idx, of, NOTE if idx == 1 else b"")
-    sys.stdout.buffer.write(head + body + b"</memory:chunk>\n")
-
-overflow = len(slices) > total
-if overflow and idx == total:
-    out = slices[idx - 1]
-    sep = b"" if out.endswith(b"\n") or not out else b"\n"
-    while out and len(out) + len(sep) + len(MARKER) > MAX:
-        lines = out.splitlines(keepends=True)
-        if len(lines) <= 1:
-            out = b""
-            sep = b""
-            break
-        out = b"".join(lines[:-1])
-        sep = b"" if out.endswith(b"\n") or not out else b"\n"
-    emit(out + sep + MARKER, total)
-    sys.exit(0)
-if overflow and idx > total:
-    sys.exit(0)
-
-emit(slices[idx - 1], len(slices))
-'
+    printf '%s' "$payload" \
+        | AI_MEMORY_CHUNK_INDEX="$idx" AI_MEMORY_CHUNK_TOTAL="$total" python3 "$_HOOK_REPO/scripts/payload-slices.py"
 }
 
 # render_breadcrumb <project> [cwd] [session_id] [cwd_project]

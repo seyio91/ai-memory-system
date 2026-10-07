@@ -4,6 +4,7 @@
 |--------|---------|---------------------|
 | `manifest.sh` | Parse a harness manifest (sourced) | `manifest_get <file> <key>`, `manifest_keys <file>` |
 | `validate-manifest.sh` | Static-check harness manifests | `validate-manifest.sh [<file>]` (exit 1 on ERROR) |
+| `payload-slices.py` | Shared line-boundary payload slicer (stdlib-only); `emit_hook_chunk` in `hooks/lib.sh` calls it for chunked delivery | `AI_MEMORY_CHUNK_INDEX=<i> AI_MEMORY_CHUNK_TOTAL=<n> payload-slices.py < payload` (emit mode), `payload-slices.py --count < payload` (prints slice count) |
 | `build-context-md.sh` | Build the md context (AGENTS.md-style) from the memory tree | `build-context-md.sh <out> <label> [overlay]` — generic `refresh=launch` builder; no registered consumer since the codex SessionStart flip |
 | `drivers/{hook,file}.sh` | Archetype install drivers (sourced by install.sh) | `driver_install`, `driver_notes` |
 | `link-command-skills.sh` | Deliver command bodies AS skills (`commands=skill`) | `link-command-skills.sh <commands-src> [skills-dir]` |
@@ -29,6 +30,7 @@
 | `_lib.sh` | Shared helpers (sourced) | `detect_active_project`, `extract_fm_field`, `projects_root`, `resolve_repo_path` |
 | `taskctl` | Bash wrapper for the task-provider CLI (used by `/task`, `/start`) | `taskctl <capture\|list\|get\|update\|set-status\|ping> ...` |
 | `taskprovider/` | Python (stdlib-only) task-provider CLI — see [Task-provider layer](task-provider.md) | `PYTHONPATH=$MEMORY_DIR/scripts python3 -m taskprovider <verb>`; tests: `cd scripts && python3 -m unittest discover -s taskprovider/tests -t .` |
+| `check-memory-size.sh` | Byte/line budget on a `memory.md` (`--file`), and session-payload chunk-cap overflow (`--payload`, shells out to `hooks/render-session-payload.sh` + `payload-slices.py --count`) | `check-memory-size.sh --file <memory.md> [<file>...]`; `check-memory-size.sh --payload <project> [--working <path>]` (exit 0 clean, 1 findings, 2 usage) |
 | `check-docs.sh` | Assert the env-var table below matches the code (forward + strict-consumer axes) | `check-docs.sh [root]` (exit 0 clean, 1 findings, 2 setup error) |
 | `run-tests.sh` | Suite runner: shell tests → python tests → lint → skills → doc-vs-code → shellcheck. Gates on all six | `run-tests.sh [--no-lint] [--tests-only] [--only PAT] [--changed [REF]] [-v]` (exit 0 clean, 1 otherwise) |
 | `tests/*` | Dependency-free shell tests (bash 3.2) | `for t in scripts/tests/test_*.sh; do bash "$t"; done` |
@@ -209,7 +211,11 @@ Checked by [`check-docs.sh`](#doc-vs-code-consistency-check-docssh). One full va
 | `AI_MEMORY_EXECUTOR_FALLBACK` | `subagent` | `executor.sh` — used when the preferred CLI binary is absent |
 | `AI_MEMORY_EXECUTOR_GH_TOKEN` | `0` | `codex-mem.sh` — `1` fetches `gh auth token` at launch and exports `GH_TOKEN` + a `gh` git credential helper into the executor run. The codex sandbox cannot read the macOS keychain, so `gh` 401s and HTTPS pushes find no credential without it. Opt-in: a credential-free executor is the default |
 | `AI_MEMORY_GUARD_OUTPUT` | unset | `guard.sh` — output envelope selector; `copilot-json` emits Copilot `permissionDecision` JSON instead of legacy exit-2 deny |
-| `AI_MEMORY_HARNESSES_DIR` | `$REPO_ROOT/harnesses` | Test seam, not for production use; `executor.sh` manifest-directory override |
+| `AI_MEMORY_HARNESSES_DIR` | `$REPO_ROOT/harnesses` | Manifest-directory override. Test seam for `executor.sh`; `check-memory-size.sh --payload` also reads it (production use there: harnesses are part of the engine install, resolved from the script's own location, independent of the `MEMORY_DIR` tree being inspected) |
+| `AI_MEMORY_WORKING_OVERRIDE` | unset | `content-core.sh` (`content_sections`'s `working` case) — pins the exact working file to render into a session payload, bypassing cwd/session-key resolution (`resolve_working_file`). Set by `check-memory-size.sh --payload` so one project's payload can be checked against every existing working file (shared `working.md` plus each `working.<key>.md` overlay) regardless of the checker's own cwd |
+| `AI_MEMORY_SLICER_OVERRIDE` | `$REPO_ROOT/scripts/payload-slices.py` | `check-memory-size.sh` — test seam, same reasoning as `AI_MEMORY_HARNESSES_DIR`: lets a test prove the byte pre-filter skipped the render \| slice pipe entirely (a fake slicer records whether it ran) |
+| `AI_MEMORY_PRECOMPUTED_ALERT_SET` | unset | `lib.sh` (`render_initiative_alert`) — when non-empty, skip the per-call initiative-status scan and use `AI_MEMORY_PRECOMPUTED_ALERT` verbatim instead. Set by `check-memory-size.sh` (`render_slice_count`), which computes the alert ONCE per project via `render-session-payload.sh --alert-lines` and reuses it across every harness/working-file combination checked for that project — the fix for `--payload` having measured ~91s across 19 real projects before this existed |
+| `AI_MEMORY_PRECOMPUTED_ALERT` | unset | `lib.sh` (`render_initiative_alert`) — the precomputed alert text used when `AI_MEMORY_PRECOMPUTED_ALERT_SET` is non-empty; see that row |
 | `AI_MEMORY_ROLE` | unset | Set **by** `executor.sh` to the resolved role, read by `release.sh` — a release cut refuses while it is set, so an executor can never publish. Documented to make that refusal diagnosable; not a knob to set by hand |
 
 `REPO_ROOT` is the checkout root. In a normal install it is the same directory as

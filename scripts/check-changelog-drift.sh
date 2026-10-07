@@ -35,8 +35,26 @@ fi
 # "**Config = TOML** ... (2026-08-13)" or "(measured 2026-09-23, go1.26.2)" —
 # is untouched. Measured across 19 projects and 12 domain files: every hit was
 # a genuine log paragraph.
+#
+# PROJECT_DATED_RE — same shape, widened for `projects/*/memory.md` only, to
+# also catch a bracketed date (`**[2026-08-13]**`) and either form prefixed by
+# a list bullet (`- **2026-08-13`, `- **[2026-08-13]**`). This is deliberately
+# NOT applied to `domain/*.md`: `/promote-memory` writes `**[YYYY-MM-DD]**`
+# entries into a domain file's `## Knowledge` section by design — that section
+# IS the dated log, a project `## Decisions Log` is not. Still anchored to the
+# line start, so an inline dateline stays untouched.
 EVENT_RE='merged via PR|PRs #[0-9]|PR #[0-9]+ merged|complete as of'
 DATED_RE='^\*\*[0-9]{4}-[0-9]{2}-[0-9]{2}'
+PROJECT_DATED_RE='^(- )?\*\*(\[)?[0-9]{4}-[0-9]{2}-[0-9]{2}'
+
+# is_project_memory <path> — true for a `projects/*/memory.md`, absolute or
+# relative, which is the only tier PROJECT_DATED_RE applies to.
+is_project_memory() {
+    case "$1" in
+        */projects/*/memory.md|projects/*/memory.md) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 found=0
 
@@ -49,11 +67,17 @@ for f in "$@"; do
         found=1
     done < <(grep -nE "$EVENT_RE" "$f" 2>/dev/null)
 
+    if is_project_memory "$f"; then
+        dated_re="$PROJECT_DATED_RE"
+    else
+        dated_re="$DATED_RE"
+    fi
+
     while IFS=: read -r lineno _; do
         [ -n "$lineno" ] || continue
         printf '%s:%s: dated log entry — this tier holds standing state, so move the history to working.md\n' "$f" "$lineno"
         found=1
-    done < <(grep -nE "$DATED_RE" "$f" 2>/dev/null)
+    done < <(grep -nE "$dated_re" "$f" 2>/dev/null)
 done
 
 exit "$found"
