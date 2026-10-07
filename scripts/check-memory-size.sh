@@ -10,7 +10,7 @@
 #
 # Usage:
 #   check-memory-size.sh --file <memory.md> [<file>...]
-#   check-memory-size.sh --payload <project> [--working <path>]
+#   check-memory-size.sh --payload <project> [<project>...] [--working <path>]
 # Prints  <file>:<line>: <reason>   one per finding (WARN/ERROR named in the text).
 # Exit    0 clean, 1 findings, 2 usage error.
 #
@@ -65,7 +65,7 @@ SLICER="${AI_MEMORY_SLICER_OVERRIDE:-$ENGINE_ROOT/scripts/payload-slices.py}"
 
 usage() {
     printf 'usage: %s --file <memory.md> [<file>...]\n' "$(basename "$0")" >&2
-    printf '       %s --payload <project> [--working <path>]\n' "$(basename "$0")" >&2
+    printf '       %s --payload <project> [<project>...] [--working <path>]\n' "$(basename "$0")" >&2
     exit 2
 }
 
@@ -119,26 +119,45 @@ check_file() {
 # harnesses x M working files); _cms_get_alert pays the scan once, lazily
 # (only when the pre-filter below decides a combo needs an exact render at
 # all), and every later call for the same project reuses it.
-_cms_alert_project=""
 _cms_alert_set=""
 _cms_alert_lines=""
+# Run-scoped: alert text per targeting-initiative list. The alert is a pure
+# function of the ordered list of active initiatives targeting a project
+# (_compute_initiative_alert_lines concatenates each one's stale lines in glob
+# order), so projects sharing a list share one --alert-lines subprocess when
+# --payload is given several projects. Parallel arrays: bash 3.2.
+_cms_alert_cache_keys=()
+_cms_alert_cache_lines=()
 
 # _cms_get_alert <project> — populates _cms_alert_set / _cms_alert_lines,
-# computing via one `--alert-lines` subprocess the first time this project is
-# asked for and reusing the cached values after. Subprocess, fail-open: a
-# crash or a missing marker (the renderer never even started) degrades to "no
-# alert" — identical to render_initiative_alert's own `|| true` fail-open path.
+# computing via one `--alert-lines` subprocess the first time a targeting-
+# initiative list is seen and reusing the cached text for every project (and
+# every harness/working combination) with the same list. An empty list (no
+# active initiative targets the project) is "no alert" without a subprocess.
+# Subprocess, fail-open: a crash or a missing marker (the renderer never even
+# started) degrades to "no alert" — identical to render_initiative_alert's own
+# `|| true` fail-open path.
 _cms_get_alert() {
-    local project="$1" out
-    [ "$_cms_alert_project" = "$project" ] && [ -n "$_cms_alert_set" ] && return 0
+    local project="$1" out j
+    [ -n "$_cms_alert_set" ] && return 0
+    _cms_project_targeted "$project"
+    _cms_alert_set="1"
+    _cms_alert_lines=""
+    [ -n "$_cms_target_key" ] || return 0
+    for j in "${!_cms_alert_cache_keys[@]}"; do
+        if [ "${_cms_alert_cache_keys[$j]}" = "$_cms_target_key" ]; then
+            _cms_alert_lines="${_cms_alert_cache_lines[$j]}"
+            return 0
+        fi
+    done
     out="$(MEMORY_DIR="$MEMORY_DIR" bash "$RENDERER" --alert-lines "$project" 2>/dev/null)" || out=""
     case "$out" in
         *"$ALERT_LINES_MARKER") out="${out%"$ALERT_LINES_MARKER"}" ;;
         *) out="" ;;
     esac
-    _cms_alert_project="$project"
-    _cms_alert_set="1"
     _cms_alert_lines="$out"
+    _cms_alert_cache_keys[${#_cms_alert_cache_keys[@]}]="$_cms_target_key"
+    _cms_alert_cache_lines[${#_cms_alert_cache_lines[@]}]="$out"
 }
 # Must match render-session-payload.sh's ALERT_LINES_MARKER exactly — the two
 # are never sourced from one place (Two-Path/subprocess contract, see the
@@ -179,12 +198,12 @@ ALERT_LINES_MARKER=$'\x01''AI_MEMORY_ALERT_END'$'\x01'
 # session_start_memory.sh) — an alert is render content like any other and
 # omitting it from raw/L makes the "skip" side of this filter unsound. Before
 # applying the bound, _cms_project_targeted asks lib.sh's cheap
-# _initiative_has_target predicate (the same "## Targets" awk scan
+# _initiative_targets_project predicate (the same "## Targets" awk scan
 # _compute_initiative_alert_lines uses, without its initiative-status.sh
 # cost) whether ANY active initiative targets this project. "no" proves the
 # alert is empty for free — raw/L are used as-is. "yes" pays for the real
-# alert text once via _cms_get_alert and folds its bytes/longest line into
-# raw/L before the bound below ever runs.
+# alert text once per targeting-initiative list via _cms_get_alert and
+# folds its bytes/longest line into raw/L before the bound below ever runs.
 #
 # This is a pre-filter, not a replacement for the exact check: anything NOT
 # skipped still goes through render_slice_count and is counted exactly.
@@ -252,28 +271,31 @@ _cms_domain_bytes() {
 }
 
 # _cms_project_targeted <project> — true when ANY active initiative targets
-# <project>, via lib.sh's _initiative_has_target predicate (the cheap "##
+# <project>, via lib.sh's _initiative_targets_project predicate (the cheap "##
 # Targets" awk scan _compute_initiative_alert_lines also uses, WITHOUT its
 # initiative-status.sh cost). Sourced the same way _cms_domain_bytes sources
 # _md_render_domain above — one subprocess, reusing lib.sh's match logic
 # rather than duplicating the awk here, so the two can never drift apart.
-# Cached across every harness/working-file combination this invocation
-# checks: --payload takes exactly one project, so the answer is the same for
-# all of them (same one-invocation-one-value reasoning as _cms_domain_bytes).
+# Also records the ordered list of targeting initiatives in _cms_target_key,
+# which keys _cms_get_alert's cache. Project-scoped: reset by
+# _cms_reset_project between projects.
 _cms_target_ready=""
-_cms_target_present=""
+_cms_target_key=""
 _cms_project_targeted() {
     local project="$1"
-    if [ -n "$_cms_target_ready" ]; then
-        [ "$_cms_target_present" = "1" ]
-        return
+    if [ -z "$_cms_target_ready" ]; then
+        _cms_target_ready=1
+        _cms_target_key="$(MEMORY_DIR="$MEMORY_DIR" bash -c '
+            . "$1/scripts/hooks/lib.sh" 2>/dev/null || exit 0
+            [ -d "$MEMORY_DIR/initiatives" ] || exit 0
+            for i in "$MEMORY_DIR/initiatives"/*.md; do
+                [ -f "$i" ] || continue
+                _initiative_targets_project "$i" "$2" && printf "%s\n" "$i"
+            done
+            exit 0
+        ' _ "$ENGINE_ROOT" "$project" 2>/dev/null)" || _cms_target_key=""
     fi
-    _cms_target_ready=1
-    _cms_target_present="0"
-    if MEMORY_DIR="$MEMORY_DIR" bash -c '. "$1/scripts/hooks/lib.sh" 2>/dev/null && _initiative_has_target "$2"' _ "$ENGINE_ROOT" "$project" >/dev/null 2>&1; then
-        _cms_target_present="1"
-    fi
-    [ "$_cms_target_present" = "1" ]
+    [ -n "$_cms_target_key" ]
 }
 
 # _cms_alert_stats — bytes AND longest line of the cached initiative-alert
@@ -417,6 +439,19 @@ _cms_manifest_fields() {
     ' "$1" 2>/dev/null
 }
 
+# _cms_reset_project — clear every project-scoped cache before the next
+# project in a multi-project --payload run. Run-scoped caches (domain stats,
+# manifests, prefilter constants, the alert-by-key cache) are left alone.
+_cms_reset_project() {
+    _cms_target_ready=""
+    _cms_target_key=""
+    _cms_alert_set=""
+    _cms_alert_lines=""
+    _cms_alert_stats_ready=""
+    _cms_alert_bytes=0
+    _cms_alert_max_line=0
+}
+
 # check_payload <project> [<explicit-working>] — every harness that declares
 # session_chunks, against either the one <explicit-working> file (--working)
 # or every working file that exists for the project: the shared working.md
@@ -453,8 +488,29 @@ $w"
     # measured at ~2s/project via manifest_get, which is what made --payload
     # across 19 real projects take ~60s even after the alert/pre-filter
     # fixes; this is the fix for that.
-    local manifest harness fields cap format min_cap=""
-    local harnesses=() formats=() caps=()
+    _cms_load_manifests
+    _cms_init_prefilter "$_cms_min_cap"
+
+    local i
+    for i in "${!_cms_harnesses[@]}"; do
+        while IFS= read -r w; do
+            [ -n "$w" ] || continue
+            check_one_payload "$project" "${_cms_harnesses[$i]}" "${_cms_formats[$i]}" "${_cms_caps[$i]}" "$w"
+        done < <(printf '%s\n' "$working_files")
+    done
+}
+
+# _cms_load_manifests — one pass over every harness manifest, once per run:
+# collect the capped ones (harness, format, cap) and the global minimum cap.
+_cms_manifests_ready=""
+_cms_harnesses=()
+_cms_formats=()
+_cms_caps=()
+_cms_min_cap=""
+_cms_load_manifests() {
+    [ -n "$_cms_manifests_ready" ] && return 0
+    _cms_manifests_ready=1
+    local manifest harness fields cap format
     for manifest in "$HARNESSES_DIR"/*/manifest; do
         [ -f "$manifest" ] || continue
         fields="$(_cms_manifest_fields "$manifest")"
@@ -464,28 +520,19 @@ $w"
         case "$cap" in *[!0-9]*) continue ;; esac
         harness="$(basename "$(dirname "$manifest")")"
         [ -n "$format" ] || format=xml
-        harnesses[${#harnesses[@]}]="$harness"
-        formats[${#formats[@]}]="$format"
-        caps[${#caps[@]}]="$cap"
-        if [ -z "$min_cap" ] || [ "$cap" -lt "$min_cap" ]; then
-            min_cap="$cap"
+        _cms_harnesses[${#_cms_harnesses[@]}]="$harness"
+        _cms_formats[${#_cms_formats[@]}]="$format"
+        _cms_caps[${#_cms_caps[@]}]="$cap"
+        if [ -z "$_cms_min_cap" ] || [ "$cap" -lt "$_cms_min_cap" ]; then
+            _cms_min_cap="$cap"
         fi
-    done
-    _cms_init_prefilter "$min_cap"
-
-    local i
-    for i in "${!harnesses[@]}"; do
-        while IFS= read -r w; do
-            [ -n "$w" ] || continue
-            check_one_payload "$project" "${harnesses[$i]}" "${formats[$i]}" "${caps[$i]}" "$w"
-        done < <(printf '%s\n' "$working_files")
     done
 }
 
 # --- arg parsing ---------------------------------------------------------------
 mode=""
 files=""
-project=""
+projects=""
 explicit_working=""
 
 while [ "$#" -gt 0 ]; do
@@ -511,8 +558,16 @@ $1"
             mode="payload"
             shift
             [ "$#" -ge 1 ] || usage
-            project="$1"
-            shift
+            while [ "$#" -gt 0 ]; do
+                case "$1" in --*) break ;; esac
+                if [ -z "$projects" ]; then
+                    projects="$1"
+                else
+                    projects="$projects
+$1"
+                fi
+                shift
+            done
             ;;
         --working)
             shift
@@ -531,7 +586,10 @@ case "$mode" in
         [ -z "$explicit_working" ] || usage   # --working only makes sense with --payload
         ;;
     payload)
-        [ -n "$project" ] || usage
+        [ -n "$projects" ] || usage
+        # --working pins ONE project's working file; with several projects it
+        # would silently apply one project's file to all of them.
+        case "$projects" in *$'\n'*) [ -z "$explicit_working" ] || usage ;; esac
         ;;
 esac
 
@@ -542,7 +600,11 @@ if [ "$mode" = "file" ]; then
         check_file "$f"
     done < <(printf '%s\n' "$files")
 else
-    check_payload "$project" "$explicit_working"
+    while IFS= read -r project; do
+        [ -n "$project" ] || continue
+        _cms_reset_project
+        check_payload "$project" "$explicit_working"
+    done < <(printf '%s\n' "$projects")
 fi
 
 exit "$found"

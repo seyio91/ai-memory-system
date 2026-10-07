@@ -561,15 +561,21 @@ for f in "$MEMORY_DIR"/projects/*/memory.md; do
     done < <("$SCRIPT_DIR/check-memory-size.sh" --file "$f" 2>/dev/null)
 done
 
+# One --payload call for every project, not one per project: the domain-index
+# render and the initiative alert are the same across projects, and a batched
+# run computes each once (see check-memory-size.sh's _cms_get_alert).
+payload_projects=()
 for d in "$MEMORY_DIR"/projects/*/; do
     [ -d "$d" ] || continue
     case "$d" in *"/_template/"*) continue;; esac
-    project=$(basename "$d")
+    payload_projects[${#payload_projects[@]}]="$(basename "$d")"
+done
+if [ "${#payload_projects[@]}" -gt 0 ]; then
     while IFS= read -r finding; do
         [ -n "$finding" ] || continue
         emit_size_finding "$finding"
-    done < <("$SCRIPT_DIR/check-memory-size.sh" --payload "$project" 2>/dev/null)
-done
+    done < <("$SCRIPT_DIR/check-memory-size.sh" --payload "${payload_projects[@]}" 2>/dev/null)
+fi
 
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
