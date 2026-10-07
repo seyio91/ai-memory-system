@@ -8,8 +8,8 @@
 ## Active
 
 ### Batch payload checks across projects in lint → [plan](plans/batch-payload-checks-across-projects-in-lint.md)
-- [ ] P1 — Multi-project `--payload` in check-memory-size.sh
-- [ ] P2 — lint-memory.sh uses one batched call; docs, changelog, measure (needs: P1)
+- [x] P1 — Multi-project `--payload` in check-memory-size.sh
+- [x] P2 — lint-memory.sh uses one batched call; docs, changelog, measure (needs: P1)
 
 ## Done
 _(checked items stay above until the file is rolled)_

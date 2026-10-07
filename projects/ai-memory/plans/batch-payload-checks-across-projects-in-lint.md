@@ -38,6 +38,18 @@ Rejected:
 - Behaviour-preserving for single-project callers; no output format change.
 - System change → branch + PR via `git-cli ship --intent`.
 
+## Measurements (2026-10-07, 19-project tree)
+| | before | after |
+|---|---|---|
+| `lint-memory.sh` | 16.8 s | 9.75 s |
+| `check-memory-size.sh --payload` all projects | ~9.5 s (19 calls) | 3.4 s (1 call) |
+| guard on ai-memory `memory.md` | ~0.68 s | 0.72–1.03 s (noise; path unchanged) |
+| lint stdout | — | byte-identical (real caps, and cap 6 with 14 ERRORs vs `main`'s lint) |
+| per-project output + rc vs `main` | — | identical, 19/19 at caps 3, 6, 8, 10, 12; batched = concatenation at every cap |
+| suite (signing disabled) | — | 56/56 files, 56 passed; `check-docs` clean |
+
+Manifest scan also moved to run scope (`_cms_load_manifests`).
+
 ## Phases
 
 ### Phase 1 — Multi-project `--payload` in check-memory-size.sh
