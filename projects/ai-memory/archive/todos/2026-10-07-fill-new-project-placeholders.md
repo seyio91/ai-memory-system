@@ -1,3 +1,5 @@
+# Archived todo — ai-memory — 2026-10-07
+
 # Todo — ai-memory
 
 > Single source of truth for executable work on this project.
@@ -7,7 +9,8 @@
 
 ## Active
 
-_(no items yet)_
+### Fill new-project frontmatter and heading placeholders → [plan](archive/plans/fill-new-project-placeholders.md)
+- [x] P1 — Substitute placeholders and wire summary + reindex
 
 ## Done
 _(checked items stay above until the file is rolled)_
