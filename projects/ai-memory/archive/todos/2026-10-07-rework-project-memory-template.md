@@ -1,3 +1,5 @@
+# Archived todo — ai-memory — 2026-10-07
+
 # Todo — ai-memory
 
 > Single source of truth for executable work on this project.
@@ -7,7 +9,11 @@
 
 ## Active
 
-_(no items yet)_
+### Rework project memory template and required-section lint → [plan](archive/plans/rework-project-memory-template.md)
+- [x] P1 — Template + lint rule 3
+- [x] P2 — /state goal from todo.md
+- [x] P3 — Docs and commands
+- [x] P4 — Changelog, full suite, ship (needs: P1, P2, P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_
