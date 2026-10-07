@@ -7,7 +7,9 @@
 
 ## Active
 
-_(no items yet)_
+### Make the initiative-alert computation cheap → [plan](plans/make-the-initiative-alert-computation-cheap.md)
+- [ ] P1 — Batch task_ref lookup in initiative-status.sh
+- [ ] P2 — Measure end-to-end and decide on cross-project memo (needs: P1)
 
 ## Done
 _(checked items stay above until the file is rolled)_
