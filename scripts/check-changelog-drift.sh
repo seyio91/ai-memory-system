@@ -41,7 +41,7 @@ fi
 # a list bullet (`- **2026-08-13`, `- **[2026-08-13]**`). This is deliberately
 # NOT applied to `domain/*.md`: `/promote-memory` writes `**[YYYY-MM-DD]**`
 # entries into a domain file's `## Knowledge` section by design — that section
-# IS the dated log, a project `## Decisions Log` is not. Still anchored to the
+# IS the dated log, a project `memory.md` is not. Still anchored to the
 # line start, so an inline dateline stays untouched.
 EVENT_RE='merged via PR|PRs #[0-9]|PR #[0-9]+ merged|complete as of'
 DATED_RE='^\*\*[0-9]{4}-[0-9]{2}-[0-9]{2}'

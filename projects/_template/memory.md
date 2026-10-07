@@ -10,26 +10,26 @@ summary: <one-line description for the index — replace before use>
 #                                     #   set via `/pin <project> --category <client>` or by hand
 ---
 
+<!-- Per line: would removing it cause a mistake? If not, cut it. Include/leave-out table: docs/file-formats.md -->
 # Project: <name>
 
 ## What It Is
-One-line description. Stack, scale, ownership.
+One-line description. Stack, scale, ownership — what you can't read off the repo.
 
-## Current State
-What's deployed and stable vs. what's in flight. A standing description, not a
-log: no dated entries, no "PR #N merged". It should read the same whether or
-not something shipped today. Session history and what-landed-when go in
-`working.md`; actionable work goes in `todo.md`. A write here is checked by
-`scripts/check-changelog-drift.sh`.
+## Commands
+Build, test, lint, render, release commands Claude can't guess. Omit if the repo's own README/CLAUDE.md has them.
+
+## Conventions
+Branch naming, commit/PR format, style rules that differ from defaults.
 
 ## Architecture Decisions
-Locked-in choices (with the why if non-obvious). Things that are off the table.
+Locked-in choices, with the why if non-obvious. Things that are off the table.
 
 ## Known Constraints / Gotchas
-Landmines, load-bearing hacks, things that will break you if you forget them.
+Landmines, load-bearing hacks, non-obvious behaviour that will break you if you forget it.
 
-## Current Goal
-Active milestone or ticket. One thing only.
+## Pointers
+Links instead of copies: the repo's README/CLAUDE.md, docs, wikis, skills.
 
 <!-- Uncomment only if this project's work spans into other projects.
 ## Related Projects
@@ -40,4 +40,3 @@ Active milestone or ticket. One thing only.
 
 > Ordering: <cross-repo sequencing, if any>
 -->
-

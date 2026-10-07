@@ -10,14 +10,18 @@ export MEMORY_DIR="$MEM"
 mkdir -p "$MEM/projects"
 
 mkproj() { mkdir -p "$MEM/projects/$1"; }
-setgoal() { printf '## Current Goal\n%s\n' "$2" > "$MEM/projects/$1/memory.md"; }
+# The goal lives in todo.md (first ### under ## Active); memory.md carries none.
+setgoal() {
+    printf '# Project %s\n' "$1" > "$MEM/projects/$1/memory.md"
+    printf '# Todo\n\n## Active\n\n### %s → [plan](plans/x.md)\n' "$2" > "$MEM/projects/$1/todo.md"
+}
 nogoal()  { printf '# Project %s\n\nNo goal section here.\n' "$1" > "$MEM/projects/$1/memory.md"; }
 
 # alpha: has a goal + 2 open / 1 done todos. memory.md is OLD but working.md is NEW
 # -> last-touched must follow the newest file (working.md), proving mtime-of-newest.
 mkproj alpha
 setgoal alpha "Ship the alpha pipeline"
-printf -- '- [ ] one\n- [x] done\n- [ ] two\n' > "$MEM/projects/alpha/todo.md"
+printf -- '- [ ] one\n- [x] done\n- [ ] two\n' >> "$MEM/projects/alpha/todo.md"
 printf 'scratch\n' > "$MEM/projects/alpha/working.md"
 
 # beta: no goal section, no todo.md -> goal '—', open 0.
@@ -31,7 +35,7 @@ setgoal gamma "a | b and then a deliberately long goal tail that runs well past 
 # delta: a "- [ ]" inside a fenced code block must NOT be counted (only the real one).
 mkproj delta
 setgoal delta "Delta with a code-fenced checkbox"
-printf -- '- [ ] real open\n```\n- [ ] fake in a code fence\n```\n- [x] done\n' > "$MEM/projects/delta/todo.md"
+printf -- '- [ ] real open\n```\n- [ ] fake in a code fence\n```\n- [x] done\n' >> "$MEM/projects/delta/todo.md"
 
 # _template must be excluded.
 mkproj _template
@@ -40,7 +44,7 @@ setgoal _template "should never appear"
 # Controlled mtimes (macOS touch -t CCYYMMDDhhmm): alpha newest, gamma mid, beta oldest.
 touch -t 202601010900 "$MEM/projects/alpha/memory.md" "$MEM/projects/alpha/todo.md"
 touch -t 202606300900 "$MEM/projects/alpha/working.md"   # newest signal for alpha (2026-06-30)
-touch -t 202606150900 "$MEM/projects/gamma/memory.md"
+touch -t 202606150900 "$MEM/projects/gamma/memory.md" "$MEM/projects/gamma/todo.md"
 touch -t 202606010900 "$MEM/projects/beta/memory.md"
 
 run() { set +e; out="$(bash "$@" 2>&1)"; code=$?; set -e; }
@@ -105,14 +109,16 @@ CM="$(new_sandbox)"; mkdir -p "$CM/projects"
 # categorized project: frontmatter category + goal
 mkc() {
     mkdir -p "$CM/projects/$1"
-    printf -- '---\ntopic: %s\nscope: project\nsummary: s\ncategory: %s\n---\n## Current Goal\n%s\n' \
-        "$1" "$2" "$3" > "$CM/projects/$1/memory.md"
+    printf -- '---\ntopic: %s\nscope: project\nsummary: s\ncategory: %s\n---\n' \
+        "$1" "$2" > "$CM/projects/$1/memory.md"
+    printf '## Active\n\n### %s → [plan](plans/x.md)\n' "$3" > "$CM/projects/$1/todo.md"
 }
 # uncategorized project: frontmatter without category
 mku() {
     mkdir -p "$CM/projects/$1"
-    printf -- '---\ntopic: %s\nscope: project\nsummary: s\n---\n## Current Goal\n%s\n' \
-        "$1" "$2" > "$CM/projects/$1/memory.md"
+    printf -- '---\ntopic: %s\nscope: project\nsummary: s\n---\n' \
+        "$1" > "$CM/projects/$1/memory.md"
+    printf '## Active\n\n### %s → [plan](plans/x.md)\n' "$2" > "$CM/projects/$1/todo.md"
 }
 mkc acme-web acme-corp "Acme web goal"
 mkc acme-api acme-corp "Acme api goal"
@@ -120,10 +126,10 @@ mkc beta-svc beta-inc  "Beta service goal"
 mku loose              "Loose uncategorized goal"
 # mtimes: 'loose' is the NEWEST overall, but must still sort LAST (uncategorized).
 # within acme-corp, acme-web is newer than acme-api.
-touch -t 202606100900 "$CM/projects/acme-api/memory.md"
-touch -t 202606200900 "$CM/projects/acme-web/memory.md"
-touch -t 202606050900 "$CM/projects/beta-svc/memory.md"
-touch -t 202606250900 "$CM/projects/loose/memory.md"
+touch -t 202606100900 "$CM/projects/acme-api/memory.md" "$CM/projects/acme-api/todo.md"
+touch -t 202606200900 "$CM/projects/acme-web/memory.md" "$CM/projects/acme-web/todo.md"
+touch -t 202606050900 "$CM/projects/beta-svc/memory.md" "$CM/projects/beta-svc/todo.md"
+touch -t 202606250900 "$CM/projects/loose/memory.md" "$CM/projects/loose/todo.md"
 
 # --- unfiltered: grouped by category, uncategorized last ---
 MEMORY_DIR="$CM" run "$GEN" --stdout

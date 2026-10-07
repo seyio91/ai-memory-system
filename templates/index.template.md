@@ -11,7 +11,7 @@ are auto-injected each session; load any other file on demand from this roster.
 
 ## Lifecycle
 Working memory matures: `projects/<active>/working.md` → `domain/<topic>.md`
-(cross-project) or `projects/<active>/memory.md` Decisions Log (project-specific)
+(cross-project) or `projects/<active>/memory.md` Architecture Decisions (project-specific)
 via `/promote-memory`.
 
 <!-- BEGIN AUTOGEN -->

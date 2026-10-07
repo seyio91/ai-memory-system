@@ -33,7 +33,7 @@ Base path: `~/.claude-memory/`
 
 **Update memory immediately when you learn or decide something durable.** Don't batch, don't wait for the user to ask. Pick the right destination:
 
-- **Project-specific** (architecture decision, project gotcha, locked-in choice for *this* engagement) → update the active project's memory file directly: `~/.claude-memory/projects/<active>/memory.md`. Place the update in the matching structured section (Architecture Decisions, Known Constraints / Gotchas, Current State, Current Goal). The active project name is in the injected `<memory:project name="...">` block.
+- **Project-specific** (architecture decision, project gotcha, locked-in choice for *this* engagement) → update the active project's memory file directly: `~/.claude-memory/projects/<active>/memory.md`. Place the update in the matching section (Architecture Decisions, Known Constraints / Gotchas, Commands, Conventions, Pointers). Status and the active goal don't belong there — they live in `working.md` and `todo.md`. The active project name is in the injected `<memory:project name="...">` block.
 
 - **Cross-project** (would help on a different repo too — Terraform/K8s/AWS/ArgoCD pattern, gotcha, or quirk) → append to `~/.claude-memory/projects/<active>/working.md`. Use `/promote-memory` later to graduate it to a domain file.
 
@@ -43,7 +43,7 @@ Base path: `~/.claude-memory/`
 
 **Checkpoint before pauses, tool switches, or session end.** Append or update a checkpoint in the active project's `working.md` capturing: task / done / next / blockers. Update it as work progresses, not only at the end. Use `/checkpoint` for structured capture, or write directly when the rhythm is informal. Checkpoints survive into Codex sessions via the codex-mem adapter.
 
-**Promote durable scratchpad entries** with `/promote-memory`. The command lets you target a domain file (cross-project) or the active project's `memory.md` (under a `## Decisions Log` section).
+**Promote durable scratchpad entries** with `/promote-memory`. The command lets you target a domain file (cross-project) or the active project's `memory.md` (decisions under `## Architecture Decisions`).
 
 **Offer to file non-trivial synthesis as a wiki page.** When you produce a substantial answer that isn't trivially derivable from code — an architecture explanation, decision rationale, comparison, gotcha analysis, debug write-up — end the turn with a one-line offer: *"File this as a wiki page?"* If the user says yes, route per the rules above: cross-project to a `domain/<topic>.md` page; project-specific into the matching section of `projects/<active>/memory.md` (or invoke `/promote-memory` directly). Skip the offer for: short answers, code-only changes, pure status updates, and anything fully grounded in already-readable files. The point is to capture insight that would otherwise die in chat history — not to nag on every message.
 

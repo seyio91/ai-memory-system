@@ -78,7 +78,7 @@ version.
 Prefer not to run the installer? The components, in build order — each has a detailed spec section elsewhere in the docs.
 
 1. **Memory tree** — create `~/.claude-memory/` with `identity.md`, `orchestrator.md`, `index.md` (with the AUTOGEN fence), and the `domain/`, `projects/`, `scripts/` directories. See [Directory layout](#directory-layout).
-2. **Project scaffold** — create `projects/_template/` (`memory.md` with the 5 required sections + frontmatter, empty `working.md`, `todo.md`, `plans/.gitkeep`, `archive/{plans,todos,working}/.gitkeep`). See [File formats](file-formats.md).
+2. **Project scaffold** — create `projects/_template/` (`memory.md` with the 3 required + 3 optional sections and frontmatter, empty `working.md`, `todo.md`, `plans/.gitkeep`, `archive/{plans,todos,working}/.gitkeep`). See [File formats](file-formats.md).
 3. **Scripts** — populate `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`) plus the `scripts/tests/` suite; `chmod +x` all executables. Also create the `scripts/taskprovider/` Python package (stdlib-only task-provider layer — see [Task-provider layer](task-provider.md)). See [Scripts reference](scripts.md).
 4. **Claude hooks** — keep the `~/.claude/hooks/` runtime root, symlink `harnesses/claude/statusline.sh` to `~/.claude/statusline.sh`, and register the three hook commands into `~/.claude/settings.json`: shared `scripts/hooks/inject.sh` for `UserPromptSubmit`, `harnesses/claude/hooks/session_start_memory.sh` for `SessionStart`, and `harnesses/claude/hooks/block_task_tools.sh` for `PreToolUse`. See [Claude Code › Hooks](harnesses/claude.md#hooks).
 5. **Claude slash commands & skills** — symlink the command files in `commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the brainstorm gate (the `design-brainstorm` skill) is anchored by the `orchestrator.md` Orchestration routing rule.
@@ -129,7 +129,7 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── projects/
 │   ├── _template/                     # Scaffold copied by new-project.sh
 │   └── <name>/
-│       ├── memory.md                  # Durable project memory (5 required sections)
+│       ├── memory.md                  # Durable project memory (3 required sections)
 │       ├── working.md                 # In-flight scratchpad (auto-injected when non-empty)
 │       ├── plans/                     # Non-trivial plans (orchestrator-authored)
 │       ├── todo.md                    # Checkbox source of truth for executable work

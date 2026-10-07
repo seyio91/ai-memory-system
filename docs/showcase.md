@@ -238,7 +238,7 @@ in every delegation prompt).
 This section is also where the **killer beat** lands: `/checkpoint` a decision into `payments-svc`'s
 `working.md`, start a fresh session, and watch it recalled on SessionStart — then
 `/promote-memory` graduates that line up into a `domain/<topic>.md` file or the project's
-Decisions Log. That upward path — `working.md` → wiki → (eventually) a packaged skill — is
+Architecture Decisions. That upward path — `working.md` → wiki → (eventually) a packaged skill — is
 the knowledge lifecycle made concrete.
 
 ```mermaid
@@ -252,7 +252,7 @@ flowchart TB
   end
   subgraph LC["Knowledge lifecycle"]
     direction LR
-    W["working.md<br/>(/checkpoint)"] --> M["domain/*.md or<br/>project Decisions Log<br/>(/promote-memory)"] --> K["skill<br/>(manual graduation)"]
+    W["working.md<br/>(/checkpoint)"] --> M["domain/*.md or<br/>project Architecture Decisions<br/>(/promote-memory)"] --> K["skill<br/>(manual graduation)"]
   end
 ```
 

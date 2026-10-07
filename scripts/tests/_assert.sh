@@ -121,17 +121,12 @@ summary: <one-line description for the index — replace before use>
 ## What It Is
 One-line description.
 
-## Current State
-State.
-
 ## Architecture Decisions
 Decisions.
 
 ## Known Constraints / Gotchas
 Gotchas.
 
-## Current Goal
-Goal.
 EOF
 }
 

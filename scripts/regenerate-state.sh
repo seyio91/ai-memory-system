@@ -47,12 +47,20 @@ epoch_date() {
     date -r "$1" +%F 2>/dev/null || date -d "@$1" +%F 2>/dev/null || printf '—'
 }
 
-# extract_goal <memory.md> -> first non-empty line under "## Current Goal" (empty if none).
+# extract_goal <todo.md> -> title of the first "### " heading under "## Active",
+# with its " → [plan](…)" link stripped (empty if none). todo.md owns the active
+# goal; memory.md no longer carries one.
 extract_goal() {
+    [ -f "$1" ] || return 0
     awk '
-        /^## Current Goal[[:space:]]*$/ { f = 1; next }
+        /^## Active[[:space:]]*$/ { f = 1; next }
         f && /^## / { exit }
-        f && NF { sub(/^[[:space:]]+/, ""); print; exit }
+        f && /^### / {
+            t = substr($0, 5)
+            sub(/[[:space:]]*→[[:space:]]*\[plan\]\([^)]*\)[[:space:]]*$/, "", t)
+            sub(/^[[:space:]]+/, "", t); sub(/[[:space:]]+$/, "", t)
+            print t; exit
+        }
     ' "$1"
 }
 
@@ -82,7 +90,7 @@ emit() {
             # Filter to one category when asked; empty filter = everything.
             if [ -n "$filter" ] && [ "$cat" != "$filter" ]; then continue; fi
             ep="$(project_mtime "$d")"
-            goal="$(extract_goal "$f")"; [ -n "$goal" ] || goal="—"
+            goal="$(extract_goal "$d/todo.md")"; [ -n "$goal" ] || goal="—"
             # one line; escape table-breaking pipes; truncate for the row.
             goal="$(printf '%s' "$goal" | tr '\n' ' ' | sed 's/|/\\|/g')"
             [ "${#goal}" -gt 70 ] && goal="$(printf '%s' "$goal" | cut -c1-69)…"
@@ -95,7 +103,7 @@ emit() {
     } | LC_ALL=C sort -t"$TAB" -k1,1 -k3,3rn | while IFS="$TAB" read -r catsort catdisp ep name goal todos; do
         printf '| %s | %s | %s | %s | %s |\n' "$catdisp" "$name" "$(epoch_date "$ep")" "$goal" "$todos"
     done
-    printf '\n_Derived from each project'\''s `memory.md` (## Current Goal + category), `todo.md` (open boxes), and newest file mtime. Grouped by category (uncategorized last), newest first within each. On-demand; regenerate with `scripts/regenerate-state.sh`._\n'
+    printf '\n_Derived from each project'\''s `memory.md` (category), `todo.md` (first `## Active` heading + open boxes), and newest file mtime. Grouped by category (uncategorized last), newest first within each. On-demand; regenerate with `scripts/regenerate-state.sh`._\n'
 }
 
 # --- args: [<category>] [--stdout], in any order ---

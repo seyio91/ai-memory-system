@@ -23,7 +23,7 @@ assert_file "$MEM/projects/acme/memory.md"           "memory.md scaffolded"
 assert_file "$MEM/projects/acme/todo.md"             "todo.md scaffolded"
 assert_file "$MEM/projects/acme/plans/.gitkeep"      "plans/ scaffolded"
 assert_file "$MEM/projects/acme/archive/working/.gitkeep" "archive/working/ scaffolded"
-assert_contains "$(cat "$MEM/projects/acme/memory.md")" "## Current Goal" "copied required sections"
+assert_contains "$(cat "$MEM/projects/acme/memory.md")" "## Known Constraints / Gotchas" "copied required sections"
 
 # --- duplicate -> exit 1, does not clobber ---
 set +e
