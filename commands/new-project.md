@@ -11,9 +11,10 @@ If a category is provided, set the `category:` frontmatter field in `~/.claude-m
 Then fill in `~/.claude-memory/projects/$ARGUMENTS/memory.md` by asking the user one question at a time in this order — wait for each answer before moving to the next:
 
 1. **What It Is** — one line: what does this project do, what's the stack, who owns it
-2. **Current State** — what's deployed and stable vs. what's actively in flight
-3. **Architecture Decisions** — what's already locked in, and what approaches are off the table
-4. **Known Constraints / Gotchas** — landmines, load-bearing hacks, things that will break if forgotten
-5. **Current Goal** — the single active milestone or ticket right now
+2. **Commands** — build/test/lint/render/release commands Claude couldn't guess (skip if the repo's README/CLAUDE.md has them)
+3. **Conventions** — branch naming, commit/PR format, style rules that differ from defaults
+4. **Architecture Decisions** — what's already locked in, and what approaches are off the table
+5. **Known Constraints / Gotchas** — landmines, load-bearing hacks, things that will break if forgotten
+6. **Pointers** — the repo's README/CLAUDE.md, docs, wikis or skills worth linking instead of copying
 
-Write each answer into the corresponding section as it's given. When all five are filled, write the completed file and confirm the path.
+Apply the per-line test to every answer: keep only what would cause a mistake if missing — no status, versions, counts, PR numbers or dates (see the include/leave-out table in `docs/file-formats.md`). Write each answer into the corresponding section as it's given; an empty answer to an optional section (Commands, Conventions, Pointers) removes that section. What It Is, Architecture Decisions and Known Constraints / Gotchas are required by lint. The active goal goes in `todo.md`, not here. When done, write the completed file and confirm the path.

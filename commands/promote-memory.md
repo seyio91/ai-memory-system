@@ -26,7 +26,7 @@ Cap the candidate list at 4 (the `AskUserQuestion` per-question limit). If more 
 Step 4 — present the candidates via a multi-select question. Use `AskUserQuestion` with `multiSelect: true`. Each option's label MUST start with the destination tag in square brackets so the user can see destinations at a glance, e.g.:
 
 - `[domain:terraform] tfstate locks must be released before re-running plan — prevents 30-min wait`
-- `[project] AB-281 chart kept in PR #7 for reference, not merged — see Decisions Log`
+- `[project] AB-281 chart stays out of the release because its CRDs are cluster-scoped — keep it in the reference branch`
 - `[domain:new] codex execpolicy decision keyword is "forbidden", not "deny" — wrong values fail at exec time, not parse time`
 
 If there are zero candidates, abort and tell the user there's nothing promotable.
@@ -51,8 +51,8 @@ Step 5 — for each selected candidate, write to its destination (using today's 
   Then append the candidate's `**[YYYY-MM-DD]** <summary>` to the new file's `## Knowledge` section.
 
 - **`[project]`** — engagement-specific learning. Classify before writing:
-  - A durable **decision** (a choice + its rationale) → append `<summary>` (no date prefix — this route holds standing decisions, not a changelog) under `## Decisions Log` (create the section at end of file if absent). Write it present-tense ("infra applies stay CI-only because …"), not as an event ("decided X in PR #N"). If it **supersedes** an existing Decisions Log entry, OVERWRITE that entry — do not append a second one. Append-only is how the log decays into a changelog.
-  - A **constraint/gotcha** or a reusable **pattern/convention** → fold it into the matching structured section (`## Known Constraints / Gotchas` or `## Architecture Decisions`), NOT Decisions Log. The log is for choices, not for landmines or conventions.
+  - A durable **decision** (a choice + its rationale) → append `<summary>` (no date prefix — this route holds standing decisions, not a changelog) under `## Architecture Decisions` (create the section if absent). Write it present-tense ("infra applies stay CI-only because …"), not as an event ("decided X in PR #N"). If it **supersedes** an existing entry in that section, OVERWRITE that entry — do not append a second one. Append-only is how the section decays into a changelog.
+  - A **constraint/gotcha** or a reusable **pattern/convention** → fold it into the matching section — `## Known Constraints / Gotchas` for landmines, `## Conventions` for conventions, `## Commands` for a command Claude can't guess. `## Architecture Decisions` is for choices only.
   - A pure **event** (work landed, PR merged, track closed) → do NOT promote; that's git history. (Step 3's present-tense test should already have dropped it.)
 
 Step 6 — roll **only the learnings section**, exactly once at the end of the run (regardless of how many candidates were promoted):

@@ -154,7 +154,7 @@ cat ~/.claude-memory/projects/payments-svc/working.md      # the checkpoint, as 
   2. **Exit that session. Start a NEW one in `payments-svc`** (T-claude). On SessionStart the
      checkpoint is injected — point at it: *"fresh session, it already knows."*
   3. Graduate it: run `/promote-memory` → move the line into a `domain/<topic>.md` file or
-     `payments-svc`'s Decisions Log. Show the destination file.
+     `payments-svc`'s `## Architecture Decisions`. Show the destination file.
 - **Reveal (diagram):** Mermaid 3 in showcase §5 (O/E/V + promotion).
 
 ## Beat 6 — Harness-agnostic + rigor · 6 min
@@ -184,7 +184,7 @@ bash scripts/run-tests.sh --no-lint                  # hermetic suite → 27/27 
 
 - `/Users/<you>/Projects/<org>/payments-svc/.agents/memory-project` (forward marker)
 - `~/.claude-memory/projects/payments-svc/` (scaffolded project; `repo`/`repo_path`/`category` set)
-- any `/promote-memory` destination edited in Beat 5 (domain file or `payments-svc` Decisions Log)
+- any `/promote-memory` destination edited in Beat 5 (domain file or `payments-svc` `## Architecture Decisions`)
 - regenerated `~/.claude-memory/index.md`, `state.md`, `activity.md` (all gitignored)
 
 Nothing above enters git (all under `.gitignore`), and nothing touched the tracked

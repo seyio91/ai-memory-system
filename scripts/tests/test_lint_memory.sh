@@ -30,17 +30,12 @@ summary: A good project
 ## What It Is
 x
 
-## Current State
-x
-
 ## Architecture Decisions
 x
 
 ## Known Constraints / Gotchas
 x
 
-## Current Goal
-x
 EOF
     write_clean_initiative "$m/initiatives/clean-initiative.md"
     MEMORY_DIR="$m" bash "$SCRIPTS_DIR/regenerate-index.sh" >/dev/null
@@ -93,11 +88,11 @@ rm -rf "$M2"
 
 # --- missing required project section -> WARN + exit 1 ---
 M3="$(new_sandbox)"; export MEMORY_DIR="$M3"; build_clean "$M3"
-grep -v '^## Current Goal$' "$M3/projects/good/memory.md" > "$M3/projects/good/memory.md.tmp"
+grep -v '^## Known Constraints / Gotchas$' "$M3/projects/good/memory.md" > "$M3/projects/good/memory.md.tmp"
 mv "$M3/projects/good/memory.md.tmp" "$M3/projects/good/memory.md"
 run_lint
 assert_exit 1 "$CODE" "missing section exits 1"
-assert_contains "$OUT" "Current Goal" "names the missing section"
+assert_contains "$OUT" "Known Constraints / Gotchas" "names the missing section"
 rm -rf "$M3"
 
 # Insert a frontmatter key before the closing --- (test-local helper).
@@ -127,13 +122,9 @@ summary: not reindexed
 
 ## What It Is
 x
-## Current State
-x
 ## Architecture Decisions
 x
 ## Known Constraints / Gotchas
-x
-## Current Goal
 x
 EOF
 # Deliberately do NOT reindex — ghost is absent from the index.

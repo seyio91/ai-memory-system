@@ -42,17 +42,12 @@ summary: A good project
 ## What It Is
 x
 
-## Current State
-x
-
 ## Architecture Decisions
 x
 
 ## Known Constraints / Gotchas
 x
 
-## Current Goal
-x
 EOF
     : > "$m/projects/good/working.md"
 }

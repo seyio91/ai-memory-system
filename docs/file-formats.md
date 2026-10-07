@@ -43,19 +43,37 @@ category: acme-corp                  # optional — client/group this project be
 
 **`category`** groups a project under a client/group for `/state` (grouped view + `/state <category>` filter) and `/activity` (plans created per category over a window). It is **per-instance personal data** — the field is supported by the engine, but its value lives only in the gitignored project `memory.md` and never enters git history. Set it with `/pin <project> --category <client>` (from inside the checkout), during `/new-project`, or by hand. One flat category per project.
 
-## Project memory sections (required)
+## Project memory sections
 
-The template enforces five sections; lint complains if any is missing:
+`memory.md` is injected whole into every session for its project, so it plays the role a
+`CLAUDE.md` plays. The test for every line: **would removing it cause Claude to make a
+mistake?** If not, cut it.
+
+| Include | Leave out |
+|---|---|
+| Commands Claude can't guess (build, test, lint, render, release) | Anything readable from the code (inventories, pins, defaults, layout trees) |
+| Style rules that differ from defaults | Standard language conventions |
+| Test instructions and the preferred runner | Detailed API/reference docs — link them |
+| Branch naming, commit and PR conventions | Information that changes often — status, versions, counts, PR numbers, SHAs, dates |
+| Project-specific architectural decisions (with the why) | File-by-file descriptions |
+| Gotchas and non-obvious behaviour | Self-evident advice |
+
+Sections, in template order (**required** ones are checked by `lint-memory`):
 
 ```
-## What It Is             — what the project is, stack, ownership, scale
-## Current State          — deployed/stable vs in-flight (last ~30 commits)
-## Architecture Decisions — locked-in choices and explicit non-goals
-## Known Constraints / Gotchas — landmines, load-bearing hacks
-## Current Goal           — active milestone, one thing only
+## What It Is                  — required: what the project is, stack, ownership
+## Commands                    — optional: commands Claude can't guess
+## Conventions                 — optional: branch/commit/PR/style rules that differ from defaults
+## Architecture Decisions      — required: locked-in choices (with the why) and non-goals
+## Known Constraints / Gotchas — required: landmines, load-bearing hacks
+## Pointers                    — optional: links to the repo's README/CLAUDE.md, docs, wikis, skills
+## Related Projects            — optional: cross-project relationship table (below)
 ```
 
-`## Decisions Log` is appended by `/promote-memory` when promoting to a project (not in the template).
+`## Current State` and `## Current Goal` are retired: `lint-memory` WARNs when either is present
+and names the new home. Status and session history go in `working.md`; the active goal is the
+first plan heading under `## Active` in `todo.md`, which is where `/state` reads it.
+`/promote-memory` writes project decisions into `## Architecture Decisions`.
 
 **Size budgets.** `memory.md` also carries a byte/line budget: `lint-memory` (rule 16) and the
 write guard WARN past 16 KB per file and 400 B per line — a long file or a wall-of-prose line
@@ -65,7 +83,7 @@ more delivery chunks than a harness's `session_chunks` cap — that one truncate
 than just reading slowly. Both checks are `check-memory-size.sh --file`/`--payload`; see
 [scripts.md](scripts.md). No budget applies to `domain/*.md` (lazy-loaded, never injected).
 
-**Optional `## Related Projects`.** The template carries a commented-out `## Related Projects` block after the five required sections. Uncomment it only when this project's work spans into others; it holds the relationship table described in [Cross-project relationships](workflow.md#cross-project-relationships). Because it's HTML-commented in the template, it stays inert for the lint section check until you uncomment it.
+**Optional `## Related Projects`.** The template carries a commented-out `## Related Projects` block after the other sections. Uncomment it only when this project's work spans into others; it holds the relationship table described in [Cross-project relationships](workflow.md#cross-project-relationships). Because it's HTML-commented in the template, it stays inert for the lint section check until you uncomment it.
 
 ```markdown
 <!-- Uncomment only if this project's work spans into other projects.

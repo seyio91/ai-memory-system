@@ -73,10 +73,14 @@ fi
 # 3. Project memory section coverage.
 REQUIRED_PROJECT_SECTIONS=(
     "## What It Is"
-    "## Current State"
     "## Architecture Decisions"
     "## Known Constraints / Gotchas"
-    "## Current Goal"
+)
+# Retired sections: each invites frequently-changing status, which the content
+# contract keeps out of memory.md. The WARN names where the content goes.
+OBSOLETE_PROJECT_SECTIONS=(
+    "## Current State|move standing facts to What It Is or Known Constraints / Gotchas, session history to working.md"
+    "## Current Goal|the active goal lives in todo.md (/state reads it from there)"
 )
 for f in "$MEMORY_DIR"/projects/*/memory.md; do
     [ -e "$f" ] || continue
@@ -84,6 +88,12 @@ for f in "$MEMORY_DIR"/projects/*/memory.md; do
     for section in "${REQUIRED_PROJECT_SECTIONS[@]}"; do
         if ! grep -qxF "$section" "$f"; then
             emit "WARN:  $f missing section: $section"
+        fi
+    done
+    for entry in "${OBSOLETE_PROJECT_SECTIONS[@]}"; do
+        section="${entry%%|*}"
+        if grep -qxF "$section" "$f"; then
+            emit "WARN:  $f obsolete section: $section — ${entry#*|}"
         fi
     done
 done

@@ -9,7 +9,7 @@ bash ~/.claude-memory/scripts/regenerate-state.sh "$ARGUMENTS" --stdout   # one 
 ```
 `--stdout` prints without writing the file. Drop it to also refresh `~/.claude-memory/state.md` on disk (a gitignored personal artifact).
 
-Step 2 — present the table to the user as-is. It is already compact: one row per project — `category | project | last touched | current goal | open todos`, **grouped by category (uncategorized last), newest first within each group**. `_template` is excluded; a project with no `## Current Goal` shows `—`; a project with no category shows `—` in the category column; open-todo count is the unchecked-box count from each `todo.md`. Category groups clients together for a system-wide view; `/state <category>` narrows to one client's live work.
+Step 2 — present the table to the user as-is. It is already compact: one row per project — `category | project | last touched | current goal | open todos`, **grouped by category (uncategorized last), newest first within each group**. `_template` is excluded; the current goal is the first `###` heading under `## Active` in the project's `todo.md` (its `→ [plan](…)` link stripped), `—` when there is none; a project with no category shows `—` in the category column; open-todo count is the unchecked-box count from each `todo.md`. Category groups clients together for a system-wide view; `/state <category>` narrows to one client's live work.
 
 Step 3 — if the user asked a focusing question ("what's blocked?", "what did I touch this week?", "where are the open todos?"), highlight the relevant rows rather than restating the whole table. Otherwise just show it and stop.
 
