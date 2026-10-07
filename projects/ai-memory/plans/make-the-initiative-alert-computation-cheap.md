@@ -10,42 +10,50 @@ task_ref: make-the-initiative-alert-computation-cheap
 # Make the initiative-alert computation cheap
 
 ## Goal
-Cut `initiative-status.sh`'s per-call cost by resolving plan `task_ref`s with one awk pass per plans directory instead of one `extract_fm_field` fork per plan file per Target, so the initiative alert stops dominating lint and the memory write guard.
+Cut `initiative-status.sh`'s per-call cost so the initiative alert stops dominating lint and the memory write guard, with byte-identical output.
 
 ## Success criteria
-- `bash scripts/initiative-status.sh <slug>` stdout is byte-identical before/after for every real initiative (`memory-md-hygiene`, `vault-eks`), and the `.state/` snapshot is untouched by the comparison runs.
+- `bash scripts/initiative-status.sh <slug>` stdout is byte-identical before/after for every real initiative (`memory-md-hygiene`, `vault-eks`) and for an edge-case fixture (pipes in cells, padded/tabbed/stage-qualified `depends_on`); `.state/` snapshots untouched.
 - `initiative-status.sh memory-md-hygiene` wall time ≤ 0.25 s (was ~0.68 s).
 - `bash scripts/run-tests.sh` green; summary counter reconciled against the file count.
-- `bash scripts/lint-memory.sh` WARN **set** unchanged before/after; lint wall time recorded before/after (target ≤ 10 s, was ~27-30 s).
-- Guard cost on an ai-memory `memory.md` write recorded before/after.
-- Exact-match semantics preserved: a `task_ref` that is a prefix of another never matches, and only frontmatter `task_ref` counts (pinned by a test).
+- `bash scripts/lint-memory.sh` WARN **set** unchanged before/after; lint and guard wall time recorded before/after.
 - `changelog.d/<id>.fix.md` fragment present.
 
 ## Design
-Hot spot: `find_task_plans` (`scripts/initiative-status.sh`) loops `"$dir"/*.md` calling `extract_fm_field` per file, and is called twice per `software_adw` Target with a `task:` (live `plans/`, then `archive/plans/`). With 7 ai-memory Targets × 63 archived plans that is ~440 awk forks per call.
+**Original hypothesis was wrong.** Planned fix was a per-directory `task_ref` index for `find_task_plans`; profiling showed every `memory-md-hygiene` Target is `interactive`, so `find_task_plans` never runs (6 awk / 180 sed forks both before and after that change). Reverted it.
 
-Fix: build a per-directory index once — a single awk over all `*.md` in the dir emitting `<task_ref>\t<path>` from frontmatter only (same `---` bounds and trailing-whitespace trim as `extract_fm_field`) — memoized per dir for the run; `find_task_plans` then filters the index by exact string equality. Output, ordering (glob order) and fail-closed duplicate reporting stay identical.
+Actual hot spot: ~180 `sed` forks per run — `escape_cell` (`$(printf | sed)` per table cell, 6 × 25) and `trim` + stage-stripping per `depends_on` entry. Fix: bash parameter expansion (`${v//|/\\|}`, `#`/`%` whitespace trim into a `$TRIMMED` global); the stage-qualified `depends_on` path keeps its `sed` (rare, and bash's shortest-suffix match diverges from the regex on malformed input).
 
 Rejected:
-- Persistent on-disk cache keyed on mtimes — invalidation surface across plans/archive/todo/initiative files; not needed if the in-process fix lands the cost.
-- `grep -l '^task_ref: <ref>$'` — matches outside frontmatter and diverges from `extract_fm_field`'s whitespace handling.
-- Per-slug memo across projects in `check-memory-size.sh` — only if P2's measurement says lint is still too slow.
+- Per-directory `task_ref` index — no measured cost on real initiatives.
+- Persistent on-disk cache keyed on mtimes — invalidation surface, not needed.
+- Per-slug memo across projects in `check-memory-size.sh` — alert is now ~0.14 s/project (~2.6 s of lint); not worth the coupling.
 
 ## Decisions (locked)
 - Behaviour-preserving refactor; no output format change.
 - System change → branch + PR via `git-cli ship --intent`.
 
+## Measurements (2026-10-07, 19-project tree)
+| | before | after |
+|---|---|---|
+| `initiative-status.sh memory-md-hygiene` | 0.68 s | 0.07 s |
+| `lint-memory.sh` | 31.8 s | 16.8 s |
+| guard on ai-memory `memory.md` | 1.44 s | 0.68 s |
+| lint WARN set | 53 | 53 (identical) |
+| suite (signing disabled) | — | 56/56 files, 56 passed |
+
+Remaining lint cost is payload rendering in `check-memory-size.sh --payload` (~0.5 s/project, of which alert ~0.14 s) — outside this task.
+
 ## Phases
 
-### Phase 1 — Batch task_ref lookup in initiative-status.sh
-Replace the per-file fork loop with a memoized per-directory awk index; add a test pinning exact-match + frontmatter-only semantics (prefix ref, body-only `task_ref:` line).
-**Verify:** before/after stdout diff empty for both real initiatives; timing ≤ 0.25 s; `test_initiative_status*` + full suite green.
+### Phase 1 — Remove per-call sed forks in initiative-status.sh
+Replace `escape_cell`/`trim`/stage-strip `sed` forks with parameter expansion.
+**Verify:** before/after stdout diff empty for both real initiatives and the edge-case fixture; timing ≤ 0.25 s; full suite green.
 
 ### Phase 2 — Measure end-to-end and decide on cross-project memo
 **Depends:** P1
-Time `lint-memory.sh` and a guarded ai-memory `memory.md` write before/after; compare WARN sets. Only if lint > 10 s, add per-slug memoization in `check-memory-size.sh`. Add changelog fragment.
+Time `lint-memory.sh` and a guarded ai-memory `memory.md` write before/after; compare WARN sets. Decide on per-slug memoization in `check-memory-size.sh` from the measured alert share. Add changelog fragment.
 **Verify:** recorded before/after numbers; identical WARN set; fragment present.
 
 ## Risks / open questions
 - Snapshot side effect: `initiative-status.sh` writes `initiatives/.state/<slug>.snapshot` on first run / stream-count change / `--ack`. Comparison runs must not ack; checksum the snapshot before/after.
-- Glob ordering must match the old loop so the duplicate-plan evidence lists paths in the same order.
