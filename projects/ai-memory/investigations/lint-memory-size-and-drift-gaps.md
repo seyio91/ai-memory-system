@@ -4,7 +4,7 @@ project: ai-memory
 status: open
 created: 2026-08-27
 owner: seyi
-task_ref: 3c9f6850-c619-812d-876b-c8a005cb1af7
+task_ref: add-byte-payload-size-budgets-to-memory-lint-and-write-guard
 ---
 
 # lint-memory.sh — no size check, and the changelog-drift regex is too narrow

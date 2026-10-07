@@ -505,6 +505,72 @@ for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
     fi
 done
 
+# 16. Size budgets — a project `memory.md` over 16 KB or carrying lines over
+#     400 B reads more slowly every session; a rendered session payload that
+#     needs more chunks than a harness's manifest declares gets truncated
+#     silently past the cap. Both checks live in check-memory-size.sh so that
+#     this sweep and the memory-write hook share one definition — same reuse
+#     pattern as rule 7's check-changelog-drift.sh. Budget and long-line
+#     findings are WARN (style); payload overflow is ERROR (the harness
+#     actually drops content).
+#
+#     check-memory-size.sh's own finding text already carries a "WARN "/
+#     "ERROR " label (it needs one when run by hand — see that script's
+#     header) immediately after the "<file>:<line>: " prefix. Re-prepending
+#     this sweep's own "WARN:  "/"ERROR: " on top of that unstripped would
+#     double the label ("WARN:  ...:1: WARN budget — ..."). emit_size_finding
+#     classifies AND strips that inner label in one step.
+#
+#     The $MEMORY_DIR/ prefix is stripped FIRST, before classification, not
+#     after: the case patterns below test for the "<file>:<N>: (ERROR|WARN) "
+#     shape anywhere in the string, not anchored to its actual fixed
+#     position right after check-memory-size.sh's own "<file>:<line>: "
+#     prefix (a plain case glob can't express "only at this offset"). A
+#     $MEMORY_DIR path that itself happens to contain ":<digits>: ERROR "
+#     (an unusual but legal directory name) would otherwise match the ERROR
+#     arm before the classifier ever reaches the real, correctly-WARN,
+#     severity token — misclassifying it. Stripping the known $MEMORY_DIR/
+#     prefix first removes that false match from the string the case
+#     patterns see, leaving only the path lint-memory.sh itself controls
+#     (projects/*/memory.md, projects/*/working*.md) where such a collision
+#     is not expected.
+emit_size_finding() {
+    local finding="$1" rel stripped
+    rel="${finding#"$MEMORY_DIR"/}"
+    case "$rel" in
+        *:[0-9]*': ERROR '*)
+            stripped="$(printf '%s\n' "$rel" | sed -E 's/^(.*:[0-9]+): ERROR /\1: /')"
+            emit "ERROR: $stripped"
+            ;;
+        *:[0-9]*': WARN '*)
+            stripped="$(printf '%s\n' "$rel" | sed -E 's/^(.*:[0-9]+): WARN /\1: /')"
+            emit "WARN:  $stripped"
+            ;;
+        *)
+            emit "WARN:  $rel"
+            ;;
+    esac
+}
+
+for f in "$MEMORY_DIR"/projects/*/memory.md; do
+    [ -e "$f" ] || continue
+    case "$f" in *"/_template/"*) continue;; esac
+    while IFS= read -r finding; do
+        [ -n "$finding" ] || continue
+        emit_size_finding "$finding"
+    done < <("$SCRIPT_DIR/check-memory-size.sh" --file "$f" 2>/dev/null)
+done
+
+for d in "$MEMORY_DIR"/projects/*/; do
+    [ -d "$d" ] || continue
+    case "$d" in *"/_template/"*) continue;; esac
+    project=$(basename "$d")
+    while IFS= read -r finding; do
+        [ -n "$finding" ] || continue
+        emit_size_finding "$finding"
+    done < <("$SCRIPT_DIR/check-memory-size.sh" --payload "$project" 2>/dev/null)
+done
+
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
     exit 0

@@ -57,6 +57,14 @@ The template enforces five sections; lint complains if any is missing:
 
 `## Decisions Log` is appended by `/promote-memory` when promoting to a project (not in the template).
 
+**Size budgets.** `memory.md` also carries a byte/line budget: `lint-memory` (rule 16) and the
+write guard WARN past 16 KB per file and 400 B per line — a long file or a wall-of-prose line
+reads more slowly every session. Separately, the *rendered session payload* for a project (this
+file plus identity/orchestrator/index/working, per harness format) is ERROR when it would need
+more delivery chunks than a harness's `session_chunks` cap — that one truncates silently rather
+than just reading slowly. Both checks are `check-memory-size.sh --file`/`--payload`; see
+[scripts.md](scripts.md). No budget applies to `domain/*.md` (lazy-loaded, never injected).
+
 **Optional `## Related Projects`.** The template carries a commented-out `## Related Projects` block after the five required sections. Uncomment it only when this project's work spans into others; it holds the relationship table described in [Cross-project relationships](workflow.md#cross-project-relationships). Because it's HTML-commented in the template, it stays inert for the lint section check until you uncomment it.
 
 ```markdown

@@ -137,7 +137,18 @@ content_sections() {
             working)
                 if [ -n "$project" ]; then
                     local w
-                    w="$(resolve_working_file "$project" "${AI_MEMORY_CWD:-$PWD}")"
+                    # AI_MEMORY_WORKING_OVERRIDE pins the exact working file to
+                    # render, bypassing cwd/session-key resolution entirely.
+                    # resolve_working_file only ever picks ONE overlay from a
+                    # real cwd; check-memory-size.sh --payload needs to check
+                    # EVERY existing working file for a project (shared
+                    # working.md plus each working.<key>.md overlay) regardless
+                    # of the checker's own cwd, so it sets this instead.
+                    if [ -n "${AI_MEMORY_WORKING_OVERRIDE:-}" ]; then
+                        w="$AI_MEMORY_WORKING_OVERRIDE"
+                    else
+                        w="$(resolve_working_file "$project" "${AI_MEMORY_CWD:-$PWD}")"
+                    fi
                     [ -f "$w" ] && [ -s "$w" ] && printf 'working\t%s\t\n' "$w"
                 fi ;;
         esac

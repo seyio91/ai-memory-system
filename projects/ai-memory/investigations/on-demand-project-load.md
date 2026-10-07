@@ -4,7 +4,7 @@ kind: investigation
 status: open — design seed for /start (brainstormed 2026-07-12)
 created: 2026-07-12
 owner: claude (orchestrator)
-task_ref: 38ff6850-c619-810e-93c9-e58480054bf2
+task_ref: split-project-memory-into-always-injected-core-and-on-demand-topic-files
 ---
 
 # Investigation — on-demand project load / switch
