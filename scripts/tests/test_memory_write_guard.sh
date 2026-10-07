@@ -94,7 +94,18 @@ run_guard "$M1/projects/good/memory.md"
 assert_exit 2 "$CODE" "oversized memory.md exits 2"
 assert_contains "$OUT" "Size budget" "oversized memory.md names the size-budget section"
 assert_contains "$OUT" "budget" "oversized memory.md report mentions the budget finding"
+assert_contains "$OUT" "Trim this file" "size-only finding gets trim advice"
+assert_not_contains "$OUT" "to the project's working.md" "size-only finding never tells the writer to move lines into working.md"
 rm -rf "$M1"
+
+# --- memory.md with a dated log line but within budget -> drift advice only --
+MD="$(new_sandbox)"; export MEMORY_DIR="$MD"; build_tree "$MD"
+printf '\n**2026-01-01:** PR #1 merged.\n' >> "$MD/projects/good/memory.md"
+run_guard "$MD/projects/good/memory.md"
+assert_exit 2 "$CODE" "dated line in memory.md exits 2"
+assert_contains "$OUT" "to the project's working.md" "drift-only finding gets the move-to-working.md advice"
+assert_not_contains "$OUT" "Trim this file" "drift-only finding gets no trim advice"
+rm -rf "$MD"
 
 # --- clean memory.md -> exit 0 ----------------------------------------------
 M2="$(new_sandbox)"; export MEMORY_DIR="$M2"; build_tree "$M2"

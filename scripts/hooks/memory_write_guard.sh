@@ -74,38 +74,41 @@ add_report() { # add_report <label> <findings>
 $2"
 }
 
-# advice is tier-specific: the memory.md/domain message tells the writer to
-# move dated lines OUT to the project's working.md, which is correct advice
-# there but nonsensical on a working.md/working.<key>.md write itself (it
-# already IS that destination) — that mismatch is FIX4. Each branch below
-# sets its own `advice` to the message appropriate for what was just written.
+# advice follows the findings, not the tier: one line per check that actually
+# fired. Telling a writer to move dated lines into working.md is wrong when the
+# only problem is size, and wrong on a working.md write, which IS that file.
 advice=""
+add_advice() { # add_advice <findings> <line>
+    [ -n "$1" ] || return 0
+    advice="${advice}${advice:+$'\n'}$2"
+}
+DRIFT_ADVICE="This tier holds what stays true. Move the dated/event lines to the project's working.md, or drop them — git already records what shipped."
 
 case "$file" in
     "$MEMORY_DIR"/projects/*/memory.md)
         project="${file#"$MEMORY_DIR"/projects/}"
         project="${project%%/*}"
 
-        if [ -x "$drift_checker" ]; then
-            add_report "Changelog drift in ${file#"$MEMORY_DIR"/}" \
-                "$("$drift_checker" "$file" 2>/dev/null)"
-        fi
+        drift="" size="" payload=""
+        [ -x "$drift_checker" ] && drift="$("$drift_checker" "$file" 2>/dev/null)"
         if [ -x "$size_checker" ]; then
-            add_report "Size budget in ${file#"$MEMORY_DIR"/}" \
-                "$("$size_checker" --file "$file" 2>/dev/null)"
-            add_report "Session payload for project '$project'" \
-                "$("$size_checker" --payload "$project" 2>/dev/null)"
+            size="$("$size_checker" --file "$file" 2>/dev/null)"
+            payload="$("$size_checker" --payload "$project" 2>/dev/null)"
         fi
-        advice="This tier holds what stays true. Move the dated/event lines to the project's working.md (or drop them — git already records what shipped), trim the file toward its size budget, or raise the harness's session_chunks cap if the payload growth is expected."
+        add_report "Changelog drift in ${file#"$MEMORY_DIR"/}" "$drift"
+        add_report "Size budget in ${file#"$MEMORY_DIR"/}" "$size"
+        add_report "Session payload for project '$project'" "$payload"
+        add_advice "$drift" "$DRIFT_ADVICE"
+        add_advice "$size" "Trim this file toward its budget: cut what the code already says or what changes often, condense long entries to the rule they encode, move cross-project knowledge to domain/ and procedures to a skill."
+        add_advice "$payload" "The session payload exceeds a harness's delivery cap, so its tail is being truncated. Shrink this file or the project's working.md (/checkpoint-archive), or raise that harness's session_chunks."
         ;;
     "$MEMORY_DIR"/projects/*/working.md|"$MEMORY_DIR"/projects/*/working.*.md)
         project="${file#"$MEMORY_DIR"/projects/}"
         project="${project%%/*}"
 
-        if [ -x "$size_checker" ]; then
-            add_report "Session payload for project '$project'" \
-                "$("$size_checker" --payload "$project" --working "$file" 2>/dev/null)"
-        fi
+        payload=""
+        [ -x "$size_checker" ] && payload="$("$size_checker" --payload "$project" --working "$file" 2>/dev/null)"
+        add_report "Session payload for project '$project'" "$payload"
         # This IS the scratch/history tier already — a finding here is a
         # payload-size problem, never a drift problem, so the advice is
         # payload-appropriate only: shrink what gets delivered, don't move
@@ -123,7 +126,7 @@ case "$file" in
         # payload (see this file's header). Advice that tells the writer to
         # "trim toward its size budget" or "raise the session_chunks cap"
         # would be pointing at a check this branch never ran.
-        advice="This tier holds what stays true. Move the dated/event lines to the relevant project's working.md (or drop them — git already records what shipped)."
+        advice="$DRIFT_ADVICE"
         ;;
     *) exit 0 ;;
 esac
