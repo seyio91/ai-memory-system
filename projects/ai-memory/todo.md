@@ -8,7 +8,7 @@
 ## Active
 
 ### Fill new-project frontmatter and heading placeholders → [plan](plans/fill-new-project-placeholders.md)
-- [ ] P1 — Substitute placeholders and wire summary + reindex
+- [x] P1 — Substitute placeholders and wire summary + reindex
 
 ## Done
 _(checked items stay above until the file is rolled)_
