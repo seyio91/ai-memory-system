@@ -7,12 +7,7 @@
 
 ## Active
 
-### Add byte/payload size budgets to memory lint and write guard → [plan](plans/memory-size-budgets.md)
-- [x] P1 — Extract the shared slicer
-- [x] P2 — check-memory-size.sh with tests (needs: P1)
-- [x] P3 — Widen drift regex for project memory; drop date prefix from promote's Decisions Log route
-- [x] P4 — Wire into lint and the write guard (needs: P2, P3)
-- [ ] Checkpoint — pre-PR (needs: P4)
+_(no items yet)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
