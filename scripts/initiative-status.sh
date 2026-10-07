@@ -105,7 +105,12 @@ done < <(
 
 [ "${#target_ids[@]}" -gt 0 ] || { echo "initiative-status: invalid initiative file (no Targets): $INITIATIVE" >&2; exit 1; }
 
-trim() { printf '%s\n' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'; }
+# trim <s> — sets $TRIMMED to <s> without leading/trailing whitespace. A
+# variable, not stdout: a $(...) capture would fork once per call.
+trim() {
+    TRIMMED="${1#"${1%%[![:space:]]*}"}"
+    TRIMMED="${TRIMMED%"${TRIMMED##*[![:space:]]}"}"
+}
 
 target_index() {
     local wanted="$1" i=0
@@ -124,7 +129,7 @@ stage_position() {
             *'->'*) stage=${remaining%%'->'*}; remaining=${remaining#*'->'} ;;
             *) stage="$remaining"; remaining="" ;;
         esac
-        stage="$(trim "$stage")"
+        trim "$stage"; stage="$TRIMMED"
         [ "$stage" = "$wanted" ] && { printf '%s\n' "$pos"; return 0; }
         pos=$((pos + 1))
     done
@@ -402,8 +407,11 @@ for i in "${!target_ids[@]}"; do
             *,*) dependency=${remaining%%,*}; remaining=${remaining#*,} ;;
             *) dependency="$remaining"; remaining="" ;;
         esac
-        dependency="$(trim "$dependency")"
-        dependency_id="$(printf '%s\n' "$dependency" | sed 's/[[:space:]]*(stage: [^)]*)[[:space:]]*$//')"
+        trim "$dependency"; dependency="$TRIMMED"
+        case "$dependency" in
+            *'(stage: '*) dependency_id="$(printf '%s\n' "$dependency" | sed 's/[[:space:]]*(stage: [^)]*)[[:space:]]*$//')" ;;
+            *) dependency_id="$dependency" ;;
+        esac
         wanted_stage=""
         case "$dependency" in
             *'(stage: '*) wanted_stage=${dependency#*'(stage: '}; wanted_stage=${wanted_stage%')'} ;;
@@ -447,19 +455,18 @@ for i in "${!target_ids[@]}"; do
     dependency_cells[${#dependency_cells[@]}]="$cell"
 done
 
-escape_cell() { printf '%s' "$1" | sed 's/|/\\|/g'; }
-
 printf '# Initiative readiness — %s\n\n' "$SLUG"
 printf '| id | execution_mode | derived stage/status | evidence | depends_on + satisfied? | next_actor |\n'
 printf '|---|---|---|---|---|---|\n'
 for i in "${!target_ids[@]}"; do
+    actor="${target_actors[$i]:-none}"
     printf '| %s | %s | %s | %s | %s | %s |\n' \
-        "$(escape_cell "${target_ids[$i]}")" \
-        "$(escape_cell "${target_modes[$i]}")" \
-        "$(escape_cell "${derived[$i]}")" \
-        "$(escape_cell "${evidence[$i]}")" \
-        "$(escape_cell "${dependency_cells[$i]}")" \
-        "$(escape_cell "${target_actors[$i]:-none}")"
+        "${target_ids[$i]//|/\\|}" \
+        "${target_modes[$i]//|/\\|}" \
+        "${derived[$i]//|/\\|}" \
+        "${evidence[$i]//|/\\|}" \
+        "${dependency_cells[$i]//|/\\|}" \
+        "${actor//|/\\|}"
 done
 if [ "${#warnings[@]}" -gt 0 ]; then
     printf '\n'
