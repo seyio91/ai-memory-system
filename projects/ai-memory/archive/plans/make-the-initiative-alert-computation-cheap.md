@@ -1,6 +1,7 @@
 ---
 plan: make-the-initiative-alert-computation-cheap
-status: in_progress
+status: done
+completed: 2026-10-07
 created: 2026-10-07
 owner: claude (orchestrator)
 task_provider: local

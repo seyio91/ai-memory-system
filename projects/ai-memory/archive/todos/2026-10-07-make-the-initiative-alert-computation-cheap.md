@@ -1,3 +1,5 @@
+# Archived todo — ai-memory — 2026-10-07
+
 # Todo — ai-memory
 
 > Single source of truth for executable work on this project.
@@ -7,7 +9,9 @@
 
 ## Active
 
-_(no items yet)_
+### Make the initiative-alert computation cheap → [plan](archive/plans/make-the-initiative-alert-computation-cheap.md)
+- [x] P1 — Remove per-call sed forks in initiative-status.sh
+- [x] P2 — Measure end-to-end and decide on cross-project memo (needs: P1)
 
 ## Done
 _(checked items stay above until the file is rolled)_
