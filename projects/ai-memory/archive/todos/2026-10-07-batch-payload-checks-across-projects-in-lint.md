@@ -1,3 +1,5 @@
+# Archived todo — ai-memory — 2026-10-07
+
 # Todo — ai-memory
 
 > Single source of truth for executable work on this project.
@@ -7,7 +9,9 @@
 
 ## Active
 
-_(no items yet)_
+### Batch payload checks across projects in lint → [plan](archive/plans/batch-payload-checks-across-projects-in-lint.md)
+- [x] P1 — Multi-project `--payload` in check-memory-size.sh
+- [x] P2 — lint-memory.sh uses one batched call; docs, changelog, measure (needs: P1)
 
 ## Done
 _(checked items stay above until the file is rolled)_
