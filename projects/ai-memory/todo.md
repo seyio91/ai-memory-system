@@ -8,10 +8,10 @@
 ## Active
 
 ### Rework project memory template and required-section lint → [plan](plans/rework-project-memory-template.md)
-- [ ] P1 — Template + lint rule 3
-- [ ] P2 — /state goal from todo.md
-- [ ] P3 — Docs and commands
-- [ ] P4 — Changelog, full suite, ship (needs: P1, P2, P3)
+- [x] P1 — Template + lint rule 3
+- [x] P2 — /state goal from todo.md
+- [x] P3 — Docs and commands
+- [x] P4 — Changelog, full suite, ship (needs: P1, P2, P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_

@@ -58,6 +58,12 @@ New template; `REQUIRED_PROJECT_SECTIONS` → three core sections; obsolete-sect
 Feature fragment; full suite; contract wiki "What is enforced today" updated on `main`; ship.
 **Verify:** suite green with counter reconciled; fragment present; PR open.
 
+## Execution notes (2026-10-07)
+- Lint vs `main`: +38 obsolete-section WARNs, 0 removed, nothing else. Full suite 56/56 (signing disabled); `check-docs` clean.
+- `/state` real tree: goals now from `todo.md`. k8s-addons shows `—` — its `todo.md` has no `## Active` section (free-form `##` headings); fix in its trim.
+- Also touched beyond the plan's list: `docs/install.md` (section count), `docs/harnesses/claude.md` (`/state` source), `docs/demo-runbook.md`, `docs/showcase.md`, `templates/index.template.md`, `scripts/check-changelog-drift.sh` comment (Decisions Log references).
+- Fresh scaffold lints clean; `new-project.sh` never substituted `<name>` (pre-existing — the prose command fills it).
+
 ## Risks / open questions
 - Consumer instances see 2 WARNs per existing project until trimmed — acceptable (WARN, not failure); stated in the changelog.
 - A `todo.md` whose first Active item is an inline checkbox, not a plan heading, shows `—` on `/state`.

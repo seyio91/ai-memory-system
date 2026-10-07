@@ -51,15 +51,15 @@ happened.** A "verified on <date>, PR #N" story is an event; keep the one-senten
 
 ## Failure modes seen in the 2026-10-07 audit
 
-- `## Current State` / `## Current Goal` are required by lint and invite exactly the
-  frequently-changing content above; they were the dominant source of wrong entries.
+- `## Current State` / `## Current Goal` were required by lint and invited exactly the
+  frequently-changing content above; they were the dominant source of wrong entries (now retired).
 - Facts copied between sibling projects without re-checking the target repo became false there.
 - Stale workaround rules outlived their fix and contradicted `domain/` (rtk).
 - Inline `[NEEDS REVIEW]` markers rot in both directions.
 
 ## What is enforced today
 
-- Required sections + frontmatter (`scripts/lint-memory.sh`).
+- Sections + frontmatter (`scripts/lint-memory.sh` rule 3): required What It Is, Architecture Decisions, Known Constraints / Gotchas; optional Commands, Conventions, Pointers, Related Projects. `## Current State` / `## Current Goal` are retired — lint WARNs on them naming the new home, and `/state` reads the goal from `todo.md`. The include/leave-out table ships in `docs/file-formats.md`; the template carries a one-line pointer to it.
 - Size (`scripts/check-memory-size.sh`, lint rule 16): WARN when a project `memory.md` exceeds 16 KB, one
   WARN per file for lines over 400 B, ERROR when a project's rendered payload needs more chunks than a
   harness's `session_chunks` (claude/xml, codex/md). The payload check counts slices with the same code
