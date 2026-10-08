@@ -313,9 +313,18 @@ set -e
 assert_exit 0 "$code" "shared guard: executor allowed command exits 0"
 
 # AI_MEMORY_GUARD_SCOPE=all (Claude opt-in): agent_id present -> subagent -> deny;
-# absent -> main session -> ask JSON on stdout. Default scope stays role-gated.
+# absent -> main session -> ask JSON on stdout when permission_mode shows prompts
+# (default/plan/acceptEdits), deny otherwise. Default scope stays role-gated.
 guard_payload_sub() {
     printf '{"hook_event_name":"PreToolUse","agent_id":"a1","agent_type":"general-purpose","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1"
+}
+# guard_payload_mode <permission_mode> <cmd> — main-session Claude payload.
+guard_payload_mode() {
+    printf '{"hook_event_name":"PreToolUse","permission_mode":"%s","tool_name":"Bash","tool_input":{"command":"%s"},"tool_use_id":"call_x"}' "$1" "$2"
+}
+# guard_payload_sub_mode <permission_mode> <cmd> — subagent payload with a mode.
+guard_payload_sub_mode() {
+    printf '{"hook_event_name":"PreToolUse","agent_id":"a1","agent_type":"general-purpose","permission_mode":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" "$2"
 }
 OUT="$MEM/guard.out"
 
@@ -335,7 +344,7 @@ assert_contains "$(cat "$ERR")" "terraform apply" "shared guard: scope=all subag
 assert_eq "" "$(cat "$OUT")" "shared guard: scope=all subagent deny prints no stdout"
 
 set +e
-guard_payload "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+guard_payload_mode default "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
 code=$?
 set -e
 assert_exit 0 "$code" "shared guard: scope=all main session denied command exits 0"
@@ -348,6 +357,47 @@ if command -v python3 >/dev/null 2>&1; then
         _bad "shared guard: scope=all main session ask output is valid JSON"
     fi
 fi
+
+# permission_mode gates the main-session ask: Claude only shows the prompt in
+# default/plan/acceptEdits; elsewhere (bypassPermissions silently turns ask into
+# allow) the guard must deny.
+for mode in default plan acceptEdits; do
+    set +e
+    guard_payload_mode "$mode" "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "shared guard: scope=all main session mode=$mode exits 0"
+    assert_contains "$(cat "$OUT")" '"permissionDecision":"ask"' "shared guard: scope=all main session mode=$mode emits ask JSON"
+done
+for mode in bypassPermissions dontAsk someFutureMode; do
+    set +e
+    guard_payload_mode "$mode" "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+    code=$?
+    set -e
+    assert_exit 2 "$code" "shared guard: scope=all main session mode=$mode denied (exit 2)"
+    assert_contains "$(cat "$ERR")" "terraform apply" "shared guard: scope=all main session mode=$mode reason names the rule"
+    assert_contains "$(cat "$ERR")" "(main session, permission_mode=$mode: confirmation prompts are not shown in this mode)" "shared guard: scope=all main session mode=$mode reason names the mode"
+    assert_eq "" "$(cat "$OUT")" "shared guard: scope=all main session mode=$mode prints no stdout"
+done
+set +e
+guard_payload "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 2 "$code" "shared guard: scope=all main session missing permission_mode denied (exit 2)"
+assert_contains "$(cat "$ERR")" "permission_mode=unset:" "shared guard: scope=all main session missing permission_mode reason says unset"
+assert_eq "" "$(cat "$OUT")" "shared guard: scope=all main session missing permission_mode prints no stdout"
+set +e
+guard_payload_sub_mode default "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 2 "$code" "shared guard: scope=all subagent mode=default still denied (exit 2)"
+assert_eq "" "$(cat "$OUT")" "shared guard: scope=all subagent mode=default prints no stdout"
+set +e
+guard_payload_mode bypassPermissions "ls -la" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 0 "$code" "shared guard: scope=all main session bypassPermissions allowed command exits 0"
+assert_eq "" "$(cat "$OUT" "$ERR")" "shared guard: scope=all main session bypassPermissions allowed command prints nothing"
 
 for ctx in main sub; do
     if [ "$ctx" = sub ]; then pl="$(guard_payload_sub "ls -la")"; else pl="$(guard_payload "ls -la")"; fi
@@ -422,12 +472,12 @@ run_guard() {
 for scope in ALL " all " alll; do
     run_guard "$SHARED_GUARD" "$scope" "$(guard_payload_sub "terraform apply")"
     assert_exit 2 "$code" "shared guard: scope='$scope' subagent denied command exits 2"
-    run_guard "$SHARED_GUARD" "$scope" "$(guard_payload "terraform apply")"
+    run_guard "$SHARED_GUARD" "$scope" "$(guard_payload_mode default "terraform apply")"
     assert_exit 0 "$code" "shared guard: scope='$scope' main session denied command exits 0"
     assert_contains "$(cat "$OUT")" '"permissionDecision":"ask"' "shared guard: scope='$scope' main session emits ask JSON"
 done
 assert_contains "$(cat "$OUT")" "unknown AI_MEMORY_GUARD_SCOPE 'alll', treating as all" "shared guard: typo scope noted in ask reason"
-run_guard "$SHARED_GUARD" " all " "$(guard_payload "terraform apply")"
+run_guard "$SHARED_GUARD" " all " "$(guard_payload_mode default "terraform apply")"
 assert_not_contains "$(cat "$OUT")" "unknown AI_MEMORY_GUARD_SCOPE" "shared guard: padded 'all' is not reported unknown"
 
 run_guard "$SHARED_GUARD" alll "$(guard_payload "ls -la")"

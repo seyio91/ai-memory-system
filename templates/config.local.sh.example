@@ -76,9 +76,11 @@
 # Infra deny-list guard scope (Claude only; baked into the PreToolUse:Bash guard
 # command at install time, so re-run install / sync-system after changing it):
 #   executor — default; only executor runs (AI_MEMORY_ROLE set) are guarded
-#   all      — every Claude session is guarded: a deny-listed command from the
-#              main session gets a confirmation prompt, from a subagent it is
-#              denied. Any other value fails the Claude install.
+#   all      — every Claude session is guarded: a deny-listed command from a
+#              subagent is denied; from the main session it gets a confirmation
+#              prompt in default/plan/acceptEdits mode and is denied in
+#              bypassPermissions or any other mode (no prompt is shown there).
+#              Any other value fails the Claude install.
 # export AI_MEMORY_GUARD_SCOPE="executor"
 
 # --- Executor credentials (codex CLI) -------------------------------------
