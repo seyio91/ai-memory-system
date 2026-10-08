@@ -19,13 +19,13 @@ Ship the memory write guard and a Claude deny-list guard through `install.sh`, s
 - [ ] Installing into a `settings.json` seeded with this instance's hand-wired write-guard entry leaves **exactly one** write-guard entry and **exactly one** guard entry (`test_install_harness.sh`), and preserves unrelated hooks and keys.
 - [ ] A swept native (Claude/Codex) entry whose command, matcher or extra keys differ from what install writes is printed verbatim with the `.bak` path; identical entries are swept silently; a retired-marker match (`inject_memory.sh`, `arm_recompact.sh`) is reported as `removed (retired hook)`. Each case has a test.
 - [ ] `AI_MEMORY_GUARD_SCOPE` (config, default `executor`) is baked into Claude's guard command by install. With the default, `guard.sh` with no role exits 0 (consumers unchanged). With `all`: a deny-listed Bash call **from a subagent** (`agent_id` present) is denied (exit 2); **from the main session** (no `agent_id`) it returns `permissionDecision: "ask"`; a non-matching call passes. Tests for each.
-- [ ] Guard failure modes: with a role set, a missing deny-list or no JSON parser still denies; in main-session `all` mode the same failures exit 0 with a visible warning. Tests for both.
-- [ ] Codex, Copilot and Antigravity guard behaviour is unchanged (their existing guard tests are green with no edits to their expectations).
-- [ ] `executor.sh --run` prepends the deny-list (`scripts/deny-list.txt` + `scripts/deny-list.local.txt` if present) to every CLI executor prompt, for every role, ahead of the validator preamble; tested.
+- [ ] Guard failure modes: with a role set **or** a raw `"agent_id"` match in stdin (grep, so it works with no parser), a missing deny-list or no JSON parser still denies; in main-session `all` mode the same failures exit 0 and emit `{"systemMessage": …}` on stdout (the only output Claude shows for a non-blocking hook). Tests for both, including the no-parser subagent case.
+- [ ] Codex, Copilot and Antigravity guard behaviour is unchanged: the scope var is baked only for the `claude` manifest, `test_codex_hooks.sh:85`'s pinned guard command is untouched, and `test_install_harness.sh` asserts Codex's guard command carries no `AI_MEMORY_GUARD_SCOPE`.
+- [ ] `executor.sh --run` prepends the deny-list (`scripts/deny-list.txt` + `scripts/deny-list.local.txt` if present) to every CLI executor prompt, for every role, ahead of the validator preamble; a missing/empty `scripts/deny-list.txt` aborts `--run` with exit 1 (fail closed, like the guard); `test_executor.sh`'s byte-for-byte prompt pins (L325, L332) and the standalone-copy test are updated.
 - [ ] `doctrine/orchestrator.md` states the deny-list by pointer only (no command list), the delegation rule says CLI prompts get the list from `executor.sh` and subagent prompts paste it from the file; `test_orchestrator_core_overlay.sh` anchors updated; `docs/workflow.md` and the other docs naming the doctrine as the list's home are repointed.
-- [ ] `AI_MEMORY_GUARD_SCOPE` is in the `docs/scripts.md` env-var table (`check-docs.sh` passes) and in `config.local.sh.example`; a `changelog.d/<id>.feature.md` fragment exists; no `breaking` fragment.
+- [ ] `AI_MEMORY_GUARD_SCOPE` is in the `docs/scripts.md` env-var table (`check-docs.sh` passes) and in `templates/config.local.sh.example`; a `changelog.d/<id>.feature.md` fragment exists and names the write guard as newly active on every Claude install; no `breaking` fragment.
 - [ ] Full suite green (signing overrides); lint WARN set unchanged; `check-docs.sh` clean.
-- [ ] Post-merge, this instance: `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, then `~/.claude/settings.json` has one write-guard and one guard entry and no hand-wired copy; a live `terraform apply` from the main session prompts, and from a subagent is denied.
+- [ ] Post-merge, this instance: `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, then `~/.claude/settings.json` has one write-guard and one guard entry and no hand-wired copy; a live `terraform apply --help` (denied by the matcher, runs nothing) from the main session prompts, and from a subagent is denied with the guard's reason (not `rtk hook claude`'s); the `ask` outcome is recorded for each permission mode this instance uses (default, `acceptEdits`, bypass, `-p`).
 
 ## Design
 
@@ -64,25 +64,25 @@ Ship the memory write guard and a Claude deny-list guard through `install.sh`, s
 ## Phases
 
 ### Phase 1 — Guard scope, deny/ask split, failure modes
-`scripts/hooks/guard.sh`: `AI_MEMORY_GUARD_SCOPE` gate; `agent_id` → deny vs `ask` JSON; failure paths split by executor/subagent vs main session. Tests in the guard test file for each case, plus the unchanged default.
+`scripts/hooks/guard.sh`: `AI_MEMORY_GUARD_SCOPE` gate; `agent_id` → deny vs `ask` JSON (`hookSpecificOutput.permissionDecision`, exit 0; allow still prints nothing); subagent detection falls back to a raw `grep -q '"agent_id"'` on stdin so the no-parser path can still deny; main-session fail-open emits `{"systemMessage": …}`. Tests in `scripts/tests/test_shared_hooks.sh` (guard block L277-311) for each case, plus the unchanged default.
 **Verify:** guard tests cover default-scope no-op, `all`+subagent deny, `all`+main ask, non-match pass, both failure modes in both contexts; existing Codex/Copilot/Antigravity guard tests unchanged and green.
 
 ### Phase 2 — Manifest roles, install mapping, sweep report
-`harnesses/claude/manifest` roles + `write_guard_script`/`guard_script`; `validate-manifest.sh` `KNOWN_KEYS`; `hook.sh` role table, marker, scope baked from config, report-on-diff (native merge) incl. retired markers; `config.local.sh.example`; `docs/scripts.md` env-var row.
+`harnesses/claude/manifest` roles + `write_guard_script`/`guard_script`; `validate-manifest.sh` `KNOWN_KEYS`; `hook.sh`: role table (L331-341), a `WRITE_GUARD` prefix in all four prefix-driven places (env list L388-393, prefix tuple L482, info lines L499-503, no-python3 fallback L528-532), sweep marker, scope baked into the guard command **only when `name = claude`** (`$HARNESS`, L10 — the command shape is shared with Codex at L353-355), report-on-diff: collect dropped `(event, matcher, hook)` during cleanup (L440-469), diff against the added set after `add()` (L471-487), with a separate `retired` marker set for the `removed (retired hook)` label; `templates/config.local.sh.example`; `docs/scripts.md` env-var row. `test_install_harness.sh`'s `expected` dict (L163-172) is keyed by event and must become a list to hold two `PreToolUse` groups.
 **Depends:** P1
 **Verify:** `test_install_harness.sh` proves one write-guard + one guard entry after install over a seeded hand-wired entry, silent sweep for identical entries, verbatim report + `.bak` path for a customised one, retired-hook report; `test_hook_mapping.sh` pins Claude roles; `check-docs.sh` clean.
 
 ### Phase 3 — Executor deny-list preamble
-`scripts/executor.sh --run` prepends the deny-list preamble for all roles, ahead of the validator preamble.
+`scripts/executor.sh --run` prepends the deny-list preamble for all roles, inserted before the validator block at L257-265; a missing/empty `scripts/deny-list.txt` aborts with exit 1. `test_executor.sh`: rewrite the two prompt pins (L325, L332) and give the standalone-copy test (L335+) a deny-list file.
 **Verify:** executor test asserts the preamble (base + local rules) precedes the prompt for task/explore/validate and that the validator preamble still follows it.
 
 ### Phase 4 — Doctrine pointer, docs, release notes
-`doctrine/orchestrator.md` list → pointer and revised delegation rule; `test_orchestrator_core_overlay.sh` anchors; `docs/workflow.md`, `docs/harnesses/*.md`, `README.md`/`docs/showcase.md` where they describe the list's home or Claude's guard; `changelog.d/install-guards.feature.md`.
+`doctrine/orchestrator.md` (L78, L120-126, L201) list → pointer and revised delegation rule; `test_orchestrator_core_overlay.sh` anchors (L37-38) re-pointed at `scripts/deny-list.txt`; docs that name the doctrine as the list's home or describe Claude's hooks: `docs/workflow.md:90,111`, `README.md:106-107`, `docs/install.md`, `docs/showcase.md`, `docs/harnesses/claude.md` (gains both hooks), `docs/harnesses/{codex,antigravity,copilot,adding-a-harness}.md`; `changelog.d/install-guards.feature.md` (names the write guard as newly active for every Claude install).
 **Depends:** P2, P3
 **Verify:** no command list remains in `doctrine/orchestrator.md`; grep finds no doc naming the doctrine as the list's home; fragment present; full suite green, lint WARN set unchanged, `check-docs.sh` clean.
 
 ### Phase 5 — Instance cutover (post-merge)
-Set `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, inspect `~/.claude/settings.json`, live-test main-session ask and subagent deny.
+Set `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, inspect `~/.claude/settings.json` (the `rtk hook claude` PreToolUse:Bash entry coexists — confirm the reason shown is the guard's). Probe with `terraform apply --help` (denied by the matcher, executes nothing): main session → ask, subagent → deny. Record the `ask` outcome under each permission mode this instance uses; if bypass turns `ask` into allow, reopen Q3.
 **Depends:** P4 (merged)
 **Verify:** last success criterion, with the `settings.json` excerpt and both live outcomes recorded here.
 
@@ -91,5 +91,9 @@ Set `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, inspect 
 - Write guard is bypassed by Bash writes (`sed -i`, `cat >>`, `python3`) to memory files; only `Write|Edit` is seen. Settling it needs a cheap way to attribute a Bash call to a file write.
 - Write guard for Codex and the other harnesses: each harness's PostToolUse payload must be checked first.
 - Heredoc false positives (`cat > f <<EOF … helm upgrade … EOF`) remain; the main session pays one confirmation, executors are denied. A matcher that distinguishes heredoc-to-file from heredoc-to-shell is a separate change.
-- `agent_id`/`agent_type` presence in Claude's PreToolUse payload is from the hooks docs, not yet observed here; P5's live subagent test is what confirms it. If absent, every call looks like the main session and subagents get `ask` instead of `deny`.
+- `agent_id` is documented as present only inside subagent calls (`agent_type` also appears in `--agent` main sessions, so `agent_id` is the right key); P5 confirms it live.
+- **`ask` under bypass-permissions / `acceptEdits` / `-p` is unverified** — the hooks docs only say it "escalates to the user". This instance runs in bypass mode; if `ask` resolves to allow there, the main-session guard is a no-op here and Q3 must be reopened (deny instead).
+- **Matcher gap, verified:** `gh pr --repo o/r merge 12` and `gh pr -R o/r merge 12` are allowed — `_deny_spec_run_in_filtered` (`deny-match.sh:281-296`) needs the spec words consecutive, and a valued flag between them breaks the run. Captured as a backlog task; this plan names it, does not fix it.
+- The matcher tokenizes the literal command string only. Verified allowed: `t=terraform; $t apply`, `terraform $(echo apply)`, `printf "terraform apply" | bash`, `bash -c "$CMD"`, `bash script.sh`, `make deploy`, `python3 -c "subprocess.run([...])"`, `ssh host terraform apply`, `docker run … terraform apply`, `gh api -X PUT …/pulls/N/merge`, plus list gaps (`kubectl replace|create|patch|scale|rollout`, `helm rollback`, `terraform import|taint|state rm`, `terragrunt`/`tofu apply`). These rely on the prompt layer and `identity.md`.
+- Paid confirmations in the main session with `all`: `terraform apply --help`, `kubectl apply --dry-run=…`, `helm upgrade --dry-run …`, and any heredoc whose body line *starts* with a listed command (including editing `deny-list.local.txt` via heredoc).
 - Doctrine shrink means a subagent-plane delegation relies on the orchestrator pasting the list; the hook is the enforcing layer there.
