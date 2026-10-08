@@ -105,9 +105,16 @@ __pycache__/
 # it from the tracked templates/identity.template.md whenever it is missing.
 /identity.md
 
-# Your orchestrator.md is per-instance workflow doctrine. install.sh seeds it from
-# templates/orchestrator.template.md whenever missing; edits are local like identity.md.
+# Workflow doctrine ships as a tracked core (doctrine/orchestrator.md, updated by
+# every release) plus your personal overlay, orchestrator.local.md — gitignored,
+# seeded empty by the 1.6.0 migration, edits are yours to keep like identity.md.
+# /orchestrator.md is the pre-1.6.0 per-instance file: stays ignored so an
+# un-migrated instance's copy never gets re-tracked; it is still injected (as a
+# deprecated legacy fallback) until you run /sync-system. orchestrator.md.pre-*
+# is the migration's one-time backup of that file.
 /orchestrator.md
+/orchestrator.local.md
+/orchestrator.md.pre-*
 
 # Stray terraform state from validator probes (echo-PWNED-style tests)
 terraform.tfstate

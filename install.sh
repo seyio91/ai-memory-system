@@ -244,7 +244,7 @@ info "set MEMORY_DIR=$REPO_ROOT"
 # ---- shared: seed personal files from templates ---------------------------
 step "Seed personal files from templates (only if missing)"
 [ -f "$REPO_ROOT/identity.md" ] || { cp "$REPO_ROOT/templates/identity.template.md" "$REPO_ROOT/identity.md"; info "created identity.md from template"; }
-[ -f "$REPO_ROOT/orchestrator.md" ] || { cp "$REPO_ROOT/templates/orchestrator.template.md" "$REPO_ROOT/orchestrator.md"; info "created orchestrator.md from template"; }
+[ -f "$REPO_ROOT/orchestrator.local.md" ] || { : > "$REPO_ROOT/orchestrator.local.md"; info "created empty orchestrator.local.md (personal overlay over doctrine/orchestrator.md)"; }
 [ -f "$REPO_ROOT/index.md" ]    || { cp "$REPO_ROOT/templates/index.template.md" "$REPO_ROOT/index.md";    info "created index.md from template"; }
 mkdir -p "$REPO_ROOT/tasks" "$REPO_ROOT/archive/tasks"
 
@@ -260,6 +260,6 @@ EOF
 fi
 cat <<EOF
 
-  Then: edit identity.md and orchestrator.md (per-instance, git-ignored),
+  Then: edit identity.md and orchestrator.local.md (per-instance, git-ignored),
   onboard a repo with '/pin <project>', and start a session.
 EOF

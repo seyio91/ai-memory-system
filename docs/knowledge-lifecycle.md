@@ -39,6 +39,20 @@ Not every skill graduates from a domain file, either. The `design-brainstorm` sk
 - `_template` is excluded from index, lint, and regeneration. Edit it when changing the project scaffold.
 - Frontmatter is the contract. Skipping it breaks the index and the Codex Domain Index. Lint catches it.
 
+## Reorganizing memory
+
+When the user says "reorganize memory":
+
+1. Read every file under `~/.claude-memory/domain/` and `~/.claude-memory/projects/` (skip `_template/`).
+2. Remove duplicates and entries clearly outdated or contradicted by newer ones.
+3. Merge entries covering the same fact or decision.
+4. Split a file if it has grown to cover multiple distinct topics — create new domain files as needed.
+5. Re-sort entries within each domain file by date, newest first.
+6. Update `~/.claude-memory/index.md` to reflect any new, renamed, or removed files.
+7. Report a summary: files touched, entries removed, entries merged, splits performed.
+
+Do NOT delete anything under `~/.claude-memory/projects/<name>/archive/` (plans, todos, or working snapshots) during reorganization — it is the audit trail.
+
 ---
 
 # Design rationale

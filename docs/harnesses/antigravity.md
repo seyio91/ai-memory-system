@@ -40,7 +40,7 @@ registers two namespaced entries there:
 
 - **`invocationNum == 0`** (0-based — the first model call of a session) → the
   **full** payload: `<memory:identity>` + `<memory:orchestrator>` +
-  `<memory:project>` + `<memory:index>` + `<memory:working>`.
+  `<memory:orchestrator-local>` + `<memory:project>` + `<memory:index>` + `<memory:working>`.
 - **later invocations** → the lightweight `<memory:active>` **breadcrumb** (project
   pointer + absolute memory paths + a re-read directive).
 - **no active project** → `{"injectSteps":[]}` — the memory system stays dormant
@@ -84,11 +84,13 @@ regression-tested (`scripts/tests/test_worktree_feature_process.sh`).
 
 ## Static base — your permanent Antigravity instructions
 
-Antigravity has **no `AGENTS.local.md`**. The static, always-on workflow-rules base
-(the `~/.claude/CLAUDE.md` analogue) is a **hand-owned** `~/.gemini/config/AGENTS.md`
-— agy reads `AGENTS.md`/`GEMINI.md` by walking up from cwd, and honors this global
-one for every session. The memory system **never writes it**; the dynamic
-per-project memory lives entirely in the hook.
+Antigravity has **no `AGENTS.local.md`**. The nearest analogue to Claude's hook-failure
+stub (`~/.claude/CLAUDE.md`) is a **hand-owned** `~/.gemini/config/AGENTS.md` — agy reads
+`AGENTS.md`/`GEMINI.md` by walking up from cwd, and honors this global one for every
+session. The memory system **never writes it**; workflow doctrine (`doctrine/orchestrator.md`
+plus your `orchestrator.local.md` overlay) and the rest of per-project memory live entirely
+in the hook, injected live every session — this file is only for permanent,
+Antigravity-specific instructions of your own.
 
 ```bash
 echo "Always run 'just lint' before suggesting commit messages." >> ~/.gemini/config/AGENTS.md

@@ -18,13 +18,18 @@ FAKE="$(cd "$FAKE" && pwd -P)"
 cp -R "$REPO/scripts" "$FAKE/scripts"
 cp -R "$REPO/harnesses" "$FAKE/harnesses"
 cp -R "$REPO/commands" "$FAKE/commands"
+cp -R "$REPO/doctrine" "$FAKE/doctrine"
 cp "$REPO/install.sh" "$FAKE/install.sh"
 # Seed templates live under templates/, not the repo root. If these fixture paths
 # and install.sh ever disagree, install seeds nothing and every assertion below
 # still passes on the pre-existing files -- so keep them in lockstep.
+# No orchestrator seed file here on purpose: the old per-instance seed under
+# templates/ was deleted (doctrine moved to the tracked doctrine/ core).
+# Fabricating one in this fixture would hide install.sh ever regressing back to
+# the deleted file -- that is exactly how R1 (a fresh install dying under set -e
+# at the `cp` of a file that no longer exists) went unnoticed.
 mkdir -p "$FAKE/templates"
 printf '# identity template\n' > "$FAKE/templates/identity.template.md"
-printf '# orchestrator template\n' > "$FAKE/templates/orchestrator.template.md"
 printf '# index template\n'    > "$FAKE/templates/index.template.md"
 printf '# skills template\n[[skills]]\nname = "template-skill"\nurl = "https://example.invalid/skills.git"\nref = "main"\n' > "$FAKE/templates/skills.toml.example"
 mkdir -p "$FAKE/skills/demo-skill"
@@ -102,8 +107,9 @@ assert_contains "$csj" "Stop" "claude settings: user Stop hook preserved"
 assert_contains "$csj" "echo user-stop-hook" "claude settings: user hook command preserved"
 assert_contains "$(cat "$SBROOT/log.claude")" "Hook entries were auto-merged" "claude notes: settings auto-merge reported"
 assert_file "$FAKE/skills.toml"                   "root skills.toml seeded from template"
-assert_file "$FAKE/orchestrator.md"               "orchestrator.md seeded from template"
-assert_eq "# orchestrator template" "$(cat "$FAKE/orchestrator.md")" "orchestrator.md seeded as an exact template copy"
+assert_file "$FAKE/orchestrator.local.md"         "orchestrator.local.md seeded (empty overlay)"
+assert_eq "" "$(cat "$FAKE/orchestrator.local.md")" "orchestrator.local.md seeded empty (zero bytes, not a header)"
+assert_not_file "$FAKE/orchestrator.md"           "install does not create a root orchestrator.md (migration owns legacy files)"
 assert_eq "$(cat "$FAKE/templates/skills.toml.example")" "$(cat "$FAKE/skills.toml")" "skills.toml seeded as an exact template copy"
 assert_eq "# identity template" "$(cat "$FAKE/identity.md")" "identity.md seeded as an exact template copy"
 assert_eq "# index template" "$(cat "$FAKE/index.md")" "index.md seeded as an exact template copy"
@@ -125,12 +131,18 @@ assert_contains "$(cat "$FAKE/config.local.sh")" "export MEMORY_DIR=" "config.lo
 
 # --- idempotent re-run ---
 printf '# keep local choices\n' > "$FAKE/skills.toml"
-printf '# custom orchestrator\n' > "$FAKE/orchestrator.md"
+# An overlay already carrying personal rules, plus a pre-1.6.0 legacy root file
+# (simulating an un-migrated instance) -- install.sh must leave both exactly as
+# they are: the overlay is seeded only when absent, and the legacy file is the
+# migration's to move, never install.sh's.
+printf '# personal overlay rules\n' > "$FAKE/orchestrator.local.md"
+printf '# legacy per-instance orchestrator\n' > "$FAKE/orchestrator.md"
 run_install --harness claude >"$SBROOT/log.claude2" 2>&1; rc=$?
 assert_exit 0 "$rc" "claude re-run exits 0"
 assert_contains "$(cat "$SBROOT/log.claude2")" "ok (already linked)" "re-run: already-linked (no churn)"
 assert_eq "# keep local choices" "$(cat "$FAKE/skills.toml")" "existing skills.toml is not overwritten"
-assert_eq "# custom orchestrator" "$(cat "$FAKE/orchestrator.md")" "existing orchestrator.md is not overwritten"
+assert_eq "# personal overlay rules" "$(cat "$FAKE/orchestrator.local.md")" "existing orchestrator.local.md (with content) is not overwritten"
+assert_eq "# legacy per-instance orchestrator" "$(cat "$FAKE/orchestrator.md")" "existing legacy orchestrator.md is left untouched by install (the migration owns it, not install.sh)"
 assert_not_contains "$(cat "$SBROOT/log.claude2")" "seeded skills.toml from template" "existing skills.toml skips seed step"
 if command -v python3 >/dev/null 2>&1; then
     # set +e: a failing check must reach _bad and print its captured output. Under

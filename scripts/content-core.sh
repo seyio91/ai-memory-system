@@ -13,13 +13,22 @@
 
 # Canonical section order. `content_sections` walks these and emits the ones that
 # are present (and, if a filter is given, requested).
-_CS_ORDER="identity orchestrator project index domain working"
+_CS_ORDER="identity orchestrator orchestrator-local project index domain working"
 _CS_WANT=""
 
 # _cs_want <kind> — true if <kind> is in the active filter (empty filter = all).
 _cs_want() {
     [ -z "$_CS_WANT" ] && return 0
     case " $_CS_WANT " in *" $1 "*) return 0 ;; *) return 1 ;; esac
+}
+
+# _cs_nonblank <file> — true if <file> exists and has at least one non-whitespace
+# byte. Used to presence-gate orchestrator-local: an empty or whitespace-only
+# overlay would inject a content-free <memory:orchestrator-local> block, which is
+# pure noise, so it is treated the same as "absent" (decision: Phase 2 plan).
+_cs_nonblank() {
+    [ -r "$1" ] || return 1
+    grep -q '[^[:space:]]' "$1" 2>/dev/null
 }
 
 # --- working.md overlay resolver (shared across every harness) ------------------
@@ -113,9 +122,13 @@ resolve_working_file() {
 # content_sections <project> [kind...] — emit present memory sections as
 # tab-separated records `kind<TAB>path<TAB>name`, in canonical order. With no
 # kinds, emits every present section; with kinds, restricts to those (still in
-# canonical order, still presence-gated). `name` is set for the project section
-# only (the project slug, used in its heading). A section is "present" when its
-# backing file exists (working.md must also be non-empty; domain must be a dir).
+# canonical order, still presence-gated). `name` is the project slug for the
+# project section (used in its heading); for orchestrator-local it is `legacy`
+# (a pre-1.6.0 root orchestrator.md served as the overlay) or `ignored` (a
+# non-blank root orchestrator.md that is NOT injected — full renderers drop it,
+# breadcrumbs name it); empty otherwise. A
+# section is "present" when its backing file exists (working.md and
+# orchestrator-local must also be non-blank; domain must be a dir).
 content_sections() {
     local project="$1"; shift
     _CS_WANT="$*"
@@ -126,7 +139,41 @@ content_sections() {
             identity)
                 [ -f "$mdir/identity.md" ] && printf 'identity\t%s\t\n' "$mdir/identity.md" ;;
             orchestrator)
-                [ -f "$mdir/orchestrator.md" ] && printf 'orchestrator\t%s\t\n' "$mdir/orchestrator.md" ;;
+                [ -f "$mdir/doctrine/orchestrator.md" ] && printf 'orchestrator\t%s\t\n' "$mdir/doctrine/orchestrator.md" ;;
+            orchestrator-local)
+                # Resolution: an overlay with content wins and the root file is
+                # ignored. A blank overlay counts as absent (an empty block is
+                # noise) and falls through to a non-blank legacy root
+                # orchestrator.md — but ONLY when this instance has never run
+                # the 1.6.0 migration (no orchestrator.md.pre-1.6.0 backup).
+                # That backup's presence proves the migration already ran and
+                # moved any real content out of the root file; a root file
+                # found alongside it is a stale re-seed (e.g. a rollback to
+                # pre-1.6.0 whose install.sh re-seeded the old template, or a
+                # leftover from hand-restoring the backup), not a user's
+                # un-migrated doctrine, so it must NOT be injected. Without the
+                # backup, the fallback preserves the un-migrated instance's
+                # edited doctrine: an install that seeds an empty overlay
+                # without migrating never silently drops it. The legacy record
+                # is tagged "legacy" via the name field so formatters can
+                # append the deprecation notice. Any non-blank root file that is
+                # NOT injected — shadowed by a non-blank overlay, or stale
+                # behind a .pre-1.6.0 backup — is still emitted, tagged
+                # "ignored": full renderers drop it, but the breadcrumb names
+                # it, because a root file edited after a rollback would
+                # otherwise stop applying with no signal.
+                local ol="$mdir/orchestrator.local.md" legacy="$mdir/orchestrator.md"
+                local pre160="$mdir/orchestrator.md.pre-1.6.0"
+                if _cs_nonblank "$ol"; then
+                    printf 'orchestrator-local\t%s\t\n' "$ol"
+                    _cs_nonblank "$legacy" && printf 'orchestrator-local\t%s\tignored\n' "$legacy"
+                elif _cs_nonblank "$legacy"; then
+                    if [ -e "$pre160" ]; then
+                        printf 'orchestrator-local\t%s\tignored\n' "$legacy"
+                    else
+                        printf 'orchestrator-local\t%s\tlegacy\n' "$legacy"
+                    fi
+                fi ;;
             project)
                 [ -n "$project" ] && [ -f "$mdir/projects/$project/memory.md" ] \
                     && printf 'project\t%s\t%s\n' "$mdir/projects/$project/memory.md" "$project" ;;

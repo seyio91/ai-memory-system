@@ -77,7 +77,7 @@ Run when memory feels dusty (monthly, or before a long break):
 /reindex           # Rebuild the index from frontmatter (also runs after /promote-memory)
 ```
 
-For deeper cleanup (dedup, merge, split files): tell Claude "reorganize memory" — see the procedure in `~/.claude/CLAUDE.md`.
+For deeper cleanup (dedup, merge, split files): tell Claude "reorganize memory" — see the procedure in [`docs/knowledge-lifecycle.md`](knowledge-lifecycle.md#reorganizing-memory).
 
 ---
 

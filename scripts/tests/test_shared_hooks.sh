@@ -14,7 +14,8 @@ trap 'rm -rf "$MEM" "$WORK" "$OLD_REPO"' EXIT
 export MEMORY_DIR="$MEM"
 
 seed_min_tree "$MEM"
-printf '# Orchestrator\n\nORCH-MARKER\n' > "$MEM/orchestrator.md"
+mkdir -p "$MEM/doctrine"
+printf '# Orchestrator\n\nORCH-MARKER\n' > "$MEM/doctrine/orchestrator.md"
 mkdir -p "$MEM/projects/proj" "$WORK/.agents" "$WORK/sub"
 cat > "$MEM/projects/proj/memory.md" <<'EOF'
 ---
@@ -33,7 +34,7 @@ printf 'proj\n' > "$WORK/.agents/memory-project"
 export AI_MEMORY_CWD="$WORK/sub"
 crumb="$(content_sections proj identity orchestrator project index working | md_render_breadcrumb proj "$WORK/sub")"
 assert_contains "$crumb" "project: proj" "md breadcrumb: active project"
-assert_contains "$crumb" "orchestrator: $MEM/orchestrator.md" "md breadcrumb: orchestrator path"
+assert_contains "$crumb" "orchestrator: $MEM/doctrine/orchestrator.md" "md breadcrumb: orchestrator path"
 assert_contains "$crumb" "working.md"    "md breadcrumb: working write target"
 assert_contains "$crumb" "$MEM/projects/proj/working.md" "md breadcrumb: advertises absent working path"
 
@@ -58,10 +59,10 @@ esac
 # committed/merged, HEAD no longer carries them and the oracle would silently
 # read empty and the parity tests would fail on committed code / in CI).
 # Pre-migration hooks never emitted the (post-freeze) orchestrator section, so
-# the parity block runs against an UN-SEEDED tree — which doubles as the
-# backward-compat proof for instances that haven't seeded orchestrator.md yet.
+# the parity block runs against a tree without doctrine/orchestrator.md — which
+# doubles as the backward-compat proof for the pre-core-overlay code path.
 # The section's own rendering is asserted independently above and below.
-mv "$MEM/orchestrator.md" "$MEM/orchestrator.md.aside"
+mv "$MEM/doctrine/orchestrator.md" "$MEM/doctrine/orchestrator.md.aside"
 LEGACY="$REPO/scripts/tests/fixtures/claude-legacy-hooks"
 stage_old_claude_hooks() {
     mkdir -p "$OLD_REPO/harnesses/claude/hooks" "$OLD_REPO/scripts/formatters"
@@ -144,7 +145,7 @@ else
 fi
 
 # Parity oracle done — restore the orchestrator file for the remaining tests.
-mv "$MEM/orchestrator.md.aside" "$MEM/orchestrator.md"
+mv "$MEM/doctrine/orchestrator.md.aside" "$MEM/doctrine/orchestrator.md"
 
 # --- AI_MEMORY_SKIP_INJECT gate (bare/isolated executor opt-out) — no python3 needed ---
 skip_inject="$(json_payload "hello" "$WORK/sub" "sk1" | AI_MEMORY_SKIP_INJECT=1 bash "$SHARED_INJECT")"

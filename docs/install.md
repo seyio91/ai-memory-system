@@ -37,8 +37,10 @@ cd ~/.claude-memory
   (Codex/Antigravity `~/.agents/skills`), `doc` renders a reference, `none`,
 - fans the bundled `skills/` (and Claude-shaped `agents/`) into each manifest's `skills_dir`
   via `scripts/link-skills.sh` / `link-agents.sh`,
-- links the clone to `$MEMORY_DIR`, stamps `config.local.sh`, and seeds `identity.md` /
-  `orchestrator.md` / `index.md` from their `*.template.md` if missing.
+- links the clone to `$MEMORY_DIR`, stamps `config.local.sh`, seeds `identity.md` /
+  `index.md` from their `*.template.md` if missing, and seeds an empty
+  `orchestrator.local.md` overlay if missing (nothing seeds it from a template —
+  the doctrine core, `doctrine/orchestrator.md`, is tracked and ships with every sync).
 
 The manual steps it prints depend on the harness (e.g. Claude: register `settings.hooks.json`
 + place `CLAUDE.md`; a file harness: alias its launch wrapper).
@@ -48,18 +50,22 @@ Two steps it leaves to you:
 1. **Register settings** — merge the hook entries and the `statusLine` from `harnesses/claude/settings.hooks.json` into `~/.claude/settings.json`.
 2. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (or merge into your existing one).
 
-Then edit `identity.md` (start from `templates/identity.template.md`) and `orchestrator.md`
-(start from `templates/orchestrator.template.md`), onboard a repo with `/pin <project>`,
-and start a session. To install from a different clone path, set `MEMORY_DIR` to
-that path before running `install.sh`.
+Then edit `identity.md` (start from `templates/identity.template.md`) and add any
+personal workflow rules to `orchestrator.local.md` — the tracked doctrine core,
+`doctrine/orchestrator.md`, needs no editing and updates on every sync. Onboard a
+repo with `/pin <project>`, and start a session. To install from a different clone
+path, set `MEMORY_DIR` to that path before running `install.sh`.
 
 > **Committed vs ignored.** The engine ships — `scripts/`, the `harnesses/claude/` wiring,
-> `skills/`, `agents/`, and the `*.template.md` files. Your data does not: the real
+> `skills/`, `agents/`, `doctrine/`, and the `*.template.md` files. Your data does not: the real
 > `index.md`, `domain/*.md`, `projects/*` (except `_template/`), `tasks/`, and
-> `archive/` are git-ignored — and so are `identity.md` and `orchestrator.md`,
-> which are per-instance. The tracked templates are their generic starting
-> points; `install.sh` copies them whenever the live files are missing. See
-> `.gitignore`.
+> `archive/` are git-ignored — and so are `identity.md` and `orchestrator.local.md`,
+> which are per-instance. A legacy root `orchestrator.md` (pre-1.6.0) is also
+> git-ignored and, if present, still injected with a deprecation notice until it
+> is migrated (`/sync-system`); after migration a leftover root file is ignored and
+> named in the breadcrumb (not on Copilot, which has none). The tracked templates and doctrine core are the generic
+> starting points; `install.sh` copies/seeds them whenever the live files are
+> missing. See `.gitignore`.
 
 ## Upgrading
 
@@ -77,12 +83,12 @@ version.
 
 Prefer not to run the installer? The components, in build order — each has a detailed spec section elsewhere in the docs.
 
-1. **Memory tree** — create `~/.claude-memory/` with `identity.md`, `orchestrator.md`, `index.md` (with the AUTOGEN fence), and the `domain/`, `projects/`, `scripts/` directories. See [Directory layout](#directory-layout).
+1. **Memory tree** — create `~/.claude-memory/` with `identity.md`, `orchestrator.local.md` (overlay — the tracked `doctrine/orchestrator.md` core ships with the clone), `index.md` (with the AUTOGEN fence), and the `domain/`, `projects/`, `scripts/` directories. See [Directory layout](#directory-layout).
 2. **Project scaffold** — create `projects/_template/` (`memory.md` with the 3 required + 3 optional sections and frontmatter, empty `working.md`, `todo.md`, `plans/.gitkeep`, `archive/{plans,todos,working}/.gitkeep`). See [File formats](file-formats.md).
 3. **Scripts** — populate `scripts/` (`_lib.sh`, `regenerate-index.sh`, `lint-memory.sh`, `archive-cleanup.sh`, `new-project.sh`, `memory-pin.sh`) plus the `scripts/tests/` suite; `chmod +x` all executables. Also create the `scripts/taskprovider/` Python package (stdlib-only task-provider layer — see [Task-provider layer](task-provider.md)). See [Scripts reference](scripts.md).
 4. **Claude hooks** — keep the `~/.claude/hooks/` runtime root, symlink `harnesses/claude/statusline.sh` to `~/.claude/statusline.sh`, and register the three hook commands into `~/.claude/settings.json`: shared `scripts/hooks/inject.sh` for `UserPromptSubmit`, `harnesses/claude/hooks/session_start_memory.sh` for `SessionStart`, and `harnesses/claude/hooks/block_task_tools.sh` for `PreToolUse`. See [Claude Code › Hooks](harnesses/claude.md#hooks).
-5. **Claude slash commands & skills** — symlink the command files in `commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the brainstorm gate (the `design-brainstorm` skill) is anchored by the `orchestrator.md` Orchestration routing rule.
-6. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (maintenance rules, workflow tiers, file-as-page nudge).
+5. **Claude slash commands & skills** — symlink the command files in `commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the brainstorm gate (the `design-brainstorm` skill) is anchored by the `doctrine/orchestrator.md` Orchestration routing rule.
+6. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md`. It is a hook-failure stub: it points at `doctrine/orchestrator.md`, `orchestrator.local.md` and `identity.md` for the case where the `<memory:*>` injection is missing. The maintenance rules, workflow tiers, and file-as-page nudge live in the core's `## Memory maintenance` section.
 7. **Codex bridge** — populate `harnesses/codex/scripts/` (`codex-mem.sh`, `codex-mem-checkpoint.sh`), then create `~/.codex/AGENTS.local.md` (can be empty), `~/.codex/prompts/checkpoint.md`, `~/.codex/skills/checkpoint/{SKILL.md,agents/openai.yaml}`, and `~/.codex/rules/default.rules` (the executor deny list). `AGENTS.md` is generated — do not author it. See [Codex CLI](harnesses/codex.md).
 8. **Verify** — run `scripts/lint-memory.sh` (expect exit 0), `scripts/regenerate-index.sh` (index matches frontmatter), launch a Claude session and confirm `<memory:*>` blocks inject, and confirm a `TaskCreate` call is blocked.
 
@@ -96,14 +102,15 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 ├── LICENSE
 ├── .gitignore                         # Ships templates + engine; ignores your real memory data
 ├── identity.md                        # Hard rules, injected once per session (per-instance, git-ignored)
-├── orchestrator.md                    # Workflow doctrine, injected once per session (per-instance, git-ignored)
+├── orchestrator.local.md              # Personal workflow overlay, additive (per-instance, git-ignored)
+├── doctrine/                           # Tracked workflow doctrine, updated on every sync
+│   └── orchestrator.md                #   Core doctrine; precedence identity.md > orchestrator.local.md > this > project memory
 ├── CHANGELOG.md                       # Thin changelog shell; release.sh finalizes sections
 ├── UPGRADING.md                       # Channel, rollback, semver, and migration notes
 ├── .applied-version                   # Migration high-water marker (gitignored)
 ├── index.md                           # Lifecycle prose + AUTOGEN roster (git-ignored; regenerated)
 ├── templates/                         # Tracked seed files install.sh copies when a target is missing
 │   ├── identity.template.md           #   → identity.md
-│   ├── orchestrator.template.md       #   → orchestrator.md
 │   ├── index.template.md              #   → index.md
 │   ├── skills.toml.example            #   → skills.toml (remote-skill catalog)
 │   └── config.local.sh.example        #   reference for the generated config.local.sh
@@ -159,7 +166,7 @@ After `install.sh`, these `~/.claude/` paths are **symlinks into this repo** (`h
 ```
 ~/.claude/
 ├── settings.json                      # Registers the three hooks; NOT a symlink — install.sh merges hook entries
-├── CLAUDE.md                          # → harnesses/claude/CLAUDE.md  (global maintenance rules + file-as-page nudge)
+├── CLAUDE.md                          # → harnesses/claude/CLAUDE.md  (hook-failure stub; points at doctrine/orchestrator.md, orchestrator.local.md, identity.md)
 ├── hooks/                             # runtime root kept for hook/statusline compatibility
 ├── statusline.sh                      # → harnesses/claude/statusline.sh
 ├── commands/                          # → commands/  (slash commands, symlinked)

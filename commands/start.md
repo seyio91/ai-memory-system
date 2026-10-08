@@ -21,7 +21,7 @@ Argument: `$ARGUMENTS` — a task `<ref>` (optional), plus an optional `--worktr
 - This step is **read-only**: never edit the initiative file. The Target names the task; the plan is found by matching `task_ref`, so nothing on the Target changes when work starts.
 - More than one matching initiative must not happen (lint rule 15a forbids it). Report every match and stop.
 
-### Step 2 — classify (the gate, per orchestrator.md → Brainstorm gate)
+### Step 2 — classify (the gate, per doctrine/orchestrator.md → Brainstorm gate)
 Classify the pulled `summary` (treat it as the initial request):
 - **Feature with open design questions** (new functionality / subsystem / integration / real architecture decision) → **invoke the `design-brainstorm` skill** with `title` + `summary` as the seed. Run its full process (clarify → 2-3 approaches → sectioned design). Its output is the approved design.
 - **Quick or settled-shape** (mechanical change, known target, small fix) → skip brainstorming; draft a one-line Goal and approach directly from the summary.

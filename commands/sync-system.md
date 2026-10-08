@@ -27,7 +27,7 @@ Capture stdout and the exit code. Every path shares one tail: dirty-tracked-file
 Step 2 — report concisely:
 
 - **Synced** — say which version is now live (`git describe --tags`) and name any **new** slash commands / skills / agents that got linked (lines like `link: <name>`).
-- **Migrations ran** — name each one. They mutate instance data and harness config, and `.applied-version` records the high-water mark. Never re-run them by hand.
+- **Migrations ran** — name each one, and relay each migration's printed output lines **verbatim** to the user — especially any line asking the user to act (e.g. the 1.6.0 migration's "port any personal rules …" notice). They mutate instance data and harness config, and `.applied-version` records the high-water mark. Never re-run them by hand.
 - **Aborted on a dirty tracked tree** — surface the message. The user has local modifications to a *tracked* file. Untracked and git-ignored files never block. Do not stash, commit, or discard on their behalf.
 - **Aborted with "no release tag yet"** — the release channel has nothing to check out. Either a tag must be cut, or this instance belongs on `dev`.
 - **Aborted on divergence (`dev` only)** — the branch has local commits or a non-ff history. Surface it; do not merge or rebase.

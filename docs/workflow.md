@@ -10,6 +10,8 @@
 
 `todo.md` tracks **plan execution** — no plan means no `todo.md` entry. Only the third tier flows through the orchestrator/executor/validator roles. The orchestrator is whichever harness is running the main session; the executor is selectable (`subagent` by default, or a configured CLI like `codex`); the validator is its own selectable, **read-only** role that defaults to the orchestrator's agent plane — so a CLI executor is checked **cross-model** by default.
 
+This doctrine itself is layered: `identity.md` hard rules > `orchestrator.local.md` (personal overlay, additive) > `doctrine/orchestrator.md` (tracked core, this document's source) > project memory. See [File formats](file-formats.md#root-instruction-files).
+
 ## Roles
 
 | Role | Tool | Model | Responsibility |
@@ -44,11 +46,12 @@
 
 ## Task Contract
 
-Every plan-tier task carries explicit **success criteria** — the observable, checkable conditions that define "done." This is the contract the validator checks against; without it, "done" is opinion. Defined in `orchestrator.md` → `### Task Contract` (injected every session).
+Every plan-tier task carries explicit **success criteria** — the observable, checkable conditions that define "done." This is the contract the validator checks against; without it, "done" is opinion. Defined in `doctrine/orchestrator.md` → `### Task Contract` (injected every session).
 
 - **Plan-tier only.** Quick items and research/Q&A are exempt — no criteria for a one-line edit or a question.
 - **Best-effort by default.** If the user doesn't state criteria, the orchestrator drafts them from session context and surfaces them before executing — never blank. **For feature-tier tasks routed through the `design-brainstorm` skill, this seam is tighter:** success criteria are derived *with* the user during the clarify pass, so they are collaboratively-agreed rather than orchestrator-guessed — an upgrade of this rule for the one tier where the design is worth examining, not a parallel mechanism.
 - **Checkable, not aspirational.** Each criterion is verifiable by reading output, running a command, or inspecting state ("`terraform validate` passes and the module exposes output `X`", not "works well").
+- **Shared state needs behaviour criteria.** When a phase introduces a cache, lock, pool, background worker, deduplicated or in-flight work, or an external process, its criteria must state: behaviour under concurrent calls (independent keys proceed in parallel; the same key is deduplicated or safe), cancellation (one caller cancelling affects only that caller), the timeout, and what is and isn't cached on failure. "Has a cache" is not a criterion.
 - **Lives in the plan.** Captured in the plan's `## Success criteria` section, scaffolded by `/new-plan`. The validator checks executor output against exactly these.
 
 Enforcement is **template-only** — `/new-plan` scaffolds the section; no hook gates it. The best-effort-fill rule is what keeps a criteria-less plan from slipping through.
@@ -56,7 +59,7 @@ Enforcement is **template-only** — `/new-plan` scaffolds the section; no hook 
 ## File conventions
 
 - `projects/<active>/plans/<name>.md` — one file per non-trivial plan. Frontmatter: `plan`, `status`, `created`, `owner`, plus optional `task_provider`/`task_ref` (written by the `/start` task-linking step when a plan is backed by a captured task — see [Task-provider layer](task-provider.md)). Body carries `## Goal`, a required `## Success criteria` (the Task Contract), the `## Design` section (populated by the [`design-brainstorm`](harnesses/claude.md#skills) skill for feature-tier plans), `## Phases`, and `## Risks / open questions`. The frontmatter `task_*` fields and the body `## Design` section occupy different regions of the file and never conflict. Linked from `todo.md`.
-- `projects/<active>/todo.md` — markdown-checkbox list. Large items reference a plan file. Small items inline. Tick boxes in place when done.
+- `projects/<active>/todo.md` — markdown-checkbox list. Large items reference a plan file. Tick boxes in place when done.
 - `projects/<active>/archive/plans/<name>.md` — completed plans, moved when their referencing todo items all close.
 - `projects/<active>/archive/todos/YYYY-MM-DD-<slug>.md` — snapshots of fully-ticked `todo.md`, taken when the file is rolled.
 
@@ -84,7 +87,7 @@ To delegate (or to validate), the orchestrator runs `scripts/executor.sh --role 
 
 - **No `TaskCreate`.** `todo.md` is the single source of truth for executable work.
 - **Archive is never read unless the user explicitly asks.** Don't load it, grep it, or quote from it.
-- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes) and in `orchestrator.md`; for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
+- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes) and in `doctrine/orchestrator.md`; for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
 
 ---
 
@@ -102,7 +105,7 @@ Because `memory.md` is injected wholesale on the first prompt (Claude) and built
 
 The table deliberately carries **no on-disk path**. A delegate that needs to inspect the sibling's *code* resolves the checkout with `resolve_repo_path <sibling>`, which reads `repo_path`/`repo` from the sibling's own frontmatter (see [Reverse map](install.md#reverse-map-project--checkout)). The path lives in one place — the sibling's `memory.md` — and is resolved per environment, so it is never duplicated into (and never goes stale in) the relationship table.
 
-**The hop — delegate, don't load.** When a task matches a row, the orchestrator does **not** load the sibling's `memory.md` into its own thread (that would bloat context, especially across several siblings). Instead it delegates the sibling-scoped work to an **executor** (selected via `AI_MEMORY_EXECUTOR` — `subagent` by default, or a CLI like `codex`). The `orchestrator.md` rule makes this dependable.
+**The hop — delegate, don't load.** When a task matches a row, the orchestrator does **not** load the sibling's `memory.md` into its own thread (that would bloat context, especially across several siblings). Instead it delegates the sibling-scoped work to an **executor** (selected via `AI_MEMORY_EXECUTOR` — `subagent` by default, or a CLI like `codex`). The `doctrine/orchestrator.md` rule makes this dependable.
 
 **Delegation contract:**
 - *Dispatch* — the prompt is self-contained, because the delegate does not inherit the orchestrator's context: it points at `identity.md` (hard rules / executor deny-list) and `projects/<sibling>/memory.md`, states the task, and sets the default deliverable to **plan only** (no edits to the sibling repo).

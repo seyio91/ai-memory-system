@@ -87,13 +87,9 @@ Every non-empty slice is therefore wrapped in an ordering envelope:
 
 Tests reassemble with the shared `strip_chunks` helper (`scripts/tests/_assert.sh`), deliberately passing chunks **out of order** and asserting byte-identity against the unchunked render.
 
-## Maintenance rules (from `~/.claude/CLAUDE.md`)
+## Maintenance rules
 
-- **Update memory immediately** when you learn or decide something durable. Don't batch.
-- **Project-specific** → `projects/<active>/memory.md` (place under the matching section).
-- **Cross-project** → `projects/<active>/working.md` first, then `/promote-memory` later.
-- **Checkpoint before pauses, tool switches, or session end** → `/checkpoint`.
-- **Offer to file non-trivial synthesis as a wiki page** — Claude prompts at the end of substantial answers (architecture, comparisons, gotcha analyses). Skipped for short or code-only answers.
+The memory-maintenance rules (update-immediately, project-specific vs. cross-project routing, checkpoint rhythm, `/promote-memory`, the wiki-page offer, the reorganize trigger) now live once in the shared doctrine core, `doctrine/orchestrator.md` → `## Memory maintenance`, injected into every harness as `<memory:orchestrator>`. `harnesses/claude/CLAUDE.md` is a hook-failure stub only — it points Claude at `doctrine/orchestrator.md` (and the local overlay `orchestrator.local.md`) for the case where that injection is missing; it carries no maintenance-rule text of its own.
 
 ## Slash commands
 
@@ -131,7 +127,7 @@ Claude Code skills live under `~/.claude/skills/<name>/SKILL.md` — symlinked f
 |-------|------|--------|
 | `design-brainstorm` | **Tier-3 feature tasks with open design questions only** — silent on Tier 1 (research/Q&A), Tier 2 (quick edits), and settled Tier-3 work (mechanical refactors, renames, migrations) | Runs the collaborative design pass (clarify → 2-3 approaches → sectioned design), then hands off to `/new-plan`, folding the approved design into the plan's `## Goal` / `## Success criteria` / `## Design` / `## Risks`. Never writes code or scaffolds the plan itself. |
 
-The gate lives in two places that must agree: the skill's `description` (what Claude Code matches on) and the routing rule in `orchestrator.md` → Orchestration (the injected-every-session anchor). The skill is **orchestrator-role only** (executors never brainstorm) and **seed-agnostic**: it accepts either a fresh user request or a pulled task summary, so a future `/start` can delegate to it without changing the skill.
+The gate lives in two places that must agree: the skill's `description` (what Claude Code matches on) and the routing rule in `doctrine/orchestrator.md` → Orchestration (the injected-every-session anchor). The skill is **orchestrator-role only** (executors never brainstorm) and **seed-agnostic**: it accepts either a fresh user request or a pulled task summary, so a future `/start` can delegate to it without changing the skill.
 
 ### Skill file conventions
 

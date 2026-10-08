@@ -19,6 +19,9 @@ md_render() {
                 echo "# === IDENTITY ==="; echo; cat "$path"; echo ;;
             orchestrator)
                 echo "# === ORCHESTRATOR ==="; echo; cat "$path"; echo ;;
+            orchestrator-local)
+                [ "$name" = "ignored" ] && continue
+                echo "# === ORCHESTRATOR (LOCAL) ==="; echo; cat "$path"; echo ;;
             project)
                 echo "# === PROJECT: $name ==="; echo; cat "$path"; echo ;;
             index)
@@ -49,6 +52,14 @@ md_render_breadcrumb() {
         case "$kind" in
             identity) echo "identity: $path" ;;
             orchestrator) echo "orchestrator: $path" ;;
+            orchestrator-local)
+                if [ "$name" = "legacy" ]; then
+                    echo "orchestrator-local: $path (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)"
+                elif [ "$name" = "ignored" ]; then
+                    echo "orchestrator-ignored: $path (root orchestrator.md, NOT injected and NOT doctrine — do not read or follow it; tell the user to port any rules they still want into orchestrator.local.md, then remove the file)"
+                else
+                    echo "orchestrator-local: $path"
+                fi ;;
             project)  echo "project memory: $path" ;;
             index)    echo "index: $path" ;;
             working)  ;;  # emitted below as the always-present write target

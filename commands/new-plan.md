@@ -25,7 +25,7 @@ owner: claude (orchestrator)
 <one paragraph: what problem this plan solves>
 
 ## Success criteria
-<the checkable conditions that define "done" for the WHOLE plan — each one a Validator could verify by reading output, running a command, or inspecting state. Required for plan-tier work (see orchestrator.md → Task Contract). If the user did not state criteria, draft best-effort ones from session context; never leave this blank. Per-phase criteria go on each phase's `**Verify:**` line, not here.>
+<the checkable conditions that define "done" for the WHOLE plan — each one a Validator could verify by reading output, running a command, or inspecting state. Required for plan-tier work (see doctrine/orchestrator.md → Task Contract). If the user did not state criteria, draft best-effort ones from session context; never leave this blank. Per-phase criteria go on each phase's `**Verify:**` line, not here.>
 - <criterion>
 
 ## Design
@@ -41,7 +41,7 @@ owner: claude (orchestrator)
 - <step>
 
 **Depends:** <the phases that must land before this one can start, e.g. `Phase 1` — or `none` when it is independent and safe to run in parallel. Mirror this onto the `todo.md` checkbox as `(needs: Pn)`.>
-**Verify:** <the checkable condition for THIS phase alone — same bar as Success criteria: readable output, a runnable command, or inspectable state; a phase that introduces a cache, lock, pool, background worker, deduplicated or in-flight work, or external process must also state concurrency, cancellation, timeout and failure-caching behaviour (see orchestrator.md → Task Contract).>
+**Verify:** <the checkable condition for THIS phase alone — same bar as Success criteria: readable output, a runnable command, or inspectable state; a phase that introduces a cache, lock, pool, background worker, deduplicated or in-flight work, or external process must also state concurrency, cancellation, timeout and failure-caching behaviour (see docs/workflow.md → Task Contract → "Shared state needs behaviour criteria").>
 
 ## Risks / open questions
 - <bullet>
@@ -66,7 +66,7 @@ Merge a phase into its neighbour when it has no `**Verify:**` of its own — set
 
 A checkpoint is a checklist, not a delegation — full test run, lint, a live exercise of anything prose-driven (no executable test covers a slash command), and human review. Mirror each phase into `todo.md` with its `(needs: Pn)` edge as you go.
 
-Step 4 — ask the user one line: "Plan scaffolded at `<path>`. Want me to draft the Goal, Success criteria, and Phases from session context, or will you fill it in yourself?" Then act on the answer. If the user opts to fill it in, do not invent content — except **Success criteria**, where if the user proceeds to execution without stating them, draft best-effort criteria from context and surface them for confirmation (per orchestrator.md → Task Contract).
+Step 4 — ask the user one line: "Plan scaffolded at `<path>`. Want me to draft the Goal, Success criteria, and Phases from session context, or will you fill it in yourself?" Then act on the answer. If the user opts to fill it in, do not invent content — except **Success criteria**, where if the user proceeds to execution without stating them, draft best-effort criteria from context and surface them for confirmation (per doctrine/orchestrator.md → Task Contract).
 
 Step 5 — run the **Task linking** section below, in full. It resolves the task (from `--task`/`--no-task`, or by asking), stamps the frontmatter, pushes the Goal back to the backend, flips the task to `started`, and writes the `todo.md` entry. It runs *after* Step 4 and not before: the summary pushed to the backend must be the drafted Goal, not the scaffold placeholder.
 
