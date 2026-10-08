@@ -56,7 +56,7 @@ Ship the memory write guard and a Claude deny-list guard through `install.sh`, s
 **Provisional — recommended in the grilling round, not yet explicitly confirmed by the user:**
 - Q1: scope is config-driven, engine default `executor`, this instance sets `all`.
 - Q2: guard failures deny for executors/subagents, fail open with a warning in the main session.
-- Q3: main session gets `ask`, subagents/executors get `deny`. **Reopens** "block every session" → "confirm in the main session".
+- Q3 (**resolved in P5, user-confirmed 2026-10-08**): main session gets `ask` only when `permission_mode` is `default`, `plan` or `acceptEdits`; any other mode (incl. `bypassPermissions`) or a missing field denies; subagents/executors always deny. Live test showed Claude silently allows an unshown `ask` in bypass mode. Shipped as PR #126.
 - Q4: write-guard bypass via Bash is deferred (Risks).
 - Q5: the sweep report covers the native merge (Claude/Codex) only.
 - Q6: retired-marker sweeps are reported as `removed (retired hook)`.
@@ -103,3 +103,10 @@ Set `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, inspect 
 - Per-phase validator verdicts: P1 READY, P2 READY, P3 NOT-READY → fixed (leading `---` would break clap-based `codex exec`) → READY; final pass split into code and docs halves after three stalled runs, both PR-READY; all `decorrelated: no`.
 - Full suite `tests: 58 passed, 0 failed` (signing overrides); lint WARN set (90) identical to main's lint on the same tree; `check-docs: 41 rows, 0 findings`; `assemble-changelog.sh --check` rc=0.
 - Shipped as PR #125 (`ff8d9e9`, 23 files). Doctrine 13,688 B; always-loaded base 17,391 B.
+
+## Validation evidence (P5, 2026-10-08)
+
+- PR #125 merged (`82d95db`); `AI_MEMORY_GUARD_SCOPE="all"` set in `config.local.sh`; `/sync-system` exit 0, no migrations, no report lines (the hand-wired write guard matched the managed entry byte for byte).
+- `~/.claude/settings.json`: exactly one guard (`PreToolUse [Bash]`, `AI_MEMORY_GUARD_SCOPE=all`) and one write guard (`PostToolUse [Write|Edit]`); the only change is the added guard; all other hooks and keys unchanged.
+- Probe `gh pr merge --help` (deny-listed, help only): subagent → denied by the guard's reason; main session in `bypassPermissions` → **ran unprompted** although the guard returned `ask` for the same payload. Captured payload confirmed a top-level `permission_mode: "bypassPermissions"`. Fix (deny outside default/plan/acceptEdits) verified live: main session now denied with `permission_mode=bypassPermissions` in the reason. PR #126.
+- Follow-up tasks: `deny-match-misses-two-word-specs-split-by-a-valued-flag`, `guard-no-parser-path-should-fail-closed-in-bypass-mode`.
