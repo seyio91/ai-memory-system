@@ -1,3 +1,5 @@
+# Archived todo — ai-memory — 2026-10-08
+
 # Todo — ai-memory
 
 > Single source of truth for executable work on this project.
@@ -7,7 +9,12 @@
 
 ## Active
 
-_(no items yet)_
+### Deduplicate the always-injected base (identity, orchestrator, harness CLAUDE.md) → [plan](archive/plans/dedupe-always-injected-base.md)
+- [x] P1 — Author the core
+- [x] P2 — Injection wiring + legacy fallback (needs: P1)
+- [x] P3 — Claude stub + sbp spike (needs: P1)
+- [x] P4 — Migration, install, release notes, docs (needs: P2)
+- [x] P5 — Instance cutover + full validation (needs: P3, P4)
 
 ## Done
 _(checked items stay above until the file is rolled)_

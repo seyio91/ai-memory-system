@@ -1,6 +1,7 @@
 ---
 plan: dedupe-always-injected-base
-status: in_progress
+status: done
+completed: 2026-10-08
 created: 2026-10-07
 owner: claude (orchestrator)
 task_provider: local
@@ -17,20 +18,20 @@ Split orchestrator doctrine into a tracked, release-updated core plus a gitignor
 
 ## Success criteria
 
-- [ ] Always-loaded base on this instance (`identity.md` + core + overlay + Claude stub) is ≤ 18 KB, down from ~31 KB (`wc -c`). If P1's measurement shows the core alone cannot land under ~14 KB, stop and re-scope before P2.
-- [ ] Across core + overlay + stub, each of these is stated exactly once (grep): executor deny-list, the three task tiers, the TaskCreate ban, the archive rule. Counting `identity.md`, the deny-list appears exactly twice.
-- [ ] The "Small items inline" text is gone from every base file.
-- [ ] `templates/orchestrator.template.md` no longer exists; `doctrine/orchestrator.md` is tracked; `orchestrator.local.md` and `orchestrator.md.pre-*` are gitignored; `/orchestrator.md` stays ignored.
-- [ ] A rendered session payload for Claude (xml), Codex (md) and Antigravity (xml, via `preinvocation.sh`) contains `orchestrator` then `orchestrator-local`, in that order; the breadcrumb lists `orchestrator-local:`; `check-memory-size.sh --payload` reports no ERROR for `ai-memory`, and its pre-filter counts core + overlay.
-- [ ] Legacy fallback: with a root `orchestrator.md` present and no `orchestrator.local.md`, the root file is injected as `orchestrator-local` and the breadcrumb carries a one-line deprecation; with both present, the overlay wins and the root file is ignored.
-- [ ] The memory-maintenance rules (update immediately, where entries go, checkpoint rhythm, promote, wiki-page offer, reorganize trigger), the plan-mode-nudge rule and the skills-authoring rule appear in the core and not in the Claude stub. The stub's fallback line is imperative and names both doctrine files.
-- [ ] The core keeps, verbatim in intent: the `--which` decision tree and the run-`--run`-in-background rule; the Task Contract core rule (draft criteria, surface before executing, never start blank); the validator brief fields `scope:` / `risk:` / `hypotheses:`; the heading names `Brainstorm gate`, `Task Contract`, `Cross-project relationships`, `Orchestration`.
-- [ ] The migration `migrations/1.6.0-orchestrator-core-overlay.sh`, run twice on a fixture holding a full-copy `orchestrator.md`, produces identical trees: one `.pre-1.6.0` backup, an empty-seeded overlay, a printed notice; an existing overlay is never overwritten; an existing backup is never clobbered.
-- [ ] `UPGRADING.md` has `## 1.6.0` (`test_upgrading_doc.sh` green); a `changelog.d/<id>.upgrade.md` fragment exists; no fragment of kind `breaking`.
-- [ ] A test pins the dedupe: `doctrine/orchestrator.md` byte ceiling and the grep-once invariants from criterion 2. Its file name contains `orchestrator-core-overlay` so `run-tests.sh --changed` maps the migration to it.
-- [ ] Precedence (`identity` > overlay > core > project memory) is stated consistently in all eight places listed under Design → Precedence sites.
-- [ ] `bash scripts/run-tests.sh` passes (with the local signing overrides); the lint WARN *set* compared before and after shows no new WARN caused by this change; `check-docs.sh` passes.
-- [ ] No stale references remain: `grep -rn 'orchestrator.template' --exclude-dir=projects --exclude-dir=.git .` matches only CHANGELOG/UPGRADING history; `grep -rn '~/.claude-memory/orchestrator.md'` matches nothing outside history.
+- [x] Always-loaded base on this instance (`identity.md` + core + overlay + Claude stub) is ≤ 18 KB, down from ~31 KB (`wc -c`). If P1's measurement shows the core alone cannot land under ~14 KB, stop and re-scope before P2.
+- [x] Across core + overlay + stub, each of these is stated exactly once (grep): executor deny-list, the three task tiers, the TaskCreate ban, the archive rule. Counting `identity.md`, the deny-list appears exactly twice.
+- [x] The "Small items inline" text is gone from every base file.
+- [x] `templates/orchestrator.template.md` no longer exists; `doctrine/orchestrator.md` is tracked; `orchestrator.local.md` and `orchestrator.md.pre-*` are gitignored; `/orchestrator.md` stays ignored.
+- [x] A rendered session payload for Claude (xml), Codex (md) and Antigravity (xml, via `preinvocation.sh`) contains `orchestrator` then `orchestrator-local`, in that order; the breadcrumb lists `orchestrator-local:`; `check-memory-size.sh --payload` reports no ERROR for `ai-memory`, and its pre-filter counts core + overlay.
+- [x] Legacy fallback: with a root `orchestrator.md` present and no `orchestrator.local.md`, the root file is injected as `orchestrator-local` and the breadcrumb carries a one-line deprecation; with both present, the overlay wins and the root file is ignored.
+- [x] The memory-maintenance rules (update immediately, where entries go, checkpoint rhythm, promote, wiki-page offer, reorganize trigger), the plan-mode-nudge rule and the skills-authoring rule appear in the core and not in the Claude stub. The stub's fallback line is imperative and names both doctrine files.
+- [x] The core keeps, verbatim in intent: the `--which` decision tree and the run-`--run`-in-background rule; the Task Contract core rule (draft criteria, surface before executing, never start blank); the validator brief fields `scope:` / `risk:` / `hypotheses:`; the heading names `Brainstorm gate`, `Task Contract`, `Cross-project relationships`, `Orchestration`.
+- [x] The migration `migrations/1.6.0-orchestrator-core-overlay.sh`, run twice on a fixture holding a full-copy `orchestrator.md`, produces identical trees: one `.pre-1.6.0` backup, an empty-seeded overlay, a printed notice; an existing overlay is never overwritten; an existing backup is never clobbered.
+- [x] `UPGRADING.md` has `## 1.6.0` (`test_upgrading_doc.sh` green); a `changelog.d/<id>.upgrade.md` fragment exists; no fragment of kind `breaking`.
+- [x] A test pins the dedupe: `doctrine/orchestrator.md` byte ceiling and the grep-once invariants from criterion 2. Its file name contains `orchestrator-core-overlay` so `run-tests.sh --changed` maps the migration to it.
+- [x] Precedence (`identity` > overlay > core > project memory) is stated consistently in all eight places listed under Design → Precedence sites.
+- [x] `bash scripts/run-tests.sh` passes (with the local signing overrides); the lint WARN *set* compared before and after shows no new WARN caused by this change; `check-docs.sh` passes.
+- [x] No stale references remain: `grep -rn 'orchestrator.template' --exclude-dir=projects --exclude-dir=.git .` matches only CHANGELOG/UPGRADING history; `grep -rn '~/.claude-memory/orchestrator.md'` matches nothing outside history.
 
 ## Design
 
@@ -101,3 +102,11 @@ At a session boundary: run the migration here; port the `git-cli` rule into `orc
 - A consumer who edited their full-copy `orchestrator.md` keeps it injected via the legacy fallback for one release; after that, only the backup and notice remain (by design, no auto-diff).
 - Live sessions read doctrine from the tree; P5 changes the running doctrine mid-instance — do it at a session boundary.
 - `memory_write_guard.sh` and `build-context-md.sh`'s missing `orchestrator` are pre-existing gaps surfaced here; both out of scope (`install-guards` owns the first).
+
+## Validation evidence (P5, 2026-10-08)
+
+- Base: identity 2,348 + core 13,643 + overlay 815 + stub 540 = **17,346 B** (≤ 18 KB).
+- Grep-once across core+overlay+stub: deny-list 1 (2 with identity), tiers 1, TaskCreate 1, archive rule 1; "Small items inline" absent.
+- Payload order `orchestrator` → `orchestrator-local` in claude (xml), codex (md, `ORCHESTRATOR` → `ORCHESTRATOR (LOCAL)`), antigravity (`preinvocation.sh`); breadcrumb lists `orchestrator-local:`; `check-memory-size.sh --payload ai-memory` clean.
+- Suite `tests: 58 passed, 0 failed` (signing overrides); `check-docs: 40 rows, 0 findings`; lint WARN set (91) identical to the pre-#122 lint script on the same tree.
+- Stale-ref greps empty outside history; all eight precedence sites consistent; D7-proposed present in `initiatives/memory-md-hygiene.md`.
