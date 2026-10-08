@@ -20,6 +20,26 @@ Expect `tests: N passed, 0 failed`, plus clean `python`, `doc-vs-code`, and `she
 
 **Drop a changelog fragment** if you changed user-visible behavior — `changelog.d/<id>.<kind>.md`, where kind is `breaking` / `feature` / `fix` / `upgrade`. Don't edit `CHANGELOG.md` directly; it's assembled from fragments at release time. Format and rationale: [changelog.d/README.md](changelog.d/README.md).
 
+## Testing discipline
+
+**Verify a mutation landed and stayed isolated before trusting it as evidence.** Confirm the change actually took effect (`cmp`/`diff` against the pre-mutation file) and that it hit only the line under test — `bash -n` catches a mutation that broke syntax instead of the logic, and when sibling checks share text, target the mutation by line number. An unverified mutation can "pass" for reasons that have nothing to do with the control being tested.
+
+**Mutually redundant guards are individually unkillable by mutation.** When two conditions both gate the same defect, deleting either one alone still leaves the suite green, so neither is actually pinned — remove the redundant guard so the one that's left becomes mutation-provable.
+
+**A suite that inherits your global git config isn't hermetic, and a green CI run won't tell you that.** Local commit/tag signing makes fixture repos fail with errors that read as release-logic bugs, not environment; CI has no signing config, so its green result only proves CI's environment is bland, not that the suite is hermetic.
+
+**A test file outside the runner's glob is silently ungated.** The suite reports green and exercises nothing for a test location that was never wired into the runner.
+
+**A `set -e` test that dies mid-run hides every assertion after the death point.** Wrap fallible checks in `set +e` / `rc=$?; set -e` so a failure reaches the reporter instead of aborting the file silently.
+
+**Derive expected values from the same config the code reads — never hardcode them.** A hardcoded expectation rots the moment the config changes, and the assertion keeps "passing" against stale data.
+
+**Seed the empty-list case explicitly in any fixture that walks a collection.** It's the case most likely to be both untested and fatal for real input.
+
+**`git check-ignore` needs `--no-index` whenever the ignore *rules* themselves are under test.** Against a tracked path it short-circuits on the index and reports "not ignored" without reading `.gitignore` at all, so the test passes for free regardless of the rules.
+
+**The lint WARN baseline is a measurement, not a constant.** Derive it fresh immediately before and after your change and compare the warning *sets*, not the counts — a count can move for reasons entirely unrelated to what you touched.
+
 ## Shell constraints
 
 **Scripts target macOS `bash` 3.2.** This is the portability floor, and it is not theoretical — CI runs the suite on `macos-latest` precisely to catch it. No `mapfile`, no associative arrays, no `${var,,}`. A bash-5 Linux runner will happily accept code that breaks for every macOS user.

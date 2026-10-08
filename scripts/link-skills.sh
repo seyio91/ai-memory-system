@@ -79,6 +79,11 @@ while IFS= read -r d; do
   linked=$((linked+1))
 done < <(list_skill_dirs)
 
+# Matches on shape (dangling + target directly under skills/ or .skill-cache/
+# + basename == link name) rather than against the *current* store roots: a
+# moved or renamed tree leaves links pointing at a root that's no longer
+# configured, and the main loop above only visits skills that still exist, so
+# it never revisits one whose source is gone.
 pruned=0
 for dst in "$TARGET"/*; do
   [ -L "$dst" ] || continue
