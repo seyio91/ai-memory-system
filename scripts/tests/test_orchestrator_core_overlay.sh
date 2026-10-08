@@ -31,11 +31,12 @@ grep_once() {
     assert_eq "1" "$count" "$label"
 }
 
-# Deny-list stated exactly once: anchor on a line carrying both a destructive
-# terraform verb and a destructive helm verb (deliberately distinctive — unlikely
-# to appear in any other prose in this file).
-grep_once "terraform destroy" "deny-list statement present exactly once (terraform destroy anchor)"
-grep_once "helm upgrade" "deny-list statement present exactly once (helm upgrade anchor)"
+# Deny-list stated by pointer only: the command list lives in scripts/deny-list.txt
+# (prepended to CLI prompts by executor.sh, enforced by the guard hooks). The core
+# names the file once and carries no copy of the commands.
+grep_once '`scripts/deny-list.txt`' "deny-list pointer to scripts/deny-list.txt present exactly once"
+assert_not_contains "$(cat "$CORE_FILE")" "terraform destroy" "core carries no deny-list command list (terraform destroy)"
+assert_not_contains "$(cat "$CORE_FILE")" "helm upgrade" "core carries no deny-list command list (helm upgrade)"
 
 # Three task tiers stated exactly once.
 grep_once "Three task tiers" "three task tiers header present exactly once"

@@ -45,7 +45,8 @@ so a **hook-capable** harness can *enforce* read-only rather than rely on a CLI 
 Antigravity's `exec_readonly` is the same command as `exec_cmd`, and its `PreToolUse`
 guard (see `guard_script`) denies every non-read tool when `AI_MEMORY_ROLE=explore`,
 plus the shared `scripts/deny-list.txt` for both roles. Interactive sessions (no role)
-stay unguarded.
+stay unguarded, except on Claude with `AI_MEMORY_GUARD_SCOPE=all` (see
+[Claude Code › Infra guard](claude.md#infra-guard-pretoolusebash)).
 
 `--run --clean` gives uniform output: for a harness that declares `exec_last_message`,
 `executor.sh` runs the command with the flag pointed at a temp file, then emits **only**

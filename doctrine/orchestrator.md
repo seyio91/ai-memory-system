@@ -74,11 +74,13 @@ gate; if it does settle a Tier-3 design, still route it through `/new-plan`.
     subagent plane has no such limit.
   Env vars, fallback behaviour, and per-harness `exec_*` resolution:
   `docs/workflow.md`.
-- **Hard rules bind every executor, both planes.** The delegation prompt MUST
-  restate the executor deny-list regardless of which executor runs — see
-  "Executors never apply or merge" below; this is the single statement, not
-  repeated here. For the `codex` CLI executor, `~/.codex/rules/default.rules`
-  is optional defense-in-depth if installed.
+- **Hard rules bind every executor, both planes.** Every executor prompt
+  carries the deny-list ("Executors never apply or merge" below):
+  `executor.sh --run` prepends it to CLI prompts; a subagent prompt MUST
+  paste the list's rules. The `PreToolUse` guard enforces; the prompt copy
+  is defence in depth (Claude subagents are guarded only under
+  `AI_MEMORY_GUARD_SCOPE=all`). For the `codex` CLI executor,
+  `~/.codex/rules/default.rules` is optional defense-in-depth if installed.
 - **Validator:** its own **`validate` role**
   (`scripts/executor.sh --role validate --which`), **read-only** — it
   verifies, never repairs. Defaults to the orchestrator's own agent plane
@@ -117,13 +119,12 @@ gate; if it does settle a Tier-3 design, still route it through `/new-plan`.
   grep it, or quote from it. Move a completed plan to `archive/plans/`; when
   `todo.md` is fully ticked, snapshot to `archive/todos/YYYY-MM-DD-<slug>.md`
   and reset.
-- **Executors never apply or merge to running infrastructure.** Deny-list,
-  stated once here (machine copy: `scripts/deny-list.txt`): `terraform apply`,
-  `terraform destroy`, `kubectl apply`, `kubectl delete`, `helm install`,
-  `helm upgrade`, `helm uninstall`, `helm delete`, `gh pr merge`, `bkt pr
-  merge`, `az repos pr update`. Generic rule: any destructive or additive
-  action directly to running infrastructure is off-limits to executors, on
-  whichever git provider the project uses.
+- **Executors never apply or merge to running infrastructure.** Any
+  destructive or additive action directly to running infrastructure is
+  off-limits to executors, on whichever git provider the project uses. The
+  list: `scripts/deny-list.txt` + `scripts/deny-list.local.txt` (instance
+  additions), enforced by each harness's `PreToolUse` guard (Claude
+  subagents only under `AI_MEMORY_GUARD_SCOPE=all`).
 - **Skill self-rating is on-request only.** When the user asks "rate this
   run" — and only then — append a dated entry to the skill's own
   `skills/<name>/self-rating.md`. Never automatic; an empty log is healthy.
@@ -175,9 +176,8 @@ Shared-state criteria, enforcement detail, and worked examples:
   - Unsure where it belongs → also `working.md`; classify on promotion.
 - **`memory.md` holds what stays true; `working.md` holds what happened.**
   Never a dated changelog of merged work in `memory.md` — git already holds
-  the events. Where installed, `scripts/hooks/memory_write_guard.sh` reports
-  drift back after every write; it is not yet shipped by the installer on
-  every instance.
+  the events. Where installed (Claude, by `install.sh`),
+  `scripts/hooks/memory_write_guard.sh` reports drift back after every write.
 - **Checkpoint before pauses, tool switches, or session end** — task / done /
   next / blockers, into the active project's `working.md`. Use `/checkpoint`,
   or write directly when informal.
@@ -198,11 +198,11 @@ project that reaches into others carries a `## Related Projects` table in its
 
 - **Delegate, don't load.** Do NOT pull the sibling's `memory.md` into this
   thread. Delegate sibling-scoped work to the configured executor with a
-  **self-contained** prompt: point at `identity.md` (hard rules / deny-list)
-  + `projects/<sibling>/memory.md`, state the task, default deliverable =
-  **plan only**. Keep only the returned summary in context; re-open the plan
-  file on demand. Full delegation contract and the Codex cwd caveat:
-  `docs/workflow.md`.
+  **self-contained** prompt: point at `identity.md` (hard rules) +
+  `projects/<sibling>/memory.md`, carry the deny-list (Hard rules above),
+  state the task, default deliverable = **plan only**. Keep only the
+  returned summary in context; re-open the plan file on demand. Full
+  delegation contract and the Codex cwd caveat: `docs/workflow.md`.
 - **Plan-set execution.** Planning and execution are separate. To execute
   persisted plans, walk them in documented order and delegate **each** to an
   executor (self-contained prompt → `identity.md`, the plan file, the

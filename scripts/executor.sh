@@ -29,6 +29,7 @@
 #
 # Exit codes: 0 resolved | 1 preferred unavailable + no fallback |
 #             2 unknown executor / usage error | 3 --run resolved to subagent
+#             (--run also exits 1 when the deny-list is missing, unreadable or has no rules)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -208,6 +209,25 @@ validator_preamble() {
     printf '%s' "$body"
 }
 
+# Deny-list preamble for every CLI executor prompt: rule lines of scripts/deny-list.txt
+# plus scripts/deny-list.local.txt. A rule is the guard's usable shape (two+ words, not a
+# comment). Missing/unreadable base, unreadable local, or no usable base rules fails closed,
+# like the guard. The preamble must not start
+# with '-': codex et al. take {prompt} positionally and would parse it as a flag.
+deny_rules() { LC_ALL=C awk '!/^[[:space:]]*[^#[:space:]]+[[:space:]]+[^[:space:]]/ { next } { sub(/^[[:space:]]+/, ""); sub(/[[:space:]]+$/, ""); print "- " $0 }' "$1"; }
+deny_preamble() {
+    local base="$REPO_ROOT/scripts/deny-list.txt" extra="$REPO_ROOT/scripts/deny-list.local.txt" rules more
+    [ -f "$base" ] || { printf 'executor --run: deny-list missing: %s — refusing to run unguarded\n' "$base" >&2; return 1; }
+    { [ -r "$base" ] && rules="$(deny_rules "$base")"; } || { printf 'executor --run: deny-list unreadable: %s — refusing to run unguarded\n' "$base" >&2; return 1; }
+    [ -n "$rules" ] || { printf 'executor --run: deny-list has no rules: %s — refusing to run unguarded\n' "$base" >&2; return 1; }
+    if [ -f "$extra" ]; then
+        { [ -r "$extra" ] && more="$(deny_rules "$extra")"; } || { printf 'executor --run: deny-list unreadable: %s — refusing to run unguarded\n' "$extra" >&2; return 1; }
+        [ -n "$more" ] && rules="${rules}
+${more}"
+    fi
+    printf 'EXECUTOR DENY-LIST — hard rule: never run these, or any destructive/additive action against running infrastructure:\n%s\nEND DENY-LIST' "$rules"
+}
+
 # --- arg parse: optional --role, then the mode ---
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -256,6 +276,7 @@ case "$MODE" in
         if [ "$R_PLANE" = subagent ]; then
             printf 'EXECUTOR_USE_SUBAGENT\n'; exit 3
         fi
+        deny="$(deny_preamble)" || exit 1
         if [ "$ROLE" = validate ]; then
             preamble="$(validator_preamble)" || exit 1
             PROMPT="${preamble}
@@ -264,6 +285,9 @@ case "$MODE" in
 
 ${PROMPT}"
         fi
+        PROMPT="${deny}
+
+${PROMPT}"
         q="$(shq "$PROMPT")"
         cmd="${R_CMD//\{prompt\}/$q}"
         # Advertise the role to the executor process (and any hooks it spawns) so a

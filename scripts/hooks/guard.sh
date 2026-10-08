@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Shared infra guard for executor hook contexts. Interactive sessions are left
-# untouched; executor roles get the shared destructive/additive infra deny-list.
+# Shared infra guard for executor hook contexts: executor roles (AI_MEMORY_ROLE)
+# get the shared destructive/additive infra deny-list. AI_MEMORY_GUARD_SCOPE
+# widens it: empty/`executor` (default) leaves interactive sessions untouched;
+# `all` also guards role-less calls (subagents denied, main session asked); any
+# other value is treated as `all` with a warning.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -10,6 +13,16 @@ REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 INPUT="$(cat)"
 ROLE="${AI_MEMORY_ROLE:-}"
+SCOPE="${AI_MEMORY_GUARD_SCOPE:-}"
+SCOPE="${SCOPE#"${SCOPE%%[![:space:]]*}"}"
+SCOPE="${SCOPE%"${SCOPE##*[![:space:]]}"}"
+SCOPE_NOTE=""
+case "$SCOPE" in
+    ""|[eE][xX][eE][cC][uU][tT][oO][rR]) SCOPE=executor ;;
+    [aA][lL][lL]) SCOPE=all ;;
+    *) SCOPE_UNKNOWN="$SCOPE"; SCOPE=all
+       SCOPE_NOTE=" (unknown AI_MEMORY_GUARD_SCOPE '$SCOPE_UNKNOWN', treating as all)" ;;
+esac
 
 json_get_encoded_path() {
     local outer="$1" expr k
@@ -45,10 +58,36 @@ deny() {
     fi
 }
 
-[ -n "$ROLE" ] || exit 0
+# Main-session Claude (AI_MEMORY_GUARD_SCOPE=all, no role, no agent_id) is asked
+# instead of denied, and fails open with a visible warning.
+ask() {
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":%s}}\n' "$(json_escape "$1$SCOPE_NOTE")"
+    exit 0
+}
+
+guard_fail() {
+    if [ "$CONTEXT" = main ]; then
+        printf '{"systemMessage":%s}\n' "$(json_escape "ai-memory guard: ${2:-$1} — deny-list NOT enforced$SCOPE_NOTE")"
+        exit 0
+    fi
+    deny "$1$SCOPE_NOTE"
+}
+
+[ -n "$ROLE" ] || [ "$SCOPE" = all ] || exit 0
+
+# agent_id is present only in subagent tool calls. The raw grep runs first so a
+# subagent is still detected (and denied) when no JSON parser is available.
+CONTEXT=executor
+if [ -z "$ROLE" ]; then
+    CONTEXT=main
+    if printf '%s' "$INPUT" | grep -q '"agent_id"' \
+        || [ -n "$(printf '%s' "$INPUT" | json_get agent_id)" ]; then
+        CONTEXT=subagent
+    fi
+fi
 
 if ! json_parser_available; then
-    deny "no jq/python3, cannot inspect tool call"
+    guard_fail "no jq/python3, cannot inspect tool call"
 fi
 
 # The shell command lives at different JSON paths per harness's PreToolUse stdin:
@@ -62,20 +101,26 @@ CMDLINE="$(printf '%s' "$INPUT" | json_get_path tool_input command)"
 [ -n "$CMDLINE" ] || CMDLINE="$(printf '%s' "$INPUT" | json_get_encoded_path toolArgs command)"
 
 if [ ! -f "$REPO/scripts/deny-list.txt" ]; then
-    deny "executor deny-list missing at scripts/deny-list.txt — refusing to run unguarded"
+    guard_fail "executor deny-list missing at scripts/deny-list.txt — refusing to run unguarded" \
+        "deny-list missing at scripts/deny-list.txt"
 fi
 if ! grep -qE '^[[:space:]]*[^#[:space:]]+[[:space:]]+[^[:space:]]' "$REPO/scripts/deny-list.txt" 2>/dev/null; then
-    deny "executor deny-list at scripts/deny-list.txt has no usable rules — refusing to run unguarded"
+    guard_fail "executor deny-list at scripts/deny-list.txt has no usable rules — refusing to run unguarded" \
+        "deny-list at scripts/deny-list.txt has no usable rules"
 fi
 
 if [ -n "$CMDLINE" ]; then
     DENY_SPEC_ARGV=( "$REPO/scripts/deny-list.txt" )
     [ -f "$REPO/scripts/deny-list.local.txt" ] && DENY_SPEC_ARGV+=( "$REPO/scripts/deny-list.local.txt" )
     if DENY_REASON="$(deny_match "$CMDLINE" "${DENY_SPEC_ARGV[@]}")"; then
-        deny "$DENY_REASON"
+        [ "$CONTEXT" = main ] && ask "$DENY_REASON"
+        deny "$DENY_REASON$SCOPE_NOTE"
     fi
 fi
 
 # Copilot allows hook stdout to be empty on allow (Phase 0 postToolUse/preToolUse
 # probes); only deny needs its JSON permissionDecision envelope.
+if [ "$CONTEXT" = main ] && [ -n "$SCOPE_NOTE" ]; then
+    printf '{"systemMessage":%s}\n' "$(json_escape "ai-memory guard: unknown AI_MEMORY_GUARD_SCOPE '$SCOPE_UNKNOWN', treating as all")"
+fi
 exit 0

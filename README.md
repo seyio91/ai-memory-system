@@ -102,9 +102,9 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 
 ### Enforcement & safety gates
 
-- **Real gates, not docs** — Claude's `PreToolUse` hook blocks `TaskCreate`/`TaskUpdate` to enforce the `todo.md` rule.
-- **Executor infra-deny** — executors are blocked from destructive/additive infra (`terraform apply`, `kubectl delete`, `helm upgrade`, PR merges) via a shared `deny-list.txt` and a tokenizing matcher that resists flag/wrapper/quoting bypasses; instance-local rules are additive.
-- **Per-harness enforcement** — Codex and Antigravity `PreToolUse` guards apply the same deny list to delegated runs and add a read-only allowlist for `explore`/`validate`. Guards **fail closed** — a missing parser or deny-list is treated as unsafe.
+- **Real gates, not docs** — Claude's `PreToolUse` hook blocks `TaskCreate`/`TaskUpdate` to enforce the `todo.md` rule, and a `PostToolUse` write guard reports memory-file drift after every `Write`/`Edit`.
+- **Executor infra-deny** — executors are blocked from destructive/additive infra (`terraform apply`, `kubectl delete`, `helm upgrade`, PR merges) via a shared `scripts/deny-list.txt` and a tokenizing matcher that resists flag/wrapper/quoting bypasses; instance-local rules are additive. `executor.sh --run` prepends the list to every CLI executor prompt and refuses to run without one.
+- **Per-harness enforcement** — Claude, Codex, Copilot and Antigravity `PreToolUse` guards apply the same deny list to delegated runs; Antigravity's also adds a read-only allowlist for `explore`/`validate`. On Claude, `AI_MEMORY_GUARD_SCOPE=all` extends the guard to every session: subagents are denied, the main session is asked to confirm. Guards **fail closed** for executors and subagents — a missing parser or deny-list is treated as unsafe; Claude's main session fails open with a visible warning.
 - **Release/sync guards** — `release.sh` refuses to run under an executor role; `sync-system.sh` refuses to change versions on a dirty tracked tree.
 
 ### Derived views

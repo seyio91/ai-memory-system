@@ -108,6 +108,12 @@ if ! bash "$REPO_ROOT/scripts/validate-manifest.sh" "$MANIFEST" >/tmp/vm.$$ 2>&1
 fi
 rm -f /tmp/vm.$$
 
+# Claude bakes AI_MEMORY_GUARD_SCOPE into its guard command; reject a bad value
+# here, before the statusline, hook runtime or any other step writes anything.
+if [ "$HARNESS" = claude ]; then
+    guard_scope_resolve >/dev/null || { echo "install: nothing was changed." >&2; exit 1; }
+fi
+
 ARCHETYPE="$(manifest_get "$MANIFEST" archetype)"
 printf '== installing memory system for harness: %s (archetype: %s) ==\n' "$HARNESS" "$ARCHETYPE"
 PROBE="$(manifest_get "$MANIFEST" probe)"

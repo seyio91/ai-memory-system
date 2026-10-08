@@ -36,15 +36,17 @@ Every failure path falls back to the pre-existing cwd walk: no `session_id`, no 
 
 ## Hooks
 
-Three hooks, registered in `~/.claude/settings.json` by `install.sh`. The injection hook runs the shared `scripts/hooks/inject.sh`; the Claude-specific session and task-block hooks run by absolute path from the repo.
+Five hooks, registered in `~/.claude/settings.json` by `install.sh`. All run by absolute path from the repo; only the task-block hook is Claude-specific, the others are shared scripts under `scripts/hooks/`.
 
 | Hook | Event | Script | Effect |
 |------|-------|--------|--------|
 | Memory injection | `UserPromptSubmit` | `scripts/hooks/inject.sh` | Emits the `<memory:*>` blocks above as `hookSpecificOutput.additionalContext`; otherwise the per-prompt breadcrumb. |
 | Session start | `SessionStart` | shared `scripts/hooks/session_start_memory.sh` | Full injection once on session load; on `source=compact` arms a sentinel so the next prompt re-injects (compaction recovery). Shared with Codex (which runs it in `md` format, chunked). |
 | Task-tool block | `PreToolUse` (matcher `TaskCreate\|TaskUpdate`) | `harnesses/claude/hooks/block_task_tools.sh` | Consumes stdin, writes the tier-classification reminder to stderr, `exit 2` — blocking the call. Forces all executable-work tracking into `projects/<active>/todo.md`. |
+| Infra guard | `PreToolUse` (matcher `Bash`) | shared `scripts/hooks/guard.sh` | Matches the command against the executor deny-list (`scripts/deny-list.txt` + `scripts/deny-list.local.txt`). Which sessions it covers is set by `AI_MEMORY_GUARD_SCOPE` — see [Infra guard](#infra-guard-pretoolusebash). Shared with Codex and Copilot. |
+| Memory write guard | `PostToolUse` (matcher `Write\|Edit`) | shared `scripts/hooks/memory_write_guard.sh` | After a write to a project `memory.md`, `working.md` or `domain/*.md`, runs the changelog-drift and size-budget checks and feeds any finding back to the model (`exit 2` on stderr). The write is never reverted; the hook fails open. |
 
-The three entries are auto-merged into `settings.json`; `harnesses/claude/settings.hooks.json` is the reference shape:
+The entries are auto-merged into `settings.json`. The reference shape (`harnesses/claude/settings.hooks.json`):
 
 ```json
 {
@@ -56,12 +58,31 @@ The three entries are auto-merged into `settings.json`; `harnesses/claude/settin
   ],
   "PreToolUse": [
     { "matcher": "TaskCreate|TaskUpdate",
-      "hooks": [{ "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh" }] }
+      "hooks": [{ "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh" }] },
+    { "matcher": "Bash",
+      "hooks": [{ "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_GUARD_SCOPE=executor bash $MEMORY_DIR/scripts/hooks/guard.sh" }] }
+  ],
+  "PostToolUse": [
+    { "matcher": "Write|Edit",
+      "hooks": [{ "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR bash $MEMORY_DIR/scripts/hooks/memory_write_guard.sh" }] }
   ]
 }
 ```
 
 All hook scripts must be `chmod +x` (`install.sh` does this). A setup that skips `block_task_tools.sh` leaves the harness free to call `TaskCreate` — the workflow rule "`todo.md` is the single source of truth" is *enforced* here, not just documented.
+
+**Re-install replaces earlier copies.** Before writing, install removes every existing entry that runs one of these scripts — including hand-wired copies — so each hook ends up registered once, and keeps unrelated hooks and keys. `settings.json` is first backed up to a timestamped `settings.json.bak-<ts>`. Identical entries are replaced silently. An earlier managed entry whose command alone changed (scope, `MEMORY_DIR`, chunk count) is reported as one `updated managed hook <script>` line per hook, with the backup path. An entry whose matcher or extra keys (such as `timeout`) differ is printed verbatim on stderr with the backup path, as `replaced non-standard hook entry`; one with nothing written in its place on that event as `removed hook entry`; one naming a hook that no longer ships (`inject_memory.sh`, `arm_recompact.sh`) as `removed (retired hook)`.
+
+### Infra guard (`PreToolUse:Bash`)
+
+The guard reads the deny-list from `scripts/deny-list.txt` plus the optional, additive `scripts/deny-list.local.txt` (see [Antigravity › Enforcement](antigravity.md#enforcement--the-pretooluse-guard) for the list and the matcher). Install bakes `AI_MEMORY_GUARD_SCOPE` from `config.local.sh` into the guard command; change it there and re-run install (or `/sync-system`). Any value other than `executor` or `all` fails the install, and nothing is written.
+
+| `AI_MEMORY_GUARD_SCOPE` | Executor run (`AI_MEMORY_ROLE` set) | Subagent (`agent_id` in the payload) | Main session |
+|---|---|---|---|
+| `executor` (default) | denied | not guarded | not guarded |
+| `all` | denied | denied | confirmation prompt (`permissionDecision: "ask"`) |
+
+A denial exits 2 with the matched rule as the reason. If the guard cannot inspect the call (no `jq`/`python3`) or the deny-list is missing or has no rules, it denies executor runs and subagents (fail closed) and lets a main-session call through with a `systemMessage` warning that the deny-list is not enforced. A scope value that reaches the guard unvalidated is treated as `all`; the main session sees a warning, and deny reasons name the bad value. The deny-list matches command text, so it is a backstop, not a sandbox.
 
 ### Chunked injection (`session_chunks` / `inject_chunks`)
 
