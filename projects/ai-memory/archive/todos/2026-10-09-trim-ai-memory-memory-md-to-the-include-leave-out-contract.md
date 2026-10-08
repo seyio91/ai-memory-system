@@ -7,7 +7,11 @@
 
 ## Active
 
-_(no items yet)_
+### Trim ai-memory memory.md to the include/leave-out contract → [plan](archive/plans/trim-ai-memory-memory-md-to-the-include-leave-out-contract.md)
+- [x] P1 — Move shipped-audience facts to their homes (PR #127, merged)
+- [x] P2 — Capture Current Goal threads as tasks
+- [x] P3 — Rewrite memory.md to the contract (needs: P1, P2)
+- [x] P4 — Validate and close (needs: P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_

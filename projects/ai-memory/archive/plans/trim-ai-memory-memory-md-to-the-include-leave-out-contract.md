@@ -1,6 +1,7 @@
 ---
 plan: trim-ai-memory-memory-md-to-the-include-leave-out-contract
-status: in_progress
+status: done
+completed: 2026-10-09
 created: 2026-10-08
 owner: claude (orchestrator)
 task_provider: local
