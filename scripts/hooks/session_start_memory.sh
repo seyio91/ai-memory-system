@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# SessionStart hook: inject full memory (identity + orchestrator + project + index + working) once
-# when the session loads.
+# SessionStart hook: inject full memory (identity + orchestrator core/overlay + project +
+# index + working) once when the session loads.
 set -euo pipefail
 
 _ss_resolve() {

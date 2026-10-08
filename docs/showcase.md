@@ -83,8 +83,10 @@ plain markdown. That's the whole trick.
 
 Open three files and the entire "database" is on screen:
 
-- **Schema** — `identity.md` (and `~/.claude/CLAUDE.md`): the hard rules and behavioral
-  conventions. Outranks everything, injected once per session.
+- **Schema** — `identity.md`, `orchestrator.local.md`, and the tracked `doctrine/orchestrator.md`:
+  the hard rules and workflow doctrine. Outranks everything, injected once per session.
+  (`~/.claude/CLAUDE.md` is just a hook-failure stub — a fallback for the rare case the
+  injection itself is missing, not where the doctrine lives.)
 - **Wiki** — `projects/<name>/memory.md` (per-engagement) and `domain/<topic>.md`
   (cross-project): durable, curated knowledge.
 - **Scratchpad** — `projects/<name>/working.md`: in-flight notes for the current thread.
@@ -98,7 +100,7 @@ each injection cheap and each layer's lifecycle distinct.
 (`scripts/hooks/inject.sh`) emits `<memory:*>` blocks straight into the prompt —
 the model never issues a retrieval call. There are three "full payload" moments —
 **SessionStart**, an explicit `@memory`, and the first prompt after **compaction** — where
-the whole stack (identity → orchestrator → project memory → index → working) is injected. Every *other*
+the whole stack (identity → orchestrator → orchestrator-local → project memory → index → working) is injected. Every *other*
 prompt gets only a lightweight `<memory:active>` breadcrumb (project name + file paths), so
 the context that repeats each turn stays tiny and the cache prefix isn't busted.
 

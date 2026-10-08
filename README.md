@@ -8,7 +8,7 @@ A markdown-only memory tree shared by **Claude Code**, **OpenAI Codex CLI**, and
 
 Three layers, mirroring Karpathy's LLM Wiki pattern:
 
-1. **Schema** — hard rules and behavioral conventions. `identity.md`, `~/.claude/CLAUDE.md`. Outranks everything.
+1. **Schema** — hard rules and behavioral conventions. `identity.md`, `orchestrator.local.md`, the tracked `doctrine/orchestrator.md` core (`~/.claude/CLAUDE.md` is only a hook-failure fallback stub). Outranks everything.
 2. **Wiki** — durable, LLM-readable knowledge. `domain/*.md` (cross-project) + `projects/*/memory.md` (per-engagement).
 3. **Scratchpad** — in-flight, per-project. `projects/*/working.md`. Matures into the wiki via `/promote-memory`.
 
@@ -26,7 +26,7 @@ cd ~/.claude-memory
 ./install.sh
 ```
 
-`install.sh` is idempotent and backs up anything it overwrites. Two steps it leaves to you (merge hook settings; symlink `CLAUDE.md`) and the full breakdown are in **[docs/install.md](docs/install.md)**. Then edit `identity.md`, pin a repo with `/pin <project>`, and start a session.
+`install.sh` is idempotent and backs up anything it overwrites. Two steps it leaves to you (merge hook settings; symlink `CLAUDE.md`) and the full breakdown are in **[docs/install.md](docs/install.md)**. Then edit `identity.md` and, for any personal workflow rules, `orchestrator.local.md`; pin a repo with `/pin <project>`, and start a session.
 
 Upgrade instances with `scripts/sync-system.sh`. It syncs to the latest stable `v*` tag by default (`AI_MEMORY_CHANNEL=release`), runs pending migrations, and re-runs `install.sh`. Set `AI_MEMORY_CHANNEL=dev` in `config.local.sh` on the source checkout, otherwise it too defaults to `release` and will detach at the latest tag. Converting an existing instance: **[UPGRADING.md](UPGRADING.md#converting-an-existing-instance-to-the-release-channel)**.
 
@@ -147,6 +147,8 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 
 ```
 identity.md              Hard rules (injected once per session) — per-instance, git-ignored
+doctrine/orchestrator.md Tracked workflow doctrine core, updated every sync
+orchestrator.local.md    Personal doctrine overlay, additive — per-instance, git-ignored
 index.md                 Auto-generated roster of projects + domains
 domain/<topic>.md        Cross-project knowledge (lazy-loaded on trigger match)
 projects/<name>/         memory.md · working.md · todo.md · plans/ · archive/
@@ -163,4 +165,4 @@ Full tree and the `~/.claude` / `~/.codex` symlink maps: **[docs/install.md](doc
 
 ---
 
-*Committed: the engine (`scripts/`, `harnesses/` wiring, `skills/`, `agents/`, `install.sh`, `*.template.md`) plus the self-documenting `projects/ai-memory` meta-project. Git-ignored: your data (`identity.md`, `index.md`, `domain/*`, `projects/*` except `_template/` and `ai-memory`, `config.local.sh`, `tasks/`, `archive/`). See `.gitignore`.*
+*Committed: the engine (`scripts/`, `harnesses/` wiring, `skills/`, `agents/`, `doctrine/`, `install.sh`, `*.template.md`) plus the self-documenting `projects/ai-memory` meta-project. Git-ignored: your data (`identity.md`, `orchestrator.local.md`, `index.md`, `domain/*`, `projects/*` except `_template/` and `ai-memory`, `config.local.sh`, `tasks/`, `archive/`). See `.gitignore`.*

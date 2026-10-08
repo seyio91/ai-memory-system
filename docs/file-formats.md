@@ -2,16 +2,24 @@
 
 ## Root instruction files
 
-`identity.md` and `orchestrator.md` are per-instance files seeded by
-`install.sh` when missing:
+`identity.md` is a per-instance file seeded by `install.sh` when missing.
+Workflow doctrine is split into a tracked core plus a per-instance overlay:
 
 | File | Seed template | Purpose | Tracked? |
 |------|---------------|---------|----------|
 | `identity.md` | `templates/identity.template.md` | Role, stack, communication style, defaults, and hard rules | no |
-| `orchestrator.md` | `templates/orchestrator.template.md` | Workflow doctrine: task tiers, brainstorm gate, orchestrator/executor/validator roles, Task Contract, and cross-project rules | no |
+| `doctrine/orchestrator.md` | n/a — ships with the clone | Workflow doctrine: task tiers, brainstorm gate, orchestrator/executor/validator roles, Task Contract, and cross-project rules | yes — updated on every sync |
+| `orchestrator.local.md` | none — seeded empty by `install.sh` | Personal additions to the core doctrine, additive | no |
 
-Existing files are never overwritten. Precedence is:
-`identity.md` hard rules > `orchestrator.md` workflow doctrine > project memory.
+Existing files are never overwritten (an empty overlay is only seeded when absent).
+Precedence is:
+`identity.md` hard rules > `orchestrator.local.md` overlay > `doctrine/orchestrator.md` core > project memory.
+
+A pre-1.6.0 instance may still have a root `orchestrator.md`. It is never deleted
+automatically — migration `1.6.0-orchestrator-core-overlay.sh` backs it up to
+`orchestrator.md.pre-1.6.0` and seeds the empty overlay; until that migration runs,
+the root file keeps being injected (as `orchestrator-local`) with a deprecation
+notice. See [UPGRADING.md](../UPGRADING.md#160).
 
 ## Frontmatter (required on every domain + project memory file)
 

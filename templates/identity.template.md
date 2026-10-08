@@ -2,7 +2,9 @@
 
 > Template. Copy to `identity.md` and tailor. `identity.md` is the schema layer:
 > hard rules and behavioral conventions that outrank everything else. It is
-> injected on the first prompt of every onboarded session.
+> injected on the first prompt of every onboarded session. Precedence:
+> `identity.md` > `orchestrator.local.md` (your overlay) > `doctrine/orchestrator.md`
+> (tracked core) > project memory.
 
 ## Role
 <One line: what you do, and the boundaries — e.g. "Backend / infra only, no frontend".>
@@ -34,6 +36,7 @@
 
 ## Workflow Doctrine
 
-Workflow doctrine lives in `orchestrator.md`, seeded from
-`templates/orchestrator.template.md`. `identity.md` should stay focused on role, defaults,
-hard rules, and communication style.
+Workflow doctrine lives in the tracked `doctrine/orchestrator.md` core (ships with
+the clone, updated every sync); add personal additions to `orchestrator.local.md`.
+`identity.md` should stay focused on role, defaults, hard rules, and communication
+style.

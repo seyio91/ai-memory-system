@@ -10,6 +10,8 @@
 
 `todo.md` tracks **plan execution** — no plan means no `todo.md` entry. Only the third tier flows through the orchestrator/executor/validator roles. The orchestrator is whichever harness is running the main session; the executor is selectable (`subagent` by default, or a configured CLI like `codex`); the validator is its own selectable, **read-only** role that defaults to the orchestrator's agent plane — so a CLI executor is checked **cross-model** by default.
 
+This doctrine itself is layered: `identity.md` hard rules > `orchestrator.local.md` (personal overlay, additive) > `doctrine/orchestrator.md` (tracked core, this document's source) > project memory. See [File formats](file-formats.md#root-instruction-files).
+
 ## Roles
 
 | Role | Tool | Model | Responsibility |
@@ -44,7 +46,7 @@
 
 ## Task Contract
 
-Every plan-tier task carries explicit **success criteria** — the observable, checkable conditions that define "done." This is the contract the validator checks against; without it, "done" is opinion. Defined in `orchestrator.md` → `### Task Contract` (injected every session).
+Every plan-tier task carries explicit **success criteria** — the observable, checkable conditions that define "done." This is the contract the validator checks against; without it, "done" is opinion. Defined in `doctrine/orchestrator.md` → `### Task Contract` (injected every session).
 
 - **Plan-tier only.** Quick items and research/Q&A are exempt — no criteria for a one-line edit or a question.
 - **Best-effort by default.** If the user doesn't state criteria, the orchestrator drafts them from session context and surfaces them before executing — never blank. **For feature-tier tasks routed through the `design-brainstorm` skill, this seam is tighter:** success criteria are derived *with* the user during the clarify pass, so they are collaboratively-agreed rather than orchestrator-guessed — an upgrade of this rule for the one tier where the design is worth examining, not a parallel mechanism.
@@ -85,7 +87,7 @@ To delegate (or to validate), the orchestrator runs `scripts/executor.sh --role 
 
 - **No `TaskCreate`.** `todo.md` is the single source of truth for executable work.
 - **Archive is never read unless the user explicitly asks.** Don't load it, grep it, or quote from it.
-- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes) and in `orchestrator.md`; for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
+- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes) and in `doctrine/orchestrator.md`; for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
 
 ---
 
@@ -103,7 +105,7 @@ Because `memory.md` is injected wholesale on the first prompt (Claude) and built
 
 The table deliberately carries **no on-disk path**. A delegate that needs to inspect the sibling's *code* resolves the checkout with `resolve_repo_path <sibling>`, which reads `repo_path`/`repo` from the sibling's own frontmatter (see [Reverse map](install.md#reverse-map-project--checkout)). The path lives in one place — the sibling's `memory.md` — and is resolved per environment, so it is never duplicated into (and never goes stale in) the relationship table.
 
-**The hop — delegate, don't load.** When a task matches a row, the orchestrator does **not** load the sibling's `memory.md` into its own thread (that would bloat context, especially across several siblings). Instead it delegates the sibling-scoped work to an **executor** (selected via `AI_MEMORY_EXECUTOR` — `subagent` by default, or a CLI like `codex`). The `orchestrator.md` rule makes this dependable.
+**The hop — delegate, don't load.** When a task matches a row, the orchestrator does **not** load the sibling's `memory.md` into its own thread (that would bloat context, especially across several siblings). Instead it delegates the sibling-scoped work to an **executor** (selected via `AI_MEMORY_EXECUTOR` — `subagent` by default, or a CLI like `codex`). The `doctrine/orchestrator.md` rule makes this dependable.
 
 **Delegation contract:**
 - *Dispatch* — the prompt is self-contained, because the delegate does not inherit the orchestrator's context: it points at `identity.md` (hard rules / executor deny-list) and `projects/<sibling>/memory.md`, states the task, and sets the default deliverable to **plan only** (no edits to the sibling repo).

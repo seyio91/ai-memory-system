@@ -161,9 +161,44 @@ Released versions that need manual steps or carry a migration get one section:
 The reverse does not hold: a version may need a manual step without shipping a
 migration — as the next section does.
 
+## 1.6.0
+
+**Orchestrator doctrine split into a tracked core plus a local overlay.**
+
+`orchestrator.md` — the per-instance file seeded once from
+`templates/orchestrator.template.md` and never updated again — is retired.
+Workflow doctrine now ships as a tracked core, `doctrine/orchestrator.md`,
+updated on every sync like the rest of the engine. Personal additions go in a
+new gitignored overlay, `orchestrator.local.md` — additive, never overwritten,
+precedence `identity.md` > `orchestrator.local.md` > `doctrine/orchestrator.md`
+> project memory.
+
+Migration `1.6.0-orchestrator-core-overlay.sh` runs automatically via
+`sync-system.sh`. If you have an existing root `orchestrator.md`, it is backed
+up (renamed, not deleted) to `orchestrator.md.pre-1.6.0`, and an empty
+`orchestrator.local.md` is seeded if you don't already have one. **You must
+port any personal rules from the backup into `orchestrator.local.md` by
+hand** — the migration does not diff or merge the old file, since it is both
+ahead of and behind the current template in ways a script cannot judge.
+
+Until you migrate (or on an instance that only `git pull`s without running
+`sync-system.sh`), a legacy root `orchestrator.md` keeps being injected as
+before, with a one-line deprecation notice in the breadcrumb telling you to run
+`/sync-system`. This fallback is temporary — it exists for one release only.
+
+`harnesses/claude/CLAUDE.md` is now a small hook-failure stub: it carries no
+doctrine of its own, only an instruction to read `doctrine/orchestrator.md` and
+`orchestrator.local.md` directly if the `<memory:orchestrator>` injection is
+ever missing from context. No consumer action needed — it is reached via the
+same `@`-import shim as before.
+
 ## 1.4.0
 
 **Workflow doctrine moved from `identity.md` to `orchestrator.md`.**
+
+> **Superseded in 1.6.0.** `orchestrator.md` itself is retired — see the
+> [1.6.0](#160) section above. The doctrine-vs-`identity.md` split described
+> below still holds; only the file names changed.
 
 New installs seed `orchestrator.md` from tracked `orchestrator.template.md`.
 Existing instances are not rewritten: move or delete your `## Orchestration`

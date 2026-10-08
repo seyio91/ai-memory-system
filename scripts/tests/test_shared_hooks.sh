@@ -59,8 +59,8 @@ esac
 # committed/merged, HEAD no longer carries them and the oracle would silently
 # read empty and the parity tests would fail on committed code / in CI).
 # Pre-migration hooks never emitted the (post-freeze) orchestrator section, so
-# the parity block runs against an UN-SEEDED tree — which doubles as the
-# backward-compat proof for instances that haven't seeded orchestrator.md yet.
+# the parity block runs against a tree without doctrine/orchestrator.md — which
+# doubles as the backward-compat proof for the pre-core-overlay code path.
 # The section's own rendering is asserted independently above and below.
 mv "$MEM/doctrine/orchestrator.md" "$MEM/doctrine/orchestrator.md.aside"
 LEGACY="$REPO/scripts/tests/fixtures/claude-legacy-hooks"
