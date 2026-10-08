@@ -21,8 +21,11 @@ settings_json = ~/.claude/settings.json
 # 2026-07-18: 1..12 arrived as 2,3,4,1,5). emit_hook_chunk therefore frames each
 # slice in a <memory:chunk index of> envelope; see docs/harnesses/claude.md.
 #
-# Live payload ~43,776B = 5 slices; 12 gives ample headroom, and overflow past 12
-# emits the loud truncation marker rather than failing silently.
+# Live payload size drifts with the memory tree; measure it rather than trust a
+# comment — `scripts/check-memory-size.sh --payload <project>` is the
+# authoritative source. 12 chunks gives ample headroom over the observed slice
+# count, and overflow past 12 emits the loud truncation marker rather than
+# failing silently.
 session_chunks = 12
 inject_chunks  = 12
 hook_script    = $MEMORY_DIR/scripts/hooks/inject.sh
