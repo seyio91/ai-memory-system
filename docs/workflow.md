@@ -87,7 +87,7 @@ To delegate (or to validate), the orchestrator runs `scripts/executor.sh --role 
 
 - **No `TaskCreate`.** `todo.md` is the single source of truth for executable work.
 - **Archive is never read unless the user explicitly asks.** Don't load it, grep it, or quote from it.
-- **Executors never apply or merge to running infrastructure.** Enforced by restating the deny-list in every delegation prompt (both planes) and in `doctrine/orchestrator.md`; for the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed: `terraform apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `gh pr merge`, `helm install`, `helm upgrade`. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
+- **Executors never apply or merge to running infrastructure.** The deny-list is stated once in `doctrine/orchestrator.md`, with its machine copy in `scripts/deny-list.txt` (plus any instance additions in `scripts/deny-list.local.txt`); it is restated in every delegation prompt (both planes). For the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
 
 ---
 
