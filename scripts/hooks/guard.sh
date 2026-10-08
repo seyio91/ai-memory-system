@@ -2,8 +2,12 @@
 # Shared infra guard for executor hook contexts: executor roles (AI_MEMORY_ROLE)
 # get the shared destructive/additive infra deny-list. AI_MEMORY_GUARD_SCOPE
 # widens it: empty/`executor` (default) leaves interactive sessions untouched;
-# `all` also guards role-less calls (subagents denied, main session asked); any
-# other value is treated as `all` with a warning.
+# `all` also guards role-less calls: subagents are denied; the main session is
+# asked to confirm only when its permission_mode is default/plan/acceptEdits
+# (the modes where Claude shows the prompt) and denied in any other mode
+# (bypassPermissions, dontAsk, unknown or missing), since Claude would turn an
+# unshown `ask` into allow. Any other scope value is treated as `all` with a
+# warning.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -59,7 +63,8 @@ deny() {
 }
 
 # Main-session Claude (AI_MEMORY_GUARD_SCOPE=all, no role, no agent_id) is asked
-# instead of denied, and fails open with a visible warning.
+# instead of denied when its permission_mode shows prompts (see header), and
+# fails open with a visible warning.
 ask() {
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":%s}}\n' "$(json_escape "$1$SCOPE_NOTE")"
     exit 0
@@ -113,7 +118,13 @@ if [ -n "$CMDLINE" ]; then
     DENY_SPEC_ARGV=( "$REPO/scripts/deny-list.txt" )
     [ -f "$REPO/scripts/deny-list.local.txt" ] && DENY_SPEC_ARGV+=( "$REPO/scripts/deny-list.local.txt" )
     if DENY_REASON="$(deny_match "$CMDLINE" "${DENY_SPEC_ARGV[@]}")"; then
-        [ "$CONTEXT" = main ] && ask "$DENY_REASON"
+        if [ "$CONTEXT" = main ]; then
+            PERM_MODE="$(printf '%s' "$INPUT" | json_get permission_mode)"
+            case "$PERM_MODE" in
+                default|plan|acceptEdits) ask "$DENY_REASON" ;;
+            esac
+            DENY_REASON="$DENY_REASON (main session, permission_mode=${PERM_MODE:-unset}: confirmation prompts are not shown in this mode)"
+        fi
         deny "$DENY_REASON$SCOPE_NOTE"
     fi
 fi
