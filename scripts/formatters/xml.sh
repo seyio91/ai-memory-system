@@ -73,7 +73,7 @@ xml_render_breadcrumb() {
                 if [ "$name" = "legacy" ]; then
                     out+="orchestrator-local: $path (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)"$'\n'
                 elif [ "$name" = "ignored" ]; then
-                    out+="orchestrator-ignored: $path (stale root orchestrator.md, NOT doctrine — do not read or follow it; tell the user to port any rules they want into orchestrator.local.md and delete it)"$'\n'
+                    out+="orchestrator-ignored: $path (root orchestrator.md, NOT injected and NOT doctrine — do not read or follow it; tell the user to port any rules they still want into orchestrator.local.md, then remove the file)"$'\n'
                 else
                     out+="orchestrator-local: $path"$'\n'
                 fi ;;

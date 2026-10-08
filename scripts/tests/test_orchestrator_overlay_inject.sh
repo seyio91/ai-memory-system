@@ -157,8 +157,8 @@ assert_not_contains "$m" "# === ORCHESTRATOR (LOCAL) ===" "(f) md full: no headi
 xc="$(xml_crumb)"; mc="$(md_crumb)"
 assert_not_contains "$xc" "orchestrator-local:" "(f) xml breadcrumb: no orchestrator-local line when backup exists"
 assert_not_contains "$mc" "orchestrator-local:" "(f) md breadcrumb: no orchestrator-local line when backup exists"
-assert_contains "$xc" "orchestrator-ignored: $LEGACY (stale root orchestrator.md, NOT doctrine — do not read or follow it" "(f) xml breadcrumb: skipped root file is named, not silent"
-assert_contains "$mc" "orchestrator-ignored: $LEGACY (stale root orchestrator.md, NOT doctrine — do not read or follow it" "(f) md breadcrumb: skipped root file is named, not silent"
+assert_contains "$xc" "orchestrator-ignored: $LEGACY (root orchestrator.md, NOT injected and NOT doctrine — do not read or follow it" "(f) xml breadcrumb: skipped root file is named, not silent"
+assert_contains "$mc" "orchestrator-ignored: $LEGACY (root orchestrator.md, NOT injected and NOT doctrine — do not read or follow it" "(f) md breadcrumb: skipped root file is named, not silent"
 assert_not_contains "$x" "LEGACY-MARKER" "(f) xml full: ignored root file content not injected"
 assert_not_contains "$m" "LEGACY-MARKER" "(f) md full: ignored root file content not injected"
 
