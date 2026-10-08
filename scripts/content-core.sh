@@ -154,13 +154,20 @@ content_sections() {
                 # edited doctrine: an install that seeds an empty overlay
                 # without migrating never silently drops it. The legacy record
                 # is tagged "legacy" via the name field so formatters can
-                # append the deprecation notice.
+                # append the deprecation notice. A skipped stale root file is
+                # still emitted, tagged "ignored": full renderers drop it, but
+                # the breadcrumb names it, because a root file edited after a
+                # rollback would otherwise stop applying with no signal.
                 local ol="$mdir/orchestrator.local.md" legacy="$mdir/orchestrator.md"
                 local pre160="$mdir/orchestrator.md.pre-1.6.0"
                 if _cs_nonblank "$ol"; then
                     printf 'orchestrator-local\t%s\t\n' "$ol"
-                elif [ ! -e "$pre160" ] && _cs_nonblank "$legacy"; then
-                    printf 'orchestrator-local\t%s\tlegacy\n' "$legacy"
+                elif _cs_nonblank "$legacy"; then
+                    if [ -e "$pre160" ]; then
+                        printf 'orchestrator-local\t%s\tignored\n' "$legacy"
+                    else
+                        printf 'orchestrator-local\t%s\tlegacy\n' "$legacy"
+                    fi
                 fi ;;
             project)
                 [ -n "$project" ] && [ -f "$mdir/projects/$project/memory.md" ] \

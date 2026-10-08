@@ -139,8 +139,9 @@ rm -f "$LEGACY"; mv "$LEGACY.aside" "$LEGACY"
 
 # --- (f) blank overlay + non-blank legacy root file + orchestrator.md.pre-1.6.0
 # backup present -> the backup proves this instance already migrated, so the
-# legacy root file is a stale re-seed, not un-migrated doctrine: NO block, no
-# breadcrumb line, regardless of the legacy file's content ---
+# legacy root file is a stale re-seed, not un-migrated doctrine: NO block and no
+# orchestrator-local line, but the breadcrumb names it as ignored so a root file
+# edited after a rollback never stops applying silently ---
 # $OVERLAY is still blank (whitespace-only) and $LEGACY still carries
 # LEGACY-MARKER from the setup above.
 printf 'backup from a prior migration run\n' > "$MEM/orchestrator.md.pre-1.6.0"
@@ -153,6 +154,10 @@ assert_not_contains "$m" "# === ORCHESTRATOR (LOCAL) ===" "(f) md full: no headi
 xc="$(xml_crumb)"; mc="$(md_crumb)"
 assert_not_contains "$xc" "orchestrator-local:" "(f) xml breadcrumb: no orchestrator-local line when backup exists"
 assert_not_contains "$mc" "orchestrator-local:" "(f) md breadcrumb: no orchestrator-local line when backup exists"
+assert_contains "$xc" "orchestrator-ignored: $LEGACY (NOT injected" "(f) xml breadcrumb: skipped root file is named, not silent"
+assert_contains "$mc" "orchestrator-ignored: $LEGACY (NOT injected" "(f) md breadcrumb: skipped root file is named, not silent"
+assert_not_contains "$x" "LEGACY-MARKER" "(f) xml full: ignored root file content not injected"
+assert_not_contains "$m" "LEGACY-MARKER" "(f) md full: ignored root file content not injected"
 
 rm -f "$MEM/orchestrator.md.pre-1.6.0"
 

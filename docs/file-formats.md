@@ -17,9 +17,11 @@ Precedence is:
 
 A pre-1.6.0 instance may still have a root `orchestrator.md`. It is never deleted
 automatically — migration `1.6.0-orchestrator-core-overlay.sh` backs it up to
-`orchestrator.md.pre-1.6.0` and seeds the empty overlay; until that migration runs,
-the root file keeps being injected (as `orchestrator-local`) with a deprecation
-notice. See [UPGRADING.md](../UPGRADING.md#160).
+`orchestrator.md.pre-1.6.0` and seeds the empty overlay. Until that migration runs,
+the root file keeps being injected (as `orchestrator-local`) when the overlay is
+blank, with a deprecation notice. Once the `.pre-1.6.0` backup exists, a root file
+is treated as a stale re-seed: not injected, and named as `orchestrator-ignored` in
+the breadcrumb. See [UPGRADING.md](../UPGRADING.md#160).
 
 ## Frontmatter (required on every domain + project memory file)
 

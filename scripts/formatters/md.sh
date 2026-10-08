@@ -20,6 +20,7 @@ md_render() {
             orchestrator)
                 echo "# === ORCHESTRATOR ==="; echo; cat "$path"; echo ;;
             orchestrator-local)
+                [ "$name" = "ignored" ] && continue
                 echo "# === ORCHESTRATOR (LOCAL) ==="; echo; cat "$path"; echo ;;
             project)
                 echo "# === PROJECT: $name ==="; echo; cat "$path"; echo ;;
@@ -54,6 +55,8 @@ md_render_breadcrumb() {
             orchestrator-local)
                 if [ "$name" = "legacy" ]; then
                     echo "orchestrator-local: $path (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)"
+                elif [ "$name" = "ignored" ]; then
+                    echo "orchestrator-ignored: $path (NOT injected — orchestrator.md.pre-1.6.0 exists, so this root file is treated as a stale re-seed; port any rules you want into orchestrator.local.md, then delete it)"
                 else
                     echo "orchestrator-local: $path"
                 fi ;;

@@ -183,8 +183,13 @@ ahead of and behind the current template in ways a script cannot judge.
 
 Until you migrate (or on an instance that only `git pull`s without running
 `sync-system.sh`), a legacy root `orchestrator.md` keeps being injected as
-before, with a one-line deprecation notice in the breadcrumb telling you to run
-`/sync-system`. This fallback is temporary — it exists for one release only.
+before, with a one-line deprecation notice in the breadcrumb telling you to move
+its personal rules into `orchestrator.local.md` and delete it. Once
+`orchestrator.md.pre-1.6.0` exists the instance counts as migrated: a root
+`orchestrator.md` found alongside it (for example re-seeded by a rollback to
+1.5.x) is **not** injected, and the breadcrumb names it as
+`orchestrator-ignored` so you can port or delete it. This fallback is temporary
+— it exists for one release only.
 
 `harnesses/claude/CLAUDE.md` is now a small hook-failure stub: it carries no
 doctrine of its own, only an instruction to read `doctrine/orchestrator.md` and

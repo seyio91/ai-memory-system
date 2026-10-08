@@ -10,7 +10,8 @@ Precedence: `identity.md` hard rules > `orchestrator.local.md` > this file
 
 Paths below are relative to the memory root — the directory containing
 `identity.md` and `doctrine/` — not to whatever repo the current session is
-running in; its absolute path appears in the `<memory:active>` breadcrumb.
+running in. Derive it from the absolute `identity:` path in the active-memory
+breadcrumb (or `$MEMORY_DIR`, default `~/.claude-memory`).
 
 ## Orchestration
 

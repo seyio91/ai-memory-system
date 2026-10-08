@@ -26,6 +26,7 @@ xml_render_full() {
                 out+=$(cat "$path")
                 out+=$'\n'"</memory:orchestrator>"$'\n' ;;
             orchestrator-local)
+                [ "$name" = "ignored" ] && continue
                 out+="<memory:orchestrator-local>"$'\n'
                 out+=$(cat "$path")
                 out+=$'\n'"</memory:orchestrator-local>"$'\n' ;;
@@ -71,6 +72,8 @@ xml_render_breadcrumb() {
             orchestrator-local)
                 if [ "$name" = "legacy" ]; then
                     out+="orchestrator-local: $path (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)"$'\n'
+                elif [ "$name" = "ignored" ]; then
+                    out+="orchestrator-ignored: $path (NOT injected — orchestrator.md.pre-1.6.0 exists, so this root file is treated as a stale re-seed; port any rules you want into orchestrator.local.md, then delete it)"$'\n'
                 else
                     out+="orchestrator-local: $path"$'\n'
                 fi ;;
