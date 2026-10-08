@@ -61,10 +61,14 @@ assert_contains "$(cat "$CORE_FILE")" "hypotheses:" "validator brief field hypot
 assert_contains "$(cat "$CORE_FILE")" "--which" "executor.sh --which decision tree present"
 
 CONTENT="$(cat "$CORE_FILE")"
-case "$CONTENT" in
-    *run_in_background*|*background*) _ok "background-task rule for --run present" ;;
-    *) _bad "background-task rule for --run present" ;;
-esac
+# Assert the SPECIFIC rule, not any mention of "background": a line that
+# names both `--run` and background execution (`run_in_background` or the
+# bare word) — the generic dispatch instruction, not an unrelated mention.
+if grep -E -- '--run' "$CORE_FILE" | grep -q -- 'background'; then
+    _ok "background-task rule for --run present"
+else
+    _bad "background-task rule for --run present"
+fi
 
 # "Small items inline" must be gone from the always-injected base.
 assert_not_contains "$CONTENT" "Small items inline" "'Small items inline' text absent"

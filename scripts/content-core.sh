@@ -142,15 +142,24 @@ content_sections() {
                 # Resolution: an overlay with content wins and the root file is
                 # ignored. A blank overlay counts as absent (an empty block is
                 # noise) and falls through to a non-blank legacy root
-                # orchestrator.md (pre-1.6.0, un-migrated instance), so an
-                # install that seeds an empty overlay without migrating never
-                # silently drops a user's edited doctrine. The legacy record is
-                # tagged "legacy" via the name field so formatters can append
-                # the deprecation notice.
+                # orchestrator.md — but ONLY when this instance has never run
+                # the 1.6.0 migration (no orchestrator.md.pre-1.6.0 backup).
+                # That backup's presence proves the migration already ran and
+                # moved any real content out of the root file; a root file
+                # found alongside it is a stale re-seed (e.g. a rollback to
+                # pre-1.6.0 whose install.sh re-seeded the old template, or a
+                # leftover from hand-restoring the backup), not a user's
+                # un-migrated doctrine, so it must NOT be injected. Without the
+                # backup, the fallback preserves the un-migrated instance's
+                # edited doctrine: an install that seeds an empty overlay
+                # without migrating never silently drops it. The legacy record
+                # is tagged "legacy" via the name field so formatters can
+                # append the deprecation notice.
                 local ol="$mdir/orchestrator.local.md" legacy="$mdir/orchestrator.md"
+                local pre160="$mdir/orchestrator.md.pre-1.6.0"
                 if _cs_nonblank "$ol"; then
                     printf 'orchestrator-local\t%s\t\n' "$ol"
-                elif _cs_nonblank "$legacy"; then
+                elif [ ! -e "$pre160" ] && _cs_nonblank "$legacy"; then
                     printf 'orchestrator-local\t%s\tlegacy\n' "$legacy"
                 fi ;;
             project)

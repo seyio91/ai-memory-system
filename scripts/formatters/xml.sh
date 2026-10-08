@@ -70,7 +70,7 @@ xml_render_breadcrumb() {
             orchestrator) out+="orchestrator: $path"$'\n' ;;
             orchestrator-local)
                 if [ "$name" = "legacy" ]; then
-                    out+="orchestrator-local: $path (legacy orchestrator.md — run /sync-system to migrate to orchestrator.local.md)"$'\n'
+                    out+="orchestrator-local: $path (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)"$'\n'
                 else
                     out+="orchestrator-local: $path"$'\n'
                 fi ;;

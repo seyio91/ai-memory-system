@@ -7,8 +7,14 @@
 #   overlay (orchestrator.local.md) present, non-blank -> injected, no deprecation
 #   overlay absent, legacy root orchestrator.md present -> injected AS
 #     orchestrator-local, breadcrumb carries a one-line deprecation notice
-#   overlay present but empty/whitespace-only -> NO block (legacy ignored too)
-#   both present -> overlay content wins, legacy content absent entirely
+#   overlay present but empty/whitespace-only -> falls through to a non-blank
+#     legacy root orchestrator.md (same as "overlay absent" above), else NO
+#     block; but this fallback is skipped entirely — no block, regardless of
+#     the legacy file's content — when orchestrator.md.pre-1.6.0 exists, since
+#     that backup proves the instance already migrated and a root file found
+#     alongside it is a stale re-seed, not un-migrated doctrine
+#   both overlay and legacy present -> overlay content wins, legacy content
+#     absent entirely
 #   neither present -> NO block, no breadcrumb line
 . "$(dirname "$0")/_assert.sh"
 
@@ -86,10 +92,10 @@ assert_contains "$x" "<memory:orchestrator-local>" "(c) xml full: legacy root in
 assert_contains "$x" "LEGACY-MARKER" "(c) xml full: legacy content present"
 
 xc="$(xml_crumb)"
-assert_contains "$xc" "orchestrator-local: $LEGACY (legacy orchestrator.md — run /sync-system to migrate to orchestrator.local.md)" \
+assert_contains "$xc" "orchestrator-local: $LEGACY (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)" \
     "(c) xml breadcrumb: deprecation notice present with legacy path"
 mc="$(md_crumb)"
-assert_contains "$mc" "orchestrator-local: $LEGACY (legacy orchestrator.md — run /sync-system to migrate to orchestrator.local.md)" \
+assert_contains "$mc" "orchestrator-local: $LEGACY (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)" \
     "(c) md breadcrumb: deprecation notice present with legacy path"
 
 # --- (d) both present -> overlay wins, legacy content absent entirely ---
@@ -130,5 +136,24 @@ assert_not_contains "$xc" "orchestrator-local:" "(e) xml breadcrumb: no line for
 x="$(xml_full)"
 assert_not_contains "$x" "<memory:orchestrator-local>" "(e) xml full: blank overlay and blank legacy emits no block"
 rm -f "$LEGACY"; mv "$LEGACY.aside" "$LEGACY"
+
+# --- (f) blank overlay + non-blank legacy root file + orchestrator.md.pre-1.6.0
+# backup present -> the backup proves this instance already migrated, so the
+# legacy root file is a stale re-seed, not un-migrated doctrine: NO block, no
+# breadcrumb line, regardless of the legacy file's content ---
+# $OVERLAY is still blank (whitespace-only) and $LEGACY still carries
+# LEGACY-MARKER from the setup above.
+printf 'backup from a prior migration run\n' > "$MEM/orchestrator.md.pre-1.6.0"
+
+x="$(xml_full)"
+assert_not_contains "$x" "<memory:orchestrator-local>" "(f) xml full: no block when blank overlay + legacy + pre-1.6.0 backup all present"
+m="$(md_full)"
+assert_not_contains "$m" "# === ORCHESTRATOR (LOCAL) ===" "(f) md full: no heading when blank overlay + legacy + pre-1.6.0 backup all present"
+
+xc="$(xml_crumb)"; mc="$(md_crumb)"
+assert_not_contains "$xc" "orchestrator-local:" "(f) xml breadcrumb: no orchestrator-local line when backup exists"
+assert_not_contains "$mc" "orchestrator-local:" "(f) md breadcrumb: no orchestrator-local line when backup exists"
+
+rm -f "$MEM/orchestrator.md.pre-1.6.0"
 
 finish

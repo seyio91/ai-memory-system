@@ -59,7 +59,7 @@ Enforcement is **template-only** — `/new-plan` scaffolds the section; no hook 
 ## File conventions
 
 - `projects/<active>/plans/<name>.md` — one file per non-trivial plan. Frontmatter: `plan`, `status`, `created`, `owner`, plus optional `task_provider`/`task_ref` (written by the `/start` task-linking step when a plan is backed by a captured task — see [Task-provider layer](task-provider.md)). Body carries `## Goal`, a required `## Success criteria` (the Task Contract), the `## Design` section (populated by the [`design-brainstorm`](harnesses/claude.md#skills) skill for feature-tier plans), `## Phases`, and `## Risks / open questions`. The frontmatter `task_*` fields and the body `## Design` section occupy different regions of the file and never conflict. Linked from `todo.md`.
-- `projects/<active>/todo.md` — markdown-checkbox list. Large items reference a plan file. Small items inline. Tick boxes in place when done.
+- `projects/<active>/todo.md` — markdown-checkbox list. Large items reference a plan file. Tick boxes in place when done.
 - `projects/<active>/archive/plans/<name>.md` — completed plans, moved when their referencing todo items all close.
 - `projects/<active>/archive/todos/YYYY-MM-DD-<slug>.md` — snapshots of fully-ticked `todo.md`, taken when the file is rolled.
 

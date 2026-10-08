@@ -8,6 +8,10 @@ additive with stated precedence and cannot delete text from this file.
 Precedence: `identity.md` hard rules > `orchestrator.local.md` > this file
 (`doctrine/orchestrator.md`) > project memory.
 
+Paths below are relative to the memory root — the directory containing
+`identity.md` and `doctrine/` — not to whatever repo the current session is
+running in; its absolute path appears in the `<memory:active>` breadcrumb.
+
 ## Orchestration
 
 **Three task tiers — decide which one a request is before doing anything:**
@@ -82,16 +86,24 @@ gate; if it does settle a Tier-3 design, still route it through `/new-plan`.
   Contract) — each criterion pass/fail with evidence (Part A); nothing
   beyond them. Missing criteria is a process failure: stop and draft them
   first. Full decorrelation/fallback mechanics: `docs/workflow.md`.
+  - **Invoke it on the orchestrator's judgment when correctness matters** —
+    code writes, terraform changes, anything visible to GitOps, multi-step
+    changes where intermediate state matters — not only per-phase; a
+    single-phase change meeting this bar still gets validated.
   - **For code phases** the validator also runs a review (Part B), reported
     separately: cold pass, then the brief's `hypotheses:` in their own pass.
-    Defect classes and the cold-first procedure are single-sourced in
-    `agents/validator.md` — not duplicated here.
+    Hypotheses are never delivered by resuming the validator — use a fresh
+    invocation. Defect classes and the cold-first procedure are
+    single-sourced in `agents/validator.md` — not duplicated here.
   - Brief fields: `scope:` (`fix-round` default | `final`, once per phase
     before PR-READY, different model family from the executor), `risk:`
     (`low` = Part A only, `medium` = + fix-round review and one final pass,
     `high` = all of it, cross-model final pass and run-it mandatory, no
     same-model fallback — escalate), `hypotheses:` (the brief's suspicions,
     never the lead).
+  - **The executor fixes; the validator re-runs both parts (A and B) on the
+    fix commits** — a fix-round is re-checked whole, not patched onto the
+    prior verdict.
   - **Round cap.** A round is one validator verdict on the branch, counting
     PR-bot rounds that triggered fixes. At 5 rounds still NOT-READY, stop and
     escalate: findings per round, recurring defect classes, options (named
@@ -105,12 +117,12 @@ gate; if it does settle a Tier-3 design, still route it through `/new-plan`.
   `todo.md` is fully ticked, snapshot to `archive/todos/YYYY-MM-DD-<slug>.md`
   and reset.
 - **Executors never apply or merge to running infrastructure.** Deny-list,
-  stated once here (machine copy: `scripts/deny-list.txt`): `terraform
-  apply`, `terraform destroy`, `kubectl apply`, `kubectl delete`, `helm
-  install`, `helm upgrade`, `gh pr merge`, `bkt pr merge`, `az repos pr
-  update`. Generic rule: any destructive or additive action directly to
-  running infrastructure is off-limits to executors, on whichever git
-  provider the project uses.
+  stated once here (machine copy: `scripts/deny-list.txt`): `terraform apply`,
+  `terraform destroy`, `kubectl apply`, `kubectl delete`, `helm install`,
+  `helm upgrade`, `helm uninstall`, `helm delete`, `gh pr merge`, `bkt pr
+  merge`, `az repos pr update`. Generic rule: any destructive or additive
+  action directly to running infrastructure is off-limits to executors, on
+  whichever git provider the project uses.
 - **Skill self-rating is on-request only.** When the user asks "rate this
   run" — and only then — append a dated entry to the skill's own
   `skills/<name>/self-rating.md`. Never automatic; an empty log is healthy.
@@ -194,8 +206,10 @@ project that reaches into others carries a `## Related Projects` table in its
   persisted plans, walk them in documented order and delegate **each** to an
   executor (self-contained prompt → `identity.md`, the plan file, the
   project `memory.md`); the executor implements and returns changed files +
-  the PR/apply action needed. When projects share an initiative file, its
-  Targets' `depends_on` edges define execution order. Keep only summaries.
+  the PR/apply action needed. When a task matches an active initiative's
+  Target, consult the initiative file before delegating. When projects share
+  an initiative file, its Targets' `depends_on` edges define execution order.
+  Keep only summaries.
   **Pause at human/CI gates** — PR merges and `terraform`/`kubectl` applies,
   which executors are forbidden — resuming on confirmation.
 - **Decision stream at phase completion.** At every plan-phase completion,
