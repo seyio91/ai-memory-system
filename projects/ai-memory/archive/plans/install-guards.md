@@ -1,6 +1,7 @@
 ---
 plan: install-guards
-status: in_progress
+status: done
+completed: 2026-10-08
 created: 2026-10-08
 owner: claude (orchestrator)
 task_provider: local
@@ -25,7 +26,7 @@ Ship the memory write guard and a Claude deny-list guard through `install.sh`, s
 - [x] `doctrine/orchestrator.md` states the deny-list by pointer only (no command list), the delegation rule says CLI prompts get the list from `executor.sh` and subagent prompts paste it from the file; `test_orchestrator_core_overlay.sh` anchors updated; `docs/workflow.md` and the other docs naming the doctrine as the list's home are repointed.
 - [x] `AI_MEMORY_GUARD_SCOPE` is in the `docs/scripts.md` env-var table (`check-docs.sh` passes) and in `templates/config.local.sh.example`; a `changelog.d/<id>.feature.md` fragment exists and names the write guard as newly active on every Claude install; no `breaking` fragment.
 - [x] Full suite green (signing overrides); lint WARN set unchanged; `check-docs.sh` clean.
-- [ ] Post-merge, this instance: `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, then `~/.claude/settings.json` has one write-guard and one guard entry and no hand-wired copy; a live `terraform apply --help` (denied by the matcher, runs nothing) from the main session prompts, and from a subagent is denied with the guard's reason (not `rtk hook claude`'s); the `ask` outcome is recorded for each permission mode this instance uses (default, `acceptEdits`, bypass, `-p`).
+- [x] Post-merge, this instance: `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, then `~/.claude/settings.json` has one write-guard and one guard entry and no hand-wired copy; a live `terraform apply --help` (denied by the matcher, runs nothing) from the main session prompts, and from a subagent is denied with the guard's reason (not `rtk hook claude`'s); the `ask` outcome is recorded for each permission mode this instance uses (default, `acceptEdits`, bypass, `-p`).
 
 ## Design
 
@@ -110,3 +111,4 @@ Set `AI_MEMORY_GUARD_SCOPE="all"` in `config.local.sh`, `/sync-system`, inspect 
 - `~/.claude/settings.json`: exactly one guard (`PreToolUse [Bash]`, `AI_MEMORY_GUARD_SCOPE=all`) and one write guard (`PostToolUse [Write|Edit]`); the only change is the added guard; all other hooks and keys unchanged.
 - Probe `gh pr merge --help` (deny-listed, help only): subagent → denied by the guard's reason; main session in `bypassPermissions` → **ran unprompted** although the guard returned `ask` for the same payload. Captured payload confirmed a top-level `permission_mode: "bypassPermissions"`. Fix (deny outside default/plan/acceptEdits) verified live: main session now denied with `permission_mode=bypassPermissions` in the reason. PR #126.
 - Follow-up tasks: `deny-match-misses-two-word-specs-split-by-a-valued-flag`, `guard-no-parser-path-should-fail-closed-in-bypass-mode`.
+- Post-#126 (`c0e8e19`) live probe on `main`: main session in `bypassPermissions` denied with the mode in the reason.
