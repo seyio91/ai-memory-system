@@ -338,7 +338,17 @@ _cms_under_prefilter() {
     # "absent file contributes nothing" semantics as the old `wc -c` version:
     # cat's stderr for a missing path is discarded and the rest of the sum
     # still comes through the one pipe.
-    stats="$(cat "$MEMORY_DIR/identity.md" "$MEMORY_DIR/orchestrator.md" "$MEMORY_DIR/index.md" \
+    # orchestrator source is now two files: the tracked core
+    # (doctrine/orchestrator.md) plus whichever overlay source
+    # content-core.sh's orchestrator-local resolution would actually use
+    # (orchestrator.local.md, else the legacy root orchestrator.md). Rather
+    # than replicate that resolution here, sum all three candidates: when
+    # only one overlay source exists this is exact; when both exist (the
+    # transitional un-migrated-but-overlay-seeded case) it over-counts the
+    # ignored legacy file, which is sound per this function's contract
+    # (over-count, never under).
+    stats="$(cat "$MEMORY_DIR/identity.md" "$MEMORY_DIR/doctrine/orchestrator.md" \
+                 "$MEMORY_DIR/orchestrator.local.md" "$MEMORY_DIR/orchestrator.md" "$MEMORY_DIR/index.md" \
                  "$MEMORY_DIR/projects/$project/memory.md" "$working" 2>/dev/null \
              | LC_ALL=C awk '{ n = length($0); if (n > max) max = n; bytes += n + 1 } END { printf "%d\t%d", bytes+0, max+0 }')"
     raw="${stats%%$'\t'*}"

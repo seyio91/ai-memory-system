@@ -19,6 +19,8 @@ md_render() {
                 echo "# === IDENTITY ==="; echo; cat "$path"; echo ;;
             orchestrator)
                 echo "# === ORCHESTRATOR ==="; echo; cat "$path"; echo ;;
+            orchestrator-local)
+                echo "# === ORCHESTRATOR (LOCAL) ==="; echo; cat "$path"; echo ;;
             project)
                 echo "# === PROJECT: $name ==="; echo; cat "$path"; echo ;;
             index)
@@ -49,6 +51,12 @@ md_render_breadcrumb() {
         case "$kind" in
             identity) echo "identity: $path" ;;
             orchestrator) echo "orchestrator: $path" ;;
+            orchestrator-local)
+                if [ "$name" = "legacy" ]; then
+                    echo "orchestrator-local: $path (legacy orchestrator.md — run /sync-system to migrate to orchestrator.local.md)"
+                else
+                    echo "orchestrator-local: $path"
+                fi ;;
             project)  echo "project memory: $path" ;;
             index)    echo "index: $path" ;;
             working)  ;;  # emitted below as the always-present write target
