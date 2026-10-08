@@ -8,10 +8,10 @@
 ## Active
 
 ### Install the memory write guard and a Claude deny-list guard via the manifest → [plan](plans/install-guards.md)
-- [ ] P1 — Guard scope, deny/ask split, failure modes
-- [ ] P2 — Manifest roles, install mapping, sweep report (needs: P1)
-- [ ] P3 — Executor deny-list preamble
-- [ ] P4 — Doctrine pointer, docs, release notes (needs: P2, P3)
+- [x] P1 — Guard scope, deny/ask split, failure modes
+- [x] P2 — Manifest roles, install mapping, sweep report (needs: P1)
+- [x] P3 — Executor deny-list preamble
+- [x] P4 — Doctrine pointer, docs, release notes (needs: P2, P3)
 - [ ] P5 — Instance cutover, post-merge (needs: P4)
 
 ## Done
