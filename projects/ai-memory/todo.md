@@ -8,7 +8,7 @@
 ## Active
 
 ### Trim ai-memory memory.md to the include/leave-out contract → [plan](plans/trim-ai-memory-memory-md-to-the-include-leave-out-contract.md)
-- [ ] P1 — Move shipped-audience facts to their homes
+- [x] P1 — Move shipped-audience facts to their homes (PR #127, awaiting merge)
 - [x] P2 — Capture Current Goal threads as tasks
 - [ ] P3 — Rewrite memory.md to the contract (needs: P1, P2)
 - [ ] P4 — Validate and close (needs: P3)
