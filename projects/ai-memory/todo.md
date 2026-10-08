@@ -8,11 +8,11 @@
 ## Active
 
 ### Deduplicate the always-injected base (identity, orchestrator, harness CLAUDE.md) → [plan](plans/dedupe-always-injected-base.md)
-- [ ] P1 — Author the core
-- [ ] P2 — Injection wiring + legacy fallback (needs: P1)
-- [ ] P3 — Claude stub + sbp spike (needs: P1)
-- [ ] P4 — Migration, install, release notes, docs (needs: P2)
-- [ ] P5 — Instance cutover + full validation (needs: P3, P4)
+- [x] P1 — Author the core
+- [x] P2 — Injection wiring + legacy fallback (needs: P1)
+- [x] P3 — Claude stub + sbp spike (needs: P1)
+- [x] P4 — Migration, install, release notes, docs (needs: P2)
+- [ ] P5 — Instance cutover + full validation (needs: P3, P4; blocked on PR #122 merge + /sync-system)
 
 ## Done
 _(checked items stay above until the file is rolled)_

@@ -79,6 +79,7 @@ Repoint `orchestrator` to `doctrine/orchestrator.md`; add `orchestrator-local` a
 ### Phase 3 — Claude stub + sbp spike
 Spike: with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1`, confirm whether SessionStart `additionalContext` is suppressed and whether the UserPromptSubmit chunk path still delivers the full payload; record the answer in the plan. Rewrite `harnesses/claude/CLAUDE.md` to the ~1 KB stub with the imperative fallback; update `block_task_tools.sh:20` path; update `docs/harnesses/claude.md:90-96,134`, `harnesses/claude/manifest:24` comment.
 **Depends:** P1
+**Spike result (2026-10-08):** the suppression claim does not hold on this machine. With `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1` set in `~/.claude/settings.json`, the session that ran P1 received SessionStart `additionalContext` on `/clear` (labelled "SessionStart hook additional context", carrying the full chunked memory payload). The stub is a fallback, not the primary path; `skills/load-memory` wording is fixed in P5.
 **Verify:** `wc -c harnesses/claude/CLAUDE.md` ≤ ~1.2 KB; no maintenance rule, tier text or deny-list remains in it; spike result written down; `test_install_harness.sh` passes.
 
 ### Phase 4 — Migration, install, release notes, docs
