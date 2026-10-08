@@ -21,6 +21,20 @@
         "hooks": [
           { "type": "command", "command": "bash $MEMORY_DIR/harnesses/claude/hooks/block_task_tools.sh" }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR AI_MEMORY_GUARD_SCOPE=executor bash $MEMORY_DIR/scripts/hooks/guard.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          { "type": "command", "command": "env MEMORY_DIR=$MEMORY_DIR bash $MEMORY_DIR/scripts/hooks/memory_write_guard.sh" }
+        ]
       }
     ]
   },

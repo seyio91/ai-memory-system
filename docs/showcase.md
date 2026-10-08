@@ -51,7 +51,7 @@ column points to where each capability is toured.
 |---|---|---|---|
 | Harness-agnostic engine | One tree drives Claude, Codex, Antigravity via a manifest | `install.sh --list` | 6 |
 | Multi-git-provider | GitHub / Bitbucket / Azure DevOps, inferred from each repo's remote | per-project `repo` | — |
-| Enforced guardrails | `todo.md`-only rule + executor infra-deny are real hooks/execpolicy | `block_task_tools.sh` | 5 |
+| Enforced guardrails | `todo.md`-only rule + executor infra-deny are real hooks/execpolicy | `block_task_tools.sh` · `guard.sh` | 5 |
 | Hermetic test suite + lint | Dependency-free bash-3.2 tests; a green suite means a verifiable rebuild | `run-tests.sh` · `lint-memory.sh` | 6 |
 | Two-Path principle | Every script action has a hand-editable markdown equivalent | — | — |
 
@@ -234,8 +234,9 @@ Non-trivial work flows through three roles (diagram below):
 
 *Why bother?* Because the guardrails are real, not documentation: the `todo.md`-only rule is
 enforced by a `PreToolUse` hook (`block_task_tools.sh`), and executors are blocked from any
-apply/merge/destructive action on running infrastructure (execpolicy + a deny-list restated
-in every delegation prompt).
+apply/merge/destructive action on running infrastructure (a `PreToolUse` guard reading
+`scripts/deny-list.txt`, the same list prepended to every CLI executor prompt, and Codex
+execpolicy where installed).
 
 This section is also where the **killer beat** lands: `/checkpoint` a decision into `payments-svc`'s
 `working.md`, start a fresh session, and watch it recalled on SessionStart — then

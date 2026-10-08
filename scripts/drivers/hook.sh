@@ -317,10 +317,26 @@ _hook_register_native_json() {
     local session_event="" session_matcher="" session_cmd=""
     local block_event="" block_matcher="" block_cmd=""
     local arm_event="" arm_matcher="" arm_cmd=""
+    local write_guard_event="" write_guard_matcher="" write_guard_cmd=""
+    local guard_scope="" guard_env=""
     fmt="$(manifest_get "$MANIFEST" format)"
     [ -n "$fmt" ] || fmt=xml
     inject_chunks="$(_hook_manifest_chunk_count inject_chunks)"
     session_chunks="$(_hook_manifest_chunk_count session_chunks)"
+
+    # Claude only: bake AI_MEMORY_GUARD_SCOPE (config.local.sh, default executor)
+    # into the guard command. Codex shares this writer and its guard command must
+    # stay unchanged. install.sh validates first, before any write; this re-check is
+    # defence in depth for callers that source the driver directly.
+    if [ "${HARNESS:-}" = claude ]; then
+        command -v guard_scope_resolve >/dev/null 2>&1 \
+            || . "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/_lib.sh"
+        if ! guard_scope="$(guard_scope_resolve)"; then
+            printf '  Nothing was written to %s.\n' "$hooks_json" >&2
+            return 1
+        fi
+        guard_env=" AI_MEMORY_GUARD_SCOPE=$guard_scope"
+    fi
 
     while IFS=$'\t' read -r role spec; do
         [ -n "$role" ] || continue
@@ -334,6 +350,7 @@ _hook_register_native_json() {
             session_bootstrap) key=session_script ;;
             task_tool_block)   key=block_script ;;
             compaction_arm)    key=arm_script ;;
+            memory_write_guard) key=write_guard_script ;;
             *)
                 info "hook role '$role' has no native JSON script association — skipping"
                 continue
@@ -352,7 +369,7 @@ _hook_register_native_json() {
                 ;;
             infra_guard)
                 guard_event="$event"; guard_matcher="$matcher"
-                guard_cmd="env MEMORY_DIR=$MEMORY_DIR bash $script"
+                guard_cmd="env MEMORY_DIR=$MEMORY_DIR${guard_env} bash $script"
                 ;;
             session_bootstrap)
                 session_event="$event"; session_matcher="$matcher"
@@ -371,6 +388,10 @@ _hook_register_native_json() {
                 arm_event="$event"; arm_matcher="$matcher"
                 arm_cmd="env MEMORY_DIR=$MEMORY_DIR bash $script"
                 ;;
+            memory_write_guard)
+                write_guard_event="$event"; write_guard_matcher="$matcher"
+                write_guard_cmd="env MEMORY_DIR=$MEMORY_DIR bash $script"
+                ;;
         esac
         hook_count=$((hook_count + 1))
     done < <(manifest_hooks "$MANIFEST")
@@ -385,12 +406,13 @@ _hook_register_native_json() {
     if command -v python3 >/dev/null 2>&1; then
         local rc=0 bak
         bak="$hooks_json.bak-$(_hook_ts)"
-        AIM_HOOKS_JSON="$hooks_json" AIM_BAK="$bak" \
+        AIM_HOOKS_JSON="$hooks_json" AIM_BAK="$bak" AIM_HARNESS="${HARNESS:-}" \
             AIM_INJECT_EVENT="$inject_event" AIM_INJECT_MATCHER="$inject_matcher" AIM_INJECT_CMD="$inject_cmd" \
             AIM_GUARD_EVENT="$guard_event" AIM_GUARD_MATCHER="$guard_matcher" AIM_GUARD_CMD="$guard_cmd" \
             AIM_SESSION_EVENT="$session_event" AIM_SESSION_MATCHER="$session_matcher" AIM_SESSION_CMD="$session_cmd" \
             AIM_BLOCK_EVENT="$block_event" AIM_BLOCK_MATCHER="$block_matcher" AIM_BLOCK_CMD="$block_cmd" \
             AIM_ARM_EVENT="$arm_event" AIM_ARM_MATCHER="$arm_matcher" AIM_ARM_CMD="$arm_cmd" \
+            AIM_WRITE_GUARD_EVENT="$write_guard_event" AIM_WRITE_GUARD_MATCHER="$write_guard_matcher" AIM_WRITE_GUARD_CMD="$write_guard_cmd" \
             python3 - <<'PY' || rc=$?
 import json, os, shutil, sys
 
@@ -413,6 +435,12 @@ ours = (
     # orphaning it (dangling symlink -> /bin/sh error + double-injection every prompt).
     "inject_memory.sh",
 )
+# The write guard is a Claude-only role; on Codex a hand-wired copy is the user's.
+if os.environ.get("AIM_HARNESS") == "claude":
+    ours += ("memory_write_guard.sh",)
+# Markers for hooks that no longer ship: a swept entry naming one is reported as
+# removed rather than replaced (there is nothing written in its place).
+retired = ("inject_memory.sh", "arm_recompact.sh")
 
 data = {}
 if os.path.exists(path):
@@ -428,6 +456,9 @@ if os.path.exists(path):
             sys.stderr.write("top-level JSON is %s, expected an object\n" % type(data).__name__)
             sys.exit(3)
     shutil.copy2(path, bak)
+    backed_up = True
+else:
+    backed_up = False
 
 hooks = data.get("hooks", {})
 if hooks is None:
@@ -439,6 +470,16 @@ data["hooks"] = hooks
 
 def is_ours(cmd):
     return any(marker in cmd for marker in ours)
+
+# Every swept hook as (event, group matcher, hook dict); diffed against what add()
+# writes so a hand-edited entry (other command, matcher, timeout, ...) is reported
+# instead of silently replaced.
+dropped = []
+written = set()
+written_hooks = []
+
+def sig(event, matcher, hook):
+    return (event, matcher, json.dumps(hook, sort_keys=True))
 
 for event in list(hooks.keys()):
     groups = hooks.get(event, [])
@@ -454,17 +495,21 @@ for event in list(hooks.keys()):
             continue
         entries = group.get("hooks")
         if isinstance(entries, list):
-            kept = [
-                h for h in entries
-                if not (isinstance(h, dict) and is_ours(str(h.get("command", ""))))
-            ]
+            kept = []
+            for h in entries:
+                if isinstance(h, dict) and is_ours(str(h.get("command", ""))):
+                    dropped.append((event, str(group.get("matcher", "") or ""), h))
+                else:
+                    kept.append(h)
             if kept:
                 new_group = dict(group)
                 new_group["hooks"] = kept
                 cleaned.append(new_group)
         else:
             cmd = str(group.get("command", ""))
-            if not is_ours(cmd):
+            if is_ours(cmd):
+                dropped.append((event, "", group))
+            else:
                 cleaned.append(group)
     hooks[event] = cleaned
 
@@ -474,17 +519,60 @@ def add(event, matcher, cmds):
     for cmd in cmds.splitlines():
         if not cmd:
             continue
-        group = {"hooks": [{"type": "command", "command": cmd}]}
+        hook = {"type": "command", "command": cmd}
+        group = {"hooks": [hook]}
         if matcher:
             group["matcher"] = matcher
         hooks.setdefault(event, []).append(group)
+        written.add(sig(event, matcher, hook))
+        written_hooks.append((event, matcher, hook))
 
-for prefix in ("INJECT", "GUARD", "SESSION", "BLOCK", "ARM"):
+for prefix in ("INJECT", "GUARD", "SESSION", "BLOCK", "ARM", "WRITE_GUARD"):
     add(
         os.environ.get("AIM_%s_EVENT" % prefix, ""),
         os.environ.get("AIM_%s_MATCHER" % prefix, ""),
         os.environ.get("AIM_%s_CMD" % prefix, ""),
     )
+
+def marker_of(hook):
+    cmd = str(hook.get("command", ""))
+    for m in ours:
+        if m in cmd:
+            return m
+    return ""
+
+def rest(hook):
+    return {k: v for k, v in hook.items() if k != "command"}
+
+# Label each unmatched swept entry against the entries written in its place:
+#   updated managed hook  - same script, event, matcher and keys; only the command
+#                           changed (scope, MEMORY_DIR, chunk count). One line per
+#                           script/event/matcher, no dump: it was ours all along.
+#   replaced non-standard - same script written on this event, but the matcher or
+#                           other keys differ: dump it, the user may want it back.
+#   removed hook entry    - nothing written for that script on this event.
+#   removed (retired hook)- names a script that no longer ships.
+if backed_up:
+    updated = set()
+    for event, matcher, hook in dropped:
+        if sig(event, matcher, hook) in written:
+            continue
+        m = marker_of(hook)
+        cmd = str(hook.get("command", ""))
+        if any(r in cmd for r in retired):
+            label = "removed (retired hook)"
+        else:
+            peers = [w for w in written_hooks if w[0] == event and m and m in w[2]["command"]]
+            if any(w[1] == matcher and rest(w[2]) == rest(hook) for w in peers):
+                key = (os.path.basename(m), event, matcher)
+                if key not in updated:
+                    updated.add(key)
+                    sys.stderr.write("ai-memory install: updated managed hook %s (%s [%s]) (backup: %s)\n"
+                                     % (key + (bak,)))
+                continue
+            label = "replaced non-standard hook entry" if peers else "removed hook entry"
+        sys.stderr.write("ai-memory install: %s in %s (backup: %s): %s [%s] %s\n"
+                         % (label, path, bak, event, matcher, json.dumps(hook)))
 
 with open(path, "w") as f:
     json.dump(data, f, indent=2)
@@ -501,17 +589,14 @@ PY
         [ -z "$block_event" ] || info "registered $block_event -> $block_cmd"
         [ -z "$guard_event" ] || info "registered $guard_event -> $guard_cmd"
         [ -z "$arm_event" ] || info "registered $arm_event -> $arm_cmd"
+        [ -z "$write_guard_event" ] || info "registered $write_guard_event -> $write_guard_cmd"
     elif [ ! -e "$hooks_json" ]; then
         {
             printf '{\n  "hooks": {'
-            local wrote=0
-            _hook_native_print_group() {
-                local ev="$1" mt="$2" cm="$3"
-                local one_cmd first
-                [ -n "$ev" ] && [ -n "$cm" ] || return 0
-                [ "$wrote" -eq 0 ] || printf ','
-                printf '\n    "%s": [' "$ev"
-                first=1
+            local wrote=0 first=1 seen=" " ev
+            _hook_native_print_cmds() {
+                local mt="$1" cm="$2" one_cmd
+                [ -n "$cm" ] || return 0
                 while IFS= read -r one_cmd || [ -n "$one_cmd" ]; do
                     [ -n "$one_cmd" ] || continue
                     [ "$first" -eq 1 ] || printf ','
@@ -522,14 +607,25 @@ PY
                 done <<EOF
 $cm
 EOF
+            }
+            # One key per event: roles sharing an event (Claude's PreToolUse block +
+            # guard) go into one array, or the later duplicate key would win.
+            for ev in "$session_event" "$inject_event" "$block_event" "$guard_event" "$arm_event" "$write_guard_event"; do
+                [ -n "$ev" ] || continue
+                case "$seen" in *" $ev "*) continue ;; esac
+                seen="$seen$ev "
+                [ "$wrote" -eq 0 ] || printf ','
+                printf '\n    "%s": [' "$ev"
+                first=1
+                [ "$session_event" != "$ev" ] || _hook_native_print_cmds "$session_matcher" "$session_cmd"
+                [ "$inject_event" != "$ev" ] || _hook_native_print_cmds "$inject_matcher" "$inject_cmd"
+                [ "$block_event" != "$ev" ] || _hook_native_print_cmds "$block_matcher" "$block_cmd"
+                [ "$guard_event" != "$ev" ] || _hook_native_print_cmds "$guard_matcher" "$guard_cmd"
+                [ "$arm_event" != "$ev" ] || _hook_native_print_cmds "$arm_matcher" "$arm_cmd"
+                [ "$write_guard_event" != "$ev" ] || _hook_native_print_cmds "$write_guard_matcher" "$write_guard_cmd"
                 printf '\n    ]'
                 wrote=1
-            }
-            _hook_native_print_group "$session_event" "$session_matcher" "$session_cmd"
-            _hook_native_print_group "$inject_event" "$inject_matcher" "$inject_cmd"
-            _hook_native_print_group "$block_event" "$block_matcher" "$block_cmd"
-            _hook_native_print_group "$guard_event" "$guard_matcher" "$guard_cmd"
-            _hook_native_print_group "$arm_event" "$arm_matcher" "$arm_cmd"
+            done
             printf '\n  }\n}\n'
         } > "$hooks_json"
         info "wrote $hooks_json (no python3 — new file)"

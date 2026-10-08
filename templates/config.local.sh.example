@@ -73,6 +73,14 @@
 # Empty string = hard-fail instead of falling back.
 # export AI_MEMORY_EXECUTOR_FALLBACK="claude-subagent"
 
+# Infra deny-list guard scope (Claude only; baked into the PreToolUse:Bash guard
+# command at install time, so re-run install / sync-system after changing it):
+#   executor — default; only executor runs (AI_MEMORY_ROLE set) are guarded
+#   all      — every Claude session is guarded: a deny-listed command from the
+#              main session gets a confirmation prompt, from a subagent it is
+#              denied. Any other value fails the Claude install.
+# export AI_MEMORY_GUARD_SCOPE="executor"
+
 # --- Executor credentials (codex CLI) -------------------------------------
 # The codex sandbox cannot reach the macOS keychain, so a delegated run gets
 # `gh ... HTTP 401` and an HTTPS `git push` finds no credential. Set to 1 to

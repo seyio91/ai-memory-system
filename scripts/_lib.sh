@@ -17,6 +17,22 @@ MEMORY_DIR="${MEMORY_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 _MEMLIB_CORE="$(dirname "${BASH_SOURCE[0]}")/content-core.sh"
 [ -f "$_MEMLIB_CORE" ] && . "$_MEMLIB_CORE"
 
+# guard_scope_resolve — normalise AI_MEMORY_GUARD_SCOPE (config.local.sh or the
+# environment): trimmed, lowercased, unset/empty -> executor. Prints the value;
+# anything but executor|all prints an error on stderr and returns 1. Shared by
+# install.sh (validates before any write) and drivers/hook.sh (bakes the value).
+guard_scope_resolve() {
+    local v
+    v="$(printf '%s' "${AI_MEMORY_GUARD_SCOPE:-}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | tr '[:upper:]' '[:lower:]')"
+    [ -n "$v" ] || v=executor
+    case "$v" in
+        executor|all) printf '%s' "$v"; return 0 ;;
+    esac
+    printf 'ERROR AI_MEMORY_GUARD_SCOPE=%s (from %s or the environment) is not valid; use executor or all.\n' \
+        "${AI_MEMORY_GUARD_SCOPE:-}" "$MEMORY_DIR/config.local.sh" >&2
+    return 1
+}
+
 # skills_with_partial — print the names of skills whose SKILL.md carries a
 # managed partial block, one per line. Membership in a partial's loop (e.g.
 # self-rating) is DERIVED from marker presence, not a static list — so a skill

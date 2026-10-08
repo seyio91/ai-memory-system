@@ -284,6 +284,8 @@ guard_payload_agy() {
 }
 
 ERR="$MEM/guard.err"
+# A developer's exported guard env must not change these results.
+unset AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE AI_MEMORY_GUARD_OUTPUT
 
 set +e
 guard_payload "terraform apply -auto-approve" | AI_MEMORY_ROLE=task bash "$SHARED_GUARD" >/dev/null 2>"$ERR"
@@ -309,5 +311,154 @@ guard_payload "ls -la && git log --oneline" | AI_MEMORY_ROLE=task bash "$SHARED_
 code=$?
 set -e
 assert_exit 0 "$code" "shared guard: executor allowed command exits 0"
+
+# AI_MEMORY_GUARD_SCOPE=all (Claude opt-in): agent_id present -> subagent -> deny;
+# absent -> main session -> ask JSON on stdout. Default scope stays role-gated.
+guard_payload_sub() {
+    printf '{"hook_event_name":"PreToolUse","agent_id":"a1","agent_type":"general-purpose","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1"
+}
+OUT="$MEM/guard.out"
+
+set +e
+guard_payload "terraform apply" | env -u AI_MEMORY_ROLE -u AI_MEMORY_GUARD_SCOPE bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 0 "$code" "shared guard: default scope, no role exits 0"
+assert_eq "" "$(cat "$OUT" "$ERR")" "shared guard: default scope, no role prints nothing"
+
+set +e
+guard_payload_sub "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 2 "$code" "shared guard: scope=all subagent denied command exits 2"
+assert_contains "$(cat "$ERR")" "terraform apply" "shared guard: scope=all subagent deny reason on stderr"
+assert_eq "" "$(cat "$OUT")" "shared guard: scope=all subagent deny prints no stdout"
+
+set +e
+guard_payload "terraform apply" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 0 "$code" "shared guard: scope=all main session denied command exits 0"
+assert_contains "$(cat "$OUT")" '"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"' "shared guard: scope=all main session emits ask JSON"
+assert_contains "$(cat "$OUT")" "terraform apply" "shared guard: scope=all main session ask carries reason"
+if command -v python3 >/dev/null 2>&1; then
+    if python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d["hookSpecificOutput"]["permissionDecision"]=="ask" else 1)' "$OUT" 2>/dev/null; then
+        _ok "shared guard: scope=all main session ask output is valid JSON"
+    else
+        _bad "shared guard: scope=all main session ask output is valid JSON"
+    fi
+fi
+
+for ctx in main sub; do
+    if [ "$ctx" = sub ]; then pl="$(guard_payload_sub "ls -la")"; else pl="$(guard_payload "ls -la")"; fi
+    set +e
+    printf '%s' "$pl" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "shared guard: scope=all $ctx allowed command exits 0"
+    assert_eq "" "$(cat "$OUT" "$ERR")" "shared guard: scope=all $ctx allowed command prints nothing"
+done
+
+# Failure modes: guard.sh resolves REPO from its own path, so a copy without
+# scripts/deny-list.txt exercises the missing-list path.
+NODENY_REPO="$(new_sandbox)"
+EMPTYDENY_REPO="$(new_sandbox)"
+trap 'rm -rf "$MEM" "$WORK" "$OLD_REPO" "$NODENY_REPO" "$EMPTYDENY_REPO"' EXIT
+mkdir -p "$NODENY_REPO/scripts/hooks"
+cp "$REPO/scripts/hooks/guard.sh" "$NODENY_REPO/scripts/hooks/guard.sh"
+cp "$REPO/scripts/jsonutil.sh" "$REPO/scripts/deny-match.sh" "$NODENY_REPO/scripts/"
+NODENY_GUARD="$NODENY_REPO/scripts/hooks/guard.sh"
+
+set +e
+guard_payload_sub "ls -la" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$NODENY_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 2 "$code" "shared guard: missing deny-list, subagent exits 2"
+assert_contains "$(cat "$ERR")" "deny-list missing" "shared guard: missing deny-list, subagent reason on stderr"
+
+set +e
+guard_payload "ls -la" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE=all bash "$NODENY_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 0 "$code" "shared guard: missing deny-list, main session exits 0"
+assert_contains "$(cat "$OUT")" '{"systemMessage":"ai-memory guard: deny-list missing' "shared guard: missing deny-list, main session emits systemMessage"
+assert_contains "$(cat "$OUT")" "deny-list NOT enforced" "shared guard: missing deny-list, main session warns not enforced"
+
+# No JSON parser: a PATH with only the coreutils guard.sh needs (no jq/python3).
+NOPARSER_BIN="$NODENY_REPO/bin"
+mkdir -p "$NOPARSER_BIN"
+for prog in dirname cat grep sed awk; do
+    src="$(command -v "$prog" 2>/dev/null)"
+    [ -n "$src" ] && ln -sf "$src" "$NOPARSER_BIN/$prog"
+done
+BASH_BIN="$(command -v bash)"
+if env -i PATH="$NOPARSER_BIN" "$BASH_BIN" -c 'command -v jq || command -v python3' >/dev/null 2>&1; then
+    _bad "test setup: stub PATH still exposes a JSON parser"
+fi
+
+set +e
+guard_payload_sub "terraform apply" | env -i PATH="$NOPARSER_BIN" AI_MEMORY_GUARD_SCOPE=all "$BASH_BIN" "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 2 "$code" "shared guard: no parser, subagent detected by grep and denied"
+assert_contains "$(cat "$ERR")" "no jq/python3" "shared guard: no parser, subagent reason on stderr"
+
+set +e
+guard_payload "terraform apply" | env -i PATH="$NOPARSER_BIN" AI_MEMORY_GUARD_SCOPE=all "$BASH_BIN" "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 0 "$code" "shared guard: no parser, main session exits 0"
+assert_contains "$(cat "$OUT")" '{"systemMessage":"ai-memory guard: no jq/python3' "shared guard: no parser, main session emits systemMessage"
+assert_contains "$(cat "$OUT")" "deny-list NOT enforced" "shared guard: no parser, main session warns not enforced"
+
+# run_guard <guard> <scope> <payload> — role unset, scope set verbatim.
+run_guard() {
+    set +e
+    printf '%s' "$3" | env -u AI_MEMORY_ROLE AI_MEMORY_GUARD_SCOPE="$2" bash "$1" >"$OUT" 2>"$ERR"
+    code=$?
+    set -e
+}
+
+for scope in ALL " all " alll; do
+    run_guard "$SHARED_GUARD" "$scope" "$(guard_payload_sub "terraform apply")"
+    assert_exit 2 "$code" "shared guard: scope='$scope' subagent denied command exits 2"
+    run_guard "$SHARED_GUARD" "$scope" "$(guard_payload "terraform apply")"
+    assert_exit 0 "$code" "shared guard: scope='$scope' main session denied command exits 0"
+    assert_contains "$(cat "$OUT")" '"permissionDecision":"ask"' "shared guard: scope='$scope' main session emits ask JSON"
+done
+assert_contains "$(cat "$OUT")" "unknown AI_MEMORY_GUARD_SCOPE 'alll', treating as all" "shared guard: typo scope noted in ask reason"
+run_guard "$SHARED_GUARD" " all " "$(guard_payload "terraform apply")"
+assert_not_contains "$(cat "$OUT")" "unknown AI_MEMORY_GUARD_SCOPE" "shared guard: padded 'all' is not reported unknown"
+
+run_guard "$SHARED_GUARD" alll "$(guard_payload "ls -la")"
+assert_exit 0 "$code" "shared guard: typo scope, main session allowed command exits 0"
+assert_eq '{"systemMessage":"ai-memory guard: unknown AI_MEMORY_GUARD_SCOPE '"'alll'"', treating as all"}' "$(cat "$OUT")" "shared guard: typo scope, main session allowed command emits systemMessage"
+run_guard "$SHARED_GUARD" alll "$(guard_payload_sub "ls -la")"
+assert_exit 0 "$code" "shared guard: typo scope, subagent allowed command exits 0"
+assert_eq "" "$(cat "$OUT")" "shared guard: typo scope, subagent allowed command prints no stdout"
+
+for scope in "" executor; do
+    run_guard "$SHARED_GUARD" "$scope" "$(guard_payload_sub "terraform apply")"
+    assert_exit 0 "$code" "shared guard: scope='$scope' subagent payload is a no-op"
+    assert_eq "" "$(cat "$OUT" "$ERR")" "shared guard: scope='$scope' subagent payload prints nothing"
+done
+
+set +e
+guard_payload "terraform apply" | env AI_MEMORY_ROLE=task AI_MEMORY_GUARD_SCOPE=all bash "$SHARED_GUARD" >"$OUT" 2>"$ERR"
+code=$?
+set -e
+assert_exit 2 "$code" "shared guard: role set + scope=all behaves as executor (exit 2)"
+assert_eq "" "$(cat "$OUT")" "shared guard: role set + scope=all prints no ask JSON"
+
+mkdir -p "$EMPTYDENY_REPO/scripts/hooks"
+cp "$REPO/scripts/hooks/guard.sh" "$EMPTYDENY_REPO/scripts/hooks/guard.sh"
+cp "$REPO/scripts/jsonutil.sh" "$REPO/scripts/deny-match.sh" "$EMPTYDENY_REPO/scripts/"
+printf '# comments only\n\n' > "$EMPTYDENY_REPO/scripts/deny-list.txt"
+run_guard "$EMPTYDENY_REPO/scripts/hooks/guard.sh" all "$(guard_payload_sub "ls -la")"
+assert_exit 2 "$code" "shared guard: no usable rules, subagent exits 2"
+assert_contains "$(cat "$ERR")" "no usable rules" "shared guard: no usable rules, subagent reason on stderr"
+run_guard "$EMPTYDENY_REPO/scripts/hooks/guard.sh" all "$(guard_payload "ls -la")"
+assert_exit 0 "$code" "shared guard: no usable rules, main session exits 0"
+assert_contains "$(cat "$OUT")" '{"systemMessage":"ai-memory guard: deny-list at scripts/deny-list.txt has no usable rules' "shared guard: no usable rules, main session emits systemMessage"
 
 finish

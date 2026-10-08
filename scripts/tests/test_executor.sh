@@ -23,6 +23,16 @@ codex_free_path() {
     printf '%s' "$out"
 }
 
+# Expected --run deny-list preamble, built from the live spec files so a
+# deny-list.local.txt on the host does not break the strict prompt pins.
+deny_pre() { # deny_pre <scripts-dir>
+    local rules
+    rules="$(cat "$1/deny-list.txt" "$1/deny-list.local.txt" 2>/dev/null \
+        | grep -E '^[[:space:]]*[^#[:space:]]+[[:space:]]+[^[:space:]]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^/- /')"
+    printf 'EXECUTOR DENY-LIST — hard rule: never run these, or any destructive/additive action against running infrastructure:\n%s\nEND DENY-LIST\n\n' "$rules"
+}
+DENY_PRE="$(deny_pre "$SCRIPTS_DIR"; printf x)"; DENY_PRE="${DENY_PRE%x}"
+
 run() { # run <args...> ; sets OUT (stdout), ERR (stderr), CODE
     local tmp_out tmp_err
     tmp_out="$BIN/.o"; tmp_err="$BIN/.e"
@@ -118,7 +128,7 @@ export AI_MEMORY_EXECUTOR="echoexec"
 export AI_MEMORY_EXECUTOR_CMD_echoexec="echoexec ARG {prompt} END"
 run --run "do the thing"
 assert_exit 0 "$CODE" "--run generic CLI exits 0 via stub"
-assert_eq "ARG do the thing END" "$(cat "$MARK")" "--run substitutes {prompt} (quoted)"
+assert_eq "ARG ${DENY_PRE}do the thing END" "$(cat "$MARK")" "--run substitutes {prompt} (quoted)"
 export PATH="$OLDPATH"
 
 # --- 8. --run resolving to subagent -> sentinel + exit 3 ---
@@ -144,7 +154,7 @@ export AI_MEMORY_EXECUTOR="echoexec2"
 export AI_MEMORY_EXECUTOR_CMD_echoexec2="echoexec2 {prompt}"
 run --run "it's a test"
 assert_exit 0 "$CODE" "--run apostrophe prompt exits 0"
-assert_eq "it's a test" "$(cat "$MARK2")" "--run preserves apostrophe in prompt"
+assert_eq "${DENY_PRE}it's a test" "$(cat "$MARK2")" "--run preserves apostrophe in prompt"
 export PATH="$OLDPATH"
 
 # ============ Phase 7: roles + manifest exec_* resolution ============
@@ -315,27 +325,45 @@ assert_contains "$args" "You are read-only: verify work and never repair it." "-
 assert_contains "$args" "--- CALLER-SUPPLIED VALIDATION INPUTS ---" "--run validate separates fixed prompt from caller input"
 assert_contains "$args" "check the diff" "--run validate retains caller input"
 assert_eq "validate" "$(cat "$RMARK")" "--run (validate) exports AI_MEMORY_ROLE=validate"
+VBODY="$(awk 'NR == 1 { next } closed { print; next } $0 == "---" { closed = 1 }' "$SCRIPTS_DIR/../agents/validator.md")"
+assert_eq "${DENY_PRE}${VBODY}
 
-# task and explore prompts remain unmodified.
+--- CALLER-SUPPLIED VALIDATION INPUTS ---
+
+check the diff" "${args#*--ro }" "--run validate: deny-list preamble precedes the validator preamble"
+
+# task and explore prompts get only the deny-list preamble.
 export AI_MEMORY_EXECUTOR_TASK=ww
 run --run "task prompt"
 assert_exit 0 "$CODE" "--run task exits 0 via stub"
 args="$(cat "$WMARK")"
 assert_not_contains "$args" "CALLER-SUPPLIED VALIDATION INPUTS" "--run task does not prepend validator prompt"
-assert_eq "task prompt" "${args#*--do }" "--run task preserves its prompt byte-for-byte"
+assert_eq "${DENY_PRE}task prompt" "${args#*--do }" "--run task: deny-list preamble + prompt byte-for-byte"
 
 export AI_MEMORY_EXECUTOR_EXPLORE=ww
 run --role explore --run "explore prompt"
 assert_exit 0 "$CODE" "--run explore exits 0 via stub"
 args="$(cat "$WMARK")"
 assert_not_contains "$args" "CALLER-SUPPLIED VALIDATION INPUTS" "--run explore does not prepend validator prompt"
-assert_eq "explore prompt" "${args#*--ro }" "--run explore preserves its prompt byte-for-byte"
+assert_eq "${DENY_PRE}explore prompt" "${args#*--ro }" "--run explore: deny-list preamble + prompt byte-for-byte"
+
+# The composed prompt is passed positionally (codex exec {prompt}); a leading '-'
+# would be parsed as a flag. Holds for every role.
+for role in task explore validate; do
+    if [ "$role" = task ]; then flag="--do "; else flag="--ro "; fi
+    run --role "$role" --run "-leading dash"
+    args="$(cat "$WMARK")"; args="${args#*"$flag"}"
+    case "$args" in -*) lead=yes ;; *) lead=no ;; esac
+    assert_eq "no" "$lead" "--run $role: prompt does not start with '-'"
+done
 
 # A standalone executor copy has no canonical agent file: validate must fail
-# before dispatching a bare caller prompt.
+# before dispatching a bare caller prompt. The copy carries a deny-list so this
+# exercises the validator check, not the deny-list fail-closed path (below).
 mkdir -p "$MEM/scripts"
 cp "$EXE" "$MEM/scripts/executor.sh"
 cp "$SCRIPTS_DIR/_lib.sh" "$SCRIPTS_DIR/manifest.sh" "$MEM/scripts/"
+printf '# c\n\nterraform apply\n' > "$MEM/scripts/deny-list.txt"
 run_missing() {
     local tmp_out tmp_err
     tmp_out="$BIN/.missing-o"; tmp_err="$BIN/.missing-e"
@@ -348,6 +376,63 @@ run_missing --role validate --run "must not be bare"
 assert_exit 1 "$CODE" "--run validate fails when validator prompt is missing"
 assert_contains "$ERR" "validator prompt missing" "missing validator prompt fails loudly"
 assert_eq "" "$OUT" "missing validator prompt does not dispatch caller input"
+
+# deny-list.local.txt rules are appended to the preamble, for every role; a
+# single-word line is not a usable rule (guard shape) and is skipped.
+printf '  pulumi up  \nsingleword\n# x\n' > "$MEM/scripts/deny-list.local.txt"
+mkdir -p "$MEM/agents"; cp "$SCRIPTS_DIR/../agents/validator.md" "$MEM/agents/validator.md"
+LOCAL_PRE="EXECUTOR DENY-LIST — hard rule: never run these, or any destructive/additive action against running infrastructure:
+- terraform apply
+- pulumi up
+END DENY-LIST
+
+"
+for role in task explore validate; do
+    if [ "$role" = task ]; then flag="--do "; else flag="--ro "; fi
+    run_missing --role "$role" --run "local rule"
+    assert_exit 0 "$CODE" "--run $role with deny-list.local.txt exits 0"
+    args="$(cat "$WMARK")"; args="${args#*"$flag"}"
+    case "$args" in "$LOCAL_PRE"*) ok=yes ;; *) ok=no ;; esac
+    assert_eq "yes" "$ok" "--run $role: prompt starts with the base+local preamble"
+done
+rm -f "$MEM/scripts/deny-list.local.txt" "$MEM/agents/validator.md"
+
+# missing / unreadable / rule-less deny-list fails closed before any executor
+# invocation, for every role. chmod 000 is skipped where it does not bite (root).
+trap 'chmod 644 "$MEM/scripts/deny-list.txt" "$MEM/scripts/deny-list.local.txt" 2>/dev/null || true; rm -rf "$MEM" "$BIN"' EXIT
+for variant in missing empty single-word unreadable unreadable-local; do
+    rm -f "$MEM/scripts/deny-list.txt" "$MEM/scripts/deny-list.local.txt"
+    case "$variant" in
+        missing) : ;;
+        empty) printf '# only comments\n\n' > "$MEM/scripts/deny-list.txt" ;;
+        single-word) printf 'terraform\n' > "$MEM/scripts/deny-list.txt" ;;
+        unreadable) printf 'terraform apply\n' > "$MEM/scripts/deny-list.txt"; chmod 000 "$MEM/scripts/deny-list.txt" ;;
+        unreadable-local) printf 'terraform apply\n' > "$MEM/scripts/deny-list.txt"
+            printf 'pulumi up\n' > "$MEM/scripts/deny-list.local.txt"; chmod 000 "$MEM/scripts/deny-list.local.txt" ;;
+    esac
+    locked=""
+    case "$variant" in unreadable) locked="$MEM/scripts/deny-list.txt" ;; unreadable-local) locked="$MEM/scripts/deny-list.local.txt" ;; esac
+    if [ -n "$locked" ] && [ -r "$locked" ]; then
+        chmod 644 "$locked"
+        printf '  skip %s deny-list: chmod 000 still readable (root)\n' "$variant"; continue
+    fi
+    for role in task explore validate; do
+        rm -f "$WMARK"
+        run_missing --role "$role" --run "must not run"
+        assert_exit 1 "$CODE" "--run $role fails closed on a $variant deny-list"
+        assert_contains "$ERR" "refusing to run unguarded" "$role: $variant deny-list error on stderr"
+        assert_eq "no" "$([ -e "$WMARK" ] && echo yes || echo no)" "$role: $variant deny-list: executor not invoked"
+        [ -z "$locked" ] || assert_contains "$ERR" "deny-list unreadable: $locked" "$role: $variant names the unreadable file"
+    done
+    [ -z "$locked" ] || chmod 644 "$locked"
+done
+rm -f "$MEM/scripts/deny-list.txt" "$MEM/scripts/deny-list.local.txt"
+
+# The deny-list check stays after the subagent early exit: a missing list does
+# not block the subagent plane.
+AI_MEMORY_EXECUTOR_TASK=subagent run_missing --run "subagent"
+assert_exit 3 "$CODE" "--run subagent exits 3 even with the deny-list missing"
+assert_eq "EXECUTOR_USE_SUBAGENT" "$OUT" "--run subagent prints the sentinel with the deny-list missing"
 unset AI_MEMORY_EXECUTOR_EXPLORE
 unset AI_MEMORY_EXECUTOR AI_MEMORY_EXECUTOR_TASK AI_MEMORY_EXECUTOR_VALIDATE
 

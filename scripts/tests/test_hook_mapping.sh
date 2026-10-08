@@ -14,7 +14,7 @@ expected="$(printf 'per_turn_inject\tPreInvocation\ninfra_guard\tPreToolUse:*')"
 actual="$(manifest_hooks "$AGY_MF")"
 assert_eq "$expected" "$actual" "antigravity manifest_hooks emits role/event map"
 
-expected="$(printf 'session_bootstrap\tSessionStart\nper_turn_inject\tUserPromptSubmit\ntask_tool_block\tPreToolUse:TaskCreate|TaskUpdate')"
+expected="$(printf 'session_bootstrap\tSessionStart\nper_turn_inject\tUserPromptSubmit\ntask_tool_block\tPreToolUse:TaskCreate|TaskUpdate\ninfra_guard\tPreToolUse:Bash\nmemory_write_guard\tPostToolUse:Write|Edit')"
 actual="$(manifest_hooks "$CLAUDE_MF")"
 assert_eq "$expected" "$actual" "claude manifest_hooks emits role/event map"
 

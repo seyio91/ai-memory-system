@@ -56,6 +56,9 @@ chmod +x "$FBIN/copilot"
 export PATH="$FBIN:$PATH"
 
 run_install() { HOME="$FHOME" MEMORY_DIR="$FAKE" bash "$FAKE/install.sh" "$@"; }
+# The guard scope reaches install via config.local.sh; an inherited shell value
+# would make the default-scope assertions below depend on the caller's env.
+unset AI_MEMORY_GUARD_SCOPE
 
 # --- claude (hook archetype) ---
 mkdir -p "$FHOME/.claude"
@@ -100,6 +103,11 @@ assert_contains "$csj" "AI_MEMORY_HOOK_FORMAT=xml" "claude settings: inject comm
 assert_contains "$csj" "session_start_memory.sh" "claude settings: SessionStart command -> migrated script"
 assert_contains "$csj" "block_task_tools.sh" "claude settings: task-tool block command -> block script"
 assert_contains "$csj" '"matcher": "TaskCreate|TaskUpdate"' "claude settings: task-tool matcher registered"
+assert_contains "$csj" "AI_MEMORY_GUARD_SCOPE=executor bash $FAKE/scripts/hooks/guard.sh" "claude settings: guard command carries the default scope"
+assert_contains "$csj" '"matcher": "Bash"' "claude settings: guard matcher registered"
+assert_contains "$csj" "env MEMORY_DIR=$FAKE bash $FAKE/scripts/hooks/memory_write_guard.sh" "claude settings: write-guard command registered"
+assert_contains "$csj" '"matcher": "Write|Edit"' "claude settings: write-guard matcher registered"
+assert_not_contains "$(cat "$SBROOT/log.claude")" "ai-memory install:" "claude: no sweep report when nothing of ours was swept"
 assert_contains "$csj" "statusLine" "claude settings: existing statusLine preserved"
 assert_contains "$csj" "bash /custom/statusline.sh" "claude settings: existing statusLine command preserved"
 assert_contains "$csj" "permissions" "claude settings: permissions preserved"
@@ -169,15 +177,19 @@ def chunk_count(key):
                 return int(v.strip())
     return 1
 
-expected = {
-    "SessionStart": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart%%s bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo), chunk_count("session_chunks")),
-    "UserPromptSubmit": ("", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit%%s bash %s/scripts/hooks/inject.sh" % (repo, repo), chunk_count("inject_chunks")),
+# A list, not a dict keyed by event: PreToolUse carries two groups (task-tool
+# block + infra guard).
+expected = [
+    ("SessionStart", "", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=SessionStart%%s bash %s/scripts/hooks/session_start_memory.sh" % (repo, repo), chunk_count("session_chunks")),
+    ("UserPromptSubmit", "", "env MEMORY_DIR=%s AI_MEMORY_HOOK_FORMAT=xml AI_MEMORY_HOOK_EVENT=UserPromptSubmit%%s bash %s/scripts/hooks/inject.sh" % (repo, repo), chunk_count("inject_chunks")),
     # chunks=None marks an event that is not chunk-capable at all (no %s slot).
     # That is different from chunks==1, where _hook_chunked_commands emits the
     # un-chunked form of a chunk-capable event.
-    "PreToolUse": ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo, None),
-}
-for event, (matcher, template, chunks) in expected.items():
+    ("PreToolUse", "TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo, None),
+    ("PreToolUse", "Bash", "env MEMORY_DIR=%s AI_MEMORY_GUARD_SCOPE=executor bash %s/scripts/hooks/guard.sh" % (repo, repo), None),
+    ("PostToolUse", "Write|Edit", "env MEMORY_DIR=%s bash %s/scripts/hooks/memory_write_guard.sh" % (repo, repo), None),
+]
+for event, matcher, template, chunks in expected:
     groups = hooks.get(event, [])
     if chunks is None:
         wanted = [template]
@@ -195,6 +207,17 @@ for event, (matcher, template, chunks) in expected.items():
         if len(matches) != 1:
             sys.stderr.write("%s expected one ai-memory hook for %r, got %d\n" % (event, command, len(matches)))
             sys.exit(1)
+# Exactly one guard and one write-guard entry across ALL events, not just the
+# expected group: a stray copy under another event/matcher would still run.
+for script in ("scripts/hooks/guard.sh", "scripts/hooks/memory_write_guard.sh"):
+    n = sum(
+        1 for groups in hooks.values() if isinstance(groups, list)
+        for g in groups if isinstance(g, dict)
+        for h in g.get("hooks", []) if isinstance(h, dict) and ("/" + script) in h.get("command", "")
+    )
+    if n != 1:
+        sys.stderr.write("expected exactly one %s entry, got %d\n" % (script, n))
+        sys.exit(1)
 stop = hooks.get("Stop", [])
 if not stop or "user-stop-hook" not in json.dumps(stop):
     sys.stderr.write("user Stop hook was not preserved\n")
@@ -216,6 +239,211 @@ PY
     fi
 fi
 
+# --- claude: guard scope bake + sweep report ---------------------------------
+CSJ="$FHOME/.claude/settings.json"
+WG_CMD="env MEMORY_DIR=$FAKE bash $FAKE/scripts/hooks/memory_write_guard.sh"
+# set_scope <value|""> — rewrite config.local.sh's AI_MEMORY_GUARD_SCOPE line
+# (install re-stamps only the MEMORY_DIR line, so this survives a run).
+set_scope() {
+    grep -v '^export AI_MEMORY_GUARD_SCOPE=' "$FAKE/config.local.sh" > "$SBROOT/cl.tmp" || true
+    [ -z "$1" ] || printf 'export AI_MEMORY_GUARD_SCOPE="%s"\n' "$1" >> "$SBROOT/cl.tmp"
+    mv "$SBROOT/cl.tmp" "$FAKE/config.local.sh"
+}
+# hook_lines <script-suffix> — one "event<TAB>matcher<TAB>hook-json" line per
+# registered hook whose command names the script, across every event.
+hook_lines() {
+    if command -v python3 >/dev/null 2>&1; then
+        AIM_P="$CSJ" AIM_S="$1" python3 -c '
+import json, os
+d = json.load(open(os.environ["AIM_P"])).get("hooks", {})
+for ev, groups in d.items():
+    for g in groups:
+        for h in g.get("hooks", []):
+            if "/" + os.environ["AIM_S"] in h.get("command", ""):
+                print("%s\t%s\t%s" % (ev, g.get("matcher", ""), json.dumps(h, sort_keys=True)))
+'
+    fi
+}
+seed_settings() {
+    cat > "$CSJ"
+}
+if command -v python3 >/dev/null 2>&1; then
+    # (1) AI_MEMORY_GUARD_SCOPE="all" in config is baked into the guard command.
+    set_scope all
+    run_install --harness claude >"$SBROOT/log.scope-all" 2>&1; rc=$?
+    assert_exit 0 "$rc" "scope=all: claude install exits 0"
+    g="$(hook_lines scripts/hooks/guard.sh)"
+    assert_eq "1" "$(printf '%s\n' "$g" | grep -c .)" "scope=all: exactly one guard entry"
+    assert_contains "$g" "PreToolUse	Bash	" "scope=all: guard on PreToolUse matcher Bash"
+    assert_contains "$g" "AI_MEMORY_GUARD_SCOPE=all bash $FAKE/scripts/hooks/guard.sh" "scope=all: guard command carries AI_MEMORY_GUARD_SCOPE=all"
+    # The flip rewrites our own earlier entry: one "updated" line, no JSON dump.
+    flip_log="$(grep 'ai-memory install:' "$SBROOT/log.scope-all" || true)"
+    assert_contains "$flip_log" "ai-memory install: updated managed hook guard.sh (PreToolUse [Bash]) (backup: $CSJ.bak-" \
+        "scope flip: 'updated managed hook guard.sh' line names the backup path"
+    assert_eq "1" "$(printf '%s\n' "$flip_log" | grep -c .)" \
+        "scope flip: exactly one report line and nothing else"
+    assert_not_contains "$flip_log" "{" "scope flip: no JSON dump"
+
+    # (2) an invalid value fails install.sh before ANY step writes: settings.json
+    # byte-identical, and surfaces removed here (statusline, a command, a skill)
+    # are not recreated, so the tree listing is unchanged too.
+    set_scope alll
+    rm -f "$FHOME/.claude/statusline.sh" "$FHOME/.claude/commands/pin.md"
+    rm -rf "$FHOME/.claude/skills/demo-skill"
+    cp "$CSJ" "$SBROOT/settings.before"
+    cp "$FAKE/config.local.sh" "$SBROOT/config.before"
+    find "$FHOME" "$FAKE" | sort > "$SBROOT/tree.before"
+    set +e
+    run_install --harness claude >"$SBROOT/log.scope-bad" 2>&1; rc=$?
+    set -e
+    assert_exit 1 "$rc" "scope=alll: claude install exits 1"
+    assert_contains "$(cat "$SBROOT/log.scope-bad")" "AI_MEMORY_GUARD_SCOPE=alll" "scope=alll: error names the value"
+    assert_contains "$(cat "$SBROOT/log.scope-bad")" "$FAKE/config.local.sh or the environment" "scope=alll: error names config file or environment"
+    if cmp -s "$SBROOT/settings.before" "$CSJ"; then _ok "scope=alll: settings.json byte-identical"; else _bad "scope=alll: settings.json byte-identical"; fi
+    if cmp -s "$SBROOT/config.before" "$FAKE/config.local.sh"; then _ok "scope=alll: config.local.sh not re-stamped"; else _bad "scope=alll: config.local.sh not re-stamped"; fi
+    find "$FHOME" "$FAKE" | sort > "$SBROOT/tree.after"
+    if cmp -s "$SBROOT/tree.before" "$SBROOT/tree.after"; then _ok "scope=alll: no file created or removed in the sandbox"; else _bad "scope=alll: no file created or removed in the sandbox"; diff "$SBROOT/tree.before" "$SBROOT/tree.after" || true; fi
+    assert_not_file "$FHOME/.claude/statusline.sh" "scope=alll: statusline not relinked"
+    assert_not_file "$FHOME/.claude/commands/pin.md" "scope=alll: commands not relinked"
+    assert_not_file "$FHOME/.claude/skills/demo-skill" "scope=alll: skills not fanned out"
+    set_scope ""
+
+    # (3) a hand-wired write-guard entry identical to what install writes: swept silently.
+    seed_settings <<EOF
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Write|Edit", "hooks": [ { "type": "command", "command": "$WG_CMD" } ] }
+    ],
+    "Stop": [ { "hooks": [ { "type": "command", "command": "echo user-stop-hook" } ] } ]
+  }
+}
+EOF
+    run_install --harness claude >"$SBROOT/log.sweep-same" 2>&1; rc=$?
+    assert_exit 0 "$rc" "sweep identical: claude install exits 0"
+    assert_eq "1" "$(hook_lines scripts/hooks/memory_write_guard.sh | grep -c .)" "sweep identical: exactly one write-guard entry"
+    assert_eq "1" "$(hook_lines scripts/hooks/guard.sh | grep -c .)" "sweep identical: exactly one guard entry"
+    assert_not_contains "$(cat "$SBROOT/log.sweep-same")" "ai-memory install:" "sweep identical: no report line"
+    assert_contains "$(cat "$CSJ")" "echo user-stop-hook" "sweep identical: user hook preserved"
+
+    # (4) customised entries (extra key / wider matcher): replaced by one canonical
+    # entry, each reported verbatim with the backup path.
+    seed_settings <<EOF
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Write|Edit", "hooks": [ { "type": "command", "command": "$WG_CMD", "timeout": 9 } ] },
+      { "matcher": "Write|Edit|MultiEdit", "hooks": [ { "type": "command", "command": "$WG_CMD" } ] }
+    ]
+  }
+}
+EOF
+    run_install --harness claude >"$SBROOT/log.sweep-custom" 2>&1; rc=$?
+    assert_exit 0 "$rc" "sweep customised: claude install exits 0"
+    wg="$(hook_lines scripts/hooks/memory_write_guard.sh)"
+    assert_eq "1" "$(printf '%s\n' "$wg" | grep -c .)" "sweep customised: exactly one write-guard entry"
+    assert_contains "$wg" "PostToolUse	Write|Edit	" "sweep customised: canonical event + matcher"
+    assert_not_contains "$wg" "timeout" "sweep customised: canonical entry has no timeout"
+    rep_log="$(grep 'ai-memory install: replaced non-standard hook entry' "$SBROOT/log.sweep-custom" || true)"
+    assert_eq "2" "$(printf '%s\n' "$rep_log" | grep -c .)" "sweep customised: one report line per customised entry"
+    assert_contains "$rep_log" "(backup: $CSJ.bak-" "sweep customised: report names the backup path"
+    assert_contains "$rep_log" '"timeout": 9' "sweep customised: report shows the extra key"
+    assert_contains "$rep_log" "PostToolUse [Write|Edit|MultiEdit]" "sweep customised: report shows the customised matcher"
+    bk="$(printf '%s\n' "$rep_log" | head -1 | sed -n 's/.*(backup: \([^)]*\)).*/\1/p')"
+    assert_contains "$(cat "$bk" 2>/dev/null)" '"timeout": 9' "sweep customised: named backup holds the original entry"
+
+    # (5) an entry naming a retired hook script is reported as removed; a managed
+    # script on an event install no longer writes it to is "removed hook entry".
+    seed_settings <<EOF
+{
+  "hooks": {
+    "UserPromptSubmit": [ { "hooks": [ { "type": "command", "command": "bash $FHOME/.claude/hooks/inject_memory.sh" } ] } ],
+    "PostToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "env MEMORY_DIR=$FAKE bash $FAKE/scripts/hooks/guard.sh" } ] } ]
+  }
+}
+EOF
+    run_install --harness claude >"$SBROOT/log.sweep-retired" 2>&1; rc=$?
+    assert_exit 0 "$rc" "sweep retired: claude install exits 0"
+    ret_log="$(grep 'ai-memory install:' "$SBROOT/log.sweep-retired" || true)"
+    assert_contains "$ret_log" "ai-memory install: removed (retired hook)" "sweep retired: reported as removed (retired hook)"
+    assert_contains "$ret_log" "inject_memory.sh" "sweep retired: report names the retired script"
+    assert_not_contains "$ret_log" "replaced non-standard" "sweep retired: not reported as replaced"
+    assert_contains "$ret_log" "ai-memory install: removed hook entry in $CSJ (backup: $CSJ.bak-" "sweep orphan: reported as removed hook entry with backup"
+    assert_contains "$ret_log" "PostToolUse [Bash]" "sweep orphan: report names event + matcher"
+    assert_eq "1" "$(hook_lines scripts/hooks/guard.sh | grep -c .)" "sweep orphan: one guard entry remains (PreToolUse)"
+    assert_not_contains "$(cat "$CSJ")" "inject_memory.sh" "sweep retired: entry removed"
+
+    # (6) two further re-runs: byte-identical settings.json, no report on the second.
+    run_install --harness claude >"$SBROOT/log.rerun1" 2>&1
+    cp "$CSJ" "$SBROOT/settings.rerun1"
+    run_install --harness claude >"$SBROOT/log.rerun2" 2>&1; rc=$?
+    assert_exit 0 "$rc" "re-run x2: claude install exits 0"
+    if cmp -s "$SBROOT/settings.rerun1" "$CSJ"; then _ok "re-run x2: settings.json byte-identical"; else _bad "re-run x2: settings.json byte-identical"; fi
+    assert_not_contains "$(cat "$SBROOT/log.rerun2")" "ai-memory install:" "re-run x2: no report lines on the second run"
+fi
+
+# --- claude: no-python3 fallback writer ---------------------------------------
+# hook.sh picks the hand-printed writer when `command -v python3` fails and the
+# target does not exist yet. Drive the driver directly under a PATH holding only
+# the tools that branch needs (no python3, no jq), then parse the result.
+NOPY_BIN="$SBROOT/nopy-bin"
+mkdir -p "$NOPY_BIN"
+for prog in sed tr mkdir chmod dirname cat; do
+    src="$(command -v "$prog" 2>/dev/null)"
+    [ -n "$src" ] && ln -sf "$src" "$NOPY_BIN/$prog"
+done
+if env -i PATH="$NOPY_BIN" "$(command -v bash)" -c 'command -v python3 || command -v jq' >/dev/null 2>&1; then
+    _bad "test setup: stub PATH still exposes python3/jq"
+fi
+NOPY_OUT="$SBROOT/nopy/settings.json"
+set +e
+(
+    . "$FAKE/scripts/manifest.sh"
+    . "$FAKE/scripts/_lib.sh"
+    . "$FAKE/scripts/drivers/hook.sh"
+    info() { printf '  %s\n' "$1"; }; step() { :; }
+    HARNESS=claude MANIFEST="$FAKE/harnesses/claude/manifest" MEMORY_DIR="$FAKE"
+    PATH="$NOPY_BIN"
+    _hook_register_native_json "$NOPY_OUT"
+) >"$SBROOT/log.nopy" 2>&1; rc=$?
+set -e
+assert_exit 0 "$rc" "no-python3 fallback: driver exits 0"
+assert_contains "$(cat "$SBROOT/log.nopy")" "no python3 — new file" "no-python3 fallback: hand-printed writer used"
+assert_eq "1" "$(grep -c '"PreToolUse"' "$NOPY_OUT" 2>/dev/null)" "no-python3 fallback: a single PreToolUse key"
+if command -v python3 >/dev/null 2>&1; then
+    set +e
+    NOPY_OUT="$NOPY_OUT" FAKE_REPO="$FAKE" python3 - <<'PY' >"$SBROOT/nopy-check.out" 2>&1
+import json, os, sys
+repo = os.environ["FAKE_REPO"]
+hooks = json.load(open(os.environ["NOPY_OUT"]))["hooks"]
+ptu = [(g.get("matcher"), g["hooks"][0]["command"]) for g in hooks["PreToolUse"]]
+want = [
+    ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo),
+    ("Bash", "env MEMORY_DIR=%s AI_MEMORY_GUARD_SCOPE=executor bash %s/scripts/hooks/guard.sh" % (repo, repo)),
+]
+if ptu != want:
+    sys.stderr.write("PreToolUse groups %r != %r\n" % (ptu, want)); sys.exit(1)
+post = [(g.get("matcher"), g["hooks"][0]["command"]) for g in hooks["PostToolUse"]]
+if post != [("Write|Edit", "env MEMORY_DIR=%s bash %s/scripts/hooks/memory_write_guard.sh" % (repo, repo))]:
+    sys.stderr.write("PostToolUse groups %r\n" % (post,)); sys.exit(1)
+PY
+    # shellcheck disable=SC2319
+    rc=$?; set -e
+    if [ "$rc" -eq 0 ]; then
+        _ok "no-python3 fallback: valid JSON, block + guard (with scope) under one PreToolUse, write guard on PostToolUse"
+    else
+        _bad "no-python3 fallback: valid JSON, block + guard (with scope) under one PreToolUse, write guard on PostToolUse"
+        cat "$SBROOT/nopy-check.out"
+    fi
+fi
+
+# Scope set to `all` for the codex run: it must still never reach codex's guard.
+set_scope all
+# A hand-wired write guard in codex's hooks.json is the user's: the write guard is
+# a Claude-only role, so codex's sweep must leave it alone.
+CODEX_WG_CMD="env MEMORY_DIR=$FAKE bash $FAKE/scripts/hooks/memory_write_guard.sh"
+mkdir -p "$FHOME/.codex"
+printf '{"hooks": {"PostToolUse": [{"matcher": "apply_patch", "hooks": [{"type": "command", "command": "%s"}]}]}}\n' "$CODEX_WG_CMD" > "$FHOME/.codex/hooks.json"
 # --- codex (file archetype, hand-owned base + hooks): context prep + skills + commands-as-skills ---
 run_install --harness codex >"$SBROOT/log.codex" 2>&1; rc=$?
 assert_exit 0 "$rc" "codex install exits 0"
@@ -230,6 +458,10 @@ assert_contains "$chj" "AI_MEMORY_HOOK_FORMAT=md" "codex: inject command renders
 assert_contains "$chj" "scripts/hooks/inject.sh" "codex: inject command -> shared inject.sh"
 assert_contains "$chj" '"matcher": "^Bash$|apply_patch"' "codex: guard matcher registered"
 assert_contains "$chj" "scripts/hooks/guard.sh" "codex: guard command -> shared guard.sh"
+assert_not_contains "$chj" "AI_MEMORY_GUARD_SCOPE" "codex: guard command carries no AI_MEMORY_GUARD_SCOPE (claude-only bake)"
+assert_eq "1" "$(grep -c 'memory_write_guard.sh' "$FHOME/.codex/hooks.json")" "codex: hand-wired write guard kept, none added (claude-only role)"
+assert_contains "$chj" "\"command\": \"$CODEX_WG_CMD\"" "codex: hand-wired write-guard entry preserved verbatim"
+assert_not_contains "$(cat "$SBROOT/log.codex")" "ai-memory install:" "codex: hand-wired write guard not reported as swept"
 assert_contains "$chj" '"SessionStart"' "codex: SessionStart hook registered (base injects via hook, post-flip)"
 assert_contains "$chj" "scripts/hooks/session_start_memory.sh" "codex: SessionStart command -> shared session-start script"
 assert_not_contains "$chj" "arm_recompact.sh" "codex: SessionStart never wired to arm_recompact (shim deleted; name survives only in hook.sh's stale-entry sweep set)"
@@ -269,6 +501,7 @@ PY
         cat "$SBROOT/codex-hooks-count.out"
     fi
 fi
+set_scope ""
 assert_contains "$(cat "$SBROOT/log.codex")" "Run /hooks in codex once" "codex: manual /hooks trust note printed"
 # Phase 4: canonical skills fan into the manifest skills_dir (~/.agents/skills)...
 assert_file "$FHOME/.agents/skills/demo-skill" "codex: canonical skill fanned to ~/.agents/skills"
