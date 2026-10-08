@@ -187,9 +187,11 @@ before, with a one-line deprecation notice in the breadcrumb telling you to move
 its personal rules into `orchestrator.local.md` and delete it. Once
 `orchestrator.md.pre-1.6.0` exists the instance counts as migrated: a root
 `orchestrator.md` found alongside it (for example re-seeded by a rollback to
-1.5.x) is **not** injected, and the breadcrumb names it as
-`orchestrator-ignored` so you can port or delete it. This fallback is temporary
-— it exists for one release only.
+1.5.x) is **not** injected. Neither is a root file shadowed by a non-blank
+`orchestrator.local.md`. In both cases harnesses with a per-prompt breadcrumb
+(Claude, Codex, Antigravity — not Copilot) name it as `orchestrator-ignored` so
+you can port or delete it. This fallback is temporary — it exists for one
+release only.
 
 `harnesses/claude/CLAUDE.md` is now a small hook-failure stub: it carries no
 doctrine of its own, only an instruction to read `doctrine/orchestrator.md` and

@@ -123,8 +123,10 @@ resolve_working_file() {
 # tab-separated records `kind<TAB>path<TAB>name`, in canonical order. With no
 # kinds, emits every present section; with kinds, restricts to those (still in
 # canonical order, still presence-gated). `name` is the project slug for the
-# project section (used in its heading) and `legacy` for an orchestrator-local
-# record served from a pre-1.6.0 root orchestrator.md; empty otherwise. A
+# project section (used in its heading); for orchestrator-local it is `legacy`
+# (a pre-1.6.0 root orchestrator.md served as the overlay) or `ignored` (a
+# non-blank root orchestrator.md that is NOT injected — full renderers drop it,
+# breadcrumbs name it); empty otherwise. A
 # section is "present" when its backing file exists (working.md and
 # orchestrator-local must also be non-blank; domain must be a dir).
 content_sections() {
@@ -154,14 +156,17 @@ content_sections() {
                 # edited doctrine: an install that seeds an empty overlay
                 # without migrating never silently drops it. The legacy record
                 # is tagged "legacy" via the name field so formatters can
-                # append the deprecation notice. A skipped stale root file is
-                # still emitted, tagged "ignored": full renderers drop it, but
-                # the breadcrumb names it, because a root file edited after a
-                # rollback would otherwise stop applying with no signal.
+                # append the deprecation notice. Any non-blank root file that is
+                # NOT injected — shadowed by a non-blank overlay, or stale
+                # behind a .pre-1.6.0 backup — is still emitted, tagged
+                # "ignored": full renderers drop it, but the breadcrumb names
+                # it, because a root file edited after a rollback would
+                # otherwise stop applying with no signal.
                 local ol="$mdir/orchestrator.local.md" legacy="$mdir/orchestrator.md"
                 local pre160="$mdir/orchestrator.md.pre-1.6.0"
                 if _cs_nonblank "$ol"; then
                     printf 'orchestrator-local\t%s\t\n' "$ol"
+                    _cs_nonblank "$legacy" && printf 'orchestrator-local\t%s\tignored\n' "$legacy"
                 elif _cs_nonblank "$legacy"; then
                     if [ -e "$pre160" ]; then
                         printf 'orchestrator-local\t%s\tignored\n' "$legacy"

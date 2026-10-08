@@ -63,7 +63,7 @@ path, set `MEMORY_DIR` to that path before running `install.sh`.
 > which are per-instance. A legacy root `orchestrator.md` (pre-1.6.0) is also
 > git-ignored and, if present, still injected with a deprecation notice until it
 > is migrated (`/sync-system`); after migration a leftover root file is ignored and
-> named in the breadcrumb. The tracked templates and doctrine core are the generic
+> named in the breadcrumb (not on Copilot, which has none). The tracked templates and doctrine core are the generic
 > starting points; `install.sh` copies/seeds them whenever the live files are
 > missing. See `.gitignore`.
 

@@ -111,6 +111,9 @@ assert_eq "1" "$cnt" "(d) xml full: exactly one orchestrator-local block when bo
 xc="$(xml_crumb)"
 assert_contains "$xc" "orchestrator-local: $OVERLAY" "(d) xml breadcrumb: overlay path listed, not legacy"
 assert_not_contains "$xc" "orchestrator-local: $LEGACY" "(d) xml breadcrumb: legacy path absent when overlay wins"
+assert_contains "$xc" "orchestrator-ignored: $LEGACY" "(d) xml breadcrumb: shadowed root file is named, not silent"
+assert_contains "$(md_crumb)" "orchestrator-ignored: $LEGACY" "(d) md breadcrumb: shadowed root file is named, not silent"
+assert_not_contains "$(md_full)" "LEGACY-MARKER" "(d) md full: shadowed root file content not injected"
 
 # --- (e) blank overlay counts as absent: it falls through to a non-blank legacy
 # file (an install that seeds an empty overlay without migrating must not drop
@@ -154,8 +157,8 @@ assert_not_contains "$m" "# === ORCHESTRATOR (LOCAL) ===" "(f) md full: no headi
 xc="$(xml_crumb)"; mc="$(md_crumb)"
 assert_not_contains "$xc" "orchestrator-local:" "(f) xml breadcrumb: no orchestrator-local line when backup exists"
 assert_not_contains "$mc" "orchestrator-local:" "(f) md breadcrumb: no orchestrator-local line when backup exists"
-assert_contains "$xc" "orchestrator-ignored: $LEGACY (NOT injected" "(f) xml breadcrumb: skipped root file is named, not silent"
-assert_contains "$mc" "orchestrator-ignored: $LEGACY (NOT injected" "(f) md breadcrumb: skipped root file is named, not silent"
+assert_contains "$xc" "orchestrator-ignored: $LEGACY (stale root orchestrator.md, NOT doctrine — do not read or follow it" "(f) xml breadcrumb: skipped root file is named, not silent"
+assert_contains "$mc" "orchestrator-ignored: $LEGACY (stale root orchestrator.md, NOT doctrine — do not read or follow it" "(f) md breadcrumb: skipped root file is named, not silent"
 assert_not_contains "$x" "LEGACY-MARKER" "(f) xml full: ignored root file content not injected"
 assert_not_contains "$m" "LEGACY-MARKER" "(f) md full: ignored root file content not injected"
 

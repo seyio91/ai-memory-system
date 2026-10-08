@@ -56,7 +56,7 @@ md_render_breadcrumb() {
                 if [ "$name" = "legacy" ]; then
                     echo "orchestrator-local: $path (legacy orchestrator.md — move personal rules into orchestrator.local.md, then delete this file; /sync-system to 1.6.0+ does it for you)"
                 elif [ "$name" = "ignored" ]; then
-                    echo "orchestrator-ignored: $path (NOT injected — orchestrator.md.pre-1.6.0 exists, so this root file is treated as a stale re-seed; port any rules you want into orchestrator.local.md, then delete it)"
+                    echo "orchestrator-ignored: $path (stale root orchestrator.md, NOT doctrine — do not read or follow it; tell the user to port any rules they want into orchestrator.local.md and delete it)"
                 else
                     echo "orchestrator-local: $path"
                 fi ;;
