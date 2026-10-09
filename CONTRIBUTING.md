@@ -16,7 +16,7 @@ That means a clone is a working memory tree, not just source. `install.sh` wires
 bash scripts/run-tests.sh
 ```
 
-Expect `tests: N passed, 0 failed`, plus clean `python`, `doc-vs-code`, and `shellcheck` lines. The runner has selectors for mid-edit iteration — `--only PAT`, `--changed [REF]`, `--tests-only`, `--no-lint` — but a selecting run prints a `SELECTED RUN` banner and a closing `*** NOT A FULL RUN ***`. **Those are for iterating, never for gating.** Reconcile the summary counter against the file listing before calling a run complete; a truncating pager hides scope.
+Expect `tests: N passed, 0 failed`, plus clean `python`, `doc-vs-code`, and `shellcheck` lines. The runner has selectors for mid-edit iteration — `--only PAT`, `--changed [REF]`, `--tests-only`, `--no-lint` — but only `--only` and `--changed` print a `SELECTED RUN` banner and a closing `*** NOT A FULL RUN ***`. `--tests-only` and `--no-lint` print no banner — the only sign is `skipped` on the stage lines. **All four are for iterating, never for gating.** Reconcile the summary counter against the file listing before calling a run complete; a truncating pager hides scope.
 
 **Drop a changelog fragment** if you changed user-visible behavior — `changelog.d/<id>.<kind>.md`, where kind is `breaking` / `feature` / `fix` / `upgrade`. Don't edit `CHANGELOG.md` directly; it's assembled from fragments at release time. Format and rationale: [changelog.d/README.md](changelog.d/README.md).
 
