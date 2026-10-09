@@ -7,7 +7,11 @@
 
 ## Active
 
-_(no items yet)_
+### Add a re-runnable per-claim memory audit (/lint-memory --audit) → [plan](plans/re-runnable-memory-audit.md)
+- [ ] P1 — Auditor brief + spike on one real project
+- [ ] P2 — `/lint-memory --audit <project>` dispatcher (needs: P1)
+- [ ] P3 — Precise lint rules
+- [ ] P4 — Docs, changelog, ship (needs: P2, P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_

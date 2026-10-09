@@ -42,7 +42,10 @@ happened.** A "verified on <date>, PR #N" story is an event; keep the one-senten
 
 ## Lifecycle rules
 
-- **Twice.** A correction earns a line when Claude makes the same mistake a second time.
+- **Promotion bar (any one is enough).** A learning earns a line when
+  (1) Claude has made the same mistake twice, (2) it is not obvious and Claude could not work it out
+  from the code, or (3) it is an instruction specific to how we use the tool. No seen-count gate
+  beyond (1). [user clarification 2026-10-09]
 - **Each release.** Rules written around an older model's or harness's limits are re-checked and
   deleted when they no longer bind. A rule a hook already enforces is prose overhead.
 - **One home per fact.** Cross-project → `domain/`; a procedure → a skill or command; reference
