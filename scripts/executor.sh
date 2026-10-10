@@ -11,13 +11,16 @@
 # its accepted legacy alias.
 #
 #   executor.sh [--role task|explore|validate] --which          -> 'subagent[:model]' | 'cli:<name>'
-#   executor.sh [--role task|explore|validate] --run [--clean] "<prompt>" -> execs the CLI executor, or
+#   executor.sh [--role task|explore|validate] --run [--clean] [--brief <name>] "<prompt>" -> execs the CLI executor, or
 #                                                                   prints EXECUTOR_USE_SUBAGENT (exit 3)
 #     NB: a cli: --run runs a minutes-long, one-shot agentic loop — the caller must dispatch it as a
 #     background task (the orchestrator's run_in_background), never a foreground timeout-bound Bash call.
 #     --clean: emit ONLY the final agent message (uniform across harnesses) for a cli: executor that
 #     declares exec_last_message (e.g. codex `-o {file}`); a harness without it passes its raw stream
 #     through unchanged (e.g. agy `-p`, already just the final message).
+#     --brief <name>: validate role only (else exit 2); prepends agents/<name>.md instead of the
+#     default agents/validator.md. <name> must match ^[a-z0-9][a-z0-9-]* (no path traversal); checked
+#     before the subagent exit, so a bad name fails the same on both planes.
 #   executor.sh [--role ...] --show                    -> human-readable diagnostics
 #
 # A registered harness resolves through its manifest: exec=subagent -> subagent
@@ -196,16 +199,17 @@ warn_if_same_family() {
     return 0
 }
 
-validator_preamble() {
-    local agent="$REPO_ROOT/agents/validator.md" first body
-    [ -f "$agent" ] || { printf 'executor --run: validator prompt missing: %s\n' "$agent" >&2; return 1; }
-    IFS= read -r first < "$agent" || { printf 'executor --run: validator prompt unreadable: %s\n' "$agent" >&2; return 1; }
-    [ "$first" = '---' ] || { printf 'executor --run: validator prompt has no frontmatter: %s\n' "$agent" >&2; return 1; }
+validator_preamble() { # validator_preamble <agent-file>
+    local agent="$1" first body name
+    name="$(basename "$agent" .md)"
+    [ -f "$agent" ] || { printf 'executor --run: %s prompt missing: %s\n' "$name" "$agent" >&2; return 1; }
+    IFS= read -r first < "$agent" || { printf 'executor --run: %s prompt unreadable: %s\n' "$name" "$agent" >&2; return 1; }
+    [ "$first" = '---' ] || { printf 'executor --run: %s prompt has no frontmatter: %s\n' "$name" "$agent" >&2; return 1; }
     body="$(awk 'NR == 1 { next } closed { print; next } $0 == "---" { closed = 1; next } END { if (!closed) exit 1 }' "$agent")" || {
-        printf 'executor --run: validator prompt has unterminated frontmatter: %s\n' "$agent" >&2
+        printf 'executor --run: %s prompt has unterminated frontmatter: %s\n' "$name" "$agent" >&2
         return 1
     }
-    [ -n "$body" ] || { printf 'executor --run: validator prompt body is empty: %s\n' "$agent" >&2; return 1; }
+    [ -n "$body" ] || { printf 'executor --run: %s prompt body is empty: %s\n' "$name" "$agent" >&2; return 1; }
     printf '%s' "$body"
 }
 
@@ -255,14 +259,18 @@ case "$MODE" in
         if [ "$ROLE" = validate ]; then warn_if_same_family "$(family_of_plane)"; fi
         ;;
     --run)
-        # Parse the remaining args: an optional --clean flag (either side of the
-        # prompt) plus exactly one prompt. --clean makes a cli: executor emit ONLY
+        # Parse the remaining args: an optional --clean flag and an optional
+        # --brief <name> (either side of the prompt) plus exactly one prompt.
+        # --clean makes a cli: executor emit ONLY
         # the final agent message, uniform across harnesses (see below).
         shift  # drop --run
-        CLEAN=0; PROMPT=""; HAVE_PROMPT=0
+        CLEAN=0; PROMPT=""; HAVE_PROMPT=0; BRIEF=validator; BRIEF_SET=0
         while [ "$#" -gt 0 ]; do
             case "$1" in
                 --clean) CLEAN=1 ;;
+                --brief)
+                    [ "$#" -ge 2 ] || { printf 'executor --run: --brief needs a value\n' >&2; exit 2; }
+                    BRIEF="$2"; BRIEF_SET=1; shift ;;
                 *)
                     if [ "$HAVE_PROMPT" -eq 0 ]; then PROMPT="$1"; HAVE_PROMPT=1
                     else printf 'executor --run: unexpected extra argument: %s\n' "$1" >&2; exit 2; fi ;;
@@ -272,13 +280,20 @@ case "$MODE" in
         if [ "$HAVE_PROMPT" -eq 0 ]; then
             printf 'executor --run: missing prompt argument\n' >&2; exit 2
         fi
+        if [ "$BRIEF_SET" -eq 1 ]; then
+            [ "$ROLE" = validate ] || { printf 'executor --run: --brief is only valid with --role validate\n' >&2; exit 2; }
+            case "$BRIEF" in *"
+"*) BRIEF='' ;; esac
+            printf '%s\n' "$BRIEF" | LC_ALL=C grep -qxE '[a-z0-9][a-z0-9-]*' || {
+                printf 'executor --run: --brief name must match ^[a-z0-9][a-z0-9-]*$: %s\n' "$BRIEF" >&2; exit 2; }
+        fi
         resolve || exit $?
         if [ "$R_PLANE" = subagent ]; then
             printf 'EXECUTOR_USE_SUBAGENT\n'; exit 3
         fi
         deny="$(deny_preamble)" || exit 1
         if [ "$ROLE" = validate ]; then
-            preamble="$(validator_preamble)" || exit 1
+            preamble="$(validator_preamble "$REPO_ROOT/agents/$BRIEF.md")" || exit 1
             PROMPT="${preamble}
 
 --- CALLER-SUPPLIED VALIDATION INPUTS ---
@@ -336,7 +351,7 @@ ${PROMPT}"
         fi
         ;;
     *)
-        printf 'usage: executor.sh [--role task|explore|validate] --which | --run [--clean] "<prompt>" | --show\n' >&2
+        printf 'usage: executor.sh [--role task|explore|validate] --which | --run [--clean] [--brief <name>] "<prompt>" | --show\n' >&2
         exit 2
         ;;
 esac
