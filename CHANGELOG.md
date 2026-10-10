@@ -6,6 +6,144 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-10
+### Added
+
+`AI_MEMORY_EXECUTOR_GH_TOKEN=1` (opt-in, `config.local.sh`) makes `codex-mem.sh --executor`
+fetch `gh auth token` at launch and export `GH_TOKEN` plus a `gh` git credential helper into
+the run. The codex sandbox cannot read the macOS keychain, so without it `gh` returns
+HTTP 401 and an HTTPS `git push` finds no credential. Default stays credential-free: the
+executor commits and pushes, the orchestrator opens the PR. Loud on stderr if `gh auth token`
+comes back empty, and it leaves an existing `GIT_CONFIG_COUNT` chain alone.
+Codex validator can run code without writing the repo: `codex-mem.sh --validator` runs
+`codex --sandbox workspace-write` in a fresh scratch dir (network off, Go caches in scratch,
+repo and `.git` never writable, scratch deleted on exit). New manifest key `exec_validate`
+resolves the validate role, falling back to `exec_readonly`; explore still uses `exec_readonly`
+only. The validator prompt uses a `git worktree`, or a `git clone --shared` on sandboxed planes.
+- **Initiative consultation now has decision-time triggers.** Snapshot-based
+  staleness detection persists until `--ack` or a stream append, an
+  exception-only session-start alert surfaces stale Targets, and `/checkpoint`
+  plus phase completion capture cross-repo decisions as `-proposed` in the
+  stream first; plan, runbook, and project-memory entries reference that record.
+- **Initiative Targets now join work through tasks.** A Target names its task;
+  readiness finds the plan by full `task_ref` in live plans, then archived
+  plans, with duplicate matches failing closed. `done`/`closed` terminal
+  assertions short-circuit derivation in every mode, and Target `status:` now
+  begins with machine-readable `open`, `blocked`, `done`, or `closed`.
+  `lint-memory.sh` adds rules 13 (status token), 14 (a live Target needs a
+  task), and 15 (a task appears on at most one Target and one live plan).
+  `/start` now read-only reports initiative membership and readiness.
+- Add the initiative layer: a tracked scaffold and lint rules, `/new-initiative`, local readiness derivation, and initiative documentation.
+- **Claude installs now register the memory write guard and the infra deny-list guard.**
+  `install.sh --harness claude` adds `scripts/hooks/memory_write_guard.sh` as a
+  `PostToolUse` (`Write|Edit`) hook and `scripts/hooks/guard.sh` as a `PreToolUse` (`Bash`)
+  hook, so neither needs wiring by hand. The write guard is newly active on every Claude
+  install: after a write to a project `memory.md`, `working.md` or `domain/*.md` it reports
+  changelog drift and size-budget findings back to the model (it never blocks or reverts a
+  write). `AI_MEMORY_GUARD_SCOPE` in `config.local.sh` sets which Claude calls the guard
+  covers: `executor` (default) guards executor runs only, as before; `all` guards every
+  session — a deny-listed command from a subagent is denied, from the main session it asks
+  for confirmation. Any other value fails the install. Install now removes hand-wired copies
+  of its hooks so each is registered once, and prints any removed entry that differs from
+  what it writes, verbatim, with the `settings.json` backup path.
+- **`executor.sh --run` prepends the deny-list to every CLI executor prompt.** The rules from
+  `scripts/deny-list.txt` (plus `scripts/deny-list.local.txt`) go ahead of the prompt for
+  every role, and `--run` exits 1 without running if the list is missing, unreadable or has
+  no rules. `doctrine/orchestrator.md` now points at `scripts/deny-list.txt` instead of
+  carrying its own copy of the command list.
+- **`/lint-memory --audit <project>` audits a project's memory claim by claim.** A read-only agent
+  on the validate role checks every claim in `memory.md` against the repo and read-only
+  Terraform Cloud / GitHub APIs, records the command and output behind each verdict (Wrong / Stale /
+  Derivable / Move / Keep / Unverified), and writes `projects/<project>/audits/audit-YYYY-MM-DD.md`.
+  It edits nothing. The brief lives in `agents/auditor.md` and is linked into Claude on the next
+  `/sync-system`.
+- **`lint-memory` WARNs on cross-file duplicate lines (rule 17) and unresolved `NEEDS REVIEW` /
+  `TODO` markers (rule 18)** in project `memory.md` and `domain/*.md` files.
+- **`executor.sh --role validate --run --brief <name>`** prepends `agents/<name>.md` instead of
+  `agents/validator.md`, so a read-only brief such as the auditor runs on a CLI validate plane too.
+  The name is validated (`[a-z0-9-]`) and the role must be `validate`.
+- **Memory now carries size budgets, enforced by `lint-memory.sh` and the write guard.**
+  `check-memory-size.sh` flags a project `memory.md` over 16 KB or with lines over 400 B
+  (WARN — style, trim when convenient), and a rendered session payload that would need more
+  delivery chunks than a harness's `session_chunks` cap (ERROR — the harness truncates it
+  silently otherwise). `lint-memory.sh` runs both checks across every project; the write guard
+  runs them at the moment of the edit — a `memory.md` write is checked against its own budget
+  plus the payload for every working file the project has, a `working.md`/`working.<key>.md`
+  write is checked against the payload only (no drift check there — that tier is allowed to be
+  dated). `check-changelog-drift.sh` also now catches a bracketed or bulleted dated entry
+  (`**[YYYY-MM-DD]**`, `- **YYYY-MM-DD`) in project `memory.md`; domain files are unchanged.
+- **The project `memory.md` template now follows the CLAUDE.md include/leave-out test.** New
+  optional `## Commands`, `## Conventions` and `## Pointers` sections join the three that stay
+  required (`## What It Is`, `## Architecture Decisions`, `## Known Constraints / Gotchas`).
+  `## Current State` and `## Current Goal` are retired: they invited frequently-changing status
+  that went stale. `/state` now reads each project's goal from the first plan heading under
+  `## Active` in `todo.md`, and `/promote-memory` writes project decisions into
+  `## Architecture Decisions` instead of a `## Decisions Log`. `docs/file-formats.md` carries the
+  include/leave-out table. **Existing instances:** `lint-memory.sh` now WARNs on each project that
+  still has `## Current State` or `## Current Goal` (two WARNs per project until the sections are
+  removed); the WARN names where the content belongs. No files are rewritten for you.
+- **`/new-plan` no longer skips the task lifecycle.** It takes `--task <ref>` or
+  `--no-task` and otherwise asks once, then runs the same linking step as
+  `/start` — both commands now share one injected `task-link` partial rather
+  than separate copies. `apply-partial.sh` gained a `--file` target mode to
+  carry it. A new lint rule flags a live plan with no `task_ref`; `task_ref: none`
+  is the explicit marker for deliberately plan-only work.
+- **Memory writes and `/promote-memory` apply a promotion bar.** Durable is no longer enough: a
+  learning is kept only if Claude could not work it out from the code or the repo's docs, or it is
+  specific to how you use the tool. `/promote-memory` tags each candidate `[non-obvious]` or
+  `[usage]` and drops the rest, so durable-but-derivable facts stop accumulating in `memory.md`.
+- Add a single-source validator prompt for Claude subagents and CLI validation runs.
+- **Validator rounds are now scoped and capped.** The orchestrator briefs fix rounds with `scope: fix-round` and runs one `scope: final` cold pass over `origin/main...HEAD` per phase before PR-READY, decorrelated by model family where possible. `risk:` (low/medium/high) sets how much of Part B runs. Rounds cap at 5 (PR-bot rounds that triggered fixes count) before escalating to the user. Defect classes are single-sourced in `agents/validator.md`; the doctrine only points at them.
+- **Validator Part B checks four more defect classes.** Added from a real review miss (platform-agent PR #3): background/shared work with no cancellation once its last caller leaves, identity or keys derived from incidental data instead of the canonical field, silent degradation of a missing required value into a zero/empty/default, and network listeners or clients without transport-level timeouts. Findings are now graded by consequence under a plausible input, not current exposure, and the review prompt asks explicitly what happens when a new default's input is absent or malformed and what stops background/shared work.
+- **Code-phase validation now includes independent review.** Part A verifies the plan contract; Part B reviews the branch diff, with PR creation gated on Part A passing and no bug-grade finding.
+
+### Fixed
+
+- **`lint-memory.sh` is ~40% faster (~17 s → ~10 s on a 19-project tree).** `check-memory-size.sh
+  --payload` now accepts several projects, and lint checks them all in one call instead of one
+  process per project. The domain-index render and the initiative alert, which are the same for
+  every project, are computed once per run; projects targeted by the same initiatives share one
+  alert computation. Findings are unchanged. `--working` still pins one project's working file
+  and is a usage error with more than one project. The memory write guard checks one project and
+  is unaffected.
+- **`/checkpoint-archive` no longer warns on every entry.** It treated any checkpoint whose
+  heading lacked `CLOSED` or `DONE` as in-flight, but nothing writes those markers and
+  `/checkpoint` forbids editing a prior entry, so the warning fired on every roll. It now
+  classifies each entry from its content (superseded / closed / in-flight) and asks only when an
+  open item is tracked nowhere but the checkpoints — not in `todo.md`, a backlog task, an
+  initiative Target, or another `working.md` section.
+Codex executor can commit again: `codex-mem.sh --executor` adds the repo's git dir to
+`sandbox_workspace_write.writable_roots`. codex's `workspace-write` sandbox remounts `.git`
+read-only, so `git add`/`git commit` failed with `Unable to create .git/index.lock:
+Operation not permitted` while working-tree edits succeeded. No-op outside a git repo.
+- **The infra guard now denies deny-listed commands in a bypass-permissions main session.** Under
+  `AI_MEMORY_GUARD_SCOPE=all` the main session got a confirmation prompt (`ask`), but Claude
+  skips that prompt in `bypassPermissions` mode and lets the command run. The guard now reads
+  `permission_mode` and asks only in `default`, `plan` and `acceptEdits`, where Claude shows
+  the prompt. In any other mode, or with no mode in the payload, it denies the command and the
+  reason names the mode. Subagents and executor runs are unchanged.
+- **`initiative-status.sh` is ~10x faster (0.68 s → 0.07 s on a 25-Target initiative), which speeds up `lint-memory.sh` and the memory write guard.**
+  Table-cell escaping and whitespace trimming forked a `sed` per call (~180 per run); they now
+  use bash parameter expansion. Output is byte-identical. Every project targeted by an initiative
+  paid this cost in the initiative alert, so lint dropped from ~32 s to ~17 s and a guarded
+  `memory.md` write from ~1.4 s to ~0.7 s on a 19-project tree.
+- **`new-project.sh` now fills in the project name, and `/new-project` sets the index summary.**
+  A new project used to keep `topic: <name>`, `# Project: <name>` and the placeholder `summary`
+  from the template, which then showed up in `index.md`. The script now substitutes the name in
+  every copied file and rejects names outside `[A-Za-z0-9._-]` (or with a leading `.`);
+  `/new-project` writes the What It Is one-liner into `summary` and regenerates the index.
+- Scope `task_ref: none` to plans: investigations now warn because they always require a task lifecycle anchor.
+- **Validator follow-ups.** The same-family warning now treats the subagent plane as the orchestrator's harness (`AI_MEMORY_ORCHESTRATOR`, else detected from `CODEX_THREAD_ID` / `CLAUDECODE=1`), so a Codex-orchestrated session validating a `cli:codex` executor is flagged. `scope: final` uses the default branch's merge base instead of a hardcoded `origin/main`. `risk: high` escalates instead of falling back to a same-model final pass. The validator defaults to Opus and grades a rule defect as a bug when following it literally defeats the rule's purpose.
+
+### Upgrade
+
+- **Orchestrator doctrine is now a tracked core plus a local overlay.** The per-instance
+  `orchestrator.md` (seeded once from a template and never updated again) is replaced by
+  `doctrine/orchestrator.md` (tracked, updated on every sync) and `orchestrator.local.md`
+  (gitignored, personal additions only). Migration `1.6.0-orchestrator-core-overlay.sh` backs
+  up an existing `orchestrator.md` to `orchestrator.md.pre-1.6.0` and seeds an empty overlay;
+  port personal rules from the backup by hand. See [UPGRADING.md](UPGRADING.md#160).
+
 ## [1.5.0] - 2026-09-08
 ### Added
 
