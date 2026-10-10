@@ -853,4 +853,205 @@ run_lint
 assert_exit 0 "$CODE" "oversized _template/memory.md is never scanned"
 rm -rf "$M27"
 
+# --- rule 17: exact cross-file duplicate line ------------------------------
+DUP='Always rotate the shared credential before reusing the bucket name.'
+M29="$(new_sandbox)"; export MEMORY_DIR="$M29"; build_clean "$M29"
+printf -- '- %s\n' "$DUP" >> "$M29/projects/good/memory.md"
+printf '%s\n' "$DUP" >> "$M29/domain/terraform.md"
+run_lint
+assert_exit 1 "$CODE" "cross-file duplicate line exits 1"
+assert_contains "$OUT" "duplicate line in 2 files" "cross-file duplicate is a WARN"
+assert_contains "$OUT" "projects/good/memory.md:$(grep -nF "$DUP" "$M29/projects/good/memory.md" | cut -d: -f1)" "duplicate WARN names the project file:line"
+assert_contains "$OUT" "domain/terraform.md:$(grep -nF "$DUP" "$M29/domain/terraform.md" | cut -d: -f1)" "duplicate WARN names the domain file:line"
+rm -rf "$M29"
+
+M30="$(new_sandbox)"; export MEMORY_DIR="$M30"; build_clean "$M30"
+SHORT='_(none yet)_'
+HEAD='## A heading that is long enough to pass the length floor'
+for t in "$M30/projects/good/memory.md" "$M30/domain/terraform.md"; do
+    printf '%s\n%s\n<!-- an html comment long enough to pass the length floor -->\n| col a long enough header | col b long enough header |\n|---|---|\n' "$SHORT" "$HEAD" >> "$t"
+done
+printf '%s\n' 'Same-file repeat that is long enough to pass the floor.' 'Same-file repeat that is long enough to pass the floor.' >> "$M30/projects/good/memory.md"
+sed -i.bak 's/^summary:.*/summary: Frontmatter line that is long enough to pass the length floor/' "$M30/projects/good/memory.md" "$M30/domain/terraform.md"
+rm -f "$M30"/projects/good/memory.md.bak "$M30"/domain/terraform.md.bak
+run_lint
+assert_not_contains "$OUT" "duplicate line" "short, heading, comment, table, frontmatter and same-file repeats never fire the duplicate rule"
+rm -rf "$M30"
+
+# --- rule 18: unresolved markers --------------------------------------------
+M31="$(new_sandbox)"; export MEMORY_DIR="$M31"; build_clean "$M31"
+printf 'Pending: TODO wire the alert.\nNEEDS REVIEW before relying on this.\n' >> "$M31/projects/good/memory.md"
+GL="$(grep -n "TODO wire" "$M31/projects/good/memory.md" | cut -d: -f1)"
+run_lint
+assert_exit 1 "$CODE" "unresolved marker exits 1"
+assert_contains "$OUT" "projects/good/memory.md:$GL unresolved marker TODO" "TODO WARN names file:line"
+assert_contains "$OUT" "projects/good/memory.md:$((GL + 1)) unresolved marker NEEDS REVIEW" "NEEDS REVIEW WARN names file:line"
+rm -rf "$M31"
+
+M32="$(new_sandbox)"; export MEMORY_DIR="$M32"; build_clean "$M32"
+cat >> "$M32/domain/terraform.md" <<'EOF'
+See todo.md and the TODOs list, or `TODO` in backticks.
+```
+TODO inside a fence
+NEEDS REVIEW inside a fence
+```
+EOF
+sed -i.bak 's/^summary:.*/summary: TODO in frontmatter/' "$M32/domain/terraform.md"; rm -f "$M32/domain/terraform.md.bak"
+run_lint
+assert_not_contains "$OUT" "unresolved marker" "todo.md, TODOs, backticked and fenced markers and frontmatter never fire the marker rule"
+rm -rf "$M32"
+
+# --- rules 17/18: every _template is exempt --------------------------------
+M33="$(new_sandbox)"; export MEMORY_DIR="$M33"; build_clean "$M33"
+printf '%s\nTODO fill this in\n' "$DUP" > "$M33/domain/_template.md"
+printf '%s\nTODO fill this in\n' "$DUP" >> "$M33/projects/good/memory.md"
+printf '%s\nTODO fill this in\n' "$DUP" >> "$M33/projects/_template/memory.md"
+run_lint
+assert_not_contains "$OUT" "_template.md:" "domain/_template.md never appears in rule 17/18 findings"
+assert_not_contains "$OUT" "_template/memory.md:" "projects/_template/memory.md never appears in rule 17/18 findings"
+assert_not_contains "$OUT" "duplicate line" "a duplicate shared only with _template does not fire"
+assert_contains "$OUT" "projects/good/memory.md:" "the non-template file is still scanned"
+rm -rf "$M33"
+
+# --- rule 17: fenced lines are never duplicates; fence close needs same char and length ---
+M34="$(new_sandbox)"; export MEMORY_DIR="$M34"; build_clean "$M34"
+for t in "$M34/projects/good/memory.md" "$M34/domain/terraform.md"; do
+    printf '%s\n' '```' "$DUP" '# a shell comment that is long enough to pass the floor' '```' >> "$t"
+done
+run_lint
+assert_not_contains "$OUT" "duplicate line" "fenced duplicate lines and # comments are ignored"
+printf '%s\n' '````' '```' 'TODO inside nested fence' '````' 'TODO after nested fence' >> "$M34/projects/good/memory.md"
+NL="$(grep -n 'TODO after nested' "$M34/projects/good/memory.md" | cut -d: -f1)"
+run_lint
+assert_contains "$OUT" "memory.md:$NL unresolved marker TODO" "a longer fence stays open across an inner shorter fence and closes properly"
+assert_not_contains "$OUT" "memory.md:$((NL - 2)) unresolved" "marker inside the nested fence does not fire"
+rm -rf "$M34"
+
+# --- rules 17/18: HTML comments (mid-line, inline, unclosed, per-file reset) ---
+M35="$(new_sandbox)"; export MEMORY_DIR="$M35"; build_clean "$M35"
+printf '%s\n' 'visible text <!-- hidden start' 'TODO in commented line' 'NEEDS REVIEW in commented line' 'end --> after' 'fact <!-- TODO: x --> kept' >> "$M35/projects/good/memory.md"
+run_lint
+assert_not_contains "$OUT" "unresolved marker" "markers inside mid-line and inline HTML comments never fire"
+rm -rf "$M35"
+M36="$(new_sandbox)"; export MEMORY_DIR="$M36"; build_clean "$M36"
+printf '%s\n' 'opened <!-- never closed' >> "$M36/projects/good/memory.md"
+printf 'TODO in the next file\n' >> "$M36/domain/terraform.md"
+TL="$(grep -n 'TODO in the next' "$M36/domain/terraform.md" | cut -d: -f1)"
+run_lint
+assert_contains "$OUT" "domain/terraform.md:$TL unresolved marker TODO" "an unclosed comment does not leak into the next file"
+rm -rf "$M36"
+
+# --- rule 17: awk failure is an ERROR, never a silent clean ----------------
+M37="$(new_sandbox)"; export MEMORY_DIR="$M37"; build_clean "$M37"
+chmod 000 "$M37/domain/terraform.md"
+if [ ! -r "$M37/domain/terraform.md" ]; then
+    run_lint
+    assert_contains "$OUT" "ERROR: $M37 lint rules 17/18 could not scan" "unreadable file makes rules 17/18 ERROR"
+fi
+chmod 644 "$M37/domain/terraform.md"
+rm -rf "$M37"
+
+# --- rule 18: TODO boundaries ------------------------------------------------
+M38="$(new_sandbox)"; export MEMORY_DIR="$M38"; build_clean "$M38"
+printf '%s\n' 'See TODO.md here' 'See TODO/ here' 'A TODO-list item' 'TODOLIST item' > "$M38/domain/terraform.md.add"
+cat "$M38/domain/terraform.md.add" >> "$M38/domain/terraform.md"; rm "$M38/domain/terraform.md.add"
+run_lint
+assert_not_contains "$OUT" "unresolved marker" "TODO.md, TODO/, TODO-list and TODOLIST do not fire"
+printf '%s\n' 'TODO: start of line' 'TODO start of line' 'wrapped (TODO) here' 'trailing TODO.' >> "$M38/domain/terraform.md"
+TB="$(grep -n 'TODO: start' "$M38/domain/terraform.md" | cut -d: -f1)"
+run_lint
+assert_contains "$OUT" "terraform.md:$TB unresolved marker TODO" "TODO: at line start fires"
+assert_contains "$OUT" "terraform.md:$((TB + 1)) unresolved marker TODO" "TODO followed by space at line start fires"
+assert_contains "$OUT" "terraform.md:$((TB + 2)) unresolved marker TODO" "(TODO) fires"
+assert_contains "$OUT" "terraform.md:$((TB + 3)) unresolved marker TODO" "TODO. at sentence end fires"
+rm -rf "$M38"
+
+# --- rule 17: ordered, plus and blockquote markers are stripped ---------------
+M39="$(new_sandbox)"; export MEMORY_DIR="$M39"; build_clean "$M39"
+printf '12) %s\n' "$DUP" >> "$M39/projects/good/memory.md"
+printf '> + %s\n' "$DUP" >> "$M39/domain/terraform.md"
+run_lint
+assert_contains "$OUT" "duplicate line in 2 files" "ordered-list and blockquote markers normalise away"
+rm -rf "$M39"
+
+# --- rules 17/18: CRLF files --------------------------------------------------
+M40="$(new_sandbox)"; export MEMORY_DIR="$M40"; build_clean "$M40"
+printf '%s\r\n' '---' 'topic: terraform' 'triggers: [terraform]' 'summary: TODO in crlf frontmatter that is long enough' '---' "$DUP" 'TODO crlf marker' > "$M40/domain/terraform.md"
+printf '%s\n' "$DUP" >> "$M40/projects/good/memory.md"
+run_lint
+assert_contains "$OUT" "duplicate line in 2 files" "a CRLF line matches its LF twin"
+assert_contains "$OUT" "terraform.md:7 unresolved marker TODO" "CRLF body line is scanned"
+assert_not_contains "$OUT" "terraform.md:4" "CRLF frontmatter is still recognised and skipped"
+rm -rf "$M40"
+
+# --- rule 17: WARN text is truncated at a word boundary ----------------------
+M41="$(new_sandbox)"; export MEMORY_DIR="$M41"; build_clean "$M41"
+LONG='\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9\xc3\xa9 alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau'
+printf "$LONG\n" >> "$M41/projects/good/memory.md"
+printf "$LONG\n" >> "$M41/domain/terraform.md"
+run_lint
+assert_contains "$OUT" "kappa lambda..." "long duplicate is clipped at a word boundary with an ellipsis"
+assert_not_contains "$OUT" " mu" "clip does not run past the 80-byte boundary"
+rm -rf "$M41"
+
+# --- rules 17/18: a backticked comment opener does not open a comment -------
+M42="$(new_sandbox)"; export MEMORY_DIR="$M42"; build_clean "$M42"
+printf '%s\n' 'Write comments as `<!--` then text, or ``<!-- x`` too' 'TODO after the backticked opener' "$DUP" >> "$M42/projects/good/memory.md"
+printf '%s\n' "$DUP" >> "$M42/domain/terraform.md"
+TC="$(grep -n 'TODO after the backticked' "$M42/projects/good/memory.md" | cut -d: -f1)"
+run_lint
+assert_contains "$OUT" "memory.md:$TC unresolved marker TODO" "marker after a backticked <!-- still fires"
+assert_contains "$OUT" "duplicate line in 2 files" "duplicate after a backticked <!-- still fires"
+rm -rf "$M42"
+
+# --- rule 17: only the same fence character closes a fence ------------------
+M43="$(new_sandbox)"; export MEMORY_DIR="$M43"; build_clean "$M43"
+printf '%s\n' '```' '~~~' 'TODO still fenced after a tilde line' '```' 'TODO after the real close' >> "$M43/projects/good/memory.md"
+FL="$(grep -n 'TODO after the real' "$M43/projects/good/memory.md" | cut -d: -f1)"
+run_lint
+assert_contains "$OUT" "memory.md:$FL unresolved marker TODO" "marker after the real close fires"
+assert_not_contains "$OUT" "memory.md:$((FL - 2)) unresolved" "a ~~~ line does not close a backtick fence"
+rm -rf "$M43"
+
+# --- rule 18: NEEDS REVIEW needs a trailing word boundary --------------------
+M44="$(new_sandbox)"; export MEMORY_DIR="$M44"; build_clean "$M44"
+printf '%s\n' 'Ask the NEEDS REVIEWER about it' 'NEEDS REVIEW: confirm' >> "$M44/domain/terraform.md"
+RL="$(grep -n 'NEEDS REVIEW:' "$M44/domain/terraform.md" | cut -d: -f1)"
+run_lint
+assert_contains "$OUT" "terraform.md:$RL unresolved marker NEEDS REVIEW" "NEEDS REVIEW followed by punctuation fires"
+assert_not_contains "$OUT" "terraform.md:$((RL - 1)) unresolved" "NEEDS REVIEWER does not fire"
+rm -rf "$M44"
+
+# --- rule 17/18: inline triple backticks are not a fence opener -------------
+M45="$(new_sandbox)"; export MEMORY_DIR="$M45"; build_clean "$M45"
+printf '%s\n' '```bash foo``` is the entrypoint' 'TODO after the inline triple backticks' "$DUP" >> "$M45/projects/good/memory.md"
+printf '%s\n' "$DUP" >> "$M45/domain/terraform.md"
+IL="$(grep -n 'TODO after the inline' "$M45/projects/good/memory.md" | cut -d: -f1)"
+run_lint
+assert_contains "$OUT" "memory.md:$IL unresolved marker TODO" "marker after an inline-triple-backtick line fires"
+assert_contains "$OUT" "duplicate line in 2 files" "duplicate after an inline-triple-backtick line fires"
+rm -rf "$M45"
+
+# --- rule 18: double-backtick spans, TODO. punctuation -----------------------
+M46="$(new_sandbox)"; export MEMORY_DIR="$M46"; build_clean "$M46"
+printf '%s\n' 'Mention ``TODO`` and ``a `TODO` b`` in code' 'See TODO.md and TODO.x here' '(TODO.) one' 'say "TODO." two' 'list TODO., three' 'end TODO.' >> "$M46/domain/terraform.md"
+DL="$(grep -n '(TODO.) one' "$M46/domain/terraform.md" | cut -d: -f1)"
+run_lint
+assert_not_contains "$OUT" "terraform.md:$((DL - 2)) unresolved" "double-backtick spans do not fire"
+assert_not_contains "$OUT" "terraform.md:$((DL - 1)) unresolved" "TODO.md and TODO.x do not fire"
+assert_contains "$OUT" "terraform.md:$DL unresolved marker TODO" "(TODO.) fires"
+assert_contains "$OUT" "terraform.md:$((DL + 1)) unresolved marker TODO" "TODO. before a quote fires"
+assert_contains "$OUT" "terraform.md:$((DL + 2)) unresolved marker TODO" "TODO., fires"
+assert_contains "$OUT" "terraform.md:$((DL + 3)) unresolved marker TODO" "TODO. at end of line fires"
+rm -rf "$M46"
+
+# --- rule 17: finding starts with a file:line, not a fake file ---------------
+M47="$(new_sandbox)"; export MEMORY_DIR="$M47"; build_clean "$M47"
+printf '%s\n' "$DUP" >> "$M47/projects/good/memory.md"
+printf '%s\n' "$DUP" >> "$M47/domain/terraform.md"
+run_lint
+assert_contains "$OUT" "WARN:  $M47/projects/good/memory.md:" "duplicate WARN leads with the first file:line"
+assert_contains "$OUT" "duplicate line in 2 files (also $M47/domain/terraform.md:" "duplicate WARN lists the other locations"
+rm -rf "$M47"
+
 finish

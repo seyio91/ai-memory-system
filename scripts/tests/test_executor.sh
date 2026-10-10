@@ -377,6 +377,65 @@ assert_exit 1 "$CODE" "--run validate fails when validator prompt is missing"
 assert_contains "$ERR" "validator prompt missing" "missing validator prompt fails loudly"
 assert_eq "" "$OUT" "missing validator prompt does not dispatch caller input"
 
+# --brief <name>: select agents/<name>.md in place of validator.md (validate only).
+# Hermetic: the standalone copy under $MEM gets distinct fixture bodies.
+mkdir -p "$MEM/agents"
+printf -- '---\nname: validator\n---\nVALIDATOR-FIXTURE-BODY\n' > "$MEM/agents/validator.md"
+printf -- '---\nname: auditor\n---\nAUDITOR-FIXTURE-BODY\n' > "$MEM/agents/auditor.md"
+run_missing --role validate --run --brief auditor "audit it"
+assert_exit 0 "$CODE" "--brief auditor exits 0"
+args="$(cat "$WMARK")"
+assert_contains "$args" "AUDITOR-FIXTURE-BODY" "--brief auditor puts the auditor body in the prompt"
+assert_not_contains "$args" "VALIDATOR-FIXTURE-BODY" "--brief auditor drops the validator body"
+assert_contains "$args" "audit it" "--brief auditor retains caller input"
+run_missing --role validate --run "plain"
+args="$(cat "$WMARK")"
+assert_contains "$args" "VALIDATOR-FIXTURE-BODY" "no --brief still uses the validator body"
+assert_not_contains "$args" "AUDITOR-FIXTURE-BODY" "no --brief does not use the auditor body"
+run_missing --role validate --run "after" --brief auditor
+assert_exit 0 "$CODE" "--brief after the prompt exits 0"
+args="$(cat "$WMARK")"
+assert_contains "$args" "AUDITOR-FIXTURE-BODY" "--brief works after the prompt"
+run_missing --role validate --run --clean --brief auditor "combo"
+assert_exit 0 "$CODE" "--clean + --brief exits 0"
+args="$(cat "$WMARK")"
+assert_contains "$args" "AUDITOR-FIXTURE-BODY" "--brief combines with --clean"
+run_missing --role validate --run --brief auditor --clean "combo2"
+args="$(cat "$WMARK")"
+assert_contains "$args" "AUDITOR-FIXTURE-BODY" "--brief then --clean also works"
+for role in task explore; do
+    run_missing --role "$role" --run --brief auditor "x"
+    assert_exit 2 "$CODE" "--brief with --role $role exits 2"
+    assert_contains "$ERR" "only valid with --role validate" "--brief with --role $role explains why"
+done
+for bad in '../x' 'A' '' '-x' 'a/b' 'a.b'; do
+    run_missing --role validate --run --brief "$bad" "x"
+    assert_exit 2 "$CODE" "--brief '$bad' exits 2"
+    assert_eq "" "$OUT" "--brief '$bad' dispatches nothing"
+done
+for bad in 'é' 'aé' 'ａ' "$(printf 'a\nb')"; do
+    LC_ALL=en_US.UTF-8 run_missing --role validate --run --brief "$bad" "x"
+    assert_exit 2 "$CODE" "--brief non-ASCII/multi-line name exits 2 under a UTF-8 locale"
+    assert_eq "" "$OUT" "--brief non-ASCII/multi-line name dispatches nothing"
+done
+run_missing --role validate --run "x" --brief
+assert_exit 2 "$CODE" "--brief with no value exits 2"
+run_missing --role validate --run --brief nosuch "x"
+assert_exit 1 "$CODE" "--brief with a missing agent file fails closed"
+assert_contains "$ERR" "nosuch prompt missing" "--brief missing file names the actual brief"
+assert_eq "" "$OUT" "--brief missing file does not dispatch caller input"
+# a bad --brief fails the same on the subagent plane, before the exit-3 sentinel
+(
+    export AI_MEMORY_EXECUTOR_VALIDATE=subagent
+    run_missing --role validate --run --brief '../x' "x"
+    assert_exit 2 "$CODE" "--brief '../x' exits 2 on the subagent plane"
+    run_missing --role task --run --brief auditor "x"
+    assert_exit 2 "$CODE" "--brief with task exits 2 on the subagent plane"
+    run_missing --role validate --run --brief auditor "x"
+    assert_exit 3 "$CODE" "valid --brief on the subagent plane still exits 3"
+)
+rm -f "$MEM/agents/validator.md" "$MEM/agents/auditor.md"
+
 # deny-list.local.txt rules are appended to the preamble, for every role; a
 # single-word line is not a usable rule (guard shape) and is skipped.
 printf '  pulumi up  \nsingleword\n# x\n' > "$MEM/scripts/deny-list.local.txt"

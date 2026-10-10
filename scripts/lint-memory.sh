@@ -587,6 +587,120 @@ if [ "${#payload_projects[@]}" -gt 0 ]; then
     done < <("$SCRIPT_DIR/check-memory-size.sh" --payload "${payload_projects[@]}" 2>/dev/null)
 fi
 
+# 17. Exact cross-file duplicate lines — a content line that appears verbatim
+#     (list, ordered-list and blockquote markers stripped, whitespace
+#     collapsed) in two or more different project `memory.md` / `domain/*.md`
+#     files is a fact stated twice, which drifts. Frontmatter, fenced code,
+#     HTML comments, headings, table separator and header rows, and lines
+#     under 40 bytes (boilerplate like `_(none yet)_`) are ignored; repeats
+#     inside one file are not this rule's concern. Every `_template` is
+#     skipped. Inline: only a whole-tree sweep can see cross-file repeats, so
+#     the memory-write hook has nothing to reuse (contrast rules 7 and 16).
+#
+# 18. Unresolved markers — `NEEDS REVIEW` or a case-sensitive whole-word `TODO`
+#     in the same file set. Frontmatter, fenced code, HTML comments and inline
+#     code spans are skipped, so `todo.md`, `TODOs`, `TODO.md`, `TODO/`,
+#     `TODO-list` and a backticked mention of the marker do not fire.
+#
+#     Both run in one awk under LC_ALL=C (byte lengths, same on BSD awk and
+#     gawk); a non-zero awk exit is an ERROR, never a silent pass.
+dup_files=()
+for f in "$MEMORY_DIR"/projects/*/memory.md "$MEMORY_DIR"/domain/*.md; do
+    [ -e "$f" ] || continue
+    case "$f" in *"/_template/"*|*"/_template.md") continue;; esac
+    dup_files[${#dup_files[@]}]="$f"
+done
+if [ "${#dup_files[@]}" -gt 0 ]; then
+    dup_out="$(LC_ALL=C awk '
+        function flush() {
+            if (pk == "") return
+            if (!(pk in files)) { order[++n] = pk; files[pk] = pf; first[pk] = pl; locs[pk] = ""; cnt[pk] = 1 }
+            else {
+                locs[pk] = (locs[pk] == "" ? pl : locs[pk] ", " pl)
+                if (index(files[pk] "\n", pf "\n") == 0) { files[pk] = files[pk] "\n" pf; cnt[pk]++ }
+            }
+            pk = ""
+        }
+        function mask(s,    out, sp) {
+            out = ""
+            while (match(s, /``[^`]*(`[^`]+)*``|`[^`]*`/)) {
+                sp = substr(s, RSTART, RLENGTH)
+                gsub(/<!--/, "<\001!--", sp); gsub(/-->/, "-\001->", sp)
+                out = out substr(s, 1, RSTART - 1) sp
+                s = substr(s, RSTART + RLENGTH)
+            }
+            return out s
+        }
+        function clip(t,    i) {
+            if (length(t) <= 80) return t
+            for (i = 81; i > 1; i--) if (substr(t, i, 1) == " ") return substr(t, 1, i - 1) "..."
+            return t
+        }
+        FNR == 1 { flush(); fm = 0; cm = 0; fence = 0; fch = ""; flen = 0 }
+        {
+            raw = $0
+            sub(/\r$/, "", raw)
+            if (FNR == 1 && raw == "---") { fm = 1; next }
+            if (fm) { if (raw == "---") fm = 0; next }
+            if (cm) {
+                e = index(raw, "-->")
+                if (e == 0) { flush(); next }
+                raw = substr(raw, e + 3); cm = 0
+            } else if (fence) {
+                flush()
+                t = raw; sub(/^[ \t]+/, "", t); sub(/[ \t]+$/, "", t)
+                if (substr(t, 1, 1) == fch && t ~ /^(`+|~+)$/ && length(t) >= flen) fence = 0
+                next
+            } else if (raw ~ /^[ \t]*```+[^`]*$/ || raw ~ /^[ \t]*~~~+/) {
+                flush()
+                t = raw; sub(/^[ \t]+/, "", t)
+                fch = substr(t, 1, 1); flen = 0
+                while (substr(t, flen + 1, 1) == fch) flen++
+                fence = 1
+                next
+            }
+            raw = mask(raw)
+            while ((st = index(raw, "<!--")) > 0) {
+                rest = substr(raw, st + 4); e = index(rest, "-->")
+                if (e == 0) { raw = substr(raw, 1, st - 1); cm = 1; break }
+                raw = substr(raw, 1, st - 1) " " substr(rest, e + 3)
+            }
+            gsub(/\001/, "", raw)
+            if (raw ~ /^[ \t]*$/) { flush(); next }
+            if (raw ~ /^[ \t]*\|?[ \t:|-]+\|?[ \t]*$/ && raw ~ /-/) { pk = ""; next }
+            flush()
+            line = raw
+            sub(/^[ \t]*(>[ \t]*)*/, "", line)
+            sub(/^([-*+]|[0-9]+[.)])[ \t]+/, "", line)
+            gsub(/[ \t]+/, " ", line)
+            sub(/^ /, "", line); sub(/ $/, "", line)
+            if (line !~ /^#/ && length(line) >= 40) { pk = line; pf = FILENAME; pl = FILENAME ":" FNR }
+            code = raw
+            gsub(/``[^`]*(`[^`]+)*``|`[^`]*`/, "", code)
+            if (code ~ /NEEDS REVIEW($|[^A-Za-z0-9_])/) mk[++m] = "WARN:  " FILENAME ":" FNR " unresolved marker NEEDS REVIEW"
+            else if (code ~ /(^|[^A-Za-z0-9_.\/-])TODO($|[^A-Za-z0-9_.\/-]|\.($|[])} \t"\047,;:]))/) mk[++m] = "WARN:  " FILENAME ":" FNR " unresolved marker TODO"
+        }
+        END {
+            flush()
+            for (i = 1; i <= n; i++) {
+                k = order[i]
+                if (cnt[k] >= 2) print "WARN:  " first[k] " duplicate line in " cnt[k] " files (also " locs[k] "): " clip(k)
+            }
+            for (i = 1; i <= m; i++) print mk[i]
+        }
+    ' "${dup_files[@]}" 2>/dev/null)"
+    dup_rc=$?
+    if [ "$dup_rc" -ne 0 ]; then
+        emit "ERROR: $MEMORY_DIR lint rules 17/18 could not scan memory files (awk exit $dup_rc)"
+    elif [ -n "$dup_out" ]; then
+        while IFS= read -r finding; do
+            emit "$finding"
+        done <<EOF
+$dup_out
+EOF
+    fi
+fi
+
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
     exit 0

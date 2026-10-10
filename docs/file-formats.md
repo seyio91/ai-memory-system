@@ -94,6 +94,19 @@ more delivery chunks than a harness's `session_chunks` cap — that one truncate
 than just reading slowly. Both checks are `check-memory-size.sh --file`/`--payload`; see
 [scripts.md](scripts.md). No budget applies to `domain/*.md` (lazy-loaded, never injected).
 
+**Duplicates and markers.** Across project `memory.md` files and `domain/*.md` (templates exempt),
+`lint-memory` WARNs on a line that appears verbatim in two or more files (rule 17 — one fact, one
+home) and on unresolved `NEEDS REVIEW` / `TODO` markers (rule 18). Both skip frontmatter, fenced
+code and HTML comments; rule 18 also ignores markers inside inline code, and rule 17 skips headings,
+lines under 40 bytes and table headers.
+
+**Audits.** `/lint-memory --audit <project>` checks every claim in a project's `memory.md`
+against its repo and read-only APIs, using the brief in [`agents/auditor.md`](../agents/auditor.md),
+and writes `projects/<project>/audits/audit-YYYY-MM-DD.md`: one verdict per claim (Wrong / Stale /
+Derivable / Move / Keep / Unverified), each with the command and output behind it. An audit edits
+nothing; acting on it is a separate trim. Reports live in `audits/`, not `investigations/`, because
+they are not tied to a task.
+
 **Optional `## Related Projects`.** The template carries a commented-out `## Related Projects` block after the other sections. Uncomment it only when this project's work spans into others; it holds the relationship table described in [Cross-project relationships](workflow.md#cross-project-relationships). Because it's HTML-commented in the template, it stays inert for the lint section check until you uncomment it.
 
 ```markdown
