@@ -166,7 +166,9 @@ Shared-state criteria, enforcement detail, and worked examples:
   symlinks it in. Project-scoped skills live at `projects/<name>/skills/`,
   fanned out via `scripts/sync-project-skills.sh`.
 - **Update memory immediately when you learn or decide something durable** —
-  don't batch:
+  don't batch. Durable is not enough: write it only if Claude could not
+  work it out from the code or the repo's docs, or it is specific to how we
+  use the tool.
   - Project-specific (architecture decision, gotcha, locked-in choice) →
     `projects/<active>/memory.md`, matching section (Architecture Decisions /
     Known Constraints / Gotchas / Commands / Conventions / Pointers). Status

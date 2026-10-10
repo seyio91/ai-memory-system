@@ -21,6 +21,8 @@ For each candidate, produce:
 
 Before finalizing a candidate, apply the **present-tense test**: would this still be true and worth reading in 6 months with no edit? If its payload is an *event* — "we did X", "PR #N merged", "track closed" — it's git history; drop it, or reduce it to the durable decision/gotcha underneath. Memory keeps decisions and constraints; git keeps events.
 
+Then apply the **promotion bar**: a candidate qualifies only if it is `[non-obvious]` — Claude could not work it out from the code or the repo's own docs — or `[usage]` — an instruction specific to how we use the tool. Durable but derivable (a directory layout, what a script already documents) does not qualify. Append the met criterion to the candidate's summary; drop any candidate that meets neither and list the dropped ones in one line in the Step 8 report.
+
 Cap the candidate list at 4 (the `AskUserQuestion` per-question limit). If more emerge, keep the most load-bearing ones — the rest can be promoted next round. Never invent candidates; only surface what's actually in `working.md`.
 
 Step 4 — present the candidates via a multi-select question. Use `AskUserQuestion` with `multiSelect: true`. Each option's label MUST start with the destination tag in square brackets so the user can see destinations at a glance, e.g.:
