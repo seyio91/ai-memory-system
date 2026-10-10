@@ -1,1 +1,0 @@
-- **Code-phase validation now includes independent review.** Part A verifies the plan contract; Part B reviews the branch diff, with PR creation gated on Part A passing and no bug-grade finding.
