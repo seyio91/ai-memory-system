@@ -1,6 +1,7 @@
 ---
 plan: re-runnable-memory-audit
-status: in_progress
+status: done
+completed: 2026-10-10
 created: 2026-10-09
 owner: claude (orchestrator)
 task_provider: local
@@ -15,15 +16,15 @@ Make the trim validators' check re-runnable: `/lint-memory --audit <project>` ha
 
 ## Success criteria
 
-- [ ] `agents/auditor.md` exists and is the single source of the audit brief: verdict vocabulary, the per-claim evidence rule, and the three trim failure types as named checks.
-- [ ] `/lint-memory --audit <project>` resolves the project's repo, dispatches the validate role with the auditor brief, and writes `audit-YYYY-MM-DD.md` in the agreed location without editing any memory file.
-- [ ] Every claim in `memory.md` appears in the report with exactly one verdict (Wrong / Stale / Derivable / Move / Keep / Unverified) and, for every verdict except Unverified, the command(s) run and their result. A bullet is split when its facts could get different verdicts; descriptive glue needs no row of its own. A row whose evidence describes the command instead of quoting it meets this bar only if `/lint-memory --audit` step A4 flags it as weak evidence and the row still shows the deciding output. (Amended 2026-10-10, user-approved, after final-pass rounds 2–3: one verdict per bullet hid mixed bullets, and an LLM auditor does not quote every command.)
-- [ ] No Keep without evidence; a claim the agent could not reach (repo or read-only API) is Unverified.
-- [ ] Audit runs make only read-only calls: no file outside the report is written, and every API call is a GET.
-- [ ] `lint-memory.sh` WARNs on (a) an exact normalised line duplicated across project `memory.md` and `domain/*.md` files and (b) `NEEDS REVIEW` / `TODO` markers in those files; `_template` exempt. Each rule has a positive and a negative test fixture, and a mutation of each rule makes its test fail.
-- [ ] Live tree: every new WARN on the current memory tree is a real finding (or the rule is tightened until it is).
-- [ ] The audit report file does not trip lint (rule 9 or any other).
-- [ ] Full `run-tests.sh` green; `changelog.d` fragment; docs updated (`docs/scripts.md` / command docs as applicable).
+- [x] `agents/auditor.md` exists and is the single source of the audit brief: verdict vocabulary, the per-claim evidence rule, and the three trim failure types as named checks.
+- [x] `/lint-memory --audit <project>` resolves the project's repo, dispatches the validate role with the auditor brief, and writes `audit-YYYY-MM-DD.md` in the agreed location without editing any memory file.
+- [x] Every claim in `memory.md` appears in the report with exactly one verdict (Wrong / Stale / Derivable / Move / Keep / Unverified) and, for every verdict except Unverified, the command(s) run and their result. A bullet is split when its facts could get different verdicts; descriptive glue needs no row of its own. A row whose evidence describes the command instead of quoting it meets this bar only if `/lint-memory --audit` step A4 flags it as weak evidence and the row still shows the deciding output. (Amended 2026-10-10, user-approved, after final-pass rounds 2–3: one verdict per bullet hid mixed bullets, and an LLM auditor does not quote every command.)
+- [x] No Keep without evidence; a claim the agent could not reach (repo or read-only API) is Unverified.
+- [x] Audit runs make only read-only calls: no file outside the report is written, and every API call is a GET.
+- [x] `lint-memory.sh` WARNs on (a) an exact normalised line duplicated across project `memory.md` and `domain/*.md` files and (b) `NEEDS REVIEW` / `TODO` markers in those files; `_template` exempt. Each rule has a positive and a negative test fixture, and a mutation of each rule makes its test fail.
+- [x] Live tree: every new WARN on the current memory tree is a real finding (or the rule is tightened until it is).
+- [x] The audit report file does not trip lint (rule 9 or any other).
+- [x] Full `run-tests.sh` green; `changelog.d` fragment; docs updated (`docs/scripts.md` / command docs as applicable).
 
 ## Design
 

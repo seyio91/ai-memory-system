@@ -1,3 +1,5 @@
+# Archived todo — ai-memory — 2026-10-10
+
 # Todo — ai-memory
 
 > Single source of truth for executable work on this project.
@@ -7,7 +9,11 @@
 
 ## Active
 
-_(no items yet)_
+### Add a re-runnable per-claim memory audit (/lint-memory --audit) → [plan](plans/re-runnable-memory-audit.md)
+- [x] P1 — Auditor brief + spike on one real project
+- [x] P2 — `/lint-memory --audit <project>` dispatcher (needs: P1)
+- [x] P3 — Precise lint rules
+- [x] P4 — Docs, changelog, ship (needs: P2, P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_
