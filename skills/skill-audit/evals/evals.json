@@ -1,0 +1,45 @@
+{
+  "skill_name": "skill-audit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Audit the skill in evals/fixtures/flawed (relative to the skill-audit folder). Tell me what is wrong with it.",
+      "expected_output": "Runs the lint script, reports a rule table with file:line evidence, lists numbered fixes, and stops without editing any file.",
+      "files": ["evals/fixtures/flawed/SKILL.md"],
+      "assertions": [
+        {"text": "Runs scripts/lint_skill.py on the fixture before judging", "type": "content_check"},
+        {"text": "Flags the first-person description as a rule 5 fail", "type": "content_check"},
+        {"text": "Flags the backslash path docs\\template.md as a rule 9 fail", "type": "content_check"},
+        {"text": "Flags the missing evals/ directory as a rule 11 fail and lists the baseline run under test these, not as a fail", "type": "content_check"},
+        {"text": "Reads the always and think-step-by-step lines in context before deciding: keeps the reasoning-echo line as a rule 13 fail, and treats the always line as a rule 10 fail only if a hook could actually enforce it, otherwise dismisses it", "type": "content_check"},
+        {"text": "Ends with a numbered fix list and asks which numbers to apply, with no file modified", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Run a skill audit over every skill in evals/fixtures/pack (relative to the skill-audit folder) and give me the overview.",
+      "expected_output": "Folder mode: one summary table with a row per skill, a per-skill rule table, one ranked fix list, and no edits.",
+      "files": ["evals/fixtures/pack/alpha/SKILL.md", "evals/fixtures/pack/beta/SKILL.md"],
+      "assertions": [
+        {"text": "Passes the folder path to the script once and covers both alpha and beta", "type": "content_check"},
+        {"text": "Opens with a summary table with columns skill, fails, worst problem", "type": "content_check"},
+        {"text": "Reports beta's second-person description as a rule 5 fail", "type": "content_check"},
+        {"text": "Gives each skill its own 13-row rule table using pass, fail, n.a. or test", "type": "content_check"},
+        {"text": "Makes no file edits", "type": "content_check"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Work on a copy of evals/fixtures/flawed in a temp folder, never the fixture itself. You audited that skill and gave me this fix list: 1. Rewrite the description in third person. 2. Replace docs\\template.md with docs/template.md. 3. Remove the think-step-by-step sentence. 4. Add three evals. Apply fixes 2 and 4 only.",
+      "expected_output": "Applies exactly fixes 2 and 4, leaves the description and the reasoning sentence untouched, re-runs the script, and lists changes file by file.",
+      "files": ["evals/fixtures/flawed/SKILL.md"],
+      "assertions": [
+        {"text": "Changes the path to forward slashes (fix 2)", "type": "content_check"},
+        {"text": "Adds at least three eval entries or files (fix 4)", "type": "content_check"},
+        {"text": "Leaves the description and the think-step-by-step sentence unchanged", "type": "content_check"},
+        {"text": "Re-runs the lint script afterwards and reports the rule 9 and rule 11 fails gone", "type": "content_check"},
+        {"text": "Ends with a list of changes grouped by file", "type": "content_check"}
+      ]
+    }
+  ]
+}

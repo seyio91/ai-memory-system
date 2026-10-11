@@ -88,6 +88,11 @@ __pycache__/
 !/skills/.gitkeep
 !/skills/design-brainstorm/
 !/skills/design-brainstorm/**
+!/skills/skill-audit/
+!/skills/skill-audit/**
+/skills/skill-audit/**/__pycache__/
+/skills/*/**/.DS_Store
+/skills/*/self-rating.md
 
 # Remote-skill cache: content is materialized per-instance by resolve-skills.sh from
 # root skills.toml and pinned by .skill-cache/skills.lock. Never committed — remote
