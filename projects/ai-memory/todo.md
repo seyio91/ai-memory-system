@@ -7,11 +7,7 @@
 
 ## Active
 
-### Build in-engine skill-audit skill with lint script → [plan](plans/skill-audit.md)
-- [x] P1 — `scripts/lint_skill.py` + unittest
-- [x] P2 — `references/rules.md`
-- [x] P3 — `SKILL.md` + `evals/` + self-rating partial (needs: P1, P2)
-- [x] P4 — Docs, live run, ship (needs: P3) — PR #130
+_(no items yet)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
