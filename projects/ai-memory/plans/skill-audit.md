@@ -26,7 +26,7 @@ Ship a generic `skills/skill-audit` skill in this engine, invoked as `/skill-aud
   - Rule 11: `evals/` with <3 entries (counts `evals/evals.json` entries, else files).
   - Rule 13: reasoning-echo phrasing.
   
-  A unittest with good and bad fixture skills covers each detection and runs in `run-tests.sh`'s python stage. A mutation that disables any one detection fails the unittest.
+  A bash test (`scripts/tests/test_lint_skill.sh`, run by `run-tests.sh`'s test stage) with good and bad fixture skills covers each detection. A mutation that disables any one detection fails it.
 - `SKILL.md` stays under 500 lines and opens with the most important rules. Its workflow is a copyable checklist with go-back lines: script, then judgement, then report, then wait, then apply only approved numbers, then re-check until pass, then list changes per file. It links `references/rules.md` one level deep. Its description is third person and says both what the skill does and when to use it. It names its dependency with an install line.
 - `references/rules.md` has a contents list. For each of the 13 rules it gives the check, the fix and an Anthropic source URL. The wording is paraphrased, with no copied third-party guide text.
 - Rules 3, 4, 6, 7, 8 and 12 are judgement checks. Rule 4 and rule 11's baseline run come out as "test this" items, never as fails.
@@ -65,9 +65,9 @@ Rejected alternatives:
 ## Phases
 
 ### Phase 1 — `scripts/lint_skill.py` + unittest
-Write the mechanical checks for rules 1, 2, 5, 9, 10, 11 and 13, taking one skill or a folder and outputting JSON. Add good and bad fixture skills, and a unittest wired into the existing python stage.
+Write the mechanical checks for rules 1, 2, 5, 9, 10, 11 and 13, taking one skill or a folder and outputting JSON. Add good and bad fixture skills in `scripts/tests/test_lint_skill.sh` (bash suite; the python stage only discovers `scripts/taskprovider/tests`).
 **Depends:** none
-**Verify:** the unittest passes, each detection has a failing fixture case, a mutation that disables any detection fails the test, and the script is stdlib-only.
+**Verify:** the test passes, each detection has a failing fixture case, a mutation that disables any detection fails the test, and the script is stdlib-only.
 
 ### Phase 2 — `references/rules.md`
 Write the 13 rules, each with its check, fix and Anthropic source URL, under a contents list. Paraphrased; generic; no CCV content.
@@ -75,7 +75,7 @@ Write the 13 rules, each with its check, fix and Anthropic source URL, under a c
 **Verify:** all 13 rules are present with a check, a fix and a source. The contents list matches the headings. `grep -ri ccv` is empty.
 
 ### Phase 3 — `SKILL.md` + `evals/` + self-rating partial
-Write the workflow checklist with go-back lines, the rule checklist, the Needs line and the report shape. Write a third-person description. Add ≥3 eval prompts. Inject the self-rating partial with `apply-partial.sh --force` and bump the drift-gate carrier count.
+Write the workflow checklist with go-back lines, the rule checklist, the Needs line and the report shape. Write a third-person description. Add ≥3 eval prompts. Inject the self-rating partial with `apply-partial.sh --force`; add `scripts/tests/test_self_rating_drift.sh` (tracked carriers byte-match the partial — no such gate existed).
 **Depends:** P1, P2
 **Verify:** `lint_skill.py skills/skill-audit` reports no fails. `validate-skills.sh` is clean. `SKILL.md` is under 500 lines. The self-rating drift test passes.
 
@@ -89,4 +89,6 @@ Add the skill to the docs' skill listing and write `changelog.d/skill-audit.feat
 - The rules track Anthropic's skill guide, which changes. Re-syncing is manual for now. This rule set is a candidate for the `[workaround:]` tag and re-check in plan `add-a-per-release-prune-memory-pass`.
 - Rule 10's hook advice is Claude-specific, since other harnesses have no skill-frontmatter hooks. The audit notes this and never fails a skill for it outside Claude.
 - Heuristic false positives: the rule-10 never/always/must scan and the rule-13 phrasing regex will over-match. They're reported as candidates, and the model confirms them before listing a fail.
+- Rule 9 backslash-path check skips fenced code and inline code spans (to avoid regex/escape false fails). Known gaps (validator round 4, accepted): a stray backtick can pair with a later span and hide a prose path; a genuine backslash path written inside inline code (`` `scripts\helper.py` ``) passes. A narrower fix would check path-shaped tokens inside spans while ignoring regex/printf escapes.
+- Linter follow-ups accepted at the final pass (advisory output; every fix still needs approval): nested code fences (a fence inside a 4-backtick fence) are read as prose, so a path inside gives a rule 9 fail; absolute links outside `/Users/`/`/home/` (e.g. `/opt/...`) get no rule 1 or rule 9 check; symlinked non-markdown files (e.g. `scripts/x.py`) pointing outside aren't flagged; a symlinked `venv`/`node_modules` pointing outside gives a rule 9 fail before the vendored skip; a file reached through two symlink aliases can be a false rule 1 orphan; `~/` links are reported as missing (rule 1), not as machine-specific (rule 9).
 - The task ref still reads `add-audit-skill-command-delegating-to-hub-skill-audit`, because `taskctl` can't rename refs.
