@@ -1,1 +1,0 @@
-- Scope `task_ref: none` to plans: investigations now warn because they always require a task lifecycle anchor.
