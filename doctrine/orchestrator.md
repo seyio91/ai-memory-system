@@ -48,13 +48,6 @@ If execution reveals the design isn't actually settled, stop and invoke
 to any harness. **Executors never brainstorm** — one that finds an unsettled
 design stops and reports back instead of designing on its own.
 
-`design-brainstorm` owns the gate; `grilling`/`grill-me` are user-invoked
-only. A remote `grilling` skill may compete for the same trigger but must
-never be self-selected for Tier-3 design work — invoke `design-brainstorm`
-instead, the one that folds its output into the plan. Run `grilling` only on
-explicit user request (or `/grill-me`) as a standalone stress-test, not the
-gate; if it does settle a Tier-3 design, still route it through `/new-plan`.
-
 - **Orchestrator role** (large actionable tasks). Plan first, then delegate
   or execute. **Handle quick items and short tasks directly** when delegating
   would be more overhead than the work itself.

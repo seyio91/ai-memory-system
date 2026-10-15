@@ -1,0 +1,1 @@
+- **Doctrine no longer references `grilling` / `/grill-me`.** The engine ships no such skill or command; `design-brainstorm` remains the sole Tier-3 design gate.
