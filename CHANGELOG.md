@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-17
+### Added
+
+- **Project wiki pages are a documented convention.** `projects/<name>/wikis/<slug>.md` holds reference detail too large for `memory.md`, with `topic`/`scope`/`summary`/`reviewed` frontmatter and a `## Pointers` link from the project's `memory.md` — the only way a wiki page loads. The doctrine's wiki-page offer and `/promote-memory` (new `[wiki:<slug>]` destination) route there. Format: `docs/file-formats.md` → Project wiki pages.
+- **Decision-stream proposals now get resolved.** `/plan-done` on an initiative-backed plan lists the initiative's `-proposed` entries and asks you to confirm (`D<n>:`), reject (`D<n>-rejected:`) or leave each one; closing an initiative requires every proposal resolved first. Previously nothing ever prompted for confirmation, so proposals sat indefinitely. States and close procedure: `docs/initiatives.md`.
+
 ## [1.6.1] - 2026-10-15
 ### Fixed
 
