@@ -7,7 +7,14 @@
 
 ## Active
 
-_(no items yet)_
+### Decision status lifecycle → [plan](plans/decision-status-lifecycle.md)
+- [ ] P1 — shape + lint rules
+- [ ] P2 — write guard on initiatives (needs: P1)
+- [ ] P3 — derived count (needs: P1)
+- [ ] P4 — close-out (plan-done Step 5b), doctrine, docs, changelog
+- [ ] P5 — migration (needs: P1)
+- [ ] P6 — migrate local initiatives (needs: P5)
+- [ ] Pre-PR checkpoint — suite, lint diff, final validator pass, PR (needs: P1, P2, P3, P4, P5, P6)
 
 ## Done
 _(checked items stay above until the file is rolled)_
