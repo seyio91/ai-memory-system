@@ -213,9 +213,10 @@ project that reaches into others carries a `## Related Projects` table in its
 - **Decision stream at phase completion.** At every plan-phase completion,
   if the active project owns a Target in an active initiative, ask whether
   this settled anything that binds another repo; if yes, append the next
-  `D<n>-proposed` to that initiative's `## Decision stream` now.
+  `D<n> proposed <date>` (with an `unconfirmed:` line) to that initiative's
+  `## Decision stream` now.
 - **Stream-first capture.** Record a cross-repo decision in the initiative
-  decision stream at decision time as `-proposed`. Plan, runbook, and
+  decision stream at decision time as `proposed`. Plan, runbook, and
   project-memory entries are projections that point at its stream id.
   The user resolves proposals at close-out — `/plan-done` and initiative
   close (`docs/initiatives.md`).

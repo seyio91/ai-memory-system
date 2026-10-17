@@ -45,23 +45,36 @@ a plan to point at.
 
 The decision stream is append-only: append a new decision and mark an older
 one `SUPERSEDES <id>`; do not rewrite history. The one in-place edit allowed is
-an entry's status suffix:
+an entry's status and its date, `evidence:` and `unconfirmed:` lines.
 
-| Entry | Meaning |
+Entry shape: `- D<n> <status> <YYYY-MM-DD> — <decision>`. The id never changes;
+the date is bare and is the date of the last status change. Status is one of:
+
+| Status | Meaning |
 |---|---|
-| `- D<n>-proposed: …` | Recorded at decision time, not yet confirmed by the user |
-| `- D<n>: …` | Confirmed — the suffix was dropped |
-| `- D<n>-rejected: …` | Rejected by the user; kept on record, binds nothing |
+| `proposed` | Recorded at decision time, not yet confirmed by the user; carries an `  unconfirmed:` line saying what is missing |
+| `confirmed` | Confirmed by the user; carries an `  evidence:` line naming the artifact that absorbed it |
+| `rejected` | Rejected by the user; kept on record, binds nothing |
+| `superseded` | Replaced by a later entry (`SUPERSEDES <id>`) |
+| `retired` | Bound something, then withdrawn |
+
+Continuation lines (`  evidence:`, `  unconfirmed:`, `  binds:`, supersession
+keywords) are indented under the entry. Frontmatter `legacy_through: D<n>` marks
+entries that predate these rules: ids at or below it are exempt from the
+date, `evidence:` and `unconfirmed:` checks (derived, not authored per entry).
+A `D<n>-proposed` reference in older prose means `D<n>`; references are never
+rewritten.
 
 Proposals are resolved at close-out. `/plan-done` on a plan whose `task_ref`
-is an active initiative's Target lists every `-proposed` entry in that
-initiative and asks the user to confirm, reject or leave each one; initiative
+is an active initiative's Target lists every `proposed` entry in that
+initiative and asks the user to confirm, reject or leave each one. A confirm
+needs the absorbing artifact; without one the entry stays `proposed`. Initiative
 close requires the same first (below). Only the user resolves a proposal.
 
 ## Stream-first capture
 
 Record a cross-repo decision in the initiative `## Decision stream` at decision
-time as `D<n>-proposed`. Plan, runbook, and project-memory entries are
+time as `D<n> proposed <date>` with an `unconfirmed:` line. Plan, runbook, and project-memory entries are
 projections that carry the stream id; the stream is the record. Check at every
 plan-phase completion and during `/checkpoint`, never at handover.
 
@@ -72,7 +85,7 @@ reads the initiative and reports the slug, Target id, `execution_mode`,
 dependencies are satisfied; an unsatisfied dependency stops for user direction
 before planning. It reads `## Decision stream` before the design gate, and any
 new cross-repo decision settled during planning is appended as the next
-`D<n>-proposed` at decision time. Multiple matches are an error: lint rule 15a
+`D<n> proposed <date>` at decision time. Multiple matches are an error: lint rule 15a
 forbids one task on more than one Target. `/start` never writes the initiative:
 the Target names the task and the plan is derived by matching `task_ref`, so
 starting work requires no Target update.
@@ -85,7 +98,7 @@ add a breadcrumb-only row to every affected project's `## Related Projects`
 table; keep the status and decision stream in the initiative itself.
 
 Opening and closing are explicit user actions. Before closing, resolve every
-`-proposed` entry with the user (confirm or reject — none may be left). On close, fill `## Closure`
+`proposed` entry with the user (confirm or reject — none may be left). On close, fill `## Closure`
 with the date, final Target states, and where follow-on work moved, then move
 the file to `initiatives/archive/`. Derived output may identify a candidate for
 closure but never closes an initiative itself.
@@ -136,7 +149,7 @@ in the depended Target's declared list produces a warning.
 `initiative-status.sh` also detects a software ADW Target that advanced without
 a corresponding decision-stream entry. Each normal run compares recomputed
 derived stages and the `## Decision stream` entry count (every line matching
-`^- D[0-9A-Za-z]*`, including `-proposed`) with
+`^- D[0-9A-Za-z]*`, including `proposed`) with
 `initiatives/.state/<slug>.snapshot`. A Target is stale only when its stage
 changed while that count did not; interactive Targets never participate.
 
@@ -161,7 +174,7 @@ checker is tested separately.
 Paste this row into an affected project's `## Related Projects` table:
 
 ```markdown
-| *initiative:* `<slug>` | `<when this project's work touches a Target>`. Append `D<n>-proposed` to the stream at decision time; never hand-carry a cross-repo decision to handover; check readiness with `bash scripts/initiative-status.sh <slug>`. | `initiatives/<slug>.md` — decision stream + Targets (pointer only; no status duplicated here). |
+| *initiative:* `<slug>` | `<when this project's work touches a Target>`. Append `D<n> proposed <date>` to the stream at decision time; never hand-carry a cross-repo decision to handover; check readiness with `bash scripts/initiative-status.sh <slug>`. | `initiatives/<slug>.md` — decision stream + Targets (pointer only; no status duplicated here). |
 ```
 
 ## Deliberately deferred
