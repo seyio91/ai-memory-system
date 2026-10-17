@@ -294,6 +294,67 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
         *) emit "WARN:  $f status '$initiative_status' is not an initiative status — use one of: active, closed" ;;
     esac
 
+    # 11a. Decision-stream entry shape (initiatives only). Head grammar:
+    #      `- D<n> <status> <YYYY-MM-DD> — <decision>`; continuation lines are
+    #      indented `evidence:` / `unconfirmed:`. Legacy = id numeric part <=
+    #      numeric part of frontmatter `legacy_through:` (letters ignored, so D7a
+    #      is legacy under D7); no such field -> nothing is legacy. Legacy
+    #      entries skip the date/evidence/unconfirmed checks, never the status
+    #      or unmigrated checks.
+    if [ "$kind" = "initiative" ]; then
+        legacy_mark=$(extract_fm_field "$f" legacy_through)
+        legacy_num=$(printf '%s\n' "$legacy_mark" | sed -n 's/^D\([0-9][0-9]*\).*$/\1/p')
+        [ -n "$legacy_num" ] || legacy_num=-1
+        while IFS= read -r stream_finding; do
+            [ -n "$stream_finding" ] || continue
+            emit "$stream_finding"
+        done < <(
+            awk -v file="$f" -v lt="$legacy_num" '
+                function flush(   legacy) {
+                    if (!have) return
+                    have = 0
+                    if (unmig) {
+                        printf "WARN:  %s decision-stream %s is an unmigrated old-shape entry (expected `- D<n> <status> <YYYY-MM-DD> — ...`)\n", file, id
+                        return
+                    }
+                    if (status !~ /^(proposed|confirmed|rejected|superseded|retired)$/)
+                        printf "WARN:  %s decision-stream %s status '"'"'%s'"'"' is not one of proposed|confirmed|rejected|superseded|retired\n", file, id, status
+                    legacy = (lt >= 0 && num + 0 <= lt + 0)
+                    if (legacy) return
+                    if (date !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)
+                        printf "WARN:  %s decision-stream %s has no bare YYYY-MM-DD date after the status\n", file, id
+                    if (status == "confirmed" && !hasev)
+                        printf "WARN:  %s decision-stream %s is confirmed with no evidence: continuation line\n", file, id
+                    if (status == "proposed" && !hasunc)
+                        printf "WARN:  %s decision-stream %s is proposed with no unconfirmed: continuation line\n", file, id
+                }
+                /^## Decision stream[[:space:]]*$/ { in_stream = 1; next }
+                in_stream && /^## / { flush(); in_stream = 0; exit }
+                !in_stream { next }
+                /^- / {
+                    flush()
+                    if (!match($0, /^- D[0-9]+[A-Za-z]*/)) next
+                    id = substr($0, 3, RLENGTH - 2)
+                    rest = substr($0, RLENGTH + 1)
+                    num = id; sub(/^D/, "", num); sub(/[^0-9].*$/, "", num)
+                    unmig = 0; hasev = 0; hasunc = 0; status = ""; date = ""
+                    if (rest ~ /^-(proposed|rejected)([^A-Za-z0-9]|$)/ || rest ~ /^:/ || rest ~ /^[ \t]+\(/) {
+                        unmig = 1
+                    } else if (rest ~ /^[ \t]+[^ \t]/) {
+                        n = split(rest, tok, /[ \t]+/)
+                        status = tok[2]; date = (n >= 3) ? tok[3] : ""
+                    } else next
+                    have = 1
+                    next
+                }
+                /^[^ \t]/ { flush(); next }
+                have && /^[ \t]+evidence:/ { hasev = 1 }
+                have && /^[ \t]+unconfirmed:/ { hasunc = 1 }
+                END { flush() }
+            ' "$f"
+        )
+    fi
+
     target_ids=()
     target_modes=()
     target_stages=()

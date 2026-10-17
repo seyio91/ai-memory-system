@@ -1054,4 +1054,155 @@ assert_contains "$OUT" "WARN:  $M47/projects/good/memory.md:" "duplicate WARN le
 assert_contains "$OUT" "duplicate line in 2 files (also $M47/domain/terraform.md:" "duplicate WARN lists the other locations"
 rm -rf "$M47"
 
+# --- decision-stream status field rules (kind: initiative, ## Decision stream) ---
+ds_fixture() { # ds_fixture <memdir> <legacy_through|""> : stream body on stdin
+    local f="$1/initiatives/clean-initiative.md" body
+    body="$(cat)"
+    {
+        awk -v lt="$2" 'NR > 1 && /^---$/ && !d { if (lt != "") print "legacy_through: " lt; d = 1 } { print }' "$f"
+        printf '\n## Decision stream\n\n%s\n' "$body"
+    } > "$f.t"
+    mv "$f.t" "$f"
+}
+
+# template scaffold, as /new-initiative produces it, stays lint-clean
+MD0="$(new_sandbox)"; export MEMORY_DIR="$MD0"; build_clean "$MD0"
+sed -e 's/^slug: <slug>$/slug: scaffolded/' -e 's/^created: YYYY-MM-DD$/created: 2026-10-18/' \
+    "$SCRIPTS_DIR/../initiatives/_template.md" > "$MD0/initiatives/scaffolded.md"
+run_lint
+assert_not_contains "$OUT" "scaffolded.md" "template scaffold is lint-clean"
+rm -rf "$MD0"
+
+# clean template-shaped stream passes: every status, continuation lines, no legacy mark
+MD1="$(new_sandbox)"; export MEMORY_DIR="$MD1"; build_clean "$MD1"
+ds_fixture "$MD1" "" <<'EOF'
+- D1 confirmed 2026-10-01 — shape locked
+  evidence: projects/x/plans/p.md
+  binds: x:schema
+- D2 proposed 2026-10-02 — open question
+  unconfirmed: awaiting y
+- D3 rejected 2026-10-03 — never adopted
+- D4 superseded 2026-10-04 — replaced
+  SUPERSEDES D1
+- D5 retired 2026-10-05 — withdrawn
+- D5a confirmed 2026-10-05 — lettered id
+  evidence: x
+EOF
+run_lint
+assert_exit 0 "$CODE" "clean template-shaped stream exits 0"
+assert_not_contains "$OUT" "decision-stream" "clean template-shaped stream has no findings"
+rm -rf "$MD1"
+
+# legacy entries lacking date/evidence/unconfirmed pass; ids above the mark are checked
+MD2="$(new_sandbox)"; export MEMORY_DIR="$MD2"; build_clean "$MD2"
+ds_fixture "$MD2" "D7" <<'EOF'
+- D1 confirmed — no date, no evidence
+- D2 proposed [2026-09-01] — bracketed, no unconfirmed
+- D7a proposed — lettered id at the mark (numeric compare)
+- D8 confirmed — above the mark
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream D1 " "legacy entry lacking date/evidence is exempt"
+assert_not_contains "$OUT" "decision-stream D2 " "legacy bracketed date / missing unconfirmed is exempt"
+assert_not_contains "$OUT" "decision-stream D7a " "lettered id compares by numeric part"
+assert_contains "$OUT" "decision-stream D8 has no bare YYYY-MM-DD date" "entry above legacy_through is checked"
+rm -rf "$MD2"
+
+# no legacy_through -> nothing is legacy
+MD3="$(new_sandbox)"; export MEMORY_DIR="$MD3"; build_clean "$MD3"
+ds_fixture "$MD3" "" <<'EOF'
+- D1 confirmed — no date
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 has no bare YYYY-MM-DD date" "without legacy_through nothing is legacy"
+rm -rf "$MD3"
+
+# rule: status outside the five-value set (applies to legacy ids too)
+MD4="$(new_sandbox)"; export MEMORY_DIR="$MD4"; build_clean "$MD4"
+ds_fixture "$MD4" "D1" <<'EOF'
+- D1 shipped 2026-10-01 — legacy but off-set
+- D2 confirmed/proposed 2026-10-01 — mixed
+  evidence: x
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 status 'shipped' is not one of" "off-set status warns (legacy too)"
+assert_contains "$OUT" "decision-stream D2 status 'confirmed/proposed' is not one of" "mixed status warns"
+rm -rf "$MD4"
+
+# rule: missing / bracketed / parenthesised date
+MD5="$(new_sandbox)"; export MEMORY_DIR="$MD5"; build_clean "$MD5"
+ds_fixture "$MD5" "" <<'EOF'
+- D1 rejected — no date
+- D2 rejected [2026-10-01] — bracketed
+- D3 rejected (2026-10-01) — parenthesised
+- D4 rejected 2026-10-01 — bare
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 has no bare YYYY-MM-DD date" "missing date warns"
+assert_contains "$OUT" "decision-stream D2 has no bare YYYY-MM-DD date" "bracketed date counts as missing"
+assert_contains "$OUT" "decision-stream D3 has no bare YYYY-MM-DD date" "parenthesised date counts as missing"
+assert_not_contains "$OUT" "decision-stream D4 " "bare date passes"
+rm -rf "$MD5"
+
+# rule: confirmed needs evidence: continuation line
+MD6="$(new_sandbox)"; export MEMORY_DIR="$MD6"; build_clean "$MD6"
+ds_fixture "$MD6" "" <<'EOF'
+- D1 confirmed 2026-10-01 — inline evidence is not a continuation line. evidence: x
+- D2 confirmed 2026-10-01 — has it
+  evidence: x
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 is confirmed with no evidence: continuation line" "confirmed without evidence: warns"
+assert_not_contains "$OUT" "decision-stream D2 " "confirmed with evidence: passes"
+rm -rf "$MD6"
+
+# rule: proposed needs unconfirmed: continuation line
+MD7="$(new_sandbox)"; export MEMORY_DIR="$MD7"; build_clean "$MD7"
+ds_fixture "$MD7" "" <<'EOF'
+- D1 proposed 2026-10-01 — no continuation
+- D2 proposed 2026-10-01 — has it
+  unconfirmed: awaiting y
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 is proposed with no unconfirmed: continuation line" "proposed without unconfirmed: warns"
+assert_not_contains "$OUT" "decision-stream D2 " "proposed with unconfirmed: passes"
+rm -rf "$MD7"
+
+# rule: unmigrated old-shape heads -> one unmigrated WARN, not malformed
+MD8="$(new_sandbox)"; export MEMORY_DIR="$MD8"; build_clean "$MD8"
+ds_fixture "$MD8" "D99" <<'EOF'
+- D1-proposed: old
+- D2-rejected: old
+- D3: old
+- D4-proposed (2026-09-01): old
+- D5-proposed *(raised by x)*: old
+- D6 (settled 2026-08-30): old
+EOF
+run_lint
+for d in D1 D2 D3 D4 D5 D6; do
+    assert_contains "$OUT" "decision-stream $d is an unmigrated old-shape entry" "$d old shape reported as unmigrated (even under legacy_through)"
+done
+assert_not_contains "$OUT" "is not one of" "unmigrated heads are not reported as malformed status"
+assert_not_contains "$OUT" "no bare YYYY-MM-DD" "unmigrated heads are not reported as malformed date"
+rm -rf "$MD8"
+
+# scope: only ## Decision stream, only kind: initiative
+MD9="$(new_sandbox)"; export MEMORY_DIR="$MD9"; build_clean "$MD9"
+cat >> "$MD9/initiatives/clean-initiative.md" <<'EOF'
+
+## Notes
+
+- D1 bogus — outside the decision stream
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream" "entries outside ## Decision stream are not checked"
+sed 's/^kind: initiative$/kind: project/' "$MD9/initiatives/clean-initiative.md" > "$MD9/initiatives/clean-initiative.md.t"
+mv "$MD9/initiatives/clean-initiative.md.t" "$MD9/initiatives/clean-initiative.md"
+ds_fixture "$MD9" "" <<'EOF'
+- D1 bogus — kind is not initiative
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream" "non-initiative kind is not stream-checked"
+rm -rf "$MD9"
+
 finish
