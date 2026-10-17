@@ -1,6 +1,7 @@
 ---
 plan: project-wiki-convention
-status: in_progress
+status: done
+completed: 2026-10-17
 created: 2026-10-17
 owner: claude (orchestrator)
 task_provider: local
