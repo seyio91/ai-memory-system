@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-15
+### Fixed
+
+- **Doctrine no longer references `grilling` / `/grill-me`.** The engine ships no such skill or command; `design-brainstorm` remains the sole Tier-3 design gate.
+
 ## [1.6.0] - 2026-10-11
 ### Added
 
