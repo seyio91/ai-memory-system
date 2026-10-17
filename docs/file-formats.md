@@ -77,7 +77,7 @@ Sections, in template order (**required** ones are checked by `lint-memory`):
 ## Conventions                 — optional: branch/commit/PR/style rules that differ from defaults
 ## Architecture Decisions      — required: locked-in choices (with the why) and non-goals
 ## Known Constraints / Gotchas — required: landmines, load-bearing hacks
-## Pointers                    — optional: links to the repo's README/CLAUDE.md, docs, wikis, skills
+## Pointers                    — optional: links to the repo's README/CLAUDE.md, docs, skills, and project wiki pages (`wikis/<slug>.md`)
 ## Related Projects            — optional: cross-project relationship table (below)
 ```
 
@@ -148,6 +148,28 @@ synonym silently splits one column into two and a missing `status:` renders blan
 ## Domain file body
 
 Just `## Knowledge`. Entries append as `**[YYYY-MM-DD]** what — why it matters`.
+
+## Project wiki pages (`projects/<project>/wikis/<slug>.md`)
+
+Reference detail too large for `memory.md` — a TLS chain, an audit baseline, a component design — goes in a
+wiki page. Wiki pages are never injected, indexed or triggered: the only way one loads is Claude following a
+link to it, so **every page is linked from its project's `memory.md` `## Pointers`** as `wikis/<slug>.md`.
+Wiki pages are not archived, so the path stays stable.
+
+```yaml
+---
+topic: rabbitmq-pas-service TLS configuration
+scope: project
+summary: One line — what the page covers, specific enough to decide whether to open it
+reviewed: 2026-10-17                  # date the page was last checked against its source
+repo: git@github.com:org/repo.git     # optional — the repo the page describes
+category: platform                    # optional
+---
+```
+
+`topic`/`scope`/`summary`/`reviewed` are required; `repo`/`category` are optional. Bump `reviewed` when the
+page is re-verified, not on every edit. Nothing lints wiki pages — the convention is held by review.
+A wiki page holds what stays true; findings gathered before a task exists are an investigation instead.
 
 ## `working.md` shape
 

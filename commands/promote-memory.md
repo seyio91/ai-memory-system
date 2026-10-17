@@ -1,4 +1,4 @@
-Promote one or more learnings from the active project's `working.md` into either a domain file (cross-project) or the project's `memory.md` (engagement-specific). Multi-select: the agent generates candidates, the user picks which to keep.
+Promote one or more learnings from the active project's `working.md` into a domain file (cross-project), the project's `memory.md` (engagement-specific), or a project wiki page (engagement-specific reference too long for a `memory.md` line). Multi-select: the agent generates candidates, the user picks which to keep.
 
 Checkpoint archival is separate: use `/checkpoint-archive` to roll the `## Checkpoints` section independently.
 
@@ -18,6 +18,7 @@ For each candidate, produce:
   - **`[domain:<existing-topic>]`** if the learning is a cross-project pattern matching an existing domain file. Existing domain topics live under `~/.claude-memory/domain/*.md` — read the directory to enumerate. Match by topic (e.g. anything about Terraform modules/state → `terraform`; codex/agent-tool quirks → `agent-tooling`).
   - **`[domain:new]`** if the learning is cross-project but no existing domain file fits. On selection, the agent will prompt for the new topic name, triggers, and summary.
   - **`[project]`** if the learning is engagement-specific (a decision, constraint, or gotcha tied to *this* project).
+  - **`[wiki:<slug>]`** if it is engagement-specific **reference** — a chain, an inventory, a multi-step explanation — that would not fit a ~400 B `memory.md` line. Reuse an existing `projects/<active>/wikis/<slug>.md` when one covers the topic; otherwise propose a new kebab-case slug.
 
 Before finalizing a candidate, apply the **present-tense test**: would this still be true and worth reading in 6 months with no edit? If its payload is an *event* — "we did X", "PR #N merged", "track closed" — it's git history; drop it, or reduce it to the durable decision/gotcha underneath. Memory keeps decisions and constraints; git keeps events.
 
@@ -56,6 +57,8 @@ Step 5 — for each selected candidate, write to its destination (using today's 
   - A durable **decision** (a choice + its rationale) → append `<summary>` (no date prefix — this route holds standing decisions, not a changelog) under `## Architecture Decisions` (create the section if absent). Write it present-tense ("infra applies stay CI-only because …"), not as an event ("decided X in PR #N"). If it **supersedes** an existing entry in that section, OVERWRITE that entry — do not append a second one. Append-only is how the section decays into a changelog.
   - A **constraint/gotcha** or a reusable **pattern/convention** → fold it into the matching section — `## Known Constraints / Gotchas` for landmines, `## Conventions` for conventions, `## Commands` for a command Claude can't guess. `## Architecture Decisions` is for choices only.
   - A pure **event** (work landed, PR merged, track closed) → do NOT promote; that's git history. (Step 3's present-tense test should already have dropped it.)
+
+- **`[wiki:<slug>]`** — write the reference to `~/.claude-memory/projects/<active>/wikis/<slug>.md`. A new page gets the wiki frontmatter from `docs/file-formats.md` → Project wiki pages (`topic`, `scope: project`, `summary`, `reviewed: <today>`); an existing page is edited in place and its `reviewed:` bumped. Then make sure the project's `memory.md` `## Pointers` links `wikis/<slug>.md` (create the section if absent) — an unlinked wiki page never loads.
 
 Step 6 — roll **only the learnings section**, exactly once at the end of the run (regardless of how many candidates were promoted):
 

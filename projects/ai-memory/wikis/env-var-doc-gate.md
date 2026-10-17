@@ -1,9 +1,8 @@
 ---
-doc: env-var-doc-gate
-kind: component
-status: current — two axes shipped, reverse axis unbuilt
-created: 2026-07-20
-owner: claude (orchestrator)
+topic: env-var doc gate
+scope: project
+summary: What scripts/check-docs.sh proves about the docs/scripts.md env-var table, what it structurally cannot see, and the unbuilt reverse axis that would close the gap
+reviewed: 2026-07-20
 ---
 
 # The environment-variable doc gate
