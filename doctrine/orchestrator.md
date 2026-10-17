@@ -217,5 +217,7 @@ project that reaches into others carries a `## Related Projects` table in its
 - **Stream-first capture.** Record a cross-repo decision in the initiative
   decision stream at decision time as `-proposed`. Plan, runbook, and
   project-memory entries are projections that point at its stream id.
+  The user resolves proposals at close-out — `/plan-done` and initiative
+  close (`docs/initiatives.md`).
 - For a trivial one-line touch, just read the single relevant file instead
   of delegating.

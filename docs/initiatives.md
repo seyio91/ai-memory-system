@@ -44,7 +44,19 @@ which is how a finished or abandoned Target stays readable without a task or
 a plan to point at.
 
 The decision stream is append-only: append a new decision and mark an older
-one `SUPERSEDES <id>`; do not rewrite history.
+one `SUPERSEDES <id>`; do not rewrite history. The one in-place edit allowed is
+an entry's status suffix:
+
+| Entry | Meaning |
+|---|---|
+| `- D<n>-proposed: …` | Recorded at decision time, not yet confirmed by the user |
+| `- D<n>: …` | Confirmed — the suffix was dropped |
+| `- D<n>-rejected: …` | Rejected by the user; kept on record, binds nothing |
+
+Proposals are resolved at close-out. `/plan-done` on a plan whose `task_ref`
+is an active initiative's Target lists every `-proposed` entry in that
+initiative and asks the user to confirm, reject or leave each one; initiative
+close requires the same first (below). Only the user resolves a proposal.
 
 ## Stream-first capture
 
@@ -72,7 +84,8 @@ Use `/new-initiative <kebab-case-slug>` to scaffold an active instance from
 add a breadcrumb-only row to every affected project's `## Related Projects`
 table; keep the status and decision stream in the initiative itself.
 
-Opening and closing are explicit user actions. On close, fill `## Closure`
+Opening and closing are explicit user actions. Before closing, resolve every
+`-proposed` entry with the user (confirm or reject — none may be left). On close, fill `## Closure`
 with the date, final Target states, and where follow-on work moved, then move
 the file to `initiatives/archive/`. Derived output may identify a candidate for
 closure but never closes an initiative itself.

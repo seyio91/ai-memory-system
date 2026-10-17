@@ -16,7 +16,14 @@ Step 4 — edit the frontmatter:
 
 Step 5 — sanity check the todo. Grep `~/.claude-memory/projects/<active>/todo.md` for unchecked checkboxes in the section that references `plans/$ARGUMENTS.md`. If any are still open, mention them to the user as a heads-up — but don't block; this command only flips the status, archival is a separate step.
 
-Step 6 — report back, three lines max:
+Step 5b — resolve the initiative's open decision proposals. Read the plan's `task_ref:` (from Step 3's frontmatter). If it is absent or `none`, skip this step silently. Otherwise run `grep -l -- '- task: <task_ref>' ~/.claude-memory/initiatives/*.md` with the exact full ref (never a prefix), keeping only files with `kind: initiative` and `status: active`. No match → skip silently. On a match, list every line in its `## Decision stream` matching `^- D[0-9A-Za-z]*-proposed` — all of them, not only ones from this plan (entries carry no Target link). None → skip silently. Otherwise put each one to the user (one `AskUserQuestion` question per entry, ≤4 per call; without the tool, a numbered list) with the entry text and three answers:
+- **Confirm** → rewrite `- D<n>-proposed` to `- D<n>` on that line.
+- **Reject** → rewrite `- D<n>-proposed` to `- D<n>-rejected`. The entry stays in the stream.
+- **Leave** → no change.
+Change only the status suffix; never edit an entry's text. Never decide on the user's behalf.
+
+Step 6 — report back, three lines max (four if Step 5b resolved proposals):
 - File path edited.
 - Status transition (e.g. `in-progress → done`, `completed: 2026-05-19 stamped`).
+- Proposals resolved, if Step 5b ran: `<initiative>: D<n> confirmed, D<m> rejected, D<k> left`.
 - A one-line nudge: "Run `/plan-archive $ARGUMENTS` when you're ready to move it to `archive/plans/`."
