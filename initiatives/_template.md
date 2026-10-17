@@ -31,9 +31,11 @@ status change. Continuation lines, two-space indented: `evidence:`,
 Only the user confirms. A confirm carries the date plus an `evidence:` line
 naming the absorbing artifact; a `proposed` entry carries an `unconfirmed:` line
 saying what confirmation awaits. A proposal from one project awaiting another's
-confirmation stays `proposed`. Ids at or below frontmatter `legacy_through: D<n>`
-(stamped by migration, absent on a new initiative) predate these rules and are
-exempt from the date, `evidence:` and `unconfirmed:` checks.
+confirmation stays `proposed`. Plain ids (no letter) at or below frontmatter
+`legacy_through: D<n>` (stamped by migration, absent on a new initiative)
+predate these rules and are exempt from the date, `evidence:` and `unconfirmed:`
+checks; lettered ids (`D6b`) are never exempt. At initiative close no `proposed`
+may remain: an agreed decision no repo absorbed becomes `retired <date>`.
 
 The example is indented so lint ignores it; real entries start at column 0.>
 

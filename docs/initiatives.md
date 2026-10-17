@@ -56,7 +56,7 @@ the date is bare and is the date of the last status change. Status is one of:
 | `confirmed` | Confirmed by the user; carries an `  evidence:` line naming the artifact that absorbed it |
 | `rejected` | Rejected by the user; kept on record, binds nothing |
 | `superseded` | Replaced by a later entry (`SUPERSEDES <id>`) |
-| `retired` | Bound something, then withdrawn |
+| `retired` | Bound something, then withdrawn; also an agreed decision no repo absorbed, set at initiative close with its `unconfirmed:` line kept |
 
 Continuation lines (`  evidence:`, `  unconfirmed:`, `  binds:`, supersession
 keywords) are indented under the entry. Frontmatter `legacy_through: D<n>` marks
@@ -97,8 +97,11 @@ Use `/new-initiative <kebab-case-slug>` to scaffold an active instance from
 add a breadcrumb-only row to every affected project's `## Related Projects`
 table; keep the status and decision stream in the initiative itself.
 
-Opening and closing are explicit user actions. Before closing, resolve every
-`proposed` entry with the user (confirm or reject — none may be left). On close, fill `## Closure`
+Opening and closing are explicit user actions. No `proposed` may remain at
+close: resolve each with the user. Confirm needs an absorbing artifact;
+`rejected` is only for never-adopted. An agreed decision no repo absorbed is
+set to `retired <date>`, keeping its `unconfirmed:` line as the record of what
+was never done. On close, fill `## Closure`
 with the date, final Target states, and where follow-on work moved, then move
 the file to `initiatives/archive/`. Derived output may identify a candidate for
 closure but never closes an initiative itself.

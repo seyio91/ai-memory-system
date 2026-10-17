@@ -294,16 +294,21 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
         *) emit "WARN:  $f status '$initiative_status' is not an initiative status — use one of: active, closed" ;;
     esac
 
-    # 11a. Decision-stream entry shape (initiatives only). Head grammar:
-    #      `- D<n> <status> <YYYY-MM-DD> — <decision>`; continuation lines are
-    #      indented `evidence:` / `unconfirmed:`. Legacy = id numeric part <=
-    #      numeric part of frontmatter `legacy_through:` (letters ignored, so D7a
-    #      is legacy under D7); no such field -> nothing is legacy. Legacy
-    #      entries skip the date/evidence/unconfirmed checks, never the status
-    #      or unmigrated checks.
+    # 11a. Decision-stream entry shape (initiatives only). Head grammar, single
+    #      spaces: `- D<n>[a-z]? <status> <YYYY-MM-DD> — <decision>`; any other
+    #      line starting `- D` that is not a recognised unmigrated old-shape head
+    #      is one "malformed head" WARN. Continuation lines (`evidence:` /
+    #      `unconfirmed:`) end at a blank line, the next head or a column-0 line;
+    #      fenced blocks are skipped. Legacy = plain `D<n>` (no letter) with n <=
+    #      frontmatter `legacy_through:`; none -> nothing is legacy. Legacy
+    #      entries may omit the date and skip the date/evidence/unconfirmed
+    #      checks, never the status, unmigrated or malformed-head checks.
     if [ "$kind" = "initiative" ]; then
-        legacy_mark=$(extract_fm_field "$f" legacy_through)
-        legacy_num=$(printf '%s\n' "$legacy_mark" | sed -n 's/^D\([0-9][0-9]*\).*$/\1/p')
+        legacy_mark=$(extract_fm_field "$f" legacy_through | tr -d '\r')
+        legacy_num=$(printf '%s\n' "$legacy_mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')
+        if [ -n "$legacy_mark" ] && [ -z "$legacy_num" ]; then
+            emit "WARN:  $f legacy_through '$legacy_mark' is not D<n> — nothing is treated as legacy"
+        fi
         [ -n "$legacy_num" ] || legacy_num=-1
         while IFS= read -r stream_finding; do
             [ -n "$stream_finding" ] || continue
@@ -319,7 +324,7 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                     }
                     if (status !~ /^(proposed|confirmed|rejected|superseded|retired)$/)
                         printf "WARN:  %s decision-stream %s status '"'"'%s'"'"' is not one of proposed|confirmed|rejected|superseded|retired\n", file, id, status
-                    legacy = (lt >= 0 && num + 0 <= lt + 0)
+                    legacy = (id ~ /^D[0-9]+$/ && lt >= 0 && num + 0 <= lt + 0)
                     if (legacy) return
                     if (date !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)
                         printf "WARN:  %s decision-stream %s has no bare YYYY-MM-DD date after the status\n", file, id
@@ -328,24 +333,44 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                     if (status == "proposed" && !hasunc)
                         printf "WARN:  %s decision-stream %s is proposed with no unconfirmed: continuation line\n", file, id
                 }
-                /^## Decision stream[[:space:]]*$/ { in_stream = 1; next }
+                function malformed() {
+                    printf "WARN:  %s decision-stream malformed head `%s` (expected `- D<n>[a-z]? <status> <YYYY-MM-DD> — ...`, single spaces)\n", file, substr($0, 1, 50)
+                }
+                function validdate(d,   m, dd) {
+                    m = substr(d, 6, 2) + 0; dd = substr(d, 9, 2) + 0
+                    return (m >= 1 && m <= 12 && dd >= 1 && dd <= 31)
+                }
+                { sub(/\r$/, "") }
+                /^[ \t]*```/ {
+                    if (in_stream && $0 ~ /^```/) flush()
+                    fence = !fence; next
+                }
+                fence { next }
+                tolower($0) ~ /^## decision stream[ \t]*$/ { in_stream = 1; next }
                 in_stream && /^## / { flush(); in_stream = 0; exit }
                 !in_stream { next }
-                /^- / {
+                /^[ \t]*$/ { flush(); next }
+                /^-[ \t]+D/ {
                     flush()
-                    if (!match($0, /^- D[0-9]+[A-Za-z]*/)) next
-                    id = substr($0, 3, RLENGTH - 2)
-                    rest = substr($0, RLENGTH + 1)
-                    num = id; sub(/^D/, "", num); sub(/[^0-9].*$/, "", num)
                     unmig = 0; hasev = 0; hasunc = 0; status = ""; date = ""
-                    if (rest ~ /^-(proposed|rejected)([^A-Za-z0-9]|$)/ || rest ~ /^:/ || rest ~ /^[ \t]+\(/) {
-                        unmig = 1
-                    } else if (rest ~ /^[ \t]+[^ \t]/) {
-                        n = split(rest, tok, /[ \t]+/)
-                        status = tok[2]; date = (n >= 3) ? tok[3] : ""
-                    } else next
-                    have = 1
-                    next
+                    if (match($0, /^- D[0-9]+[a-z]?/)) {
+                        id = substr($0, 3, RLENGTH - 2)
+                        rest = substr($0, RLENGTH + 1)
+                        num = id; sub(/^D/, "", num); sub(/[^0-9].*$/, "", num)
+                        if (rest ~ /^-(proposed|rejected)([^A-Za-z0-9]|$)/ || rest ~ /^:/ || rest ~ /^[ \t]+\(/) {
+                            unmig = 1; have = 1; next
+                        }
+                        if (rest ~ /^ [^ \t]+ — /) {
+                            split(rest, tok, " "); status = tok[1]
+                            have = 1; next
+                        }
+                        if (rest ~ /^ [^ \t]+ [^ \t]+ — /) {
+                            split(rest, tok, " "); status = tok[1]; date = tok[2]
+                            if (date ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ && !validdate(date)) { malformed(); next }
+                            have = 1; next
+                        }
+                    }
+                    malformed(); next
                 }
                 /^[^ \t]/ { flush(); next }
                 have && /^[ \t]+evidence:/ { hasev = 1 }
