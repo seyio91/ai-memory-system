@@ -1,6 +1,7 @@
 ---
 plan: resolve-decision-proposals-at-close-out
-status: in_progress
+status: done
+completed: 2026-10-18
 created: 2026-10-17
 owner: claude (orchestrator)
 task_provider: local

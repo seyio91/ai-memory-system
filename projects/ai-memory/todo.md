@@ -7,9 +7,7 @@
 
 ## Active
 
-### Resolve decision-stream proposals at close-out → [plan](plans/resolve-decision-proposals-at-close-out.md)
-- [x] P1 — Document and wire the resolution step
-- [x] P2 — Ship (needs: P1) — PR #135
+_(no items yet)_
 
 ## Done
 _(checked items stay above until the file is rolled)_

@@ -1,0 +1,17 @@
+# Archived todo — ai-memory — 2026-10-18
+
+# Todo — ai-memory
+
+> Single source of truth for executable work on this project.
+> Large items link to a plan under `plans/`.
+> Tick boxes in place when done. When all items here are checked (or the orchestrator decides to roll), snapshot this file to `archive/todos/YYYY-MM-DD-<slug>.md` and reset.
+> A phase that depends on another carries `(needs: Pn)`, mirrored from the plan's `**Depends:**` line — this file is what gets read on resume, so order must be legible here and not only in the plan. No annotation means independent and safe to run in parallel.
+
+## Active
+
+### Resolve decision-stream proposals at close-out → [plan](archive/plans/resolve-decision-proposals-at-close-out.md)
+- [x] P1 — Document and wire the resolution step
+- [x] P2 — Ship (needs: P1) — PR #135
+
+## Done
+_(checked items stay above until the file is rolled)_
