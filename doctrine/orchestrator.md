@@ -177,9 +177,11 @@ Shared-state criteria, enforcement detail, and worked examples:
   next / blockers, into the active project's `working.md`. Use `/checkpoint`,
   or write directly when informal.
 - **Promote durable scratchpad entries** with `/promote-memory` — targets a
-  domain file (cross-project) or the active project's `memory.md`.
+  domain file (cross-project), the active project's `memory.md`, or a
+  project wiki page.
 - **Offer to file non-trivial synthesis as a wiki page** ("File this as a
-  wiki page?") for architecture explanations, decision rationale,
+  wiki page?") — `projects/<active>/wikis/<slug>.md`, linked from
+  `memory.md` `## Pointers` (format: `docs/file-formats.md`) — for architecture explanations, decision rationale,
   comparisons, gotcha write-ups. Skip the offer for short answers, code-only
   changes, status updates, and anything already grounded in readable files.
 - **"Reorganize memory"** → follow the procedure in

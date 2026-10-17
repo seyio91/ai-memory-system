@@ -69,6 +69,10 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 - **Plan-mode artifacts go to `projects/<active>/plans/`**, not the harness default plan directory.
 - **Slash commands are indexed at session start** — a new command needs a restart to autocomplete.
 
+## Pointers
+- memory.md content contract (what belongs, budgets, enforcement): `wikis/memory-md-content-contract.md`.
+- Env-var doc gate (what `check-docs.sh` can and cannot catch): `wikis/env-var-doc-gate.md`.
+
 ## Related Projects
 
 | Project | When it's involved | It owns / entry point |

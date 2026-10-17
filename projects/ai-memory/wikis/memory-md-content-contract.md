@@ -1,9 +1,8 @@
 ---
-doc: memory-md-content-contract
-kind: component
-status: current — size + drift enforced; staleness, twice rule, prune cadence unbuilt
-created: 2026-10-07
-owner: claude (orchestrator)
+topic: project memory.md content contract
+scope: project
+summary: What belongs in a project memory.md (per-line include/leave-out test), its byte and payload budgets, lifecycle rules, and which parts are enforced today
+reviewed: 2026-10-09
 ---
 
 # The project `memory.md` content contract
@@ -49,7 +48,8 @@ happened.** A "verified on <date>, PR #N" story is an event; keep the one-senten
 - **Each release.** Rules written around an older model's or harness's limits are re-checked and
   deleted when they no longer bind. A rule a hook already enforces is prose overhead.
 - **One home per fact.** Cross-project → `domain/`; a procedure → a skill or command; reference
-  material → repo docs or a wiki, linked. A repo with its own `CLAUDE.md`/README: memory holds only
+  material → repo docs, or a project wiki page (`wikis/<slug>.md`, format in `docs/file-formats.md`)
+  linked from `## Pointers`. A repo with its own `CLAUDE.md`/README: memory holds only
   what that file lacks (cross-repo ordering, traps, decisions).
 
 ## Failure modes seen in the 2026-10-07 audit
