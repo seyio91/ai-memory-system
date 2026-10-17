@@ -78,6 +78,5 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 | Project | When it's involved | It owns / entry point |
 |---------|--------------------|------------------------|
 | `agent-skills` | Any change to a remote-referenced skill's own content (`SKILL.md`, process, frontmatter). | The authored source of every remote skill, e.g. `renovate-manager/SKILL.md`. Not `design-brainstorm` — that is in-engine under `skills/`. |
-| *(initiative)* `memory-md-hygiene` | Memory lint, the write guard, the project template, or a `memory.md` trim. | `initiatives/memory-md-hygiene.md`; contract in wiki `memory-md-content-contract`. |
 
 > **This tree can only reference remote skills, never fix them** — edits under `.skill-cache/` are discarded on the next resolve. A content change is a delegated PR against `agent-skills`, and contradictions across the repo boundary are invisible to every check here.
