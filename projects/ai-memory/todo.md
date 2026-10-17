@@ -8,9 +8,9 @@
 ## Active
 
 ### Project wiki convention → [plan](plans/project-wiki-convention.md)
-- [ ] P1 — Document the convention
-- [ ] P2 — Migrate existing pages
-- [ ] P3 — Ship (needs: P1, P2)
+- [x] P1 — Document the convention
+- [x] P2 — Migrate existing pages
+- [x] P3 — Ship (needs: P1, P2) — PR #133
 
 ## Done
 _(checked items stay above until the file is rolled)_
