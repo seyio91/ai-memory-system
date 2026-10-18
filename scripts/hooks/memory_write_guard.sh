@@ -27,8 +27,9 @@
 #                                   budget applies to domain/*.md (lazy-loaded,
 #                                   never injected — see the plan's Decisions).
 #   - initiatives/*.md             decision-stream shape only (lint-memory.sh
-#                                   rules, run on a temp copy). Not
-#                                   _template.md, not initiatives/.state/.
+#                                   rules, run on a temp copy). Top level only:
+#                                   not _template.md, not initiatives/*/ (.state/,
+#                                   archive/, ...).
 #
 # Fires after a Write/Edit, runs whichever checks are in scope for the target,
 # and reports on stderr with exit 2 — the PostToolUse code that feeds output
@@ -132,7 +133,7 @@ case "$file" in
         # would be pointing at a check this branch never ran.
         advice="$DRIFT_ADVICE"
         ;;
-    "$MEMORY_DIR"/initiatives/.state/*) exit 0 ;;
+    "$MEMORY_DIR"/initiatives/*/*) exit 0 ;;
     "$MEMORY_DIR"/initiatives/*.md)
         # lint-memory.sh has no per-file mode: lint a temp copy laid out as
         # <tmp>/initiatives/<name>.md and keep only this file's decision-stream
@@ -145,8 +146,8 @@ case "$file" in
             mkdir -p "$tmp/initiatives"
             if cp "$file" "$tmp/initiatives/$name" 2>/dev/null; then
                 findings="$(MEMORY_DIR="$tmp" bash "$lint_checker" 2>/dev/null \
-                    | grep -F "WARN:  $tmp/initiatives/$name " \
-                    | grep -E "^WARN:  [^ ]+ (decision-stream|legacy_through) ")"
+                    | grep -F -e "WARN:  $tmp/initiatives/$name decision-stream " \
+                           -e "WARN:  $tmp/initiatives/$name legacy_through ")"
                 findings="${findings//"$tmp/initiatives/$name"/$file}"
             fi
         fi

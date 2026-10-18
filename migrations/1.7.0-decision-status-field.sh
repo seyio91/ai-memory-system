@@ -5,7 +5,8 @@
 # files under $MEMORY_DIR/initiatives/*.md (the set lint-memory.sh reads;
 # _template.md, .state/ and archive/ are skipped) to
 #   - D<n>[a] <status>[ <YYYY-MM-DD>] -- <text>
-# and stamps `legacy_through: D<max plain id>` in frontmatter when absent.
+# and stamps `legacy_through: D<max plain id>` in frontmatter when absent and a head
+# was rewritten or reported. Symlinked files are skipped.
 # A `-proposed` head whose id also has a bare `D<n>:` head in the stream becomes
 # `superseded`. A parenthesised or bracketed qualifier moves to the start of the text as
 # `(<qualifier>) `. Lines it does not fully match are left byte-identical and
@@ -119,8 +120,8 @@ BEGIN { DASHSP = "" }
         if (t !~ /```/) { fence = !fence; next }
     }
     if (fence) next
-    if (tolower(L) ~ /^## decision stream[ \t]*$/) { instream = 1; next }
-    if (instream && L ~ /^## /) { instream = 0; next }
+    if (!done && tolower(L) ~ /^## decision stream[ \t]*$/) { instream = 1; next }
+    if (instream && L ~ /^## /) { instream = 0; done = 1; next }
     if (!instream) next
     if (L ~ /^- D/) {
         if (match(L, /^- D[0-9]+/) && L !~ /^- D[0-9]+[a-z]/) {
@@ -135,7 +136,7 @@ BEGIN { DASHSP = "" }
             h = L
             p = index(h, " \342\200\224 "); if (p > 0) h = substr(h, 1, p - 1)
             else { p = index(h, ": "); if (p > 0) h = substr(h, 1, p) ; else h = substr(h, 1, 60) }
-            print "U\t" NR "\t" h > ctl
+            print "U\t" NR "\t" h > ctl; nunrec++
         }
     }
 }
@@ -143,7 +144,7 @@ END {
     for (k = 1; k <= np; k++)
         if (pid[k] in bare) sub(/^- D[0-9]+[a-z]? proposed/, "- " pid[k] " superseded", out[pidx[k]])
     ins = 0
-    if (fm_end > 0 && isinit && !haslegacy && maxnum > 0) ins = 1
+    if (fm_end > 0 && isinit && !haslegacy && maxnum > 0 && nchanged + nunrec > 0) ins = 1
     if (ins) print "L\tD" maxnum > ctl
     print "H\t" nchanged + 0 > ctl
     for (i = 1; i <= lines; i++) {
@@ -164,6 +165,13 @@ for f in "$DIR"/*.md; do
     nonl=0
     if [ -s "$f" ] && [ "$(tail -c 1 "$f" | wc -l | tr -d ' ')" = "0" ]; then nonl=1; fi
 
+    if [ -L "$f" ]; then
+        echo "1.7.0: skipped symlink (migrate its target by hand): $f" >&2
+        continue
+    fi
+
+    tmp="" ctl=""
+    trap 'rm -f "$tmp" "$ctl"' EXIT
     tmp="$(mktemp "$DIR/.mig-1.7.0.XXXXXX")"
     ctl="$(mktemp "$DIR/.mig-1.7.0.ctl.XXXXXX")"
     if ! awk -v ctl="$ctl" -v nonl="$nonl" "$AWK_PROG" "$f" > "$tmp"; then
@@ -187,8 +195,9 @@ for f in "$DIR"/*.md; do
         continue
     fi
 
-    mode="$(stat -f %Lp "$f" 2>/dev/null || stat -c %a "$f")"
+    mode="$(stat -c %a "$f" 2>/dev/null || stat -f %Lp "$f")"
     chmod "$mode" "$tmp"
     mv "$tmp" "$f"
+    tmp=""
     printf '1.7.0: %s: %s head(s) rewritten%s\n' "$f" "${heads:-0}" "${legacy:+, legacy_through: $legacy}"
 done

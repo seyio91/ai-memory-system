@@ -155,4 +155,61 @@ mkdir -p "$ROOT/m4"
 MEMORY_DIR="$ROOT/m4" REPO_ROOT="$REPO_ROOT" bash "$MIG" >/dev/null
 assert_exit 0 "$?" "no initiatives/ dir exits 0"
 
+# replay safety: field-shape file without legacy_through is not stamped
+mkdir -p "$ROOT/m5/initiatives"
+printf -- '---\nkind: initiative\nslug: f\nstatus: active\ncreated: 2026-09-01\n---\n\n## Decision stream\n\n- D1 confirmed 2026-09-02 — x\n  evidence: y\n- D2 proposed 2026-09-03 — z\n  unconfirmed: w\n' > "$ROOT/m5/initiatives/f.md"
+cp "$ROOT/m5/initiatives/f.md" "$ROOT/f.orig"
+MEMORY_DIR="$ROOT/m5" REPO_ROOT="$REPO_ROOT" bash "$MIG" >/dev/null
+assert_same "$ROOT/f.orig" "$ROOT/m5/initiatives/f.md" "field-shape-only initiative unchanged, no legacy_through stamped"
+
+# only the first Decision stream section is migrated
+mkdir -p "$ROOT/m6/initiatives"
+printf -- '---\nkind: initiative\nslug: g\nstatus: active\ncreated: 2026-09-01\n---\n\n## Decision stream\n\n- D1: first.\n\n## Other\n\ntext\n\n## Decision stream\n\n- D2: second stays.\n' > "$ROOT/m6/initiatives/g.md"
+MEMORY_DIR="$ROOT/m6" REPO_ROOT="$REPO_ROOT" bash "$MIG" >/dev/null
+assert_contains "$(cat "$ROOT/m6/initiatives/g.md")" "- D1 confirmed — first." "first stream migrated"
+assert_contains "$(cat "$ROOT/m6/initiatives/g.md")" $'- D2: second stays.' "second stream heading not re-entered"
+assert_eq "legacy_through: D1" "$(grep '^legacy_through:' "$ROOT/m6/initiatives/g.md")" "legacy_through ignores the second stream"
+
+# symlinked initiative is skipped, link kept
+mkdir -p "$ROOT/m7/initiatives" "$ROOT/m7/real"
+cp "$ROOT/fix.orig" "$ROOT/m7/real/t.md"
+ln -s ../real/t.md "$ROOT/m7/initiatives/t.md"
+out7="$(MEMORY_DIR="$ROOT/m7" REPO_ROOT="$REPO_ROOT" bash "$MIG" 2>&1)"
+assert_eq "1" "$([ -L "$ROOT/m7/initiatives/t.md" ] && echo 1 || echo 0)" "symlinked initiative stays a symlink"
+assert_same "$ROOT/fix.orig" "$ROOT/m7/real/t.md" "symlink target untouched"
+assert_contains "$out7" "skipped symlink" "symlink skip is reported"
+
+# mode lookup: GNU stat -c first. Stub makes BSD-form `stat -f` succeed with
+# junk, as GNU stat does (filesystem-info mode).
+mkdir -p "$ROOT/m8/initiatives" "$ROOT/stub"
+cp "$ROOT/fix.orig" "$ROOT/m8/initiatives/a.md"
+chmod 640 "$ROOT/m8/initiatives/a.md"
+cat > "$ROOT/stub/stat" <<'STUB'
+#!/bin/sh
+case "$1" in
+    -c) echo 640 ;;
+    -f) printf '  File: "x"\n    ID: 0 Namelen: 255\n'; exit 0 ;;
+esac
+STUB
+chmod +x "$ROOT/stub/stat"
+set +e
+PATH="$ROOT/stub:$PATH" MEMORY_DIR="$ROOT/m8" REPO_ROOT="$REPO_ROOT" bash "$MIG" >/dev/null 2>&1
+rc8=$?
+set -e
+assert_exit 0 "$rc8" "migration survives a stat whose -f form is valid but different (GNU)"
+assert_contains "$(cat "$ROOT/m8/initiatives/a.md")" "legacy_through:" "file migrated under GNU-style stat"
+
+# temp files are removed when the run dies between mktemp and mv
+mkdir -p "$ROOT/m9/initiatives" "$ROOT/stub2"
+cp "$ROOT/fix.orig" "$ROOT/m9/initiatives/a.md"
+printf '#!/bin/sh\nexit 1\n' > "$ROOT/stub2/chmod"; chmod +x "$ROOT/stub2/chmod"
+set +e
+PATH="$ROOT/stub2:$PATH" MEMORY_DIR="$ROOT/m9" REPO_ROOT="$REPO_ROOT" bash "$MIG" >/dev/null 2>&1
+rc9=$?
+set -e
+assert_eq "1" "$([ "$rc9" -ne 0 ] && echo 1 || echo 0)" "failing chmod aborts the migration"
+leftover=0; for t in "$ROOT"/m9/initiatives/.mig-*; do [ -e "$t" ] && leftover=1; done
+assert_eq "0" "$leftover" "no .mig-1.7.0 temp files left behind"
+assert_same "$ROOT/fix.orig" "$ROOT/m9/initiatives/a.md" "file untouched when the run aborts"
+
 finish

@@ -7,7 +7,7 @@
 #                                      (no drift check)
 #   domain/*.md                    -> drift only (unchanged scope)
 #   initiatives/*.md               -> decision-stream lint findings only;
-#                                      _template.md and initiatives/.state/ -> exit 0
+#                                      _template.md and initiatives/*/ -> exit 0
 #   anything else                  -> exit 0
 # Any finding on an in-scope write -> stderr report + exit 2. Fails open on a
 # missing checker. See scripts/hooks/memory_write_guard.sh for the full
@@ -228,6 +228,25 @@ assert_exit 0 "$CODE" "initiatives/_template.md is excluded"
 write_initiative "$M10/initiatives/.state/foo.md" "$BAD"
 run_guard "$M10/initiatives/.state/foo.md"
 assert_exit 0 "$CODE" "initiatives/.state/ is excluded"
+
+write_initiative "$M10/initiatives/archive/x.md" "$BAD"
+run_guard "$M10/initiatives/archive/x.md"
+assert_exit 0 "$CODE" "initiatives/archive/ is out of scope"
+assert_eq "" "$OUT" "initiatives/archive/ is silent"
+
+write_initiative "$M10/initiatives/sub/x.md" "$BAD"
+run_guard "$M10/initiatives/sub/x.md"
+assert_exit 0 "$CODE" "initiatives/<subdir>/ is out of scope"
+assert_eq "" "$OUT" "initiatives/<subdir>/ is silent"
+
+write_initiative "$M10/initiatives/sp ace.md" "$BAD"
+run_guard "$M10/initiatives/sp ace.md"
+assert_exit 2 "$CODE" "initiative path with a space is still checked"
+assert_contains "$OUT" "$M10/initiatives/sp ace.md decision-stream D1 status 'maybe'" "space path reported with the real path"
+
+write_initiative "$M10/initiatives/we[i]rd.v1+.md" "$BAD"
+run_guard "$M10/initiatives/we[i]rd.v1+.md"
+assert_exit 2 "$CODE" "initiative path with regex metacharacters is still checked"
 
 # fail-open: lint missing from the guard's install dir
 FAKE2="$(new_sandbox)"; mkdir -p "$FAKE2/hooks"

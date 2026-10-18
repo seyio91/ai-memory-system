@@ -174,16 +174,25 @@ Migration `1.7.0-decision-status-field.sh` runs automatically via
 `_template.md`, `.state/` or `archive/`) it rewrites suffix-shape heads
 (`D<n>:`, `D<n>-proposed:`, `D<n>-rejected:`, `D<n>-proposed (<date>):`,
 `D<n>-proposed *(<qualifier>)*:`, `D<n> (<qualifier>):`, `D<n>a:`) to the field
-shape, normalises `[<date>]` to `<date>` and `shipped` to `confirmed`, and sets
-`legacy_through: D<max id>` in frontmatter. A qualifier moves to the start of the
-text as `(<qualifier>)`. Decision text, continuation lines and every other line
-are untouched; a second run changes nothing.
+shape, normalises `[<date>]` to `<date>` and `shipped` to `confirmed`, and, when
+it changed or reported a head, sets `legacy_through: D<max id>` in frontmatter.
+A qualifier moves to the start of the text as `(<qualifier>)`. Decision text,
+continuation lines and every other line are untouched; a second run changes nothing.
 
-**Hand-resolve what it reports.** A head it does not fully recognise (mixed values
-such as `D15 confirmed/proposed`) is left as is and printed during the sync. A
-migrated lettered id (`D12a`) has no date, and lettered ids are never legacy:
-add one. Entries at or below `legacy_through:` are exempt from the date,
-`evidence:` and `unconfirmed:` checks. Check with:
+**Hand-resolve what it reports.**
+
+- Heads it does not fully recognise (mixed values such as `D15 confirmed/proposed`)
+  are left as is and printed during the sync; fix them by hand.
+- A `-proposed` with a same-number bare `D<n>:` twin becomes `superseded`.
+- A migrated lettered id (`D12a`) has no date and is never legacy: add the date
+  and its `evidence:` / `unconfirmed:` line.
+- A `-proposed` whose confirmation sits under a lettered id (`D23` / `D23a`)
+  stays `proposed` (legacy, no WARN): resolve it by hand, usually `superseded`.
+- A `-proposed` with an already-field-shaped `D<n> confirmed …` twin raises the
+  duplicate-id WARN: set the original to `superseded`.
+
+Entries at or below `legacy_through:` are exempt from the date, `evidence:` and
+`unconfirmed:` checks. Check with:
 
 ```bash
 bash scripts/lint-memory.sh
