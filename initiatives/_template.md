@@ -27,6 +27,7 @@ The date is bare (no brackets or parentheses) and is the date of the last
 status change. Continuation lines, two-space indented: `evidence:`,
 `unconfirmed:`, `binds:`, and supersession keywords (`SUPERSEDES <id>`).
 `rejected` = never bound anything; `retired` = bound, then withdrawn.
+No blank lines inside an entry: a blank line ends its continuation lines.
 
 Only the user confirms. A confirm carries the date plus an `evidence:` line
 naming the absorbing artifact; a `proposed` entry carries an `unconfirmed:` line

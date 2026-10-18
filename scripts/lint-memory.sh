@@ -342,8 +342,11 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                 }
                 { sub(/\r$/, "") }
                 /^[ \t]*```/ {
-                    if (in_stream && $0 ~ /^```/) flush()
-                    fence = !fence; next
+                    t = $0; sub(/^[ \t]*```/, "", t)
+                    if (t !~ /```/) {
+                        if (in_stream && $0 ~ /^```/) flush()
+                        fence = !fence; next
+                    }
                 }
                 fence { next }
                 tolower($0) ~ /^## decision stream[ \t]*$/ { in_stream = 1; next }
@@ -375,7 +378,10 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                 /^[^ \t]/ { flush(); next }
                 have && /^[ \t]+evidence:/ { hasev = 1 }
                 have && /^[ \t]+unconfirmed:/ { hasunc = 1 }
-                END { flush() }
+                END {
+                    flush()
+                    if (fence) printf "WARN:  %s decision-stream unclosed code fence — the rest of the file is skipped\n", file
+                }
             ' "$f"
         )
     fi

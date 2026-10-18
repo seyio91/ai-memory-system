@@ -60,7 +60,7 @@ the date is bare and is the date of the last status change. Status is one of:
 
 Continuation lines (`  evidence:`, `  unconfirmed:`, `  binds:`, supersession
 keywords) are indented under the entry. Frontmatter `legacy_through: D<n>` marks
-entries that predate these rules: ids at or below it are exempt from the
+entries that predate these rules: plain ids (no letter; `D6b` is never legacy) at or below it are exempt from the
 date, `evidence:` and `unconfirmed:` checks (derived, not authored per entry).
 A `D<n>-proposed` reference in older prose means `D<n>`; references are never
 rewritten.

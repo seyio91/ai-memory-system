@@ -1288,6 +1288,59 @@ run_lint
 assert_not_contains "$OUT" "decision-stream" "bad - D lines in a section after the stream are not checked"
 rm -rf "$MD13"
 
+# column-0 line ends a continuation: evidence after it does not attach
+MDC="$(new_sandbox)"; export MEMORY_DIR="$MDC"; build_clean "$MDC"
+ds_fixture "$MDC" "" <<'EOF'
+- D40 confirmed 2026-10-01 — x
+Some column-0 prose
+  evidence: y
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D40 is confirmed with no evidence:" "a column-0 line ends the continuation"
+rm -rf "$MDC"
+
+# unclosed fence: one WARN, never silent (in stream, indented in continuation, before stream)
+MDU="$(new_sandbox)"; export MEMORY_DIR="$MDU"; build_clean "$MDU"
+ds_fixture "$MDU" "" <<'EOF'
+- D1 confirmed 2026-10-01 — a
+  evidence: x
+```
+- D2 bogus 2026-10-01 — swallowed
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream unclosed code fence" "unclosed fence in the stream warns"
+rm -rf "$MDU"
+MDU="$(new_sandbox)"; export MEMORY_DIR="$MDU"; build_clean "$MDU"
+ds_fixture "$MDU" "" <<'EOF'
+- D1 confirmed 2026-10-01 — a
+  evidence: x
+  ```bash
+- D2 bogus 2026-10-01 — swallowed
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream unclosed code fence" "unclosed indented fence in a continuation warns"
+rm -rf "$MDU"
+MDU="$(new_sandbox)"; export MEMORY_DIR="$MDU"; build_clean "$MDU"
+f="$MDU/initiatives/clean-initiative.md"
+awk 'NR > 1 && /^---$/ && !d { print; print "```"; d = 1; next } { print }' "$f" > "$f.t" && mv "$f.t" "$f"
+printf '\n## Decision stream\n\n- D1 bogus 2026-10-01 — x\n' >> "$f"
+run_lint
+assert_contains "$OUT" "decision-stream unclosed code fence" "unclosed fence before the stream heading warns"
+rm -rf "$MDU"
+
+# inline triple backticks mid-line are not a fence
+MDI="$(new_sandbox)"; export MEMORY_DIR="$MDI"; build_clean "$MDI"
+ds_fixture "$MDI" "" <<'EOF'
+- D1 confirmed 2026-10-01 — a
+  ```x``` is the flag
+  evidence: y
+- D2 bogus 2026-10-01 — after
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream D1 " "a line with closed inline backticks is not a fence"
+assert_contains "$OUT" "decision-stream D2 status 'bogus'" "entries after an inline-backtick line are still checked"
+rm -rf "$MDI"
+
 # F5: legacy_through that is not D<n> -> one WARN naming the field, nothing legacy
 MD14="$(new_sandbox)"; export MEMORY_DIR="$MD14"; build_clean "$MD14"
 ds_fixture "$MD14" '"D5"' <<'EOF'
