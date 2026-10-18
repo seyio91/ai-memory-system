@@ -100,7 +100,7 @@ stale_payload="$STARTUP_CONTEXT"
 stale_count="$(printf '%s' "$stale_payload" | grep -o '<memory:initiative-alert>' | wc -l | tr -d '[:space:]')"
 assert_eq 1 "$stale_count" "initiative alert: exactly one block for stale Target"
 assert_contains "$stale_payload" 'WARN: proj/seeded advanced (plan -> implement)' "initiative alert: stale Target named"
-assert_contains "$stale_payload" 'append the missing D<n>-proposed entry or ack' "initiative alert: remedy reaches the payload"
+assert_contains "$stale_payload" 'append the missing D<n> proposed <date> entry with an unconfirmed: line, or ack' "initiative alert: remedy reaches the payload"
 assert_working_tail "$stale_payload" "initiative alert: stale Target"
 
 rm -rf "$MEM/initiatives"

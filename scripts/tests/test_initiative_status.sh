@@ -242,7 +242,7 @@ assert_exit 0 "$rc" "advanced Target exits 0 with warning"
 assert_contains "$stale" "WARN: alpha/draft advanced (plan -> implement) with no new decision-stream entry" "advanced Target is stale without a stream entry"
 # The remedy names a DECISION id, not the Target id — the vocabulary the doctrine, docs and
 # breadcrumb rows all use. Pinned because this line is read at session start, not just on the CLI.
-assert_contains "$stale" "append the missing D<n>-proposed entry or ack" "stale warning names the decision-id remedy"
+assert_contains "$stale" "append the missing D<n> proposed <date> entry with an unconfirmed: line, or ack" "stale warning names the decision-id remedy"
 assert_not_contains "$stale" "alpha/draft-proposed" "stale warning does not glue -proposed onto the Target id"
 
 stale_again="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
@@ -278,5 +278,65 @@ interactive_guard="$(bash "$SCRIPT" ready 2>&1)"; rc=$?
 assert_exit 0 "$rc" "interactive guard run exits 0"
 assert_contains "$interactive_guard" "WARN: alpha/progress advanced (implement -> complete) with no new decision-stream entry" "software Target still reports stale"
 assert_not_contains "$interactive_guard" "beta/interactive advanced" "interactive Target never appears stale"
+
+# Derived proposed-decision count: `Decisions: N proposed (K legacy), oldest M days`.
+# mk_dec <slug> <frontmatter-extra> <stream-body> — minimal initiative with a stream.
+mk_dec() {
+    {
+        printf '%s\n' '---' 'kind: initiative' "slug: $1" 'status: active' 'created: 2026-01-01'
+        [ -n "$2" ] && printf '%s\n' "$2"
+        printf '%s\n' '---' '# Dec' '## Targets' '### beta/x' '- execution_mode: interactive' '- depends_on: none' '## Decision stream'
+        printf '%s\n' "$3"
+        printf '%s\n' '## Closure' 'Open.'
+    } > "$MEM/initiatives/$1.md"
+}
+dec_line() { INITIATIVE_STATUS_TODAY=2026-10-18 bash "$SCRIPT" "$1" 2>&1 | grep '^Decisions:'; }
+
+mk_dec d-new '' '- D1 proposed 2026-10-08 — a
+  unconfirmed: x
+- D2 confirmed 2026-10-01 — b
+  evidence: y
+- D3b proposed 2026-10-13 — c
+  unconfirmed: z'
+assert_eq "Decisions: 2 proposed (0 legacy), oldest 10 days" "$(dec_line d-new)" "new shape: counts field-shape proposed, oldest age from fixed TODAY"
+
+mk_dec d-old '' '- D1-proposed: a
+- D2-proposed [2026-10-01]: b
+- D3: c'
+assert_eq "Decisions: 0 proposed (0 legacy)" "$(dec_line d-old)" "old shape: -proposed heads are not counted"
+
+mk_dec d-mixed '' '- D1-proposed: old
+- D2 proposed 2026-10-17 — new
+  unconfirmed: x
+- D3 rejected 2026-10-01 — r'
+assert_eq "Decisions: 1 proposed (0 legacy), oldest 1 days" "$(dec_line d-mixed)" "mixed shapes: only field-shape proposed counted"
+
+mk_dec d-leg 'legacy_through: D3' '- D1 proposed — undated legacy
+- D3 proposed 2026-01-01 — dated legacy
+- D3b proposed 2026-10-16 — lettered is never legacy
+  unconfirmed: x
+- D4 proposed 2026-10-14 — above the mark
+  unconfirmed: x'
+assert_eq "Decisions: 4 proposed (2 legacy), oldest 4 days" "$(dec_line d-leg)" "legacy_through: legacy counted in K, excluded from age, lettered id never legacy"
+
+mk_dec d-badmark 'legacy_through: nope' '- D1 proposed 2026-10-08 — a
+  unconfirmed: x'
+assert_eq "Decisions: 1 proposed (0 legacy), oldest 10 days" "$(dec_line d-badmark)" "malformed legacy_through: K=0"
+
+mk_dec d-undated 'legacy_through: D1' '- D1 proposed — legacy undated
+- D2 proposed — undated non-legacy
+  unconfirmed: x'
+assert_eq "Decisions: 2 proposed (1 legacy)" "$(dec_line d-undated)" "no dated non-legacy proposed: oldest clause omitted"
+
+mk_dec d-fence '' '```
+- D1 proposed 2026-10-01 — fenced
+## Not a heading
+```
+- D2 proposed 2026-10-17 — real
+  unconfirmed: x'
+assert_eq "Decisions: 1 proposed (0 legacy), oldest 1 days" "$(dec_line d-fence)" "fenced entries skipped, fenced ## does not end the stream"
+
+mk_dec d-empty '' ''
+assert_eq "Decisions: 0 proposed (0 legacy)" "$(dec_line d-empty)" "empty stream: zero"
 
 finish

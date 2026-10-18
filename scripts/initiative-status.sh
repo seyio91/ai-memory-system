@@ -306,6 +306,54 @@ stream_entry_count() {
     ' "$INITIATIVE"
 }
 
+# decision_summary — prints 'N K oldest' for field-shape proposed entries in
+# the Decision stream. Grammar mirrors lint-memory.sh rule 11a (not sourced):
+# `- D<n>[a-z]? proposed [YYYY-MM-DD]`; legacy = plain D<n> with n <=
+# frontmatter legacy_through (missing/malformed -> none). oldest = age in days
+# of the oldest dated non-legacy entry, empty when there is none. Test seam:
+# INITIATIVE_STATUS_TODAY=YYYY-MM-DD.
+decision_summary() {
+    local mark num today
+    mark="$(extract_fm_field "$INITIATIVE" legacy_through | tr -d '\r')"
+    num="$(printf '%s\n' "$mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')"
+    [ -n "$num" ] || num=-1
+    today="${INITIATIVE_STATUS_TODAY:-$(date +%Y-%m-%d)}"
+    awk -v lt="$num" -v today="$today" '
+        function days(d,   y, m, dd, era, yoe, doy, doe) {
+            y = substr(d, 1, 4) + 0; m = substr(d, 6, 2) + 0; dd = substr(d, 9, 2) + 0
+            if (m <= 2) y--
+            era = int(y / 400); yoe = y - era * 400
+            doy = int((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + dd - 1
+            doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
+            return era * 146097 + doe
+        }
+        { sub(/\r$/, "") }
+        /^[ \t]*```/ {
+            t = $0; sub(/^[ \t]*```/, "", t)
+            if (t !~ /```/) { fence = !fence; next }
+        }
+        fence { next }
+        tolower($0) ~ /^## decision stream[ \t]*$/ { in_stream = 1; next }
+        in_stream && /^## / { exit }
+        !in_stream { next }
+        /^- D[0-9]+[a-z]? proposed( |$)/ {
+            n++
+            id = substr($0, 3); sub(/ .*$/, "", id)
+            num = id; sub(/^D/, "", num)
+            if (id ~ /^D[0-9]+$/ && lt >= 0 && num + 0 <= lt + 0) { k++; next }
+            split($0, tok, " ")
+            d = tok[4]
+            if (d ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ && substr(d, 6, 2) + 0 >= 1 && substr(d, 6, 2) + 0 <= 12 && substr(d, 9, 2) + 0 >= 1 && substr(d, 9, 2) + 0 <= 31)
+                if (oldest == "" || d < oldest) oldest = d
+        }
+        END {
+            age = ""
+            if (oldest != "") { age = days(today) - days(oldest); if (age < 0) age = 0 }
+            printf "%d %d %s\n", n + 0, k + 0, age
+        }
+    ' "$INITIATIVE"
+}
+
 STATE_DIR="$MEMORY_DIR/initiatives/.state"
 SNAPSHOT="$STATE_DIR/$SLUG.snapshot"
 snapshot_ids=()
@@ -456,6 +504,14 @@ for i in "${!target_ids[@]}"; do
 done
 
 printf '# Initiative readiness — %s\n\n' "$SLUG"
+read -r dec_n dec_k dec_age <<DECISIONS
+$(decision_summary)
+DECISIONS
+if [ -n "$dec_age" ]; then
+    printf 'Decisions: %s proposed (%s legacy), oldest %s days\n\n' "$dec_n" "$dec_k" "$dec_age"
+else
+    printf 'Decisions: %s proposed (%s legacy)\n\n' "$dec_n" "$dec_k"
+fi
 printf '| id | execution_mode | derived stage/status | evidence | depends_on + satisfied? | next_actor |\n'
 printf '|---|---|---|---|---|---|\n'
 for i in "${!target_ids[@]}"; do
@@ -480,7 +536,7 @@ if [ "$ACK" -eq 1 ]; then
 elif [ "${#stale_ids[@]}" -gt 0 ]; then
     printf '\n## Stale targets\n\n'
     for i in "${!stale_ids[@]}"; do
-        printf 'WARN: %s advanced (%s -> %s) with no new decision-stream entry — append the missing D<n>-proposed entry or ack\n' \
+        printf 'WARN: %s advanced (%s -> %s) with no new decision-stream entry — append the missing D<n> proposed <date> entry with an unconfirmed: line, or ack\n' \
             "${stale_ids[$i]}" "${stale_old_stages[$i]}" "${stale_new_stages[$i]}"
     done
 fi
