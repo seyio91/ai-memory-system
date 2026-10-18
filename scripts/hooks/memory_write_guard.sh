@@ -26,6 +26,9 @@
 #   - domain/*.md                  changelog drift only, unchanged. No size
 #                                   budget applies to domain/*.md (lazy-loaded,
 #                                   never injected — see the plan's Decisions).
+#   - initiatives/*.md             decision-stream shape only (lint-memory.sh
+#                                   rules, run on a temp copy). Not
+#                                   _template.md, not initiatives/.state/.
 #
 # Fires after a Write/Edit, runs whichever checks are in scope for the target,
 # and reports on stderr with exit 2 — the PostToolUse code that feeds output
@@ -49,6 +52,7 @@ MEMORY_DIR="${MEMORY_DIR:-$(cd "$hook_dir/../.." && pwd)}"
 # a missing checker silently drops just its own half of the report.
 drift_checker="$hook_dir/../check-changelog-drift.sh"
 size_checker="$hook_dir/../check-memory-size.sh"
+lint_checker="$hook_dir/../lint-memory.sh"
 
 payload="$(cat 2>/dev/null)" || exit 0
 [ -n "$payload" ] || exit 0
@@ -127,6 +131,27 @@ case "$file" in
         # "trim toward its size budget" or "raise the session_chunks cap"
         # would be pointing at a check this branch never ran.
         advice="$DRIFT_ADVICE"
+        ;;
+    "$MEMORY_DIR"/initiatives/.state/*) exit 0 ;;
+    "$MEMORY_DIR"/initiatives/*.md)
+        # lint-memory.sh has no per-file mode: lint a temp copy laid out as
+        # <tmp>/initiatives/<name>.md and keep only this file's decision-stream
+        # lines. Any lint failure yields nothing (fail open).
+        findings=""
+        tmp=""
+        trap '[ -z "$tmp" ] || rm -rf "$tmp"' EXIT
+        if [ -x "$lint_checker" ] && tmp="$(mktemp -d 2>/dev/null)"; then
+            name="$(basename "$file")"
+            mkdir -p "$tmp/initiatives"
+            if cp "$file" "$tmp/initiatives/$name" 2>/dev/null; then
+                findings="$(MEMORY_DIR="$tmp" bash "$lint_checker" 2>/dev/null \
+                    | grep -F "WARN:  $tmp/initiatives/$name " \
+                    | grep -E "^WARN:  [^ ]+ (decision-stream|legacy_through) ")"
+                findings="${findings//"$tmp/initiatives/$name"/$file}"
+            fi
+        fi
+        add_report "Decision stream in ${file#"$MEMORY_DIR"/}" "$findings"
+        add_advice "$findings" 'Fix the decision-stream entries: head is `- D<n> <proposed|confirmed|rejected|superseded|retired> <YYYY-MM-DD> — ...`; confirmed needs an `evidence:` line, proposed an `unconfirmed:` line (docs/initiatives.md).'
         ;;
     *) exit 0 ;;
 esac

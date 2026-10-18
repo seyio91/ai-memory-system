@@ -6,6 +6,8 @@
 #   projects/*/working.<key>.md    -> --payload --working <that file> ONLY
 #                                      (no drift check)
 #   domain/*.md                    -> drift only (unchanged scope)
+#   initiatives/*.md               -> decision-stream lint findings only;
+#                                      _template.md and initiatives/.state/ -> exit 0
 #   anything else                  -> exit 0
 # Any finding on an in-scope write -> stderr report + exit 2. Fails open on a
 # missing checker. See scripts/hooks/memory_write_guard.sh for the full
@@ -192,6 +194,50 @@ CODE=$?
 set -e
 assert_exit 0 "$CODE" "checkers missing from the install dir fail open (exit 0)"
 rm -rf "$M9" "$FAKE_INSTALL"
+
+# --- initiatives/*.md: decision-stream lint ----------------------------------
+write_initiative() { # write_initiative <path> <decision-line...>
+    local f="$1" slug; shift
+    slug="$(basename "$f" .md)"
+    mkdir -p "$(dirname "$f")"
+    {
+        printf -- '---\nkind: initiative\nslug: %s\nstatus: active\ncreated: 2026-01-01\n---\n\n# T\n\n## Decision stream\n\n' "$slug"
+        printf '%s\n' "$@"
+    } > "$f"
+}
+BAD='- D1 maybe 2026-01-02 — bad status'
+GOOD='- D1 rejected 2026-01-02 — fine'
+
+M10="$(new_sandbox)"; export MEMORY_DIR="$M10"; build_tree "$M10"
+write_initiative "$M10/initiatives/foo.md" "$BAD"
+run_guard "$M10/initiatives/foo.md"
+assert_exit 2 "$CODE" "initiative with a bad decision status exits 2"
+assert_contains "$OUT" "Decision stream in initiatives/foo.md" "initiative report names the decision-stream section"
+assert_contains "$OUT" "$M10/initiatives/foo.md decision-stream D1 status 'maybe'" "finding carries the real path, not the temp copy"
+assert_contains "$OUT" "evidence:" "initiative advice names the continuation lines"
+
+write_initiative "$M10/initiatives/clean.md" "$GOOD"
+run_guard "$M10/initiatives/clean.md"
+assert_exit 0 "$CODE" "clean initiative exits 0"
+assert_eq "" "$OUT" "clean initiative is silent"
+
+write_initiative "$M10/initiatives/_template.md" "$BAD"
+run_guard "$M10/initiatives/_template.md"
+assert_exit 0 "$CODE" "initiatives/_template.md is excluded"
+
+write_initiative "$M10/initiatives/.state/foo.md" "$BAD"
+run_guard "$M10/initiatives/.state/foo.md"
+assert_exit 0 "$CODE" "initiatives/.state/ is excluded"
+
+# fail-open: lint missing from the guard's install dir
+FAKE2="$(new_sandbox)"; mkdir -p "$FAKE2/hooks"
+cp "$GUARD" "$FAKE2/hooks/memory_write_guard.sh"
+set +e
+OUT="$(write_payload "$M10/initiatives/foo.md" | MEMORY_DIR="$M10" bash "$FAKE2/hooks/memory_write_guard.sh" 2>&1)"
+CODE=$?
+set -e
+assert_exit 0 "$CODE" "initiative write fails open when lint-memory.sh is absent"
+rm -rf "$M10" "$FAKE2"
 
 unset MEMORY_DIR
 finish
