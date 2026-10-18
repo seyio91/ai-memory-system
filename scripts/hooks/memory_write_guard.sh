@@ -148,7 +148,7 @@ case "$file" in
                 findings="$(MEMORY_DIR="$tmp" bash "$lint_checker" 2>/dev/null \
                     | grep -F -e "WARN:  $tmp/initiatives/$name decision-stream " \
                            -e "WARN:  $tmp/initiatives/$name legacy_through ")"
-                findings="${findings//"$tmp/initiatives/$name"/$file}"
+                findings="${findings//"$tmp/initiatives/$name"/"$file"}"
             fi
         fi
         add_report "Decision stream in ${file#"$MEMORY_DIR"/}" "$findings"

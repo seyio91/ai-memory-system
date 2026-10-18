@@ -190,6 +190,8 @@ continuation lines and every other line are untouched; a second run changes noth
   stays `proposed` (legacy, no WARN): resolve it by hand, usually `superseded`.
 - A `-proposed` with an already-field-shaped `D<n> confirmed …` twin raises the
   duplicate-id WARN: set the original to `superseded`.
+- An initiative already in the field shape gets no `legacy_through:`; if lint
+  flags its older entries, add `legacy_through: D<max id>` to its frontmatter.
 
 Entries at or below `legacy_through:` are exempt from the date, `evidence:` and
 `unconfirmed:` checks. Check with:
