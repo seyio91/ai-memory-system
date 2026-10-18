@@ -161,6 +161,36 @@ Released versions that need manual steps or carry a migration get one section:
 The reverse does not hold: a version may need a manual step without shipping a
 migration — as the next section does.
 
+## 1.7.0
+
+**Initiative decision status is a dated field, not an id suffix.**
+
+Entries in `## Decision stream` now read
+`- D<n> <proposed|confirmed|rejected|superseded|retired> <YYYY-MM-DD> — <text>`.
+The id never changes; `D<n>-proposed` references elsewhere still read as `D<n>`.
+
+Migration `1.7.0-decision-status-field.sh` runs automatically via
+`sync-system.sh`. In each `initiatives/*.md` of `kind: initiative` (not
+`_template.md`, `.state/` or `archive/`) it rewrites suffix-shape heads
+(`D<n>:`, `D<n>-proposed:`, `D<n>-rejected:`, `D<n>-proposed (<date>):`,
+`D<n>-proposed *(<qualifier>)*:`, `D<n> (<qualifier>):`, `D<n>a:`) to the field
+shape, normalises `[<date>]` to `<date>` and `shipped` to `confirmed`, and sets
+`legacy_through: D<max id>` in frontmatter. A qualifier moves to the start of the
+text as `(<qualifier>)`. Decision text, continuation lines and every other line
+are untouched; a second run changes nothing.
+
+**Hand-resolve what it reports.** A head it does not fully recognise (mixed values
+such as `D15 confirmed/proposed`) is left as is and printed during the sync. A
+migrated lettered id (`D12a`) has no date, and lettered ids are never legacy:
+add one. Entries at or below `legacy_through:` are exempt from the date,
+`evidence:` and `unconfirmed:` checks. Check with:
+
+```bash
+bash scripts/lint-memory.sh
+```
+
+It should report no `decision-stream` WARN once those are fixed.
+
 ## 1.6.0
 
 **Orchestrator doctrine split into a tracked core plus a local overlay.**
