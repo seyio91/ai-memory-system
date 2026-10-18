@@ -5,8 +5,9 @@
 # files under $MEMORY_DIR/initiatives/*.md (the set lint-memory.sh reads;
 # _template.md, .state/ and archive/ are skipped) to
 #   - D<n>[a] <status>[ <YYYY-MM-DD>] -- <text>
-# and stamps `legacy_through: D<max plain id>` in frontmatter when absent and a head
-# was rewritten or reported. Symlinked files are skipped.
+# and stamps `legacy_through: D<max plain id>` in frontmatter when absent and at
+# least one head was rewritten (a reported line alone never stamps). Symlinked
+# files are skipped. Stream, fence and date grammar: scripts/lib/decision-stream.awk.
 # A `-proposed` head whose id also has a bare `D<n>:` head in the stream becomes
 # `superseded`. A parenthesised or bracketed qualifier moves to the start of the text as
 # `(<qualifier>) `. Lines it does not fully match are left byte-identical and
@@ -21,9 +22,12 @@ export LC_ALL=C
 DIR="$MEMORY_DIR/initiatives"
 [ -d "$DIR" ] || exit 0
 
+DS_LIB="$(cat "$REPO_ROOT/scripts/lib/decision-stream.awk" 2>/dev/null)"
+[ -n "$DS_LIB" ] || { echo "1.7.0: missing $REPO_ROOT/scripts/lib/decision-stream.awk" >&2; exit 1; }
+
 AWK_PROG='
-function isdate(s) { return s ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ }
-function inset(s) { return s ~ /^(proposed|confirmed|rejected|superseded|retired)$/ }
+function isdate(s) { return ds_isdate(s) }
+function inset(s) { return ds_status_ok(s) }
 function closeparen(s, start,   i, d, c) {
     d = 0
     for (i = start; i <= length(s); i++) {
@@ -100,7 +104,7 @@ function rewrite(L,   id, rest, st, st2, date, q, inner, c, n, g, sp, after, dto
     }
     UNREC = 1; return 0
 }
-BEGIN { DASHSP = "" }
+BEGIN { ctl = ENVIRON["MIG_CTL"] }
 {
     cr = ($0 ~ /\r$/)
     L = $0; sub(/\r$/, "", L)
@@ -115,14 +119,7 @@ BEGIN { DASHSP = "" }
         next
     }
     if (!isinit) next
-    if (L ~ /^[ \t]*```/) {
-        t = L; sub(/^[ \t]*```/, "", t)
-        if (t !~ /```/) { fence = !fence; next }
-    }
-    if (fence) next
-    if (!done && tolower(L) ~ /^## decision stream[ \t]*$/) { instream = 1; next }
-    if (instream && L ~ /^## /) { instream = 0; done = 1; next }
-    if (!instream) next
+    if (!ds_track(L)) next
     if (L ~ /^- D/) {
         if (match(L, /^- D[0-9]+/) && L !~ /^- D[0-9]+[a-z]/) {
             n = substr(L, 4, RLENGTH - 3) + 0
@@ -144,7 +141,7 @@ END {
     for (k = 1; k <= np; k++)
         if (pid[k] in bare) sub(/^- D[0-9]+[a-z]? proposed/, "- " pid[k] " superseded", out[pidx[k]])
     ins = 0
-    if (fm_end > 0 && isinit && !haslegacy && maxnum > 0 && nchanged + nunrec > 0) ins = 1
+    if (fm_end > 0 && isinit && !haslegacy && maxnum > 0 && nchanged > 0) ins = 1
     if (ins) print "L\tD" maxnum > ctl
     print "H\t" nchanged + 0 > ctl
     for (i = 1; i <= lines; i++) {
@@ -174,7 +171,8 @@ for f in "$DIR"/*.md; do
     trap 'rm -f "$tmp" "$ctl"' EXIT
     tmp="$(mktemp "$DIR/.mig-1.7.0.XXXXXX")"
     ctl="$(mktemp "$DIR/.mig-1.7.0.ctl.XXXXXX")"
-    if ! awk -v ctl="$ctl" -v nonl="$nonl" "$AWK_PROG" "$f" > "$tmp"; then
+    if ! MIG_CTL="$ctl" awk -v nonl="$nonl" "$DS_LIB
+$AWK_PROG" "$f" > "$tmp"; then
         rm -f "$tmp" "$ctl"
         echo "1.7.0: failed to process $f" >&2
         exit 1

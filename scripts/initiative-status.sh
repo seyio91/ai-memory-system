@@ -21,7 +21,11 @@
 # 'stream-entries <count>' line. It is hand-editable: update those lines to
 # acknowledge the current state without running this script.
 #
-# Usage: initiative-status.sh [--ack] <slug>
+# --list-proposed: print the initiative's proposed decision-stream entry heads
+# (valid heads only, fenced text excluded, legacy included), one per line, and
+# exit. Read-only: no snapshot is read or written.
+#
+# Usage: initiative-status.sh [--ack | --list-proposed] <slug>
 
 set -uo pipefail
 
@@ -29,20 +33,23 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/_lib.sh"
 
 usage() {
-    echo "usage: initiative-status.sh [--ack] <slug>" >&2
+    echo "usage: initiative-status.sh [--ack | --list-proposed] <slug>" >&2
     exit 2
 }
 
 ACK=0
-case "$#" in
-    1) SLUG="$1" ;;
-    2)
-        [ "$1" = "--ack" ] || usage
-        ACK=1
-        SLUG="$2"
-        ;;
-    *) usage ;;
-esac
+LIST=0
+SLUG=""
+for arg in "$@"; do
+    case "$arg" in
+        --ack) ACK=1 ;;
+        --list-proposed) LIST=1 ;;
+        -*) usage ;;
+        *) [ -z "$SLUG" ] || usage; SLUG="$arg" ;;
+    esac
+done
+[ -n "$SLUG" ] || usage
+[ "$ACK" -eq 0 ] || [ "$LIST" -eq 0 ] || usage
 INITIATIVE="$MEMORY_DIR/initiatives/$SLUG.md"
 
 [ -f "$INITIATIVE" ] || { echo "initiative-status: initiative not found: $INITIATIVE" >&2; exit 1; }
@@ -65,6 +72,27 @@ esac
     echo "initiative-status: invalid initiative file (created is required): $INITIATIVE" >&2
     exit 1
 }
+
+# Decision-stream grammar is shared with lint-memory.sh and the 1.7.0
+# migration.
+DS_LIB="$(cat "$HERE/lib/decision-stream.awk" 2>/dev/null)"
+[ -n "$DS_LIB" ] || { echo "initiative-status: missing $HERE/lib/decision-stream.awk" >&2; exit 1; }
+
+# list_proposed — one line per valid-head proposed entry, legacy included.
+list_proposed() {
+    awk "$DS_LIB"'
+        { sub(/\r$/, "") }
+        { inst = ds_track($0) }
+        DS_END { exit }
+        !inst { next }
+        ds_head($0) == "ok" && DS_STATUS == "proposed" { print }
+    ' "$INITIATIVE"
+}
+
+if [ "$LIST" -eq 1 ]; then
+    list_proposed
+    exit 0
+fi
 
 target_ids=()
 target_modes=()
@@ -192,7 +220,8 @@ join_paths() {
 todo_counts() {
     local todo="$1" plan_rel="$2"
     [ -f "$todo" ] || { printf 'todo missing'; return; }
-    awk -v p="$plan_rel" '
+    PLAN_REL="$plan_rel" awk '
+        BEGIN { p = ENVIRON["PLAN_REL"] }
         /^### / { if (active) exit }
         index($0, "(" p ")") { active = 1 }
         active && /^[[:space:]]*- \[ \]/ { open++ }
@@ -306,19 +335,18 @@ stream_entry_count() {
     ' "$INITIATIVE"
 }
 
-# decision_summary — prints 'N K oldest' for field-shape proposed entries in
-# the Decision stream. Grammar mirrors lint-memory.sh rule 11a (not sourced):
-# `- D<n>[a-z]? proposed [YYYY-MM-DD]`; legacy = plain D<n> with n <=
-# frontmatter legacy_through (missing/malformed -> none). oldest = age in days
-# of the oldest dated non-legacy entry, empty when there is none. Test seam:
-# INITIATIVE_STATUS_TODAY=YYYY-MM-DD.
+# decision_summary — prints 'N K oldest' for proposed entries with a valid head
+# in the Decision stream (grammar: lib/decision-stream.awk). legacy = plain D<n>
+# with n <= frontmatter legacy_through (missing/malformed -> none). oldest = age
+# in days of the oldest dated non-legacy entry, empty when there is none. Test
+# seam: INITIATIVE_STATUS_TODAY=YYYY-MM-DD.
 decision_summary() {
     local mark num today
     mark="$(extract_fm_field "$INITIATIVE" legacy_through | tr -d '\r')"
     num="$(printf '%s\n' "$mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')"
     [ -n "$num" ] || num=-1
     today="${INITIATIVE_STATUS_TODAY:-$(date +%Y-%m-%d)}"
-    awk -v lt="$num" -v today="$today" '
+    awk -v lt="$num" -v today="$today" "$DS_LIB"'
         function days(d,   y, m, dd, era, yoe, doy, doe) {
             y = substr(d, 1, 4) + 0; m = substr(d, 6, 2) + 0; dd = substr(d, 9, 2) + 0
             if (m <= 2) y--
@@ -328,23 +356,13 @@ decision_summary() {
             return era * 146097 + doe
         }
         { sub(/\r$/, "") }
-        /^[ \t]*```/ {
-            t = $0; sub(/^[ \t]*```/, "", t)
-            if (t !~ /```/) { fence = !fence; next }
-        }
-        fence { next }
-        tolower($0) ~ /^## decision stream[ \t]*$/ { in_stream = 1; next }
-        in_stream && /^## / { exit }
-        !in_stream { next }
-        /^- D[0-9]+[a-z]? proposed( |$)/ {
+        { inst = ds_track($0) }
+        DS_END { exit }
+        !inst { next }
+        ds_head($0) == "ok" && DS_STATUS == "proposed" {
             n++
-            id = substr($0, 3); sub(/ .*$/, "", id)
-            num = id; sub(/^D/, "", num)
-            if (id ~ /^D[0-9]+$/ && lt >= 0 && num + 0 <= lt + 0) { k++; next }
-            split($0, tok, " ")
-            d = tok[4]
-            if (d ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ && substr(d, 6, 2) + 0 >= 1 && substr(d, 6, 2) + 0 <= 12 && substr(d, 9, 2) + 0 >= 1 && substr(d, 9, 2) + 0 <= 31)
-                if (oldest == "" || d < oldest) oldest = d
+            if (ds_legacy(DS_ID, lt)) { k++; next }
+            if (ds_isdate(DS_DATE) && (oldest == "" || DS_DATE < oldest)) oldest = DS_DATE
         }
         END {
             age = ""

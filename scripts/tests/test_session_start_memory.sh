@@ -57,6 +57,7 @@ assert_working_tail() { # payload label
 mkdir -p "$MEM/.agents" "$MEM/projects/proj/plans" "$MEM/initiatives" "$MEM/scripts"
 cp "$REPO/scripts/initiative-status.sh" "$MEM/scripts/initiative-status.sh"
 cp "$REPO/scripts/_lib.sh" "$MEM/scripts/_lib.sh"
+cp -R "$REPO/scripts/lib" "$MEM/scripts/lib"
 printf 'proj\n' > "$MEM/.agents/memory-project"
 cat > "$MEM/projects/proj/memory.md" <<'EOF'
 ---

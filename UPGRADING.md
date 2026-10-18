@@ -175,8 +175,8 @@ Migration `1.7.0-decision-status-field.sh` runs automatically via
 (`D<n>:`, `D<n>-proposed:`, `D<n>-rejected:`, `D<n>-proposed (<date>):`,
 `D<n>-proposed *(<qualifier>)*:`, `D<n> (<qualifier>):`, `D<n>a:`) to the field
 shape, normalises `[<date>]` to `<date>` and `shipped` to `confirmed`, and, when
-it changed or reported a head, sets `legacy_through: D<max id>` in frontmatter.
-A qualifier moves to the start of the text as `(<qualifier>)`. Decision text,
+it rewrote at least one head, sets `legacy_through: D<max id>` in frontmatter.
+Code-fenced examples (``` or ~~~) are never rewritten. A qualifier moves to the start of the text as `(<qualifier>)`. Decision text,
 continuation lines and every other line are untouched; a second run changes nothing.
 
 **Hand-resolve what it reports.**
@@ -190,7 +190,8 @@ continuation lines and every other line are untouched; a second run changes noth
   stays `proposed` (legacy, no WARN): resolve it by hand, usually `superseded`.
 - A `-proposed` with an already-field-shaped `D<n> confirmed …` twin raises the
   duplicate-id WARN: set the original to `superseded`.
-- An initiative already in the field shape gets no `legacy_through:`; if lint
+- An initiative where nothing was rewritten (already field-shaped, or only reported
+  lines) gets no `legacy_through:`; if lint
   flags its older entries, add `legacy_through: D<max id>` to its frontmatter.
 
 Entries at or below `legacy_through:` are exempt from the date, `evidence:` and

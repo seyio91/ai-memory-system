@@ -212,4 +212,67 @@ leftover=0; for t in "$ROOT"/m9/initiatives/.mig-*; do [ -e "$t" ] && leftover=1
 assert_eq "0" "$leftover" "no .mig-1.7.0 temp files left behind"
 assert_same "$ROOT/fix.orig" "$ROOT/m9/initiatives/a.md" "file untouched when the run aborts"
 
+# C2: tilde and four-backtick fences are never rewritten; a ## inside one does not end the stream
+mkdir -p "$ROOT/m10/initiatives"
+cat > "$ROOT/m10/initiatives/h.md" <<'IN'
+---
+kind: initiative
+slug: h
+status: active
+created: 2026-09-01
+---
+
+## Decision stream
+
+~~~markdown
+- D1-proposed: tilde example only
+## Not a heading
+~~~
+````markdown
+```
+- D3-proposed: nested triple fence is body
+```
+- D4: still inside the four-backtick fence
+````
+~~~~
+```
+- D5: backticks do not close a tilde fence
+~~~
+- D6: shorter tilde run does not close
+~~~~~
+- D2-proposed: real.
+IN
+cp "$ROOT/m10/initiatives/h.md" "$ROOT/h.orig"
+MEMORY_DIR="$ROOT/m10" REPO_ROOT="$REPO_ROOT" bash "$MIG" >/dev/null
+sed -e 's/^- D2-proposed: real\.$/- D2 proposed — real./' "$ROOT/h.orig" | awk 'NR > 1 && /^---$/ && !d { print "legacy_through: D2"; d = 1 } { print }' > "$ROOT/h.expected"
+assert_same "$ROOT/h.expected" "$ROOT/m10/initiatives/h.md" "only the entry outside every fence is rewritten"
+
+# H2: an unrecognised line alone never stamps legacy_through; lint still reports every defect
+mkdir -p "$ROOT/m11/initiatives"
+printf -- '---\nkind: initiative\nslug: r\nstatus: active\ncreated: 2026-09-01\n---\n\n## Decision stream\n\n- D1 proposed 2026-09-02 — x\n- D2 confirmed 2026-09-03 — y\n- Dx typo\n' > "$ROOT/m11/initiatives/r.md"
+cp "$ROOT/m11/initiatives/r.md" "$ROOT/r.orig"
+out11="$(MEMORY_DIR="$ROOT/m11" REPO_ROOT="$REPO_ROOT" bash "$MIG" 2>&1)"
+assert_contains "$out11" "unrecognised decision head left unchanged" "unrecognised line is reported"
+assert_same "$ROOT/r.orig" "$ROOT/m11/initiatives/r.md" "file with zero rewrites is byte-identical (no legacy_through)"
+lint11="$(MEMORY_DIR="$ROOT/m11" bash "$SCRIPTS_DIR/lint-memory.sh" 2>&1 || true)"
+assert_contains "$lint11" "decision-stream D1 is proposed with no unconfirmed:" "lint still flags the unsupported proposal after replay"
+assert_contains "$lint11" "decision-stream D2 is confirmed with no evidence:" "lint still flags the unevidenced confirm after replay"
+assert_contains "$lint11" "decision-stream malformed head" "lint still flags the typo after replay"
+
+# impossible bracketed date is left alone and reported, never normalised
+mkdir -p "$ROOT/m12/initiatives"
+printf -- '---\nkind: initiative\nslug: i\nstatus: active\ncreated: 2026-09-01\n---\n\n## Decision stream\n\n- D1 confirmed [2026-02-31] — x\n- D2 confirmed [2026-02-28] — y\n' > "$ROOT/m12/initiatives/i.md"
+out12="$(MEMORY_DIR="$ROOT/m12" REPO_ROOT="$REPO_ROOT" bash "$MIG" 2>&1)"
+assert_contains "$out12" "unrecognised decision head left unchanged" "impossible bracketed date is reported"
+assert_contains "$(cat "$ROOT/m12/initiatives/i.md")" "- D1 confirmed [2026-02-31] — x" "impossible bracketed date line unchanged"
+assert_contains "$(cat "$ROOT/m12/initiatives/i.md")" "- D2 confirmed 2026-02-28 — y" "real bracketed date normalised"
+
+# H3: a MEMORY_DIR containing a literal backslash-n still migrates (control file reaches awk intact)
+BS='bs\name'
+mkdir -p "$ROOT/$BS/initiatives"
+cp "$ROOT/fix.orig" "$ROOT/$BS/initiatives/a.md"
+out13="$(MEMORY_DIR="$ROOT/$BS" REPO_ROOT="$REPO_ROOT" bash "$MIG" 2>&1)" || true
+assert_contains "$out13" "legacy_through: D" "backslash path: head count and stamp read back from the control file"
+assert_contains "$(cat "$ROOT/$BS/initiatives/a.md")" "legacy_through:" "backslash path: file migrated"
+
 finish

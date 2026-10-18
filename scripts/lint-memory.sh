@@ -17,6 +17,62 @@ emit() {
     FOUND=1
 }
 
+# Decision-stream grammar lives in lib/decision-stream.awk (shared with
+# initiative-status.sh and the 1.7.0 migration); this is only the lint program.
+# Paths reach awk through ENVIRON: -v would interpret backslash escapes in them.
+DS_LIB="$(cat "$SCRIPT_DIR/lib/decision-stream.awk" 2>/dev/null)"
+read -r -d '' DS_LINT_PROG <<'AWK' || true
+BEGIN { file = ENVIRON["DS_FILE"]; lt = ENVIRON["DS_LT"] + 0 }
+function flush(   legacy) {
+    if (!have) return
+    have = 0
+    if (!(id in cnt)) ord[++nid] = id
+    cnt[id]++
+    if (!unmig && status == "superseded") sup[id]++
+    if (unmig) {
+        printf "WARN:  %s decision-stream %s is an unmigrated old-shape entry (expected `- D<n> <status> <YYYY-MM-DD> — ...`)\n", file, id
+        return
+    }
+    if (!ds_status_ok(status))
+        printf "WARN:  %s decision-stream %s status '%s' is not one of proposed|confirmed|rejected|superseded|retired\n", file, id, status
+    if (ds_legacy(id, lt)) return
+    if (!ds_dateshape(date))
+        printf "WARN:  %s decision-stream %s has no bare YYYY-MM-DD date after the status\n", file, id
+    if (status == "confirmed" && !hasev)
+        printf "WARN:  %s decision-stream %s is confirmed with no evidence: continuation line\n", file, id
+    if (status == "proposed" && !hasunc)
+        printf "WARN:  %s decision-stream %s is proposed with no unconfirmed: continuation line\n", file, id
+}
+function malformed() {
+    printf "WARN:  %s decision-stream malformed head `%s` (expected `- D<n>[a-z]? <status> <YYYY-MM-DD> — ...`, single spaces)\n", file, substr($0, 1, 50)
+}
+{ sub(/\r$/, "") }
+{ inst = ds_track($0) }
+DS_FOPEN { if (ds_in && $0 ~ /^[^ \t]/) flush(); next }
+DS_END { flush(); exit }
+!inst { next }
+/^[ \t]*$/ { flush(); next }
+{ k = ds_head($0) }
+k != "" {
+    flush()
+    unmig = 0; hasev = 0; hasunc = 0
+    if (k == "bad") { malformed(); next }
+    id = DS_ID; status = DS_STATUS; date = DS_DATE
+    unmig = (k == "unmig"); have = 1
+    next
+}
+/^[^ \t]/ { flush(); next }
+have && /^[ \t]+evidence:/ { hasev = 1 }
+have && /^[ \t]+unconfirmed:/ { hasunc = 1 }
+END {
+    flush()
+    for (i = 1; i <= nid; i++)
+        if (cnt[ord[i]] - sup[ord[i]] > 1)
+            printf "WARN:  %s decision-stream %s appears on more than one entry head (all but one must be superseded)\n", file, ord[i]
+    if (ds_fence_open()) printf "WARN:  %s decision-stream unclosed code fence — the rest of the file is skipped\n", file
+}
+AWK
+
 require_fm() {
     local file="$1"; shift
     local missing=""
@@ -294,7 +350,8 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
         *) emit "WARN:  $f status '$initiative_status' is not an initiative status — use one of: active, closed" ;;
     esac
 
-    # 11a. Decision-stream entry shape (initiatives only). Head grammar, single
+    # 11a. Decision-stream entry shape (initiatives only); grammar in
+    #      lib/decision-stream.awk. Head grammar, single
     #      spaces: `- D<n>[a-z]? <status> <YYYY-MM-DD> — <decision>`; any other
     #      line starting `- D` that is not a recognised unmigrated old-shape head
     #      is one "malformed head" WARN. Continuation lines (`evidence:` /
@@ -307,90 +364,22 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
     if [ "$kind" = "initiative" ]; then
         legacy_mark=$(extract_fm_field "$f" legacy_through | tr -d '\r')
         legacy_num=$(printf '%s\n' "$legacy_mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')
-        if [ -n "$legacy_mark" ] && [ -z "$legacy_num" ]; then
+        legacy_present=$(awk 'NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit; next } /^---[[:space:]]*$/ { exit } /^legacy_through:/ { print 1; exit }' "$f")
+        if [ -n "$legacy_present" ] && [ -z "$legacy_num" ]; then
             emit "WARN:  $f legacy_through '$legacy_mark' is not D<n> — nothing is treated as legacy"
         fi
         [ -n "$legacy_num" ] || legacy_num=-1
-        while IFS= read -r stream_finding; do
-            [ -n "$stream_finding" ] || continue
-            emit "$stream_finding"
-        done < <(
-            awk -v file="$f" -v lt="$legacy_num" '
-                function flush(   legacy) {
-                    if (!have) return
-                    have = 0
-                    if (!(id in cnt)) ord[++nid] = id
-                    cnt[id]++
-                    if (!unmig && status == "superseded") sup[id]++
-                    if (unmig) {
-                        printf "WARN:  %s decision-stream %s is an unmigrated old-shape entry (expected `- D<n> <status> <YYYY-MM-DD> — ...`)\n", file, id
-                        return
-                    }
-                    if (status !~ /^(proposed|confirmed|rejected|superseded|retired)$/)
-                        printf "WARN:  %s decision-stream %s status '"'"'%s'"'"' is not one of proposed|confirmed|rejected|superseded|retired\n", file, id, status
-                    legacy = (id ~ /^D[0-9]+$/ && lt >= 0 && num + 0 <= lt + 0)
-                    if (legacy) return
-                    if (date !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/)
-                        printf "WARN:  %s decision-stream %s has no bare YYYY-MM-DD date after the status\n", file, id
-                    if (status == "confirmed" && !hasev)
-                        printf "WARN:  %s decision-stream %s is confirmed with no evidence: continuation line\n", file, id
-                    if (status == "proposed" && !hasunc)
-                        printf "WARN:  %s decision-stream %s is proposed with no unconfirmed: continuation line\n", file, id
-                }
-                function malformed() {
-                    printf "WARN:  %s decision-stream malformed head `%s` (expected `- D<n>[a-z]? <status> <YYYY-MM-DD> — ...`, single spaces)\n", file, substr($0, 1, 50)
-                }
-                function validdate(d,   m, dd) {
-                    m = substr(d, 6, 2) + 0; dd = substr(d, 9, 2) + 0
-                    return (m >= 1 && m <= 12 && dd >= 1 && dd <= 31)
-                }
-                { sub(/\r$/, "") }
-                /^[ \t]*```/ {
-                    t = $0; sub(/^[ \t]*```/, "", t)
-                    if (t !~ /```/) {
-                        if (in_stream && $0 ~ /^```/) flush()
-                        fence = !fence; next
-                    }
-                }
-                fence { next }
-                tolower($0) ~ /^## decision stream[ \t]*$/ { in_stream = 1; next }
-                in_stream && /^## / { flush(); in_stream = 0; exit }
-                !in_stream { next }
-                /^[ \t]*$/ { flush(); next }
-                /^-[ \t]+D/ {
-                    flush()
-                    unmig = 0; hasev = 0; hasunc = 0; status = ""; date = ""
-                    if (match($0, /^- D[0-9]+[a-z]?/)) {
-                        id = substr($0, 3, RLENGTH - 2)
-                        rest = substr($0, RLENGTH + 1)
-                        num = id; sub(/^D/, "", num); sub(/[^0-9].*$/, "", num)
-                        if (rest ~ /^-(proposed|rejected)([^A-Za-z0-9]|$)/ || rest ~ /^:/ || rest ~ /^[ \t]+\(/) {
-                            unmig = 1; have = 1; next
-                        }
-                        if (rest ~ /^ [^ \t]+ — /) {
-                            split(rest, tok, " "); status = tok[1]
-                            have = 1; next
-                        }
-                        if (rest ~ /^ [^ \t]+ [^ \t]+ — /) {
-                            split(rest, tok, " "); status = tok[1]; date = tok[2]
-                            if (date ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ && !validdate(date)) { malformed(); next }
-                            have = 1; next
-                        }
-                    }
-                    malformed(); next
-                }
-                /^[^ \t]/ { flush(); next }
-                have && /^[ \t]+evidence:/ { hasev = 1 }
-                have && /^[ \t]+unconfirmed:/ { hasunc = 1 }
-                END {
-                    flush()
-                    for (i = 1; i <= nid; i++)
-                        if (cnt[ord[i]] - sup[ord[i]] > 1)
-                            printf "WARN:  %s decision-stream %s appears on more than one entry head (all but one must be superseded)\n", file, ord[i]
-                    if (fence) printf "WARN:  %s decision-stream unclosed code fence — the rest of the file is skipped\n", file
-                }
-            ' "$f"
-        )
+        if [ -z "$DS_LIB" ]; then
+            emit "ERROR: $SCRIPT_DIR/lib/decision-stream.awk is missing — decision-stream checks skipped"
+        else
+            while IFS= read -r stream_finding; do
+                [ -n "$stream_finding" ] || continue
+                emit "$stream_finding"
+            done < <(
+                DS_FILE="$f" DS_LT="$legacy_num" awk "$DS_LIB
+$DS_LINT_PROG" "$f"
+            )
+        fi
     fi
 
     target_ids=()

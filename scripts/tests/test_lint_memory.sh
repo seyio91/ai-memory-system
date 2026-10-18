@@ -1390,4 +1390,113 @@ assert_not_contains "$OUT" "decision-stream D9 appears" "D9 and D9a are distinct
 assert_not_contains "$OUT" "decision-stream D10 appears" "duplicate inside a fence is skipped"
 rm -rf "$MDD"
 
+# C1: dates must be real calendar days (month lengths, leap years)
+MDV="$(new_sandbox)"; export MEMORY_DIR="$MDV"; build_clean "$MDV"
+ds_fixture "$MDV" "" <<'EOF'
+- D1 proposed 2026-02-31 — feb 31
+  unconfirmed: x
+- D2 proposed 2026-02-29 — non-leap
+  unconfirmed: x
+- D3 proposed 2028-02-29 — leap
+  unconfirmed: x
+- D4 proposed 2026-04-31 — april 31
+  unconfirmed: x
+- D5 proposed 2026-13-01 — month 13
+  unconfirmed: x
+- D6 proposed 2026-00-10 — month 0
+  unconfirmed: x
+- D7 proposed 1900-02-29 — century non-leap
+  unconfirmed: x
+- D8 proposed 2000-02-29 — 400-year leap
+  unconfirmed: x
+- D9 proposed 2026-12-31 — last day
+  unconfirmed: x
+- D10 proposed 2026-06-00 — day 0
+  unconfirmed: x
+EOF
+run_lint
+for h in "D1 proposed 2026-02-31" "D2 proposed 2026-02-29" "D4 proposed 2026-04-31" "D5 proposed 2026-13-01" "D6 proposed 2026-00-10" "D7 proposed 1900-02-29" "D10 proposed 2026-06-00"; do
+    assert_contains "$OUT" "decision-stream malformed head \`- $h" "impossible date is a malformed head: $h"
+done
+assert_eq "7" "$(printf '%s\n' "$OUT" | grep -c 'decision-stream malformed head')" "only the impossible dates are malformed"
+assert_not_contains "$OUT" "decision-stream D3 " "2028-02-29 is a valid date"
+assert_not_contains "$OUT" "decision-stream D8 " "2000-02-29 is a valid date"
+assert_not_contains "$OUT" "decision-stream D9 " "2026-12-31 is a valid date"
+rm -rf "$MDV"
+
+# C2: fences — tilde, longer than three, closed only by the same char at >= the opening length
+MDF="$(new_sandbox)"; export MEMORY_DIR="$MDF"; build_clean "$MDF"
+ds_fixture "$MDF" "" <<'EOF'
+~~~markdown
+- D1-proposed: tilde example
+## Not a heading
+~~~
+- D2 bogus 2026-10-01 — after tilde fence
+````markdown
+```
+- D3-proposed: nested triple fence is body
+```
+- D4-proposed: still inside the four-backtick fence
+````
+- D5 bogus 2026-10-01 — after four-backtick fence
+~~~~
+```
+- D6-proposed: backticks do not close a tilde fence
+~~~
+- D7-proposed: shorter tilde run does not close
+~~~~~
+- D8 bogus 2026-10-01 — after long tilde fence
+```js
+- D9-proposed: closer with info string is body
+```js
+- D10-proposed: still inside
+```
+- D11 bogus 2026-10-01 — after backtick fence
+~~~
+```
+- D12-proposed: a backtick line does not close an equal-length tilde fence
+~~~
+```
+~~~
+- D13-proposed: a tilde line does not close an equal-length backtick fence
+```
+- D14 bogus 2026-10-01 — after the mixed-kind fences
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D2 status 'bogus'" "entry after a tilde fence is checked (## inside the fence did not end the stream)"
+assert_contains "$OUT" "decision-stream D5 status 'bogus'" "entry after a four-backtick fence is checked"
+assert_contains "$OUT" "decision-stream D8 status 'bogus'" "entry after a tilde fence not closed by backticks or a shorter run is checked"
+assert_contains "$OUT" "decision-stream D11 status 'bogus'" "a closer with an info string does not close; a bare one does"
+assert_contains "$OUT" "decision-stream D14 status 'bogus'" "equal-length fences of the other kind do not close"
+for d in D1 D3 D4 D6 D7 D9 D10 D12 D13; do
+    assert_not_contains "$OUT" "decision-stream $d " "fenced $d is not parsed"
+done
+assert_not_contains "$OUT" "unclosed code fence" "all fences closed"
+rm -rf "$MDF"
+
+# C3: legacy_through present but empty -> one WARN; absent -> none
+MDE="$(new_sandbox)"; export MEMORY_DIR="$MDE"; build_clean "$MDE"
+ds_fixture "$MDE" "" <<'EOF'
+- D1 proposed 2026-10-01 — a
+  unconfirmed: x
+EOF
+f="$MDE/initiatives/clean-initiative.md"
+run_lint
+assert_not_contains "$OUT" "legacy_through" "absent legacy_through is silent"
+awk 'NR > 1 && /^---$/ && !d { print "legacy_through:"; d = 1 } { print }' "$f" > "$f.t" && mv "$f.t" "$f"
+run_lint
+assert_contains "$OUT" "legacy_through '' is not D<n>" "empty legacy_through warns naming the field"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -c 'legacy_through')" "exactly one legacy_through WARN"
+rm -rf "$MDE"
+
+# H3: a path with a literal backslash-n reaches the report unchanged
+MDB="$(new_sandbox)"; export MEMORY_DIR="$MDB"; build_clean "$MDB"
+ds_fixture "$MDB" "" <<'EOF'
+- D1 bogus 2026-10-01 — x
+EOF
+cp "$MDB/initiatives/clean-initiative.md" "$MDB/initiatives"/'back\name.md'
+run_lint
+assert_contains "$OUT" "$MDB/initiatives/"'back\name.md decision-stream D1 status '"'bogus'" "backslash-n in a filename is reported literally"
+rm -rf "$MDB"
+
 finish

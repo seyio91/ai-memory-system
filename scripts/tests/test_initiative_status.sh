@@ -339,4 +339,72 @@ assert_eq "Decisions: 1 proposed (0 legacy), oldest 1 days" "$(dec_line d-fence)
 mk_dec d-empty '' ''
 assert_eq "Decisions: 0 proposed (0 legacy)" "$(dec_line d-empty)" "empty stream: zero"
 
+# C1/H1: malformed heads (incl. impossible dates) are not counted and give no age
+mk_dec d-bad '' '- D1 proposed 2026-02-31 — impossible date
+  unconfirmed: x
+- D2 proposed 2026-10-01 missing dash
+- D3 proposed 2026-10-08 — real
+  unconfirmed: x'
+assert_eq "Decisions: 1 proposed (0 legacy), oldest 10 days" "$(dec_line d-bad)" "malformed heads are neither counted nor aged"
+
+mk_dec d-feb '' '- D1 proposed 2026-02-31 — impossible date
+  unconfirmed: x'
+assert_eq "Decisions: 0 proposed (0 legacy)" "$(dec_line d-feb)" "an impossible date is not counted"
+mk_dec d-leap '' '- D1 proposed 2028-02-29 — leap day
+  unconfirmed: x'
+assert_eq "Decisions: 1 proposed (0 legacy), oldest 7 days" "$(INITIATIVE_STATUS_TODAY=2028-03-07 bash "$SCRIPT" d-leap 2>&1 | grep '^Decisions:')" "a leap day counts and ages"
+
+mk_dec d-tilde '' '~~~
+- D1 proposed 2026-10-01 — fenced
+## Not a heading
+~~~
+````
+```
+- D2 proposed 2026-10-01 — nested fenced
+```
+````
+- D3 proposed 2026-10-17 — real
+  unconfirmed: x'
+assert_eq "Decisions: 1 proposed (0 legacy), oldest 1 days" "$(dec_line d-tilde)" "tilde and four-backtick fences are skipped"
+
+# H1: --list-proposed is read-only and uses the shared grammar
+mk_dec d-list 'legacy_through: D1' '- D1 proposed — legacy undated
+- D2 confirmed 2026-10-01 — done
+  evidence: x
+- D3 proposed 2026-10-08 — open
+  unconfirmed: x
+- D4 proposed 2026-02-31 — impossible date
+- D5 proposed 2026-10-01 no dash
+~~~
+- D6 proposed 2026-10-01 — fenced
+~~~
+- D7-proposed: old shape
+- D8a proposed 2026-10-09 — lettered
+  unconfirmed: x'
+rm -rf "$MEM/initiatives/.state"
+set +e
+list_out="$(bash "$SCRIPT" d-list --list-proposed 2>&1)"; list_rc=$?
+set -e
+assert_exit 0 "$list_rc" "--list-proposed exits 0"
+assert_eq "- D1 proposed — legacy undated
+- D3 proposed 2026-10-08 — open
+- D8a proposed 2026-10-09 — lettered" "$list_out" "--list-proposed prints valid proposed heads only, legacy included, fences and malformed excluded"
+assert_not_file "$MEM/initiatives/.state" "--list-proposed writes no .state directory"
+assert_eq "$list_out" "$(bash "$SCRIPT" --list-proposed d-list 2>&1)" "--list-proposed accepts the flag before the slug"
+mkdir -p "$MEM/initiatives/.state"; printf 'stream-entries 99\n' > "$MEM/initiatives/.state/d-list.snapshot"
+bash "$SCRIPT" d-list --list-proposed >/dev/null 2>&1
+assert_eq "stream-entries 99" "$(cat "$MEM/initiatives/.state/d-list.snapshot")" "--list-proposed leaves an existing snapshot untouched"
+rm -rf "$MEM/initiatives/.state"
+mk_dec d-listempty '' '- D1 confirmed 2026-10-01 — x
+  evidence: y'
+set +e
+empty_out="$(bash "$SCRIPT" d-listempty --list-proposed 2>&1)"; empty_rc=$?
+set -e
+assert_exit 0 "$empty_rc" "--list-proposed with none exits 0"
+assert_eq "" "$empty_out" "--list-proposed with none prints nothing"
+set +e
+bash "$SCRIPT" --ack d-list --list-proposed >/dev/null 2>&1; both_rc=$?
+set -e
+assert_exit 2 "$both_rc" "--ack with --list-proposed is a usage error"
+
 finish
