@@ -258,5 +258,33 @@ set -e
 assert_exit 0 "$CODE" "initiative write fails open when lint-memory.sh is absent"
 rm -rf "$M10" "$FAKE2"
 
+# H3/C4: reported path survives backslash, ampersand and space names, on the
+# default bash and (when /bin/bash is 3.x) explicitly on bash 3.2.
+run_guard_with() { # run_guard_with <bash> <file_path>
+    local esc
+    esc="$(printf '%s' "$2" | sed 's/\\/\\\\/g')"
+    set +e
+    OUT="$(write_payload "$esc" | PATH="/usr/bin:/bin:$PATH" "$1" "$GUARD" 2>&1)"
+    CODE=$?
+    set -e
+}
+M11="$(new_sandbox)"; export MEMORY_DIR="$M11"; build_tree "$M11"
+check_paths() { # check_paths <bash> <label>
+    local b="$1" l="$2" n
+    for n in 'plain.md' 'sp ace.md' 'am&per.md' 'back\name.md' 'back\\two.md' 'a&b\n c.md'; do
+        write_initiative "$M11/initiatives/$n" "$BAD"
+        run_guard_with "$b" "$M11/initiatives/$n"
+        assert_exit 2 "$CODE" "$l: '$n' is checked"
+        assert_contains "$OUT" "WARN:  $M11/initiatives/$n decision-stream D1 status 'maybe'" "$l: '$n' is reported with its real path"
+    done
+}
+check_paths bash "default bash"
+if /bin/bash --version 2>/dev/null | head -n1 | grep -q 'version 3\.'; then
+    check_paths /bin/bash "/bin/bash 3.x"
+else
+    echo "  skip /bin/bash is not 3.x: bash 3.2 path-rewrite variant not run"
+fi
+rm -rf "$M11"
+
 unset MEMORY_DIR
 finish

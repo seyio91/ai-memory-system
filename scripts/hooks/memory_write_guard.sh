@@ -148,7 +148,16 @@ case "$file" in
                 findings="$(MEMORY_DIR="$tmp" bash "$lint_checker" 2>/dev/null \
                     | grep -F -e "WARN:  $tmp/initiatives/$name decision-stream " \
                            -e "WARN:  $tmp/initiatives/$name legacy_through ")"
-                findings="${findings//"$tmp/initiatives/$name"/"$file"}"
+                # Per-line prefix strip, not ${//}: bash 3.2 mangles quoted
+                # pattern/replacement, and bash 5.2 expands & in the replacement.
+                prefix="WARN:  $tmp/initiatives/$name"
+                rewritten=""
+                while IFS= read -r line; do
+                    [ -n "$line" ] || continue
+                    rest=${line#"$prefix"}
+                    rewritten="${rewritten}${rewritten:+$'\n'}WARN:  ${file}${rest}"
+                done <<< "$findings"
+                findings="$rewritten"
             fi
         fi
         add_report "Decision stream in ${file#"$MEMORY_DIR"/}" "$findings"
