@@ -302,7 +302,8 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
     #      fenced blocks are skipped. Legacy = plain `D<n>` (no letter) with n <=
     #      frontmatter `legacy_through:`; none -> nothing is legacy. Legacy
     #      entries may omit the date and skip the date/evidence/unconfirmed
-    #      checks, never the status, unmigrated or malformed-head checks.
+    #      checks, never the status, unmigrated or malformed-head checks. An id on
+#      more than one head is one WARN unless all copies but one are superseded.
     if [ "$kind" = "initiative" ]; then
         legacy_mark=$(extract_fm_field "$f" legacy_through | tr -d '\r')
         legacy_num=$(printf '%s\n' "$legacy_mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')
@@ -318,6 +319,9 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                 function flush(   legacy) {
                     if (!have) return
                     have = 0
+                    if (!(id in cnt)) ord[++nid] = id
+                    cnt[id]++
+                    if (!unmig && status == "superseded") sup[id]++
                     if (unmig) {
                         printf "WARN:  %s decision-stream %s is an unmigrated old-shape entry (expected `- D<n> <status> <YYYY-MM-DD> — ...`)\n", file, id
                         return
@@ -380,6 +384,9 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                 have && /^[ \t]+unconfirmed:/ { hasunc = 1 }
                 END {
                     flush()
+                    for (i = 1; i <= nid; i++)
+                        if (cnt[ord[i]] - sup[ord[i]] > 1)
+                            printf "WARN:  %s decision-stream %s appears on more than one entry head (all but one must be superseded)\n", file, ord[i]
                     if (fence) printf "WARN:  %s decision-stream unclosed code fence — the rest of the file is skipped\n", file
                 }
             ' "$f"

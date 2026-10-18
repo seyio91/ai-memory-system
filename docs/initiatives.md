@@ -47,7 +47,7 @@ The decision stream is append-only: append a new decision and mark an older
 one `SUPERSEDES <id>`; do not rewrite history. The one in-place edit allowed is
 an entry's status and its date, `evidence:` and `unconfirmed:` lines.
 
-Entry shape: `- D<n> <status> <YYYY-MM-DD> — <decision>`. The id never changes;
+Entry shape: `- D<n> <status> <YYYY-MM-DD> — <decision>`. The id never changes and is unique, except that `superseded` copies may repeat it;
 the date is bare and is the date of the last status change. Status is one of:
 
 | Status | Meaning |

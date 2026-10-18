@@ -6,7 +6,8 @@
 # _template.md, .state/ and archive/ are skipped) to
 #   - D<n>[a] <status>[ <YYYY-MM-DD>] -- <text>
 # and stamps `legacy_through: D<max plain id>` in frontmatter when absent.
-# A parenthesised or bracketed qualifier moves to the start of the text as
+# A `-proposed` head whose id also has a bare `D<n>:` head in the stream becomes
+# `superseded`. A parenthesised or bracketed qualifier moves to the start of the text as
 # `(<qualifier>) `. Lines it does not fully match are left byte-identical and
 # reported. Idempotent; writes via temp file + mv.
 set -euo pipefail
@@ -34,7 +35,7 @@ function closeparen(s, start,   i, d, c) {
 # Sets NEWLINE (and returns 1) when the head is rewritten; returns 0 when left
 # as is; sets UNREC when the head is not recognised.
 function rewrite(L,   id, rest, st, st2, date, q, inner, c, n, g, sp, after, dtok, rem, text, tail, cl, sfx) {
-    NEWLINE = ""; UNREC = 0
+    NEWLINE = ""; UNREC = 0; KIND = ""
     if (!match(L, /^- D[0-9]+[a-z]?/)) { UNREC = 1; return 0 }
     id = substr(L, 3, RLENGTH - 2)
     rest = substr(L, RLENGTH + 1)
@@ -66,6 +67,7 @@ function rewrite(L,   id, rest, st, st2, date, q, inner, c, n, g, sp, after, dto
         if (rest !~ /^: ./) { UNREC = 1; return 0 }
         text = substr(rest, 3)
         NEWLINE = "- " id " " st (date != "" ? " " date : "") " \342\200\224 " (q != "" ? "(" q ") " : "") text
+        KIND = st; KID = id
         return 1
     }
     if (rest !~ /^ [^ \t]/) { UNREC = 1; return 0 }
@@ -127,6 +129,8 @@ BEGIN { DASHSP = "" }
         }
         if (rewrite(L)) {
             out[NR] = NEWLINE (cr ? "\r" : ""); nchanged++
+            if (KIND == "confirmed") bare[KID] = 1
+            if (KIND == "proposed") { pidx[++np] = NR; pid[np] = KID }
         } else if (UNREC) {
             h = L
             p = index(h, " \342\200\224 "); if (p > 0) h = substr(h, 1, p - 1)
@@ -136,6 +140,8 @@ BEGIN { DASHSP = "" }
     }
 }
 END {
+    for (k = 1; k <= np; k++)
+        if (pid[k] in bare) sub(/^- D[0-9]+[a-z]? proposed/, "- " pid[k] " superseded", out[pidx[k]])
     ins = 0
     if (fm_end > 0 && isinit && !haslegacy && maxnum > 0) ins = 1
     if (ins) print "L\tD" maxnum > ctl

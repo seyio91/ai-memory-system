@@ -1358,4 +1358,36 @@ run_lint
 assert_contains "$OUT" "legacy_through '5' is not D<n>" "bare-number legacy_through warns"
 rm -rf "$MD15"
 
+# duplicate ids on entry heads: allowed only when all copies but one are superseded
+MDD="$(new_sandbox)"; export MEMORY_DIR="$MDD"; build_clean "$MDD"
+ds_fixture "$MDD" "" <<'EOF'
+- D6 confirmed 2026-10-01 — a
+  evidence: x
+- D6 rejected 2026-10-01 — b
+- D7 confirmed 2026-10-01 — c
+  evidence: x
+- D7 superseded 2026-10-01 — d
+- D8 superseded 2026-10-01 — e
+- D8 superseded 2026-10-01 — f
+- D8 confirmed 2026-10-01 — g
+  evidence: x
+- D9 confirmed 2026-10-01 — h
+  evidence: x
+- D9a confirmed 2026-10-01 — i
+  evidence: x
+- D10 confirmed 2026-10-01 — j
+  evidence: x
+```
+- D10 rejected 2026-10-01 — fenced
+```
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D6 appears on more than one entry head" "duplicate non-superseded ids warn"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -c 'appears on more than one entry head')" "one WARN per duplicated id, none for the allowed cases"
+assert_not_contains "$OUT" "decision-stream D7 appears" "confirmed + superseded copy is clean"
+assert_not_contains "$OUT" "decision-stream D8 appears" "two superseded + one confirmed is clean"
+assert_not_contains "$OUT" "decision-stream D9 appears" "D9 and D9a are distinct ids"
+assert_not_contains "$OUT" "decision-stream D10 appears" "duplicate inside a fence is skipped"
+rm -rf "$MDD"
+
 finish

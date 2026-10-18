@@ -48,6 +48,10 @@ created: 2026-08-01
 - D18-proposed no colon here
 - D19-proposed:
 - D20 Evidence: not a head status
+- D22-proposed (2026-09-01) *(original)*: twin original.
+- D22: twin confirmed.
+- D23-proposed: only a lettered sibling.
+- D23a: lettered confirmed.
 Prose line mentioning D2-proposed and [2026-01-01] stays.
 
 ```
@@ -81,6 +85,9 @@ assert_eq "- D4 proposed 2026-09-10 — dated proposal." "$(head_of '- D4 ')" "p
 assert_eq "- D5 proposed — (raised by \`x\`, 2026-08-15) starred qualifier." "$(head_of '- D5 ')" "*(qualifier)* moved after dash"
 assert_eq "- D6 confirmed — (settled 2026-08-30, closed 2026-09-10) paren qualifier on bare id." "$(head_of '- D6 ')" "D<n> (qualifier): -> confirmed + moved qualifier"
 assert_eq "- D7 proposed 2026-09-12 — (original) date and qualifier." "$(head_of '- D7 ')" "date plus qualifier"
+assert_eq "- D22 superseded 2026-09-01 — (original) twin original." "$(head_of '- D22 superseded')" "-proposed with bare twin -> superseded"
+assert_eq "- D22 confirmed — twin confirmed." "$(head_of '- D22 confirmed')" "bare twin -> confirmed"
+assert_eq "- D23 proposed — only a lettered sibling." "$(head_of '- D23 ')" "-proposed with only lettered sibling stays proposed"
 assert_eq "- D8a confirmed — lettered bare." "$(head_of '- D8a ')" "lettered id migrated"
 assert_eq "- D9 confirmed 2026-09-18 — shipped becomes confirmed." "$(head_of '- D9 ')" "shipped -> confirmed"
 assert_eq "- D10 confirmed 2026-09-23 — bracketed date." "$(head_of '- D10 ')" "[date] -> date"
@@ -108,10 +115,10 @@ assert_contains "$(cat "$got")" $'\nProse line mentioning D2-proposed and [2026-
 assert_contains "$(cat "$got")" $'- D30: inside a fence stays\n' "fenced entry untouched"
 assert_contains "$(cat "$got")" $'- D21 confirmed — after fence still in stream.' "stream continues after fence"
 assert_contains "$(cat "$got")" $'- D40: outside the stream stays.' "entry outside the stream untouched"
-assert_eq "legacy_through: D21" "$(grep '^legacy_through:' "$got")" "legacy_through = max plain id in the stream (fence/outside ignored)"
-assert_eq "kind: initiative|slug: fix|status: active|created: 2026-08-01|legacy_through: D21|---" \
+assert_eq "legacy_through: D23" "$(grep '^legacy_through:' "$got")" "legacy_through = max plain id in the stream (fence/outside ignored)"
+assert_eq "kind: initiative|slug: fix|status: active|created: 2026-08-01|legacy_through: D23|---" \
     "$(sed -n '2,7p' "$got" | tr '\n' '|' | sed 's/|$//')" "legacy_through inserted before closing frontmatter fence"
-assert_contains "$out" "fix.md: 13 head(s) rewritten, legacy_through: D21" "summary line per changed file"
+assert_contains "$out" "fix.md: 17 head(s) rewritten, legacy_through: D23" "summary line per changed file"
 
 assert_same "$ROOT/fix.orig" "$M/initiatives/_template.md" "_template.md untouched"
 assert_same "$ROOT/fix.orig" "$M/initiatives/archive/old.md" "archive/ untouched"
@@ -120,7 +127,7 @@ assert_same "$ROOT/notinit.orig" "$M/initiatives/notinit.md" "non-initiative kin
 
 # line count preserved except the frontmatter insertion; body diff is heads only
 chg="$(diff "$ROOT/fix.orig" "$got" | grep -c '^>' || true)"
-assert_eq "14" "$chg" "13 heads + 1 frontmatter line changed, nothing else"
+assert_eq "18" "$chg" "17 heads + 1 frontmatter line changed, nothing else"
 
 # idempotency
 cp "$got" "$ROOT/after1"

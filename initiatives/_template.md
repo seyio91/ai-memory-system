@@ -22,7 +22,7 @@ the repository holds the *what*.>
 
 <Append-only; supersede, never rewrite. Entry shape, one line per decision:
 `- D<n> <proposed|confirmed|rejected|superseded|retired> <YYYY-MM-DD> — <decision>`.
-Status is never part of the id; a `D<n>-proposed` reference means `D<n>`.
+Status is never part of the id; a `D<n>-proposed` reference means `D<n>`. Ids are unique, except that `superseded` copies may repeat an id.
 The date is bare (no brackets or parentheses) and is the date of the last
 status change. Continuation lines, two-space indented: `evidence:`,
 `unconfirmed:`, `binds:`, and supersession keywords (`SUPERSEDES <id>`).
