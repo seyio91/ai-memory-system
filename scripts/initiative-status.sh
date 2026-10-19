@@ -21,9 +21,10 @@
 # 'stream-entries <count>' line. It is hand-editable: update those lines to
 # acknowledge the current state without running this script.
 #
-# --list-proposed: print the initiative's proposed decision-stream entry heads
-# (valid heads only, fenced text excluded, legacy included), one per line, and
-# exit. Read-only: no snapshot is read or written.
+# --list-proposed: print each proposed decision-stream entry in full (valid
+# heads only, fenced text excluded, legacy included): head plus continuation
+# lines, entries separated by one blank line, then exit with awk's status.
+# Read-only: no snapshot is read or written.
 #
 # Usage: initiative-status.sh [--ack | --list-proposed] <slug>
 
@@ -78,20 +79,37 @@ esac
 DS_LIB="$(cat "$HERE/lib/decision-stream.awk" 2>/dev/null)"
 [ -n "$DS_LIB" ] || { echo "initiative-status: missing $HERE/lib/decision-stream.awk" >&2; exit 1; }
 
-# list_proposed — one line per valid-head proposed entry, legacy included.
+# list_proposed — each valid-head proposed entry in full (head plus its
+# continuation lines, up to the next entry head or the stream end), legacy
+# included, entries separated by one blank line. Returns awk's exit status.
 list_proposed() {
     awk "$DS_LIB"'
+        function flush() {
+            if (!cur) return
+            sub(/\n+$/, "", buf)
+            printf "%s%s\n", (shown++ ? "\n" : ""), buf
+            cur = 0; buf = ""
+        }
         { sub(/\r$/, "") }
         { inst = ds_track($0) }
         DS_END { exit }
         !inst { next }
-        ds_head($0) == "ok" && DS_STATUS == "proposed" { print }
+        {
+            h = ds_head($0)
+            if (h != "") {
+                flush()
+                if (h == "ok" && DS_STATUS == "proposed") { cur = 1; buf = $0 "\n" }
+                next
+            }
+            if (cur) buf = buf $0 "\n"
+        }
+        END { flush() }
     ' "$INITIATIVE"
 }
 
 if [ "$LIST" -eq 1 ]; then
     list_proposed
-    exit 0
+    exit $?
 fi
 
 target_ids=()
