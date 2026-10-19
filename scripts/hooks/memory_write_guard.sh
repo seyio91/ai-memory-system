@@ -70,6 +70,17 @@ fi
 [ -f "$file" ] || exit 0
 case "$file" in *"/_template/"*|*/_template.md) exit 0 ;; esac
 
+# Match on physical paths: ~/.claude-memory is a symlink to the install, and
+# MEMORY_DIR is baked physical (install.sh pwd -P). Reports keep the path as
+# written. A directory that cannot be resolved keeps its raw value.
+shown_file="$file"
+if fdir="$(cd -- "$(dirname -- "$file")" 2>/dev/null && pwd -P)"; then
+    file="$fdir/$(basename -- "$file")"
+fi
+if mdir="$(cd -- "$MEMORY_DIR" 2>/dev/null && pwd -P)"; then
+    MEMORY_DIR="$mdir"
+fi
+
 # report accumulates one labeled section per non-empty finding set; a missing
 # checker or a clean run just contributes nothing, never a blank section.
 report=""
@@ -155,7 +166,7 @@ case "$file" in
                 while IFS= read -r line; do
                     [ -n "$line" ] || continue
                     rest=${line#"$prefix"}
-                    rewritten="${rewritten}${rewritten:+$'\n'}WARN:  ${file}${rest}"
+                    rewritten="${rewritten}${rewritten:+$'\n'}WARN:  ${shown_file}${rest}"
                 done <<< "$findings"
                 findings="$rewritten"
             fi

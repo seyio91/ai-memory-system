@@ -286,5 +286,24 @@ else
 fi
 rm -rf "$M11"
 
+# B1: writes through a symlinked path are still checked, either direction.
+SL="$(new_sandbox)"; SL="$(cd "$SL" && pwd -P)"
+mkdir -p "$SL/real"; build_tree "$SL/real"; ln -s real "$SL/link"
+printf '\n**2026-01-01:** PR #1 merged.\n' >> "$SL/real/projects/good/memory.md"
+write_initiative "$SL/real/initiatives/x.md" "$BAD"
+export MEMORY_DIR="$SL/real"
+run_guard "$SL/link/initiatives/x.md"
+assert_exit 2 "$CODE" "symlinked path to initiatives/x.md is checked (MEMORY_DIR physical)"
+assert_contains "$OUT" "WARN:  $SL/link/initiatives/x.md decision-stream D1 status 'maybe'" "symlinked initiative report keeps the path as written"
+run_guard "$SL/link/projects/good/memory.md"
+assert_exit 2 "$CODE" "symlinked path to project memory.md drift is checked"
+assert_contains "$OUT" "Changelog drift in projects/good/memory.md" "symlinked memory.md report is MEMORY_DIR-relative"
+export MEMORY_DIR="$SL/link"
+run_guard "$SL/real/initiatives/x.md"
+assert_exit 2 "$CODE" "physical path is checked when MEMORY_DIR is the symlink"
+run_guard "$SL/real/projects/good/memory.md"
+assert_exit 2 "$CODE" "physical memory.md drift is checked when MEMORY_DIR is the symlink"
+rm -rf "$SL"
+
 unset MEMORY_DIR
 finish
