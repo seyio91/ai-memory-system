@@ -13,7 +13,7 @@
 - [x] P3 — derived count (needs: P1)
 - [x] P4 — close-out (plan-done Step 5b), doctrine, docs, changelog
 - [x] P5 — migration (needs: P1)
-- [ ] P6 — migrate local initiatives (needs: P5)
+- [x] P6 — migrate local initiatives (needs: P5)
 - [ ] Pre-PR checkpoint — suite, lint diff, final validator pass, PR (needs: P1, P2, P3, P4, P5, P6)
 
 ## Done

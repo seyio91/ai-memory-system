@@ -111,7 +111,8 @@ derived count keep `proposed` from being written and never cleared.
    - has one fixture per head form above, is sandbox-tested, and has a matching `UPGRADING.md`
      section (`test_upgrading_doc.sh` green).
 8. Local data: the migration has run on the four live initiatives. By hand,
-   `fineract-provisioning-dispatch` `D12` (proposed, confirmed as `D12a`) set to `superseded`; each choice
+   (`D12` checked and left `proposed`: it is a real open proposal; `D12a` is unrelated, not its
+   confirmation); each choice
    recorded in the stream: `k8s-platform-agent`'s two mixed values (`D15 confirmed/proposed`,
    `D24 confirmed 2026-09-21 / proposed`) resolved to one status; `fineract-provisioning-dispatch`
    `D12a` (lettered, so never legacy) given a date and its `Evidence:` line lowercased.
