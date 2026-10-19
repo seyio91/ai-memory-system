@@ -193,6 +193,9 @@ continuation lines and every other line are untouched; a second run changes noth
 - An initiative where nothing was rewritten (already field-shaped, or only reported
   lines) gets no `legacy_through:`; if lint
   flags its older entries, add `legacy_through: D<max id>` to its frontmatter.
+- Accepted risk: if the applied-version marker is lost and the migration replays, a
+  newer initiative holding a stray old-format head gets `legacy_through:` and its
+  entries skip the date/evidence/unconfirmed checks; remove that line by hand.
 
 Entries at or below `legacy_through:` are exempt from the date, `evidence:` and
 `unconfirmed:` checks. Check with:

@@ -83,7 +83,9 @@ function rewrite(L,   id, rest, st, st2, date, q, inner, c, n, g, sp, after, dto
     after = substr(rest, sp)
     st2 = (st == "shipped") ? "confirmed" : st
     if (!inset(st2)) { UNREC = 1; return 0 }
-    if (after ~ /^ \342\200\224 / || after ~ /^ [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] \342\200\224 /) {
+    dtok = substr(after, 2, 10)
+    if (ds_dateshape(dtok) && substr(after, 12) ~ /^ \342\200\224 / && !isdate(dtok)) { UNREC = 1; return 0 }
+    if (after ~ /^ \342\200\224 / || (ds_dateshape(dtok) && substr(after, 12) ~ /^ \342\200\224 /)) {
         if (st == st2) return 0
         NEWLINE = "- " id " " st2 after
         return 1

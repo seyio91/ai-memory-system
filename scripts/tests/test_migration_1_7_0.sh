@@ -267,6 +267,18 @@ assert_contains "$out12" "unrecognised decision head left unchanged" "impossible
 assert_contains "$(cat "$ROOT/m12/initiatives/i.md")" "- D1 confirmed [2026-02-31] — x" "impossible bracketed date line unchanged"
 assert_contains "$(cat "$ROOT/m12/initiatives/i.md")" "- D2 confirmed 2026-02-28 — y" "real bracketed date normalised"
 
+# impossible bare / field-shape date: unchanged, reported, no stamp by itself
+mkdir -p "$ROOT/m14/initiatives"
+printf -- '---\nkind: initiative\nslug: i\nstatus: active\ncreated: 2026-09-01\n---\n\n## Decision stream\n\n- D1 proposed 2026-02-31 — x\n- D2 shipped 2026-02-31 — y\n- D3 shipped 2024-02-29 — z\n' > "$ROOT/m14/initiatives/i.md"
+printf -- '---\nkind: initiative\nslug: j\nstatus: active\ncreated: 2026-09-01\n---\n\n## Decision stream\n\n- D1 proposed 2026-02-31 — x\n- D2 shipped 2026-02-31 — y\n' > "$ROOT/m14/initiatives/j.md"
+cp "$ROOT/m14/initiatives/j.md" "$ROOT/j14.orig"
+out14="$(MEMORY_DIR="$ROOT/m14" REPO_ROOT="$REPO_ROOT" bash "$MIG" 2>&1)"
+assert_contains "$out14" "j.md:10: - D1 proposed 2026-02-31" "impossible field-shape date reported"
+assert_contains "$out14" "j.md:11: - D2 shipped 2026-02-31" "impossible bare date reported"
+assert_same "$ROOT/j14.orig" "$ROOT/m14/initiatives/j.md" "impossible dates alone: byte-identical, no legacy_through"
+assert_contains "$(cat "$ROOT/m14/initiatives/i.md")" "- D2 shipped 2026-02-31 — y" "impossible shipped date line unchanged"
+assert_contains "$(cat "$ROOT/m14/initiatives/i.md")" "- D3 confirmed 2024-02-29 — z" "real leap day still normalised"
+
 # H3: a MEMORY_DIR containing a literal backslash-n still migrates (control file reaches awk intact)
 BS='bs\name'
 mkdir -p "$ROOT/$BS/initiatives"
