@@ -20,6 +20,10 @@
 #   --changed     derive the test set from the working-tree diff vs REF (default HEAD)
 #   -v            stream each test's full output (default: only failures)
 #
+# Test files run in parallel, AI_MEMORY_TEST_JOBS at a time (default: CPU count;
+# 1 = sequential). Results still print in file order, so output is identical
+# whatever the concurrency.
+#
 # SELECTION IS A LOCAL FAST PATH, NOT A GATE. CI (.github/workflows/tests.yml)
 # runs the full suite on ubuntu + macos for every PR and every push to main, and
 # that is what gates merges. Any selecting run prints a SELECTED banner and a
@@ -71,6 +75,20 @@ while [ $# -gt 0 ]; do
 done
 
 [ -d "$TESTS" ] || { echo "run-tests: no tests dir at $TESTS" >&2; exit 2; }
+
+if [ -n "${AI_MEMORY_TEST_JOBS:-}" ]; then
+    JOBS="$AI_MEMORY_TEST_JOBS"
+    case "$JOBS" in
+        *[!0-9]*) JOBS=0 ;;
+    esac
+    [ "$JOBS" -ge 1 ] 2>/dev/null || {
+        echo "run-tests: AI_MEMORY_TEST_JOBS must be a positive integer, got '$AI_MEMORY_TEST_JOBS'" >&2
+        exit 2
+    }
+else
+    JOBS="$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null)"
+    case "$JOBS" in ''|*[!0-9]*|0) JOBS=4 ;; esac
+fi
 
 # --- test selection -----------------------------------------------------------
 # SELECTED is a newline-delimited list of absolute test paths. Empty => run all.
@@ -155,7 +173,17 @@ hermetic() {
 }
 
 LOGDIR="$(mktemp -d 2>/dev/null || mktemp -d -t runtests)"
-trap 'rm -rf "$LOGDIR"' EXIT
+# Each background test leads its own process group (see run_bg), so killing the
+# group takes down the test's whole tree. Background jobs of a non-interactive
+# shell ignore SIGINT, so without this Ctrl-C would leave them running.
+JOB_PIDS=""
+cleanup() {
+    for p in $JOB_PIDS; do kill -TERM -- "-$p" 2>/dev/null; done
+    rm -rf "$LOGDIR"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 pass=0 fail=0
 failed_names=""
@@ -176,26 +204,68 @@ else
     TEST_LIST="$ALL_TESTS"
 fi
 
-printf '== test suite (hermetic) ==\n'
-while IFS= read -r t; do
-    [ -n "$t" ] && [ -e "$t" ] || continue
-    name="$(basename "$t")"
-    log="$LOGDIR/$name.log"
-    if hermetic bash "$t" >"$log" 2>&1; then
-        printf '  PASS  %-32s %s\n' "$name" "$(grep -E ' passed,' "$log" | tail -1)"
+# Start test $1 in the background. It leaves $2.log and, when done, $2.rc in
+# LOGDIR; the .rc is written via mv, so a present one is always complete.
+run_bg() {
+    set -m   # own process group, so cleanup() can kill the test's whole tree
+    ( hermetic bash "$1" >"$LOGDIR/$2.log" 2>&1 </dev/null
+      echo $? >"$LOGDIR/$2.rc.tmp" && mv "$LOGDIR/$2.rc.tmp" "$LOGDIR/$2.rc" ) &
+    set +m
+    JOB_PIDS="$JOB_PIDS $!"
+}
+
+# A missing .rc (the job died without writing one) reports as a FAIL.
+report() {
+    local log="$LOGDIR/$1.log" rc=1
+    [ -e "$LOGDIR/$1.rc" ] && read -r rc <"$LOGDIR/$1.rc"
+    if [ "$rc" = 0 ]; then
+        printf '  PASS  %-32s %s\n' "$1" "$(grep -E ' passed,' "$log" | tail -1)"
         pass=$((pass + 1))
         [ "$VERBOSE" = 1 ] && sed 's/^/        /' "$log"
     else
-        printf '  FAIL  %s\n' "$name"
+        printf '  FAIL  %s\n' "$1"
         sed 's/^/        /' "$log"
         fail=$((fail + 1))
-        failed_names="$failed_names $name"
+        failed_names="$failed_names $1"
     fi
-# Here-doc, not a pipe: a piped `while` runs in a subshell and the pass/fail
-# counters would be discarded on exit, reporting 0 passed / 0 failed forever.
+}
+
+n_tests=0
+# Here-doc, not a pipe: a piped `while` runs in a subshell and its assignments
+# would be discarded on exit.
+while IFS= read -r t; do
+    [ -n "$t" ] && [ -e "$t" ] || continue
+    TESTV[n_tests]="$t"
+    NAMEV[n_tests]="${t##*/}"
+    n_tests=$((n_tests + 1))
 done <<EOF
 $TEST_LIST
 EOF
+
+# Keep up to JOBS tests running and report each, in list order, as soon as it
+# and every test before it have finished. bash 3.2 has no `wait -n`, hence the poll.
+printf '== test suite (hermetic) ==\n'
+next=0 shown=0
+while [ "$shown" -lt "$n_tests" ]; do
+    running=0 i=$shown
+    while [ "$i" -lt "$next" ]; do
+        [ -e "$LOGDIR/${NAMEV[i]}.rc" ] || running=$((running + 1))
+        i=$((i + 1))
+    done
+    while [ "$next" -lt "$n_tests" ] && [ "$running" -lt "$JOBS" ]; do
+        run_bg "${TESTV[next]}" "${NAMEV[next]}"
+        PIDV[next]=$!
+        next=$((next + 1)) running=$((running + 1))
+    done
+    if [ -e "$LOGDIR/${NAMEV[shown]}.rc" ] || ! kill -0 "${PIDV[shown]}" 2>/dev/null; then
+        report "${NAMEV[shown]}"
+        shown=$((shown + 1))
+    else
+        sleep 0.05
+    fi
+done
+wait
+JOB_PIDS=""
 
 # Python suite. Lives outside scripts/tests/ (it is a package, not a bash script),
 # so the loop above cannot see it — it went ungated until 2026-07-09. Enforce the
