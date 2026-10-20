@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-20
+### Added
+
+- **Decision status is a dated field, not an id suffix.** Initiative entries read `D<n> <proposed|confirmed|rejected|superseded|retired> <date> — …`; confirming sets the status and an `evidence:` line instead of renaming the id. `/plan-done` and initiative close edit the field, `lint-memory.sh` and the write guard check the shape, and `initiative-status.sh` prints a derived proposed count. A migration rewrites existing initiatives and stamps `legacy_through:`. Format: `docs/initiatives.md`.
+- **Project wiki pages are a documented convention.** `projects/<name>/wikis/<slug>.md` holds reference detail too large for `memory.md`, with `topic`/`scope`/`summary`/`reviewed` frontmatter and a `## Pointers` link from the project's `memory.md` — the only way a wiki page loads. The doctrine's wiki-page offer and `/promote-memory` (new `[wiki:<slug>]` destination) route there. Format: `docs/file-formats.md` → Project wiki pages.
+- **Decision-stream proposals now get resolved.** `/plan-done` on an initiative-backed plan lists the initiative's `proposed` entries and asks you to confirm, reject or leave each one; closing an initiative requires every proposal resolved first. Previously nothing ever prompted for confirmation, so proposals sat indefinitely. Statuses and close procedure: `docs/initiatives.md`.
+
+### Fixed
+
+- **`/sync-system --dry-run` lists the target's migrations.** It read `migrations/` from the working tree, so a migration added by the release being previewed was missing from the list and then ran on the real sync. It now reads the resolved target ref (`--no-pull` still reads the working tree).
+- **Manifest parsing no longer starts a process per line.** `manifest.sh` trimmed every manifest line through `sed` and re-read the file for every key, so `validate-manifest.sh` took ~7s and every `install.sh` paid it. Output is byte-identical; validation now takes ~0.1s. `lint-memory.sh` drops similar per-file forks (~15s → ~11s on a real tree).
+- **`run-tests.sh` runs test files in parallel** (default: CPU count; `AI_MEMORY_TEST_JOBS=1` for sequential). Results print in the same order and format. Full local gate: ~11 min → ~1.5 min.
+
 ## [1.6.1] - 2026-10-15
 ### Fixed
 
