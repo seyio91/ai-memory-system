@@ -8,8 +8,8 @@
 ## Active
 
 ### project-scan: derive project memory from the repo → [plan](plans/project-scan.md)
-- [ ] P1 — the skill
-- [ ] P2 — wire /new-project, docs, changelog (needs: P1)
+- [x] P1 — the skill
+- [x] P2 — wire /new-project, docs, changelog (needs: P1)
 - [ ] P3 — live exercise (needs: P2)
 
 ## Done
