@@ -86,6 +86,45 @@ require_fm() {
     fi
 }
 
+# fm_field_each <field> <file>... — extract_fm_field's value for every file,
+# into FM_VALUES[] in argument order, from one awk pass instead of one per file.
+# An empty file still gets its "" slot (awk never sees a line of it); if any
+# file is unreadable, fall back to per-file calls so stderr stays per-file.
+fm_field_each() {
+    local field="$1" v batch=1
+    shift
+    FM_VALUES=()
+    [ "$#" -gt 0 ] || return 0
+    for v in "$@"; do
+        { [ -f "$v" ] && [ -r "$v" ]; } || batch=0
+    done
+    if [ "$batch" -eq 0 ]; then
+        for v in "$@"; do
+            FM_VALUES[${#FM_VALUES[@]}]="$(extract_fm_field "$v" "$field")"
+        done
+        return 0
+    fi
+    while IFS= read -r v; do
+        FM_VALUES[${#FM_VALUES[@]}]="$v"
+    done < <(awk -v f="$field" '
+        function done_file() { if (a) print val }
+        FNR == 1 {
+            done_file()
+            while (++a < ARGC && ARGV[a] != FILENAME) print ""
+            val = ""; in_fm = 0; stop = 0
+            if ($0 ~ /^---[[:space:]]*$/) { in_fm = 1; next }
+        }
+        stop || !in_fm { next }
+        /^---[[:space:]]*$/ { stop = 1; next }
+        match($0, "^" f ":[[:space:]]*") {
+            val = substr($0, RLENGTH + 1)
+            sub(/[[:space:]]+$/, "", val)
+            stop = 1
+        }
+        END { done_file(); while (++a < ARGC) print "" }
+    ' "$@")
+}
+
 # 1. Frontmatter required on every domain + project memory file.
 for f in "$MEMORY_DIR"/domain/*.md; do
     [ -e "$f" ] || continue
@@ -106,7 +145,7 @@ if [ -f "$INDEX" ]; then
     for f in "$MEMORY_DIR"/projects/*/memory.md; do
         [ -e "$f" ] || continue
         case "$f" in *"/_template/"*) continue;; esac
-        name=$(basename "$(dirname "$f")")
+        name="${f%/*}"; name="${name##*/}"
         if ! grep -qF "| $name |" "$INDEX"; then
             emit "WARN:  $f orphan — project '$name' not in index.md (run /reindex)"
         fi
@@ -165,7 +204,7 @@ done
 for d in "$MEMORY_DIR"/projects/*/; do
     [ -d "$d" ] || continue
     case "$d" in *"/_template/"*) continue;; esac
-    project=$(basename "$d")
+    project="${d%/}"; project="${project##*/}"
     [ -f "${d}todo.md" ]            || emit "WARN:  ${d}todo.md missing — run scaffold or create the file"
     [ -d "${d}plans" ]              || emit "WARN:  ${d}plans/ missing — orchestrator plans dir not scaffolded"
     [ -d "${d}archive/plans" ]      || emit "WARN:  ${d}archive/plans/ missing — completed-plan archive not scaffolded"
@@ -181,7 +220,7 @@ for f in "$MEMORY_DIR"/projects/*/memory.md; do
     case "$f" in *"/_template/"*) continue;; esac
     rp=$(extract_fm_field "$f" repo_path)
     [ -n "$rp" ] || continue
-    project=$(basename "$(dirname "$f")")
+    project="${f%/*}"; project="${project##*/}"
     case "$rp" in
         '$MEMORY_DIR')    cand="$MEMORY_DIR" ;;
         '$MEMORY_DIR/'*)  cand="$MEMORY_DIR/${rp#\$MEMORY_DIR/}" ;;
@@ -263,10 +302,16 @@ done
 #    Checked by value rather than by blacklisting one typo: the previous rule
 #    flagged only the hyphenated `in-progress`, which nothing in the tree ever
 #    used, while `active` and missing-status plans passed clean.
+live_plans=()
 for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
     [ -e "$f" ] || continue
     case "$f" in *"/_template/"*) continue;; esac
-    st=$(extract_fm_field "$f" status)
+    live_plans[${#live_plans[@]}]="$f"
+done
+fm_field_each status ${live_plans[@]+"${live_plans[@]}"}
+for k in "${!live_plans[@]}"; do
+    f="${live_plans[$k]}"
+    st="${FM_VALUES[$k]}"
     case "$st" in
         draft|in_progress|done) ;;
         "")
@@ -308,12 +353,22 @@ for f in "$MEMORY_DIR"/projects/*/investigations/*.md; do
     if [ -z "$ref" ] || [ "$ref" = "none" ]; then
         continue
     fi
-    project_dir=$(dirname "$(dirname "$f")")
-    for p in "$project_dir"/archive/plans/*.md; do
-        [ -e "$p" ] || continue
-        plan_ref=$(extract_fm_field "$p" task_ref)
-        if [ "$plan_ref" = "$ref" ]; then
-            emit "WARN:  $f stale — task_ref matches archived plan $p (work shipped; archive this investigation too)"
+    project_dir="${f%/*/*}"
+    # Investigations glob in project order, so read each project's archived
+    # plan refs once rather than once per investigation.
+    if [ "$project_dir" != "${archived_dir-}" ]; then
+        archived_dir="$project_dir"
+        archived_plans=()
+        for p in "$project_dir"/archive/plans/*.md; do
+            [ -e "$p" ] || continue
+            archived_plans[${#archived_plans[@]}]="$p"
+        done
+        fm_field_each task_ref ${archived_plans[@]+"${archived_plans[@]}"}
+        archived_refs=(${FM_VALUES[@]+"${FM_VALUES[@]}"})
+    fi
+    for k in "${!archived_plans[@]}"; do
+        if [ "${archived_refs[$k]}" = "$ref" ]; then
+            emit "WARN:  $f stale — task_ref matches archived plan ${archived_plans[$k]} (work shipped; archive this investigation too)"
             break
         fi
     done
@@ -337,7 +392,7 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
     kind=$(extract_fm_field "$f" kind)
     initiative_slug=$(extract_fm_field "$f" slug)
     initiative_status=$(extract_fm_field "$f" status)
-    filename_slug=$(basename "$f" .md)
+    filename_slug="${f##*/}"; filename_slug="${filename_slug%.md}"
 
     if [ -n "$kind" ] && [ "$kind" != "initiative" ]; then
         emit "WARN:  $f kind '$kind' is not 'initiative'"
@@ -450,9 +505,24 @@ $DS_LINT_PROG" "$f"
                     *,*) dependency=${remaining_depends%%,*}; remaining_depends=${remaining_depends#*,} ;;
                     *) dependency=$remaining_depends; remaining_depends="" ;;
                 esac
-                dependency=$(printf '%s\n' "$dependency" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+                dependency="${dependency#"${dependency%%[![:space:]]*}"}"
+                dependency="${dependency%"${dependency##*[![:space:]]}"}"
                 [ "$dependency" = "none" ] && continue
-                dependency_id=$(printf '%s\n' "$dependency" | sed 's/[[:space:]]*(stage: [^)]*)[[:space:]]*$//')
+                # Drop a trailing `(stage: ...)`: the text after the last
+                # inner `)` holds the only `(stage: ` that can reach the end.
+                dependency_id="$dependency"
+                case "$dependency" in
+                    *"(stage: "*")")
+                        stage_tail="${dependency%)}"
+                        stage_tail="${stage_tail##*)}"
+                        case "$stage_tail" in
+                            *"(stage: "*)
+                                dependency_id="${dependency%"$stage_tail)"}${stage_tail%%"(stage: "*}"
+                                dependency_id="${dependency_id%"${dependency_id##*[![:space:]]}"}"
+                                ;;
+                        esac
+                        ;;
+                esac
                 resolved=0
                 for known_target in "${target_ids[@]}"; do
                     if [ "$known_target" = "$dependency_id" ]; then
@@ -566,6 +636,8 @@ done
 #         compared. Matching is full-string equality, never a prefix — the
 #         same rule Phase 2's derivation relies on. Archive is not scanned:
 #         only live plans can collide with a live Target.
+fm_field_each task_ref ${live_plans[@]+"${live_plans[@]}"}
+live_plan_refs=(${FM_VALUES[@]+"${FM_VALUES[@]}"})
 SEEN_TASK_REFS=""
 for i in "${!ALL_TASK_REFS[@]}"; do
     ref="${ALL_TASK_REFS[$i]}"
@@ -576,12 +648,9 @@ for i in "${!ALL_TASK_REFS[@]}"; do
     SEEN_TASK_REFS="${SEEN_TASK_REFS}|$ref|"
 
     matching_plans=()
-    for p in "$MEMORY_DIR"/projects/*/plans/*.md; do
-        [ -e "$p" ] || continue
-        case "$p" in *"/_template/"*) continue;; esac
-        plan_ref=$(extract_fm_field "$p" task_ref)
-        [ "$plan_ref" = "$ref" ] || continue
-        matching_plans[${#matching_plans[@]}]="$p"
+    for k in "${!live_plans[@]}"; do
+        [ "${live_plan_refs[$k]}" = "$ref" ] || continue
+        matching_plans[${#matching_plans[@]}]="${live_plans[$k]}"
     done
     if [ "${#matching_plans[@]}" -gt 1 ]; then
         joined=""
@@ -595,11 +664,9 @@ done
 # 12. Task linkage — every live plan either serves a task or explicitly records
 #     that it is deliberately plan-only. Archive/plans/ is historical and never
 #     scanned; its task_ref belongs to the completed work, not a live decision.
-for f in "$MEMORY_DIR"/projects/*/plans/*.md; do
-    [ -e "$f" ] || continue
-    case "$f" in *"/_template/"*) continue;; esac
-    if [ -z "$(extract_fm_field "$f" task_ref)" ]; then
-        emit "WARN:  $f has no task_ref — link the task it serves, or set task_ref: none if deliberately plan-only"
+for k in "${!live_plans[@]}"; do
+    if [ -z "${live_plan_refs[$k]}" ]; then
+        emit "WARN:  ${live_plans[$k]} has no task_ref — link the task it serves, or set task_ref: none if deliberately plan-only"
     fi
 done
 
@@ -666,7 +733,8 @@ payload_projects=()
 for d in "$MEMORY_DIR"/projects/*/; do
     [ -d "$d" ] || continue
     case "$d" in *"/_template/"*) continue;; esac
-    payload_projects[${#payload_projects[@]}]="$(basename "$d")"
+    project="${d%/}"
+    payload_projects[${#payload_projects[@]}]="${project##*/}"
 done
 if [ "${#payload_projects[@]}" -gt 0 ]; then
     while IFS= read -r finding; do

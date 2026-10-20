@@ -10,7 +10,11 @@
 #   manifest_keys <file>        -> all declared keys, one per line
 #   manifest_hooks <file>       -> [hooks] role/event lines, role<TAB>event[:matcher]
 
-_mf_trim() { sed 's/^[[:space:]]*//;s/[[:space:]]*$//'; }
+# _mf_trim <text> — set _mf_t to <text> with surrounding whitespace removed.
+_mf_trim() {
+    _mf_t="${1#"${1%%[![:space:]]*}"}"
+    _mf_t="${_mf_t%"${_mf_t##*[![:space:]]}"}"
+}
 
 # _mf_expand <value> — expand a leading ~ and any $HOME occurrences.
 _mf_expand() {
@@ -28,24 +32,24 @@ _mf_expand() {
 # stripped, trimmed). Keys inside named sections are intentionally hidden from
 # the flat-reader API.
 _mf_pairs() {
-    local file="$1" line t k v section
+    local file="$1" line t k v section _mf_t
     section=""
     [ -f "$file" ] || return 0
     while IFS= read -r line || [ -n "$line" ]; do
         line="${line%%#*}"                 # strip trailing/whole-line comment
-        t="$(printf '%s' "$line" | _mf_trim)"
+        _mf_trim "$line"; t="$_mf_t"
         case "$t" in
             \[*\])
                 section="${t#\[}"
                 section="${section%\]}"
-                section="$(printf '%s' "$section" | _mf_trim)"
+                _mf_trim "$section"; section="$_mf_t"
                 continue
                 ;;
         esac
         [ -z "$section" ] || continue
         case "$line" in *=*) ;; *) continue ;; esac
-        k="$(printf '%s' "${line%%=*}" | _mf_trim)"
-        v="$(printf '%s' "${line#*=}" | _mf_trim)"
+        _mf_trim "${line%%=*}"; k="$_mf_t"
+        _mf_trim "${line#*=}"; v="$_mf_t"
         [ -n "$k" ] || continue
         printf '%s\t%s\n' "$k" "$v"
     done < "$file"
@@ -72,24 +76,24 @@ manifest_keys() {
 }
 
 manifest_hooks() {
-    local file="$1" line t k v section
+    local file="$1" line t k v section _mf_t
     section=""
     [ -f "$file" ] || return 0
     while IFS= read -r line || [ -n "$line" ]; do
         line="${line%%#*}"                 # strip trailing/whole-line comment
-        t="$(printf '%s' "$line" | _mf_trim)"
+        _mf_trim "$line"; t="$_mf_t"
         case "$t" in
             \[*\])
                 section="${t#\[}"
                 section="${section%\]}"
-                section="$(printf '%s' "$section" | _mf_trim)"
+                _mf_trim "$section"; section="$_mf_t"
                 continue
                 ;;
         esac
         [ "$section" = hooks ] || continue
         case "$line" in *=*) ;; *) continue ;; esac
-        k="$(printf '%s' "${line%%=*}" | _mf_trim)"
-        v="$(printf '%s' "${line#*=}" | _mf_trim)"
+        _mf_trim "${line%%=*}"; k="$_mf_t"
+        _mf_trim "${line#*=}"; v="$_mf_t"
         [ -n "$k" ] || continue
         printf '%s\t%s\n' "$k" "$v"
     done < "$file"

@@ -18,6 +18,8 @@ bash scripts/run-tests.sh
 
 Expect `tests: N passed, 0 failed`, plus clean `python`, `doc-vs-code`, and `shellcheck` lines. The runner has selectors for mid-edit iteration — `--only PAT`, `--changed [REF]`, `--tests-only`, `--no-lint` — but only `--only` and `--changed` print a `SELECTED RUN` banner and a closing `*** NOT A FULL RUN ***`. `--tests-only` and `--no-lint` print no banner — the only sign is `skipped` on the stage lines. **All four are for iterating, never for gating.** Reconcile the summary counter against the file listing before calling a run complete; a truncating pager hides scope.
 
+Test files run in parallel, one per CPU by default; set `AI_MEMORY_TEST_JOBS=1` to run them one at a time. Each test must therefore own its state — a `mktemp -d` sandbox, never a fixed `/tmp` path or the real `$HOME` — or it will flake against its neighbours.
+
 **Drop a changelog fragment** if you changed user-visible behavior — `changelog.d/<id>.<kind>.md`, where kind is `breaking` / `feature` / `fix` / `upgrade`. Don't edit `CHANGELOG.md` directly; it's assembled from fragments at release time. Format and rationale: [changelog.d/README.md](changelog.d/README.md).
 
 ## Testing discipline
