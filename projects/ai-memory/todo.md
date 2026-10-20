@@ -7,7 +7,10 @@
 
 ## Active
 
-_(no items yet)_
+- [ ] [test-suite-wall-clock](plans/test-suite-wall-clock.md) — P1 fork-free manifest reader
+- [ ] [test-suite-wall-clock](plans/test-suite-wall-clock.md) — P2 parallel test runner
+- [ ] [test-suite-wall-clock](plans/test-suite-wall-clock.md) — P3 lint-memory hot path
+- [ ] [test-suite-wall-clock](plans/test-suite-wall-clock.md) — P4 record and ship (needs: P1, P2, P3)
 
 ## Done
 _(checked items stay above until the file is rolled)_
