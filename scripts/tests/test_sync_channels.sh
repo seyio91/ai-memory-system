@@ -367,4 +367,25 @@ assert_contains "$dry_dev_out" "remote dry dev" "dev dry-run prints incoming com
 assert_contains "$dry_dev_out" "VERSION |" "dev dry-run prints incoming diffstat"
 if [ ! -f "$DRY_DEV/install-ran.txt" ]; then _ok "dev dry-run does not run install"; else _bad "dev dry-run does not run install"; fi
 
+# --- dry-run lists the target ref's migrations, not the working tree's ---
+DRY_MIG="$(make_fixture dry-mig yes)"
+PEER="$ROOT/dry-mig/peer"
+git clone -q "$ROOT/dry-mig/origin.git" "$PEER"
+git_identity "$PEER"
+mkdir -p "$PEER/migrations"
+printf '#!/usr/bin/env bash\n' > "$PEER/migrations/0.11.0-target-only.sh"
+git -C "$PEER" add migrations
+git -C "$PEER" commit -q -m "v0.11.0"
+git -C "$PEER" tag v0.11.0
+git -C "$PEER" push -q origin main --tags
+mkdir -p "$DRY_MIG/migrations"
+printf '#!/usr/bin/env bash\n' > "$DRY_MIG/migrations/9.9.9-local-only.sh"
+dry_mig_out="$(capture_sync_channel "$DRY_MIG" release --dry-run)"
+assert_contains "$dry_mig_out" "0.11.0  0.11.0-target-only.sh" "release dry-run lists migration added by target tag"
+assert_not_contains "$dry_mig_out" "9.9.9-local-only.sh" "release dry-run omits migration absent from target tag"
+dry_mig_dev_out="$(capture_sync_channel "$DRY_MIG" dev --dry-run)"
+assert_contains "$dry_mig_dev_out" "0.11.0  0.11.0-target-only.sh" "dev dry-run lists migration added upstream"
+dry_mig_to_out="$(capture_sync_channel "$DRY_MIG" release --to v0.10.0 --dry-run)"
+assert_not_contains "$dry_mig_to_out" "0.11.0-target-only.sh" "--to dry-run lists only the requested ref's migrations"
+
 finish
