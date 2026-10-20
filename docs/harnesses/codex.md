@@ -71,17 +71,9 @@ Hand-owned, never written by the memory system. The Codex analogue of `~/.claude
 
 ## `/checkpoint` inside Codex
 
-Captures the session into `projects/<active>/working.md`. Two trigger surfaces, same behavior:
+Captures the session into `projects/<active>/working.md`. `install.sh` generates the skill at `~/.agents/skills/checkpoint/SKILL.md` from `commands/checkpoint.md` (Codex's command mechanism is skills), so it tracks the canonical command on every install. Invoke it explicitly, or let Codex pick it up from its `description` when the session winds down (*"save state"*, *"let's pause here"*). It resolves the working file from the injected `<memory:active>` breadcrumb, falling back to `~/.claude-memory`.
 
-- **Explicit slash command** — `~/.codex/prompts/checkpoint.md`. Type `/checkpoint` in the Codex TUI.
-- **Autonomous skill** — `~/.codex/skills/checkpoint/SKILL.md`. Codex invokes the skill itself when the session is winding down or you say things like *"save state"*, *"let's pause here"*, *"before I close"*. Discovered via the SKILL's `description` field.
-
-Either path runs:
-
-1. `harnesses/codex/scripts/codex-mem-checkpoint.sh --for-codex` (prints active project, `working.md` path, recent-history snippet, scaffold).
-2. Synthesizes Task/Done/Next/Blockers from this session's context (no questions asked).
-3. Appends a `### YYYY-MM-DD — <task>` block at the end of `## Checkpoints` in `working.md` (newest last; prior entries preserved).
-4. If applicable, appends a bullet to `## Cross-project learnings (pending promotion)`.
+Do not hand-create `~/.codex/prompts/checkpoint.md` or `~/.codex/skills/checkpoint/` — older installs did, with hardcoded memory-root paths that rot when the tree moves. Remove them if present. `harnesses/codex/scripts/codex-mem-checkpoint.sh --for-codex` remains as a helper that prints the active project, `working.md` path and a recent-history snippet.
 
 Net effect: typing `/checkpoint` or simply ending a session with "let's save state" captures the work back into memory. Same memory is visible to Claude next session.
 

@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # build-context-md.sh — build the file-materialize markdown context (the
 # AGENTS.md-style file a `file`-archetype harness reads at launch) from the
-# memory tree. Shared by every per-harness launch wrapper so the build lives in
-# ONE place: codex-mem.sh (Codex) and agy.sh (Antigravity) both call this.
+# memory tree, for a `refresh=launch` harness's launch wrapper. No shipped harness
+# uses it (Codex and Antigravity inject via hooks); kept as the engine capability.
 #
 #   build-context-md.sh <out-file> <generator-label> [overlay-file]
 #
-# <generator-label> names the wrapper in the generated header (e.g. codex-mem,
-# agy). <overlay-file> is a user-owned file concatenated verbatim at the end and
+# <generator-label> names the wrapper in the generated header. <overlay-file> is a user-owned file concatenated verbatim at the end and
 # never written — omit it for a harness with no overlay concept.
 set -euo pipefail
 

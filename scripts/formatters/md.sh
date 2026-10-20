@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # formatters/md.sh — serialize content-core section records into the markdown
-# `# === X ===` sections used for file-materialize harnesses (Codex AGENTS.md).
+# `# === X ===` sections (hook payloads and build-context-md.sh).
 # Records arrive on stdin as `kind<TAB>path<TAB>name` (see content-core.sh).
-# Output goes to stdout with a trailing blank line after each section, matching
-# the pre-refactor codex-mem.sh build byte-for-byte.
+# Output goes to stdout with a trailing blank line after each section (pinned by
+# test_codex_agents_golden.sh).
 #
 # The `domain` section renders a frontmatter-driven index table rather than a raw
-# file cat; it depends on extract_fm_field (from _lib.sh), which the Codex adapter
-# already sources. The overlay/header framing is NOT here — it is codex-specific
-# and stays in codex-mem.sh.
+# file cat; it depends on extract_fm_field (from _lib.sh), which the caller must
+# source. The overlay/header framing is NOT here — it lives in build-context-md.sh.
 
 # md_render — read records on stdin, print the markdown sections.
 md_render() {

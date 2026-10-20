@@ -58,8 +58,9 @@ how it becomes clean.
 
 ## 2a. (file archetype) add a launch wrapper
 
-A `file` harness rebuilds its context on each launch. Add `harnesses/<name>/scripts/<name>.sh`
-that calls the shared builder then exec's the real CLI — mirror `harnesses/codex/scripts/codex-mem.sh`:
+Only for `refresh = launch` — prefer `refresh = hook` (Codex) when the CLI has session hooks.
+A launch harness rebuilds its context on each launch: add `harnesses/<name>/scripts/<name>.sh`
+that calls the shared builder then exec's the real CLI (no shipped harness does this today):
 
 ```bash
 bash "$MEM_SCRIPTS/build-context-md.sh" "$CONTEXT_TARGET" "<name>" "$OVERLAY"
