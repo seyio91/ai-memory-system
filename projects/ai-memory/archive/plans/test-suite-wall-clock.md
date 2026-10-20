@@ -1,6 +1,7 @@
 ---
 plan: test-suite-wall-clock
-status: active
+status: done
+completed: 2026-10-20
 created: 2026-10-20
 owner: claude (orchestrator)
 task_provider: notion
