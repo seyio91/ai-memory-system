@@ -1,6 +1,7 @@
 ---
 plan: decision-status-lifecycle
-status: in_progress
+status: done
+completed: 2026-10-20
 created: 2026-10-04
 owner: claude (orchestrator)
 task_provider: notion
