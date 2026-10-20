@@ -8,7 +8,9 @@ Ask: "What client/category does this project belong to? This groups it under a c
 
 If a category is provided, set the `category:` frontmatter field in `~/.claude-memory/projects/$ARGUMENTS/memory.md` (uncomment/replace the template's `# category:` line with `category: <value>`). If a repo path was also given, the equivalent one-shot is `~/.claude-memory/scripts/memory-pin.sh $ARGUMENTS --category "<value>"` run from that path (writes the marker, reverse map, and category together).
 
-Then fill in `~/.claude-memory/projects/$ARGUMENTS/memory.md` by asking the user one question at a time in this order — wait for each answer before moving to the next:
+If a repo path was provided, invoke the **`project-scan`** skill with project `$ARGUMENTS` and that path. It reads the checkout read-only, presents a draft (Pointers to the repo's existing docs, commands/conventions no doc states, candidate decisions/gotchas) and writes only the items the user picks. Skip below every question whose section the user accepted from the scan. If no path was given, or the scan fails or is declined, ask all six.
+
+Then fill in `~/.claude-memory/projects/$ARGUMENTS/memory.md` by asking the user one question at a time in this order — wait for each answer before moving to the next. **Architecture Decisions** and **Known Constraints / Gotchas** are always asked, even after a scan (use any confirmed scan candidates as prompts):
 
 1. **What It Is** — one line: what does this project do, what's the stack, who owns it
 2. **Commands** — build/test/lint/render/release commands Claude couldn't guess (skip if the repo's README/CLAUDE.md has them)
