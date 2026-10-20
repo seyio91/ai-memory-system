@@ -1054,4 +1054,449 @@ assert_contains "$OUT" "WARN:  $M47/projects/good/memory.md:" "duplicate WARN le
 assert_contains "$OUT" "duplicate line in 2 files (also $M47/domain/terraform.md:" "duplicate WARN lists the other locations"
 rm -rf "$M47"
 
+# --- decision-stream status field rules (kind: initiative, ## Decision stream) ---
+ds_fixture() { # ds_fixture <memdir> <legacy_through|""> : stream body on stdin
+    local f="$1/initiatives/clean-initiative.md" body
+    body="$(cat)"
+    {
+        awk -v lt="$2" 'NR > 1 && /^---$/ && !d { if (lt != "") print "legacy_through: " lt; d = 1 } { print }' "$f"
+        printf '\n## Decision stream\n\n%s\n' "$body"
+    } > "$f.t"
+    mv "$f.t" "$f"
+}
+
+# template scaffold, as /new-initiative produces it, stays lint-clean
+MD0="$(new_sandbox)"; export MEMORY_DIR="$MD0"; build_clean "$MD0"
+sed -e 's/^slug: <slug>$/slug: scaffolded/' -e 's/^created: YYYY-MM-DD$/created: 2026-10-18/' \
+    "$SCRIPTS_DIR/../initiatives/_template.md" > "$MD0/initiatives/scaffolded.md"
+run_lint
+assert_not_contains "$OUT" "scaffolded.md" "template scaffold is lint-clean"
+rm -rf "$MD0"
+
+# clean template-shaped stream passes: every status, continuation lines, no legacy mark
+MD1="$(new_sandbox)"; export MEMORY_DIR="$MD1"; build_clean "$MD1"
+ds_fixture "$MD1" "" <<'EOF'
+- D1 confirmed 2026-10-01 — shape locked
+  evidence: projects/x/plans/p.md
+  binds: x:schema
+- D2 proposed 2026-10-02 — open question
+  unconfirmed: awaiting y
+- D3 rejected 2026-10-03 — never adopted
+- D4 superseded 2026-10-04 — replaced
+  SUPERSEDES D1
+- D5 retired 2026-10-05 — withdrawn
+- D5a confirmed 2026-10-05 — lettered id
+  evidence: x
+EOF
+run_lint
+assert_exit 0 "$CODE" "clean template-shaped stream exits 0"
+assert_not_contains "$OUT" "decision-stream" "clean template-shaped stream has no findings"
+rm -rf "$MD1"
+
+# legacy entries lacking date/evidence/unconfirmed pass; ids above the mark are checked
+MD2="$(new_sandbox)"; export MEMORY_DIR="$MD2"; build_clean "$MD2"
+ds_fixture "$MD2" "D7" <<'EOF'
+- D1 confirmed — no date, no evidence
+- D2 proposed [2026-09-01] — bracketed, no unconfirmed
+- D7a proposed — lettered id is never legacy
+- D8 confirmed — above the mark
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream D1 " "legacy entry lacking date/evidence is exempt"
+assert_not_contains "$OUT" "decision-stream D2 " "legacy bracketed date / missing unconfirmed is exempt"
+assert_contains "$OUT" "decision-stream D7a has no bare YYYY-MM-DD date" "lettered id is never legacy, even at the mark"
+assert_contains "$OUT" "decision-stream D8 has no bare YYYY-MM-DD date" "entry above legacy_through is checked"
+rm -rf "$MD2"
+
+# no legacy_through -> nothing is legacy
+MD3="$(new_sandbox)"; export MEMORY_DIR="$MD3"; build_clean "$MD3"
+ds_fixture "$MD3" "" <<'EOF'
+- D1 confirmed — no date
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 has no bare YYYY-MM-DD date" "without legacy_through nothing is legacy"
+rm -rf "$MD3"
+
+# rule: status outside the five-value set (applies to legacy ids too)
+MD4="$(new_sandbox)"; export MEMORY_DIR="$MD4"; build_clean "$MD4"
+ds_fixture "$MD4" "D1" <<'EOF'
+- D1 shipped 2026-10-01 — legacy but off-set
+- D2 confirmed/proposed 2026-10-01 — mixed
+  evidence: x
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 status 'shipped' is not one of" "off-set status warns (legacy too)"
+assert_contains "$OUT" "decision-stream D2 status 'confirmed/proposed' is not one of" "mixed status warns"
+rm -rf "$MD4"
+
+# rule: missing / bracketed / parenthesised date
+MD5="$(new_sandbox)"; export MEMORY_DIR="$MD5"; build_clean "$MD5"
+ds_fixture "$MD5" "" <<'EOF'
+- D1 rejected — no date
+- D2 rejected [2026-10-01] — bracketed
+- D3 rejected (2026-10-01) — parenthesised
+- D4 rejected 2026-10-01 — bare
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 has no bare YYYY-MM-DD date" "missing date warns"
+assert_contains "$OUT" "decision-stream D2 has no bare YYYY-MM-DD date" "bracketed date counts as missing"
+assert_contains "$OUT" "decision-stream D3 has no bare YYYY-MM-DD date" "parenthesised date counts as missing"
+assert_not_contains "$OUT" "decision-stream D4 " "bare date passes"
+rm -rf "$MD5"
+
+# rule: confirmed needs evidence: continuation line
+MD6="$(new_sandbox)"; export MEMORY_DIR="$MD6"; build_clean "$MD6"
+ds_fixture "$MD6" "" <<'EOF'
+- D1 confirmed 2026-10-01 — inline evidence is not a continuation line. evidence: x
+- D2 confirmed 2026-10-01 — has it
+  evidence: x
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 is confirmed with no evidence: continuation line" "confirmed without evidence: warns"
+assert_not_contains "$OUT" "decision-stream D2 " "confirmed with evidence: passes"
+rm -rf "$MD6"
+
+# rule: proposed needs unconfirmed: continuation line
+MD7="$(new_sandbox)"; export MEMORY_DIR="$MD7"; build_clean "$MD7"
+ds_fixture "$MD7" "" <<'EOF'
+- D1 proposed 2026-10-01 — no continuation
+- D2 proposed 2026-10-01 — has it
+  unconfirmed: awaiting y
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D1 is proposed with no unconfirmed: continuation line" "proposed without unconfirmed: warns"
+assert_not_contains "$OUT" "decision-stream D2 " "proposed with unconfirmed: passes"
+rm -rf "$MD7"
+
+# rule: unmigrated old-shape heads -> one unmigrated WARN, not malformed
+MD8="$(new_sandbox)"; export MEMORY_DIR="$MD8"; build_clean "$MD8"
+ds_fixture "$MD8" "D99" <<'EOF'
+- D1-proposed: old
+- D2-rejected: old
+- D3: old
+- D4-proposed (2026-09-01): old
+- D5-proposed *(raised by x)*: old
+- D6 (settled 2026-08-30): old
+EOF
+run_lint
+for d in D1 D2 D3 D4 D5 D6; do
+    assert_contains "$OUT" "decision-stream $d is an unmigrated old-shape entry" "$d old shape reported as unmigrated (even under legacy_through)"
+done
+assert_not_contains "$OUT" "is not one of" "unmigrated heads are not reported as malformed status"
+assert_not_contains "$OUT" "no bare YYYY-MM-DD" "unmigrated heads are not reported as malformed date"
+rm -rf "$MD8"
+
+# scope: only ## Decision stream, only kind: initiative
+MD9="$(new_sandbox)"; export MEMORY_DIR="$MD9"; build_clean "$MD9"
+cat >> "$MD9/initiatives/clean-initiative.md" <<'EOF'
+
+## Notes
+
+- D1 bogus — outside the decision stream
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream" "entries outside ## Decision stream are not checked"
+sed 's/^kind: initiative$/kind: project/' "$MD9/initiatives/clean-initiative.md" > "$MD9/initiatives/clean-initiative.md.t"
+mv "$MD9/initiatives/clean-initiative.md.t" "$MD9/initiatives/clean-initiative.md"
+ds_fixture "$MD9" "" <<'EOF'
+- D1 bogus — kind is not initiative
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream" "non-initiative kind is not stream-checked"
+rm -rf "$MD9"
+
+# F1/F2/F6: strict head grammar -> one malformed-head WARN per bad line
+MD10="$(new_sandbox)"; export MEMORY_DIR="$MD10"; build_clean "$MD10"
+TAB="$(printf '\t')"
+ds_fixture "$MD10" "D99" <<EOF
+- D1  proposed 2026-10-01 — double space
+  unconfirmed: x
+- D2${TAB}proposed 2026-10-01 — tab
+  unconfirmed: x
+- D3 proposed 2026-10-01 no dash
+  unconfirmed: x
+- D4 confirmed 2026-10-18 2026-10-01 — double date
+  evidence: x
+- D5 proposed 2026-13-45 — impossible date
+  unconfirmed: x
+- Dx proposed 2026-10-01 — bad id
+- D6
+- D7-confirmed: x
+- D8 proposed 2026-10-01 — fine
+  unconfirmed: x
+- D9 confirmed — legacy no date but no dash follows
+- D10 proposed 2026-10-01 — d
+EOF
+run_lint
+for h in "- D1  proposed" "- D2${TAB}proposed" "- D3 proposed 2026-10-01 no dash" "- D4 confirmed 2026-10-18 2026-10-01" "- D5 proposed 2026-13-45" "- Dx proposed" "- D6" "- D7-confirmed:"; do
+    assert_contains "$OUT" "decision-stream malformed head \`$h" "malformed head warns: $h"
+done
+assert_not_contains "$OUT" "malformed head \`- D8" "valid head is not malformed"
+assert_not_contains "$OUT" "malformed head \`- D9" "legacy head may omit the date"
+assert_not_contains "$OUT" "decision-stream D7 is an unmigrated" "D7-confirmed: is malformed, not unmigrated"
+rm -rf "$MD10"
+
+# F6: CRLF stripped; heading matched case-insensitively
+MD11="$(new_sandbox)"; export MEMORY_DIR="$MD11"; build_clean "$MD11"
+ds_fixture "$MD11" "" <<'EOF'
+- D1 rejected 2026-10-01 — crlf
+EOF
+sed -e 's/^## Decision stream$/## Decision Stream/' -e 's/$/\r/' "$MD11/initiatives/clean-initiative.md" > "$MD11/initiatives/clean-initiative.md.t"
+mv "$MD11/initiatives/clean-initiative.md.t" "$MD11/initiatives/clean-initiative.md"
+run_lint
+assert_not_contains "$OUT" "decision-stream" "CRLF file with mixed-case heading and a valid entry is clean"
+printf -- '- D2 bogus 2026-10-01 — bad\r\n' >> "$MD11/initiatives/clean-initiative.md"
+run_lint
+assert_contains "$OUT" "decision-stream D2 status 'bogus' is not one of" "mixed-case heading is still scanned"
+rm -rf "$MD11"
+
+# F3/F11: continuation lines end at a blank line; fenced blocks are skipped
+MD12="$(new_sandbox)"; export MEMORY_DIR="$MD12"; build_clean "$MD12"
+ds_fixture "$MD12" "" <<'EOF'
+- D6 confirmed 2026-10-01 — x
+
+  evidence: after a blank line does not count
+- D8 confirmed 2026-10-01 — y
+  ```
+  evidence: inside a fence does not count
+  ```
+- D9 confirmed 2026-10-01 — z
+  evidence: x
+
+```
+- D20 bogus in fence
+## Not a heading
+```
+
+- D21 bogus 2026-10-01 — after the fence is still scanned
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D6 is confirmed with no evidence:" "evidence after a blank line does not count"
+assert_contains "$OUT" "decision-stream D8 is confirmed with no evidence:" "evidence inside a fence does not count"
+assert_not_contains "$OUT" "decision-stream D9 " "evidence directly under the head counts"
+assert_not_contains "$OUT" "D20" "entries inside a fence are skipped"
+assert_contains "$OUT" "decision-stream D21 status 'bogus'" "a ## inside a fence does not end the stream"
+rm -rf "$MD12"
+
+# F4: a bad entry in a section after the stream is not checked (stream must end)
+MD13="$(new_sandbox)"; export MEMORY_DIR="$MD13"; build_clean "$MD13"
+ds_fixture "$MD13" "" <<'EOF'
+- D1 rejected 2026-10-01 — ok
+EOF
+printf '\n## Closure\n\n- D2 bogus status — after the stream\n- Dx junk\n' >> "$MD13/initiatives/clean-initiative.md"
+run_lint
+assert_not_contains "$OUT" "decision-stream" "bad - D lines in a section after the stream are not checked"
+rm -rf "$MD13"
+
+# column-0 line ends a continuation: evidence after it does not attach
+MDC="$(new_sandbox)"; export MEMORY_DIR="$MDC"; build_clean "$MDC"
+ds_fixture "$MDC" "" <<'EOF'
+- D40 confirmed 2026-10-01 — x
+Some column-0 prose
+  evidence: y
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D40 is confirmed with no evidence:" "a column-0 line ends the continuation"
+rm -rf "$MDC"
+
+# unclosed fence: one WARN, never silent (in stream, indented in continuation, before stream)
+MDU="$(new_sandbox)"; export MEMORY_DIR="$MDU"; build_clean "$MDU"
+ds_fixture "$MDU" "" <<'EOF'
+- D1 confirmed 2026-10-01 — a
+  evidence: x
+```
+- D2 bogus 2026-10-01 — swallowed
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream unclosed code fence" "unclosed fence in the stream warns"
+rm -rf "$MDU"
+MDU="$(new_sandbox)"; export MEMORY_DIR="$MDU"; build_clean "$MDU"
+ds_fixture "$MDU" "" <<'EOF'
+- D1 confirmed 2026-10-01 — a
+  evidence: x
+  ```bash
+- D2 bogus 2026-10-01 — swallowed
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream unclosed code fence" "unclosed indented fence in a continuation warns"
+rm -rf "$MDU"
+MDU="$(new_sandbox)"; export MEMORY_DIR="$MDU"; build_clean "$MDU"
+f="$MDU/initiatives/clean-initiative.md"
+awk 'NR > 1 && /^---$/ && !d { print; print "```"; d = 1; next } { print }' "$f" > "$f.t" && mv "$f.t" "$f"
+printf '\n## Decision stream\n\n- D1 bogus 2026-10-01 — x\n' >> "$f"
+run_lint
+assert_contains "$OUT" "decision-stream unclosed code fence" "unclosed fence before the stream heading warns"
+rm -rf "$MDU"
+
+# inline triple backticks mid-line are not a fence
+MDI="$(new_sandbox)"; export MEMORY_DIR="$MDI"; build_clean "$MDI"
+ds_fixture "$MDI" "" <<'EOF'
+- D1 confirmed 2026-10-01 — a
+  ```x``` is the flag
+  evidence: y
+- D2 bogus 2026-10-01 — after
+EOF
+run_lint
+assert_not_contains "$OUT" "decision-stream D1 " "a line with closed inline backticks is not a fence"
+assert_contains "$OUT" "decision-stream D2 status 'bogus'" "entries after an inline-backtick line are still checked"
+rm -rf "$MDI"
+
+# F5: legacy_through that is not D<n> -> one WARN naming the field, nothing legacy
+MD14="$(new_sandbox)"; export MEMORY_DIR="$MD14"; build_clean "$MD14"
+ds_fixture "$MD14" '"D5"' <<'EOF'
+- D1 confirmed — old
+EOF
+run_lint
+assert_contains "$OUT" "legacy_through '\"D5\"' is not D<n>" "quoted legacy_through warns naming the field"
+assert_contains "$OUT" "decision-stream D1 has no bare YYYY-MM-DD date" "bad legacy_through fails closed"
+rm -rf "$MD14"
+MD15="$(new_sandbox)"; export MEMORY_DIR="$MD15"; build_clean "$MD15"
+ds_fixture "$MD15" '5' <<'EOF'
+- D1 confirmed — old
+EOF
+run_lint
+assert_contains "$OUT" "legacy_through '5' is not D<n>" "bare-number legacy_through warns"
+rm -rf "$MD15"
+
+# duplicate ids on entry heads: allowed only when all copies but one are superseded
+MDD="$(new_sandbox)"; export MEMORY_DIR="$MDD"; build_clean "$MDD"
+ds_fixture "$MDD" "" <<'EOF'
+- D6 confirmed 2026-10-01 — a
+  evidence: x
+- D6 rejected 2026-10-01 — b
+- D7 confirmed 2026-10-01 — c
+  evidence: x
+- D7 superseded 2026-10-01 — d
+- D8 superseded 2026-10-01 — e
+- D8 superseded 2026-10-01 — f
+- D8 confirmed 2026-10-01 — g
+  evidence: x
+- D9 confirmed 2026-10-01 — h
+  evidence: x
+- D9a confirmed 2026-10-01 — i
+  evidence: x
+- D10 confirmed 2026-10-01 — j
+  evidence: x
+```
+- D10 rejected 2026-10-01 — fenced
+```
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D6 appears on more than one entry head" "duplicate non-superseded ids warn"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -c 'appears on more than one entry head')" "one WARN per duplicated id, none for the allowed cases"
+assert_not_contains "$OUT" "decision-stream D7 appears" "confirmed + superseded copy is clean"
+assert_not_contains "$OUT" "decision-stream D8 appears" "two superseded + one confirmed is clean"
+assert_not_contains "$OUT" "decision-stream D9 appears" "D9 and D9a are distinct ids"
+assert_not_contains "$OUT" "decision-stream D10 appears" "duplicate inside a fence is skipped"
+rm -rf "$MDD"
+
+# C1: dates must be real calendar days (month lengths, leap years)
+MDV="$(new_sandbox)"; export MEMORY_DIR="$MDV"; build_clean "$MDV"
+ds_fixture "$MDV" "" <<'EOF'
+- D1 proposed 2026-02-31 — feb 31
+  unconfirmed: x
+- D2 proposed 2026-02-29 — non-leap
+  unconfirmed: x
+- D3 proposed 2028-02-29 — leap
+  unconfirmed: x
+- D4 proposed 2026-04-31 — april 31
+  unconfirmed: x
+- D5 proposed 2026-13-01 — month 13
+  unconfirmed: x
+- D6 proposed 2026-00-10 — month 0
+  unconfirmed: x
+- D7 proposed 1900-02-29 — century non-leap
+  unconfirmed: x
+- D8 proposed 2000-02-29 — 400-year leap
+  unconfirmed: x
+- D9 proposed 2026-12-31 — last day
+  unconfirmed: x
+- D10 proposed 2026-06-00 — day 0
+  unconfirmed: x
+EOF
+run_lint
+for h in "D1 proposed 2026-02-31" "D2 proposed 2026-02-29" "D4 proposed 2026-04-31" "D5 proposed 2026-13-01" "D6 proposed 2026-00-10" "D7 proposed 1900-02-29" "D10 proposed 2026-06-00"; do
+    assert_contains "$OUT" "decision-stream malformed head \`- $h" "impossible date is a malformed head: $h"
+done
+assert_eq "7" "$(printf '%s\n' "$OUT" | grep -c 'decision-stream malformed head')" "only the impossible dates are malformed"
+assert_not_contains "$OUT" "decision-stream D3 " "2028-02-29 is a valid date"
+assert_not_contains "$OUT" "decision-stream D8 " "2000-02-29 is a valid date"
+assert_not_contains "$OUT" "decision-stream D9 " "2026-12-31 is a valid date"
+rm -rf "$MDV"
+
+# C2: fences — tilde, longer than three, closed only by the same char at >= the opening length
+MDF="$(new_sandbox)"; export MEMORY_DIR="$MDF"; build_clean "$MDF"
+ds_fixture "$MDF" "" <<'EOF'
+~~~markdown
+- D1-proposed: tilde example
+## Not a heading
+~~~
+- D2 bogus 2026-10-01 — after tilde fence
+````markdown
+```
+- D3-proposed: nested triple fence is body
+```
+- D4-proposed: still inside the four-backtick fence
+````
+- D5 bogus 2026-10-01 — after four-backtick fence
+~~~~
+```
+- D6-proposed: backticks do not close a tilde fence
+~~~
+- D7-proposed: shorter tilde run does not close
+~~~~~
+- D8 bogus 2026-10-01 — after long tilde fence
+```js
+- D9-proposed: closer with info string is body
+```js
+- D10-proposed: still inside
+```
+- D11 bogus 2026-10-01 — after backtick fence
+~~~
+```
+- D12-proposed: a backtick line does not close an equal-length tilde fence
+~~~
+```
+~~~
+- D13-proposed: a tilde line does not close an equal-length backtick fence
+```
+- D14 bogus 2026-10-01 — after the mixed-kind fences
+EOF
+run_lint
+assert_contains "$OUT" "decision-stream D2 status 'bogus'" "entry after a tilde fence is checked (## inside the fence did not end the stream)"
+assert_contains "$OUT" "decision-stream D5 status 'bogus'" "entry after a four-backtick fence is checked"
+assert_contains "$OUT" "decision-stream D8 status 'bogus'" "entry after a tilde fence not closed by backticks or a shorter run is checked"
+assert_contains "$OUT" "decision-stream D11 status 'bogus'" "a closer with an info string does not close; a bare one does"
+assert_contains "$OUT" "decision-stream D14 status 'bogus'" "equal-length fences of the other kind do not close"
+for d in D1 D3 D4 D6 D7 D9 D10 D12 D13; do
+    assert_not_contains "$OUT" "decision-stream $d " "fenced $d is not parsed"
+done
+assert_not_contains "$OUT" "unclosed code fence" "all fences closed"
+rm -rf "$MDF"
+
+# C3: legacy_through present but empty -> one WARN; absent -> none
+MDE="$(new_sandbox)"; export MEMORY_DIR="$MDE"; build_clean "$MDE"
+ds_fixture "$MDE" "" <<'EOF'
+- D1 proposed 2026-10-01 — a
+  unconfirmed: x
+EOF
+f="$MDE/initiatives/clean-initiative.md"
+run_lint
+assert_not_contains "$OUT" "legacy_through" "absent legacy_through is silent"
+awk 'NR > 1 && /^---$/ && !d { print "legacy_through:"; d = 1 } { print }' "$f" > "$f.t" && mv "$f.t" "$f"
+run_lint
+assert_contains "$OUT" "legacy_through '' is not D<n>" "empty legacy_through warns naming the field"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -c 'legacy_through')" "exactly one legacy_through WARN"
+rm -rf "$MDE"
+
+# H3: a path with a literal backslash-n reaches the report unchanged
+MDB="$(new_sandbox)"; export MEMORY_DIR="$MDB"; build_clean "$MDB"
+ds_fixture "$MDB" "" <<'EOF'
+- D1 bogus 2026-10-01 — x
+EOF
+cp "$MDB/initiatives/clean-initiative.md" "$MDB/initiatives"/'back\name.md'
+run_lint
+assert_contains "$OUT" "$MDB/initiatives/"'back\name.md decision-stream D1 status '"'bogus'" "backslash-n in a filename is reported literally"
+rm -rf "$MDB"
+
 finish

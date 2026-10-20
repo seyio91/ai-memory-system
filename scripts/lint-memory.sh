@@ -17,6 +17,62 @@ emit() {
     FOUND=1
 }
 
+# Decision-stream grammar lives in lib/decision-stream.awk (shared with
+# initiative-status.sh and the 1.7.0 migration); this is only the lint program.
+# Paths reach awk through ENVIRON: -v would interpret backslash escapes in them.
+DS_LIB="$(cat "$SCRIPT_DIR/lib/decision-stream.awk" 2>/dev/null)"
+read -r -d '' DS_LINT_PROG <<'AWK' || true
+BEGIN { file = ENVIRON["DS_FILE"]; lt = ENVIRON["DS_LT"] + 0 }
+function flush(   legacy) {
+    if (!have) return
+    have = 0
+    if (!(id in cnt)) ord[++nid] = id
+    cnt[id]++
+    if (!unmig && status == "superseded") sup[id]++
+    if (unmig) {
+        printf "WARN:  %s decision-stream %s is an unmigrated old-shape entry (expected `- D<n> <status> <YYYY-MM-DD> — ...`)\n", file, id
+        return
+    }
+    if (!ds_status_ok(status))
+        printf "WARN:  %s decision-stream %s status '%s' is not one of proposed|confirmed|rejected|superseded|retired\n", file, id, status
+    if (ds_legacy(id, lt)) return
+    if (!ds_dateshape(date))
+        printf "WARN:  %s decision-stream %s has no bare YYYY-MM-DD date after the status\n", file, id
+    if (status == "confirmed" && !hasev)
+        printf "WARN:  %s decision-stream %s is confirmed with no evidence: continuation line\n", file, id
+    if (status == "proposed" && !hasunc)
+        printf "WARN:  %s decision-stream %s is proposed with no unconfirmed: continuation line\n", file, id
+}
+function malformed() {
+    printf "WARN:  %s decision-stream malformed head `%s` (expected `- D<n>[a-z]? <status> <YYYY-MM-DD> — ...`, single spaces)\n", file, substr($0, 1, 50)
+}
+{ sub(/\r$/, "") }
+{ inst = ds_track($0) }
+DS_FOPEN { if (ds_in && $0 ~ /^[^ \t]/) flush(); next }
+DS_END { flush(); exit }
+!inst { next }
+/^[ \t]*$/ { flush(); next }
+{ k = ds_head($0) }
+k != "" {
+    flush()
+    unmig = 0; hasev = 0; hasunc = 0
+    if (k == "bad") { malformed(); next }
+    id = DS_ID; status = DS_STATUS; date = DS_DATE
+    unmig = (k == "unmig"); have = 1
+    next
+}
+/^[^ \t]/ { flush(); next }
+have && /^[ \t]+evidence:/ { hasev = 1 }
+have && /^[ \t]+unconfirmed:/ { hasunc = 1 }
+END {
+    flush()
+    for (i = 1; i <= nid; i++)
+        if (cnt[ord[i]] - sup[ord[i]] > 1)
+            printf "WARN:  %s decision-stream %s appears on more than one entry head (all but one must be superseded)\n", file, ord[i]
+    if (ds_fence_open()) printf "WARN:  %s decision-stream unclosed code fence — the rest of the file is skipped\n", file
+}
+AWK
+
 require_fm() {
     local file="$1"; shift
     local missing=""
@@ -293,6 +349,38 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
         active|closed|"") ;;
         *) emit "WARN:  $f status '$initiative_status' is not an initiative status — use one of: active, closed" ;;
     esac
+
+    # 11a. Decision-stream entry shape (initiatives only); grammar in
+    #      lib/decision-stream.awk. Head grammar, single
+    #      spaces: `- D<n>[a-z]? <status> <YYYY-MM-DD> — <decision>`; any other
+    #      line starting `- D` that is not a recognised unmigrated old-shape head
+    #      is one "malformed head" WARN. Continuation lines (`evidence:` /
+    #      `unconfirmed:`) end at a blank line, the next head or a column-0 line;
+    #      fenced blocks are skipped. Legacy = plain `D<n>` (no letter) with n <=
+    #      frontmatter `legacy_through:`; none -> nothing is legacy. Legacy
+    #      entries may omit the date and skip the date/evidence/unconfirmed
+    #      checks, never the status, unmigrated or malformed-head checks. An id on
+#      more than one head is one WARN unless all copies but one are superseded.
+    if [ "$kind" = "initiative" ]; then
+        legacy_mark=$(extract_fm_field "$f" legacy_through | tr -d '\r')
+        legacy_num=$(printf '%s\n' "$legacy_mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')
+        legacy_present=$(awk 'NR == 1 { if ($0 !~ /^---[[:space:]]*$/) exit; next } /^---[[:space:]]*$/ { exit } /^legacy_through:/ { print 1; exit }' "$f")
+        if [ -n "$legacy_present" ] && [ -z "$legacy_num" ]; then
+            emit "WARN:  $f legacy_through '$legacy_mark' is not D<n> — nothing is treated as legacy"
+        fi
+        [ -n "$legacy_num" ] || legacy_num=-1
+        if [ -z "$DS_LIB" ]; then
+            emit "ERROR: $SCRIPT_DIR/lib/decision-stream.awk is missing — decision-stream checks skipped"
+        else
+            while IFS= read -r stream_finding; do
+                [ -n "$stream_finding" ] || continue
+                emit "$stream_finding"
+            done < <(
+                DS_FILE="$f" DS_LT="$legacy_num" awk "$DS_LIB
+$DS_LINT_PROG" "$f"
+            )
+        fi
+    fi
 
     target_ids=()
     target_modes=()

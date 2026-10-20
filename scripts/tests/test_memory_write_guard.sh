@@ -6,6 +6,8 @@
 #   projects/*/working.<key>.md    -> --payload --working <that file> ONLY
 #                                      (no drift check)
 #   domain/*.md                    -> drift only (unchanged scope)
+#   initiatives/*.md               -> decision-stream lint findings only;
+#                                      _template.md and initiatives/*/ -> exit 0
 #   anything else                  -> exit 0
 # Any finding on an in-scope write -> stderr report + exit 2. Fails open on a
 # missing checker. See scripts/hooks/memory_write_guard.sh for the full
@@ -192,6 +194,116 @@ CODE=$?
 set -e
 assert_exit 0 "$CODE" "checkers missing from the install dir fail open (exit 0)"
 rm -rf "$M9" "$FAKE_INSTALL"
+
+# --- initiatives/*.md: decision-stream lint ----------------------------------
+write_initiative() { # write_initiative <path> <decision-line...>
+    local f="$1" slug; shift
+    slug="$(basename "$f" .md)"
+    mkdir -p "$(dirname "$f")"
+    {
+        printf -- '---\nkind: initiative\nslug: %s\nstatus: active\ncreated: 2026-01-01\n---\n\n# T\n\n## Decision stream\n\n' "$slug"
+        printf '%s\n' "$@"
+    } > "$f"
+}
+BAD='- D1 maybe 2026-01-02 — bad status'
+GOOD='- D1 rejected 2026-01-02 — fine'
+
+M10="$(new_sandbox)"; export MEMORY_DIR="$M10"; build_tree "$M10"
+write_initiative "$M10/initiatives/foo.md" "$BAD"
+run_guard "$M10/initiatives/foo.md"
+assert_exit 2 "$CODE" "initiative with a bad decision status exits 2"
+assert_contains "$OUT" "Decision stream in initiatives/foo.md" "initiative report names the decision-stream section"
+assert_contains "$OUT" "$M10/initiatives/foo.md decision-stream D1 status 'maybe'" "finding carries the real path, not the temp copy"
+assert_contains "$OUT" "evidence:" "initiative advice names the continuation lines"
+
+write_initiative "$M10/initiatives/clean.md" "$GOOD"
+run_guard "$M10/initiatives/clean.md"
+assert_exit 0 "$CODE" "clean initiative exits 0"
+assert_eq "" "$OUT" "clean initiative is silent"
+
+write_initiative "$M10/initiatives/_template.md" "$BAD"
+run_guard "$M10/initiatives/_template.md"
+assert_exit 0 "$CODE" "initiatives/_template.md is excluded"
+
+write_initiative "$M10/initiatives/.state/foo.md" "$BAD"
+run_guard "$M10/initiatives/.state/foo.md"
+assert_exit 0 "$CODE" "initiatives/.state/ is excluded"
+
+write_initiative "$M10/initiatives/archive/x.md" "$BAD"
+run_guard "$M10/initiatives/archive/x.md"
+assert_exit 0 "$CODE" "initiatives/archive/ is out of scope"
+assert_eq "" "$OUT" "initiatives/archive/ is silent"
+
+write_initiative "$M10/initiatives/sub/x.md" "$BAD"
+run_guard "$M10/initiatives/sub/x.md"
+assert_exit 0 "$CODE" "initiatives/<subdir>/ is out of scope"
+assert_eq "" "$OUT" "initiatives/<subdir>/ is silent"
+
+write_initiative "$M10/initiatives/sp ace.md" "$BAD"
+run_guard "$M10/initiatives/sp ace.md"
+assert_exit 2 "$CODE" "initiative path with a space is still checked"
+assert_contains "$OUT" "$M10/initiatives/sp ace.md decision-stream D1 status 'maybe'" "space path reported with the real path"
+
+write_initiative "$M10/initiatives/we[i]rd.v1+.md" "$BAD"
+run_guard "$M10/initiatives/we[i]rd.v1+.md"
+assert_exit 2 "$CODE" "initiative path with regex metacharacters is still checked"
+
+# fail-open: lint missing from the guard's install dir
+FAKE2="$(new_sandbox)"; mkdir -p "$FAKE2/hooks"
+cp "$GUARD" "$FAKE2/hooks/memory_write_guard.sh"
+set +e
+OUT="$(write_payload "$M10/initiatives/foo.md" | MEMORY_DIR="$M10" bash "$FAKE2/hooks/memory_write_guard.sh" 2>&1)"
+CODE=$?
+set -e
+assert_exit 0 "$CODE" "initiative write fails open when lint-memory.sh is absent"
+rm -rf "$M10" "$FAKE2"
+
+# H3/C4: reported path survives backslash, ampersand and space names, on the
+# default bash and (when /bin/bash is 3.x) explicitly on bash 3.2.
+run_guard_with() { # run_guard_with <bash> <file_path>
+    local esc
+    esc="$(printf '%s' "$2" | sed 's/\\/\\\\/g')"
+    set +e
+    OUT="$(write_payload "$esc" | PATH="/usr/bin:/bin:$PATH" "$1" "$GUARD" 2>&1)"
+    CODE=$?
+    set -e
+}
+M11="$(new_sandbox)"; export MEMORY_DIR="$M11"; build_tree "$M11"
+check_paths() { # check_paths <bash> <label>
+    local b="$1" l="$2" n
+    for n in 'plain.md' 'sp ace.md' 'am&per.md' 'back\name.md' 'back\\two.md' 'a&b\n c.md'; do
+        write_initiative "$M11/initiatives/$n" "$BAD"
+        run_guard_with "$b" "$M11/initiatives/$n"
+        assert_exit 2 "$CODE" "$l: '$n' is checked"
+        assert_contains "$OUT" "WARN:  $M11/initiatives/$n decision-stream D1 status 'maybe'" "$l: '$n' is reported with its real path"
+    done
+}
+check_paths bash "default bash"
+if /bin/bash --version 2>/dev/null | head -n1 | grep -q 'version 3\.'; then
+    check_paths /bin/bash "/bin/bash 3.x"
+else
+    echo "  skip /bin/bash is not 3.x: bash 3.2 path-rewrite variant not run"
+fi
+rm -rf "$M11"
+
+# B1: writes through a symlinked path are still checked, either direction.
+SL="$(new_sandbox)"; SL="$(cd "$SL" && pwd -P)"
+mkdir -p "$SL/real"; build_tree "$SL/real"; ln -s real "$SL/link"
+printf '\n**2026-01-01:** PR #1 merged.\n' >> "$SL/real/projects/good/memory.md"
+write_initiative "$SL/real/initiatives/x.md" "$BAD"
+export MEMORY_DIR="$SL/real"
+run_guard "$SL/link/initiatives/x.md"
+assert_exit 2 "$CODE" "symlinked path to initiatives/x.md is checked (MEMORY_DIR physical)"
+assert_contains "$OUT" "WARN:  $SL/link/initiatives/x.md decision-stream D1 status 'maybe'" "symlinked initiative report keeps the path as written"
+run_guard "$SL/link/projects/good/memory.md"
+assert_exit 2 "$CODE" "symlinked path to project memory.md drift is checked"
+assert_contains "$OUT" "Changelog drift in projects/good/memory.md" "symlinked memory.md report is MEMORY_DIR-relative"
+export MEMORY_DIR="$SL/link"
+run_guard "$SL/real/initiatives/x.md"
+assert_exit 2 "$CODE" "physical path is checked when MEMORY_DIR is the symlink"
+run_guard "$SL/real/projects/good/memory.md"
+assert_exit 2 "$CODE" "physical memory.md drift is checked when MEMORY_DIR is the symlink"
+rm -rf "$SL"
 
 unset MEMORY_DIR
 finish

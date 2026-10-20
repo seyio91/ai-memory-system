@@ -161,6 +161,51 @@ Released versions that need manual steps or carry a migration get one section:
 The reverse does not hold: a version may need a manual step without shipping a
 migration — as the next section does.
 
+## 1.7.0
+
+**Initiative decision status is a dated field, not an id suffix.**
+
+Entries in `## Decision stream` now read
+`- D<n> <proposed|confirmed|rejected|superseded|retired> <YYYY-MM-DD> — <text>`.
+The id never changes; `D<n>-proposed` references elsewhere still read as `D<n>`.
+
+Migration `1.7.0-decision-status-field.sh` runs automatically via
+`sync-system.sh`. In each `initiatives/*.md` of `kind: initiative` (not
+`_template.md`, `.state/` or `archive/`) it rewrites suffix-shape heads
+(`D<n>:`, `D<n>-proposed:`, `D<n>-rejected:`, `D<n>-proposed (<date>):`,
+`D<n>-proposed *(<qualifier>)*:`, `D<n> (<qualifier>):`, `D<n>a:`) to the field
+shape, normalises `[<date>]` to `<date>` and `shipped` to `confirmed`, and, when
+it rewrote at least one head, sets `legacy_through: D<max id>` in frontmatter.
+Code-fenced examples (``` or ~~~) are never rewritten. A qualifier moves to the start of the text as `(<qualifier>)`. Decision text,
+continuation lines and every other line are untouched; a second run changes nothing.
+
+**Hand-resolve what it reports.**
+
+- Heads it does not fully recognise (mixed values such as `D15 confirmed/proposed`)
+  are left as is and printed during the sync; fix them by hand.
+- A `-proposed` with a same-number bare `D<n>:` twin becomes `superseded`.
+- A migrated lettered id (`D12a`) has no date and is never legacy: add the date
+  and its `evidence:` / `unconfirmed:` line.
+- A `-proposed` whose confirmation sits under a lettered id (`D23` / `D23a`)
+  stays `proposed` (legacy, no WARN): resolve it by hand, usually `superseded`.
+- A `-proposed` with an already-field-shaped `D<n> confirmed …` twin raises the
+  duplicate-id WARN: set the original to `superseded`.
+- An initiative where nothing was rewritten (already field-shaped, or only reported
+  lines) gets no `legacy_through:`; if lint
+  flags its older entries, add `legacy_through: D<max id>` to its frontmatter.
+- Accepted risk: if the applied-version marker is lost and the migration replays, a
+  newer initiative holding a stray old-format head gets `legacy_through:` and its
+  entries skip the date/evidence/unconfirmed checks; remove that line by hand.
+
+Entries at or below `legacy_through:` are exempt from the date, `evidence:` and
+`unconfirmed:` checks. Check with:
+
+```bash
+bash scripts/lint-memory.sh
+```
+
+It should report no `decision-stream` WARN once those are fixed.
+
 ## 1.6.0
 
 **Orchestrator doctrine split into a tracked core plus a local overlay.**

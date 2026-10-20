@@ -21,7 +21,12 @@
 # 'stream-entries <count>' line. It is hand-editable: update those lines to
 # acknowledge the current state without running this script.
 #
-# Usage: initiative-status.sh [--ack] <slug>
+# --list-proposed: print each proposed decision-stream entry in full (valid
+# heads only, fenced text excluded, legacy included): head plus continuation
+# lines, entries separated by one blank line, then exit with awk's status.
+# Read-only: no snapshot is read or written.
+#
+# Usage: initiative-status.sh [--ack | --list-proposed] <slug>
 
 set -uo pipefail
 
@@ -29,20 +34,23 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/_lib.sh"
 
 usage() {
-    echo "usage: initiative-status.sh [--ack] <slug>" >&2
+    echo "usage: initiative-status.sh [--ack | --list-proposed] <slug>" >&2
     exit 2
 }
 
 ACK=0
-case "$#" in
-    1) SLUG="$1" ;;
-    2)
-        [ "$1" = "--ack" ] || usage
-        ACK=1
-        SLUG="$2"
-        ;;
-    *) usage ;;
-esac
+LIST=0
+SLUG=""
+for arg in "$@"; do
+    case "$arg" in
+        --ack) ACK=1 ;;
+        --list-proposed) LIST=1 ;;
+        -*) usage ;;
+        *) [ -z "$SLUG" ] || usage; SLUG="$arg" ;;
+    esac
+done
+[ -n "$SLUG" ] || usage
+[ "$ACK" -eq 0 ] || [ "$LIST" -eq 0 ] || usage
 INITIATIVE="$MEMORY_DIR/initiatives/$SLUG.md"
 
 [ -f "$INITIATIVE" ] || { echo "initiative-status: initiative not found: $INITIATIVE" >&2; exit 1; }
@@ -65,6 +73,44 @@ esac
     echo "initiative-status: invalid initiative file (created is required): $INITIATIVE" >&2
     exit 1
 }
+
+# Decision-stream grammar is shared with lint-memory.sh and the 1.7.0
+# migration.
+DS_LIB="$(cat "$HERE/lib/decision-stream.awk" 2>/dev/null)"
+[ -n "$DS_LIB" ] || { echo "initiative-status: missing $HERE/lib/decision-stream.awk" >&2; exit 1; }
+
+# list_proposed — each valid-head proposed entry in full (head plus its
+# continuation lines, up to the next entry head or the stream end), legacy
+# included, entries separated by one blank line. Returns awk's exit status.
+list_proposed() {
+    awk "$DS_LIB"'
+        function flush() {
+            if (!cur) return
+            sub(/\n+$/, "", buf)
+            printf "%s%s\n", (shown++ ? "\n" : ""), buf
+            cur = 0; buf = ""
+        }
+        { sub(/\r$/, "") }
+        { inst = ds_track($0) }
+        DS_END { exit }
+        !inst { next }
+        {
+            h = ds_head($0)
+            if (h != "") {
+                flush()
+                if (h == "ok" && DS_STATUS == "proposed") { cur = 1; buf = $0 "\n" }
+                next
+            }
+            if (cur) buf = buf $0 "\n"
+        }
+        END { flush() }
+    ' "$INITIATIVE"
+}
+
+if [ "$LIST" -eq 1 ]; then
+    list_proposed
+    exit $?
+fi
 
 target_ids=()
 target_modes=()
@@ -192,7 +238,8 @@ join_paths() {
 todo_counts() {
     local todo="$1" plan_rel="$2"
     [ -f "$todo" ] || { printf 'todo missing'; return; }
-    awk -v p="$plan_rel" '
+    PLAN_REL="$plan_rel" awk '
+        BEGIN { p = ENVIRON["PLAN_REL"] }
         /^### / { if (active) exit }
         index($0, "(" p ")") { active = 1 }
         active && /^[[:space:]]*- \[ \]/ { open++ }
@@ -303,6 +350,43 @@ stream_entry_count() {
         in_stream && /^## / { exit }
         in_stream && /^- D[0-9A-Za-z]*/ { count++ }
         END { print count + 0 }
+    ' "$INITIATIVE"
+}
+
+# decision_summary — prints 'N K oldest' for proposed entries with a valid head
+# in the Decision stream (grammar: lib/decision-stream.awk). legacy = plain D<n>
+# with n <= frontmatter legacy_through (missing/malformed -> none). oldest = age
+# in days of the oldest dated non-legacy entry, empty when there is none. Test
+# seam: INITIATIVE_STATUS_TODAY=YYYY-MM-DD.
+decision_summary() {
+    local mark num today
+    mark="$(extract_fm_field "$INITIATIVE" legacy_through | tr -d '\r')"
+    num="$(printf '%s\n' "$mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')"
+    [ -n "$num" ] || num=-1
+    today="${INITIATIVE_STATUS_TODAY:-$(date +%Y-%m-%d)}"
+    awk -v lt="$num" -v today="$today" "$DS_LIB"'
+        function days(d,   y, m, dd, era, yoe, doy, doe) {
+            y = substr(d, 1, 4) + 0; m = substr(d, 6, 2) + 0; dd = substr(d, 9, 2) + 0
+            if (m <= 2) y--
+            era = int(y / 400); yoe = y - era * 400
+            doy = int((153 * (m + (m > 2 ? -3 : 9)) + 2) / 5) + dd - 1
+            doe = yoe * 365 + int(yoe / 4) - int(yoe / 100) + doy
+            return era * 146097 + doe
+        }
+        { sub(/\r$/, "") }
+        { inst = ds_track($0) }
+        DS_END { exit }
+        !inst { next }
+        ds_head($0) == "ok" && DS_STATUS == "proposed" {
+            n++
+            if (ds_legacy(DS_ID, lt)) { k++; next }
+            if (ds_isdate(DS_DATE) && (oldest == "" || DS_DATE < oldest)) oldest = DS_DATE
+        }
+        END {
+            age = ""
+            if (oldest != "") { age = days(today) - days(oldest); if (age < 0) age = 0 }
+            printf "%d %d %s\n", n + 0, k + 0, age
+        }
     ' "$INITIATIVE"
 }
 
@@ -456,6 +540,14 @@ for i in "${!target_ids[@]}"; do
 done
 
 printf '# Initiative readiness — %s\n\n' "$SLUG"
+read -r dec_n dec_k dec_age <<DECISIONS
+$(decision_summary)
+DECISIONS
+if [ -n "$dec_age" ]; then
+    printf 'Decisions: %s proposed (%s legacy), oldest %s days\n\n' "$dec_n" "$dec_k" "$dec_age"
+else
+    printf 'Decisions: %s proposed (%s legacy)\n\n' "$dec_n" "$dec_k"
+fi
 printf '| id | execution_mode | derived stage/status | evidence | depends_on + satisfied? | next_actor |\n'
 printf '|---|---|---|---|---|---|\n'
 for i in "${!target_ids[@]}"; do
@@ -480,7 +572,7 @@ if [ "$ACK" -eq 1 ]; then
 elif [ "${#stale_ids[@]}" -gt 0 ]; then
     printf '\n## Stale targets\n\n'
     for i in "${!stale_ids[@]}"; do
-        printf 'WARN: %s advanced (%s -> %s) with no new decision-stream entry — append the missing D<n>-proposed entry or ack\n' \
+        printf 'WARN: %s advanced (%s -> %s) with no new decision-stream entry — append the missing D<n> proposed <date> entry with an unconfirmed: line, or ack\n' \
             "${stale_ids[$i]}" "${stale_old_stages[$i]}" "${stale_new_stages[$i]}"
     done
 fi

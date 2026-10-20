@@ -26,6 +26,10 @@
 #   - domain/*.md                  changelog drift only, unchanged. No size
 #                                   budget applies to domain/*.md (lazy-loaded,
 #                                   never injected — see the plan's Decisions).
+#   - initiatives/*.md             decision-stream shape only (lint-memory.sh
+#                                   rules, run on a temp copy). Top level only:
+#                                   not _template.md, not initiatives/*/ (.state/,
+#                                   archive/, ...).
 #
 # Fires after a Write/Edit, runs whichever checks are in scope for the target,
 # and reports on stderr with exit 2 — the PostToolUse code that feeds output
@@ -49,6 +53,7 @@ MEMORY_DIR="${MEMORY_DIR:-$(cd "$hook_dir/../.." && pwd)}"
 # a missing checker silently drops just its own half of the report.
 drift_checker="$hook_dir/../check-changelog-drift.sh"
 size_checker="$hook_dir/../check-memory-size.sh"
+lint_checker="$hook_dir/../lint-memory.sh"
 
 payload="$(cat 2>/dev/null)" || exit 0
 [ -n "$payload" ] || exit 0
@@ -64,6 +69,17 @@ fi
 [ -n "$file" ] || exit 0
 [ -f "$file" ] || exit 0
 case "$file" in *"/_template/"*|*/_template.md) exit 0 ;; esac
+
+# Match on physical paths: ~/.claude-memory is a symlink to the install, and
+# MEMORY_DIR is baked physical (install.sh pwd -P). Reports keep the path as
+# written. A directory that cannot be resolved keeps its raw value.
+shown_file="$file"
+if fdir="$(cd -- "$(dirname -- "$file")" 2>/dev/null && pwd -P)"; then
+    file="$fdir/$(basename -- "$file")"
+fi
+if mdir="$(cd -- "$MEMORY_DIR" 2>/dev/null && pwd -P)"; then
+    MEMORY_DIR="$mdir"
+fi
 
 # report accumulates one labeled section per non-empty finding set; a missing
 # checker or a clean run just contributes nothing, never a blank section.
@@ -127,6 +143,36 @@ case "$file" in
         # "trim toward its size budget" or "raise the session_chunks cap"
         # would be pointing at a check this branch never ran.
         advice="$DRIFT_ADVICE"
+        ;;
+    "$MEMORY_DIR"/initiatives/*/*) exit 0 ;;
+    "$MEMORY_DIR"/initiatives/*.md)
+        # lint-memory.sh has no per-file mode: lint a temp copy laid out as
+        # <tmp>/initiatives/<name>.md and keep only this file's decision-stream
+        # lines. Any lint failure yields nothing (fail open).
+        findings=""
+        tmp=""
+        trap '[ -z "$tmp" ] || rm -rf "$tmp"' EXIT
+        if [ -x "$lint_checker" ] && tmp="$(mktemp -d 2>/dev/null)"; then
+            name="$(basename "$file")"
+            mkdir -p "$tmp/initiatives"
+            if cp "$file" "$tmp/initiatives/$name" 2>/dev/null; then
+                findings="$(MEMORY_DIR="$tmp" bash "$lint_checker" 2>/dev/null \
+                    | grep -F -e "WARN:  $tmp/initiatives/$name decision-stream " \
+                           -e "WARN:  $tmp/initiatives/$name legacy_through ")"
+                # Per-line prefix strip, not ${//}: bash 3.2 mangles quoted
+                # pattern/replacement, and bash 5.2 expands & in the replacement.
+                prefix="WARN:  $tmp/initiatives/$name"
+                rewritten=""
+                while IFS= read -r line; do
+                    [ -n "$line" ] || continue
+                    rest=${line#"$prefix"}
+                    rewritten="${rewritten}${rewritten:+$'\n'}WARN:  ${shown_file}${rest}"
+                done <<< "$findings"
+                findings="$rewritten"
+            fi
+        fi
+        add_report "Decision stream in ${file#"$MEMORY_DIR"/}" "$findings"
+        add_advice "$findings" 'Fix the decision-stream entries: head is `- D<n> <proposed|confirmed|rejected|superseded|retired> <YYYY-MM-DD> — ...`; confirmed needs an `evidence:` line, proposed an `unconfirmed:` line (docs/initiatives.md).'
         ;;
     *) exit 0 ;;
 esac
