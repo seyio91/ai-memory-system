@@ -1,2 +1,0 @@
-- **Manifest parsing no longer starts a process per line.** `manifest.sh` trimmed every manifest line through `sed` and re-read the file for every key, so `validate-manifest.sh` took ~7s and every `install.sh` paid it. Output is byte-identical; validation now takes ~0.1s. `lint-memory.sh` drops similar per-file forks (~15s → ~11s on a real tree).
-- **`run-tests.sh` runs test files in parallel** (default: CPU count; `AI_MEMORY_TEST_JOBS=1` for sequential). Results print in the same order and format. Full local gate: ~11 min → ~1.5 min.
