@@ -71,3 +71,21 @@ goes red.
   is the first step of the actual task.
 - `test_validate_manifest.sh` (18.7s) and `test_release.sh` (15.3s), the #2 and #3
   costs. Together another 20% — worth a look once the big one lands.
+
+## 2026-10-20 re-measure and fix (PR #138)
+
+Sequential bash suite had grown to **627s** (61 files): `test_install_harness.sh` 271s,
+`test_lint_memory.sh` 80s, `test_validate_manifest.sh` 41s, `test_executor.sh` 38s.
+
+**Root cause of the install/manifest cost was incidental, not inherent:** `manifest.sh`
+`_mf_trim` forked `sed` up to 3x per manifest line and `manifest_get` re-parsed per key, so
+`validate-manifest.sh` took 6.9s — and `install.sh` runs it every time. Cost grew with
+manifest size, which is why the file quadrupled since July. Parameter-expansion trim:
+6.9s → 0.09s, `install_harness` 271s → 13s, output byte-identical.
+
+Plus parallel runner (`AI_MEMORY_TEST_JOBS`) and lint-memory fork removal.
+Full gate **~11 min → 96s**; tests stage 67s; per-file counts identical to baseline.
+
+**Remaining floor:** `test_lint_memory.sh` ~48s — 109 lint runs, each dominated by
+`check-memory-size.sh --payload` (full payload render + python slice counts). That is the
+next lever; the other ~29s of the gate is lint + shellcheck stages.
