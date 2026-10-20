@@ -219,18 +219,34 @@ read_applied_version() {
   printf '%s\n' "$version"
 }
 
-validate_migration_files() {
-  local dir f base version i
-  local versions=()
-  local bases=()
+# Dry-run sets MIGRATIONS_REF so migrations are read from the sync target, not the working tree.
+MIGRATIONS_REF=""
+
+migration_basenames() {
+  local dir f mode type obj path
+  if [ -n "$MIGRATIONS_REF" ]; then
+    git -C "$REPO_ROOT" ls-tree "$MIGRATIONS_REF" -- migrations/ | while read -r mode type obj path; do
+      [ "$type" = blob ] || continue
+      printf '%s\n' "${path##*/}"
+    done
+    return 0
+  fi
   dir="$(migrations_dir)"
   [ -d "$dir" ] || return 0
   for f in "$dir"/*; do
     [ -e "$f" ] || continue
     [ -f "$f" ] || continue
-    base="$(basename "$f")"
+    printf '%s\n' "$(basename "$f")"
+  done
+}
+
+validate_migration_files() {
+  local base version i
+  local versions=()
+  local bases=()
+  while IFS= read -r base; do
     case "$base" in
-      README.md|.gitkeep) continue ;;
+      ""|README.md|.gitkeep) continue ;;
     esac
     if ! printf '%s\n' "$base" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[A-Za-z0-9._-]+\.sh$'; then
       echo "  ABORT: malformed migration filename: $base" >&2
@@ -252,39 +268,45 @@ validate_migration_files() {
     fi
     versions[${#versions[@]}]="$version"
     bases[${#bases[@]}]="$base"
-  done
+  done <<EOF
+$(migration_basenames)
+EOF
 }
 
 list_migration_versions() {
-  local dir f base
-  dir="$(migrations_dir)"
-  [ -d "$dir" ] || return 0
-  for f in "$dir"/*; do
-    [ -e "$f" ] || continue
-    [ -f "$f" ] || continue
-    base="$(basename "$f")"
+  local base
+  migration_basenames | while IFS= read -r base; do
     case "$base" in
-      README.md|.gitkeep) continue ;;
+      ""|README.md|.gitkeep) continue ;;
     esac
     printf '%s\n' "${base%%-*}"
   done
 }
 
 pending_migrations() {
-  local dir marker versions version f base
+  local dir marker versions version base names
   dir="$(migrations_dir)"
   marker="$1"
-  [ -d "$dir" ] || return 0
+  names="$(migration_basenames)"
+  [ -n "$names" ] || return 0
   versions="$(list_migration_versions | semver_sort_asc | uniq)" || return 1
   [ -n "$versions" ] || return 0
   while IFS= read -r version; do
     [ -n "$version" ] || continue
     semver_gt "$version" "$marker" || continue
-    for f in "$dir/$version"-*.sh; do
-      [ -f "$f" ] || continue
-      base="$(basename "$f")"
-      printf '%s\t%s\t%s\n' "$version" "$base" "$f"
-    done
+    while IFS= read -r base; do
+      case "$base" in
+        "$version"-*.sh) ;;
+        *) continue ;;
+      esac
+      if [ -n "$MIGRATIONS_REF" ]; then
+        printf '%s\t%s\t%s\n' "$version" "$base" "$MIGRATIONS_REF:migrations/$base"
+      else
+        printf '%s\t%s\t%s\n' "$version" "$base" "$dir/$base"
+      fi
+    done <<EOF2
+$names
+EOF2
   done <<EOF
 $versions
 EOF
@@ -398,6 +420,15 @@ if [ "$DO_PULL" = 1 ]; then
     else
       info "target: @{u} (dev ff-only merge)"
       preview_dev_incoming
+    fi
+    migrations_ref="$TARGET"
+    [ "$MODE" = "dev" ] && migrations_ref="@{u}"
+    if [ -n "${AI_MEMORY_MIGRATIONS_DIR:-}" ]; then
+      :
+    elif git -C "$REPO_ROOT" rev-parse --verify --quiet "$migrations_ref^{commit}" >/dev/null; then
+      MIGRATIONS_REF="$migrations_ref"
+    else
+      info "target ref unresolvable; listing migrations from the working tree"
     fi
     dry_run_migrations
     info "[dry-run] $FETCH_STATUS, not checking out, not installing"
