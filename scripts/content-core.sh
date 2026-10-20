@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # content-core.sh — the single source of "what memory sections, in what order,
 # and whether present". Sourced by every context consumer (the shared hook lib,
-# the Codex adapter via codex-mem.sh). It performs NO rendering:
+# Antigravity's preinvocation hook, build-context-md.sh). It performs NO rendering:
 # it emits a format-neutral, ordered list of the present sections as records, and
 # the per-format serializers (formatters/xml.sh, formatters/md.sh) turn those into
-# bytes. This replaces the duplicated selection walks that used to live in both
-# the old Claude hook helper and codex-mem.sh.
+# bytes.
 #
 # Depends only on $MEMORY_DIR (set by the caller: scripts/hooks/lib.sh resolves it,
 # _lib.sh defaults it). No dependency on _lib.sh helpers, so it is safe to source

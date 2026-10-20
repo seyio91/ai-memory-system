@@ -30,8 +30,8 @@ cd ~/.claude-memory
   **hook** either symlinks `*.sh` + `statusline.sh` into `~/.claude/` (Claude) or registers
   namespaced `PreInvocation`/`PreToolUse` entries into a JSON hooks file (Antigravity —
   `~/.gemini/config/hooks.json`, injection live per model call via `agy.sh`);
-  **file** (Codex) prepares the `context_target` dir — the context is rebuilt on
-  each launch by the harness wrapper (`codex-mem.sh`), not symlinked,
+  **file** (Codex) prepares the `context_target` dir — with `refresh = hook` the file
+  is a hand-owned static base and memory injects live via the SessionStart hook,
 - delivers **commands** per the manifest — `native` symlinks into the command dir (Claude
   `~/.claude/commands`), `skill` wraps each command as a `SKILL.md` into `skills_dir`
   (Codex/Antigravity `~/.agents/skills`), `doc` renders a reference, `none`,
@@ -89,7 +89,7 @@ Prefer not to run the installer? The components, in build order — each has a d
 4. **Claude hooks** — keep the `~/.claude/hooks/` runtime root, symlink `harnesses/claude/statusline.sh` to `~/.claude/statusline.sh`, and register the five hook commands into `~/.claude/settings.json`: shared `scripts/hooks/inject.sh` for `UserPromptSubmit`, shared `scripts/hooks/session_start_memory.sh` for `SessionStart`, `harnesses/claude/hooks/block_task_tools.sh` for `PreToolUse` (`TaskCreate|TaskUpdate`), shared `scripts/hooks/guard.sh` (the infra deny-list guard, with `AI_MEMORY_GUARD_SCOPE`) for `PreToolUse` (`Bash`), and `scripts/hooks/memory_write_guard.sh` for `PostToolUse` (`Write|Edit`). See [Claude Code › Hooks](harnesses/claude.md#hooks).
 5. **Claude slash commands & skills** — symlink the command files in `commands/` into `~/.claude/commands/` (see [Slash commands](harnesses/claude.md#slash-commands)) and link the bundled `skills/` into `~/.claude/skills/` via `scripts/link-skills.sh` (see [Skills](harnesses/claude.md#skills)). Skills are auto-discovered by their `description`; the brainstorm gate (the `design-brainstorm` skill) is anchored by the `doctrine/orchestrator.md` Orchestration routing rule.
 6. **Global rules** — symlink `harnesses/claude/CLAUDE.md` → `~/.claude/CLAUDE.md`. It is a hook-failure stub: it points at `doctrine/orchestrator.md`, `orchestrator.local.md` and `identity.md` for the case where the `<memory:*>` injection is missing. The maintenance rules, workflow tiers, and file-as-page nudge live in the core's `## Memory maintenance` section.
-7. **Codex bridge** — populate `harnesses/codex/scripts/` (`codex-mem.sh`, `codex-mem-checkpoint.sh`), then create `~/.codex/AGENTS.local.md` (can be empty) and `~/.codex/rules/default.rules` (the executor deny list). The `/checkpoint` skill is generated into `~/.agents/skills/` by `install.sh`; `AGENTS.md` is generated — do not author it. See [Codex CLI](harnesses/codex.md).
+7. **Codex bridge** — populate `harnesses/codex/scripts/` (`codex-mem.sh`, `codex-mem-checkpoint.sh`), then create `~/.codex/AGENTS.md` (hand-owned, can be empty) and `~/.codex/rules/default.rules` (the executor deny list). The `/checkpoint` skill is generated into `~/.agents/skills/` by `install.sh`; memory injects live via the SessionStart hook. See [Codex CLI](harnesses/codex.md).
 8. **Verify** — run `scripts/lint-memory.sh` (expect exit 0), `scripts/regenerate-index.sh` (index matches frontmatter), launch a Claude session and confirm `<memory:*>` blocks inject, and confirm a `TaskCreate` call is blocked.
 
 The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the `~/.claude-memory` link; do them by hand only if you skip the installer. Per-engagement content (`projects/*`, `domain/*`) is user data and git-ignored — a clone gives you the scaffold (`projects/_template/`, the `*.template.md` files), not someone else's contents.
@@ -125,7 +125,7 @@ The `install.sh` route automates steps 4–6 (the `~/.claude/` symlinks) and the
 │   │   ├── settings.hooks.json        #     reference shape for auto-merged ~/.claude/settings.json hooks
 │   │   └── CLAUDE.md                  #     global workflow rules → ~/.claude/CLAUDE.md
 │   └── codex/
-│       └── scripts/                   #   codex-mem.sh (Codex wrapper), codex-mem-checkpoint.sh
+│       └── scripts/                   #   codex-mem.sh (executor/validator launcher), codex-mem-checkpoint.sh
 ├── agents/                            # Bundled subagent definitions → ~/.claude/agents (link-agents.sh)
 ├── skills/                            # Authored per-instance skills → ~/.claude/skills (gitignored except .gitkeep)
 ├── skills.toml                         # Per-instance remote-skill manifest (gitignored; seeded from templates/)
@@ -188,13 +188,11 @@ After `install.sh`, these `~/.claude/` paths are **symlinks into this repo** (`h
 └── agents/                            # → repo agents/  (subagent definitions, symlinked)
 
 ~/.codex/
-├── AGENTS.md                          # Generated on every codex-mem.sh launch
-├── AGENTS.local.md                    # User-owned overlay, never overwritten
-├── rules/default.rules                # Executor deny list (apply/merge/destructive)
-├── prompts/checkpoint.md              # /checkpoint slash command (explicit invoke)
-└── skills/checkpoint/                 # Codex skill (autonomous invoke via natural language)
-    ├── SKILL.md
-    └── agents/openai.yaml
+├── AGENTS.md                          # Hand-owned static base, never written by memory
+├── hooks.json                         # SessionStart/UserPromptSubmit memory injection (install.sh)
+└── rules/default.rules                # Executor deny list (apply/merge/destructive)
+
+~/.agents/skills/                      # Codex skills, incl. generated /checkpoint (install.sh)
 ```
 
 ## Active-project detection

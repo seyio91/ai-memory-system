@@ -116,7 +116,7 @@ suite enforces that every migration has an `UPGRADING.md` section. Never invent 
 | Codex doesn't see project memory | `codex-mem.sh` couldn't resolve the project. Pin the repo with `.agents/memory-project` (launch from inside the repo tree). |
 | Cross-project delegate (Codex) sees the wrong project | A `codex-mem.sh` executor resolves `AGENTS.md` from the *active* project. Pin the sibling repo before launching, or pass the sibling `memory.md` path in the prompt. |
 | `~/.codex/AGENTS.md` looks stale | It's only regenerated when you launch via `codex-mem.sh`. Plain `codex` reads the existing file as-is. |
-| Local Codex instructions vanished | You edited `~/.codex/AGENTS.md` (generated, overwritten). Move your additions to `~/.codex/AGENTS.local.md`. |
+| Local Codex instructions vanished | Pre-1.4.0 instance: `~/.codex/AGENTS.md` was generated and overwritten. Upgrade (`/sync-system`); migration `1.4.0-codex-agents-handoff.sh` makes it hand-owned. |
 | `index.md` doesn't reflect a new file | Frontmatter missing or malformed. Run `lint-memory.sh`. Then `regenerate-index.sh`. |
 | Bash heredoc fails under Codex `read-only` sandbox | Heredocs need writable `/tmp`. Use `printf` + double-quoted strings in any script that may run under restrictive sandboxes. |
 | Slash command not autocompleting | Restart the Claude session — slash commands in `~/.claude/commands/` are indexed at session start. |
