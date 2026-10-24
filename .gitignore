@@ -90,6 +90,8 @@ __pycache__/
 !/skills/design-brainstorm/**
 !/skills/skill-audit/
 !/skills/skill-audit/**
+!/skills/project-scan/
+!/skills/project-scan/**
 /skills/skill-audit/**/__pycache__/
 /skills/*/**/.DS_Store
 /skills/*/self-rating.md
