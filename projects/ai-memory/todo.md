@@ -10,7 +10,7 @@
 ### project-scan: derive project memory from the repo → [plan](plans/project-scan.md)
 - [x] P1 — the skill
 - [x] P2 — wire /new-project, docs, changelog (needs: P1)
-- [ ] P3 — live exercise (needs: P2)
+- [x] P3 — live exercise (needs: P2)
 
 ## Done
 _(checked items stay above until the file is rolled)_
