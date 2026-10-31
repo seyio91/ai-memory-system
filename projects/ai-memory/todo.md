@@ -7,7 +7,9 @@
 
 ## Active
 
-_(no items yet)_
+### Local provider: a done task leaves the board → [plan](plans/local-task-done-leaves-board.md)
+- [ ] P1 — Local provider: done/archived live in archive/tasks
+- [ ] Checkpoint — validate, live exercise, ship (needs: P1)
 
 ## Done
 _(checked items stay above until the file is rolled)_
