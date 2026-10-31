@@ -120,7 +120,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 
 ### Tooling & quality
 
-- **Dependency-free** — shell + Python stdlib, targeting macOS Bash 3.2, so the system runs as a plain cloned tree. It needs `python3` 3.11 or later (stdlib only, no pip); `jq` is optional. `install.sh` and `sync-system.sh` check this up front.
+- **Dependency-free** — shell + Python stdlib, targeting macOS Bash 3.2, so the system runs as a plain cloned tree. It needs `python3` 3.9 or later (stdlib only, no pip); `jq` is optional. Remote skill resolution (`skills.toml`, `sync-system.sh --update`) needs 3.11+ for `tomllib`. `install.sh` and `sync-system.sh` check this up front.
 - **Hermetic test suite** — `run-tests.sh` runs bash tests, Python provider tests, memory lint, skill validation, a doc-vs-code gate, and shellcheck under a scrubbed environment; `/test-system` runs it read-only from Claude.
 - **Drift gates** — a doc-vs-code check keeps the `docs/scripts.md` env table honest against the code, and manifest validation runs before any harness is wired.
 

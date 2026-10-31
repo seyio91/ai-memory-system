@@ -85,10 +85,10 @@ done
 
 # No env marker is used for the sync case: the first sync onto this release is
 # run by the OLD sync-system.sh, which cannot set one. The message covers both.
-if ! require_python311; then
+if ! require_python3; then
     echo "install: did not run; install.sh itself changed nothing." >&2
     echo "  If /sync-system started this, the checkout is already at the new version" >&2
-    echo "  (an older sync-system.sh has no python check). Install python3 >= 3.11, then" >&2
+    echo "  (an older sync-system.sh has no python check). Install python3 >= 3.9, then" >&2
     echo "  re-run /sync-system (or: bash install.sh)." >&2
     exit 1
 fi

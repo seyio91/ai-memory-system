@@ -33,19 +33,20 @@ guard_scope_resolve() {
     return 1
 }
 
-# require_python311 — preflight shared by install.sh and sync-system.sh: python3
-# >= 3.11 (tomllib is needed by resolve-skills.sh / install-skill.sh). Prints the
+# require_python3 — preflight shared by install.sh and sync-system.sh: python3
+# >= 3.9. (The TOML scripts need 3.11 for tomllib: resolve-skills.sh and
+# install-skill.sh carry their own check; list-skills.sh silently omits remote
+# names without it; sync-system.sh --update checks up front.) Prints the
 # found version (or "not found") plus a fix hint on stderr and returns 1 when
 # the requirement is not met; prints nothing and returns 0 otherwise.
-require_python311() {
+require_python3() {
     local found=""
     if command -v python3 >/dev/null 2>&1; then
-        python3 -c 'import sys; sys.exit(sys.version_info < (3,11))' >/dev/null 2>&1 && return 0
+        python3 -c 'import sys; sys.exit(sys.version_info < (3,9))' >/dev/null 2>&1 && return 0
         found="$(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null)" || found=""
     fi
-    printf 'ERROR python3 >= 3.11 is required (found: %s).\n' "${found:-not found}" >&2
-    printf '  Install a newer python3 (e.g. `brew install python` or pyenv) and put it first on PATH.\n' >&2
-    printf '  Note: the python3 shipped with the macOS Xcode Command Line Tools is 3.9.\n' >&2
+    printf 'ERROR python3 >= 3.9 is required (found: %s).\n' "${found:-not found}" >&2
+    printf '  Install python3 (e.g. `brew install python`, or the macOS Command Line Tools: `xcode-select --install`).\n' >&2
     return 1
 }
 

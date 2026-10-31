@@ -104,7 +104,12 @@ info() { printf '  %s\n' "$1"; }
 # read-only): runs before the dirty check, fetch, checkout, merge, migrations
 # and install, so a too-old python3 leaves the tree untouched.
 python_preflight() {
-  require_python311 || { echo "  ABORT: python3 >= 3.11 required; nothing was changed." >&2; exit 1; }
+  require_python3 || { echo "  ABORT: python3 >= 3.9 required; nothing was changed." >&2; exit 1; }
+  # --update re-resolves remote skills via resolve-skills.sh, which needs tomllib (3.11).
+  if [ "$UPDATE_REMOTES" = 1 ] && [ -f "$(skill_manifest)" ] && ! python3 -c 'import tomllib' >/dev/null 2>&1; then
+    echo "  ABORT: --update needs python3 >= 3.11 (tomllib) to re-resolve remote skills; nothing was changed. Re-run without --update, or install a newer python3." >&2
+    exit 1
+  fi
 }
 
 dirty_tracked_guard() {
