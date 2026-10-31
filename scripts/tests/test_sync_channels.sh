@@ -388,4 +388,48 @@ assert_contains "$dry_mig_dev_out" "0.11.0  0.11.0-target-only.sh" "dev dry-run 
 dry_mig_to_out="$(capture_sync_channel "$DRY_MIG" release --to v0.10.0 --dry-run)"
 assert_not_contains "$dry_mig_to_out" "0.11.0-target-only.sh" "--to dry-run lists only the requested ref's migrations"
 
+# --- python3 >= 3.11 preflight aborts before any checkout, tree untouched ---
+SYNC_TOOLS="$ROOT/tools-bin"; SYNC_OLDPY="$ROOT/py39-bin"
+mkdir -p "$SYNC_TOOLS" "$SYNC_OLDPY"
+for tool in /usr/bin/* /bin/*; do
+    case "${tool##*/}" in python*|pydoc*|idle*) continue ;; esac
+    [ -x "$tool" ] && ln -sf "$tool" "$SYNC_TOOLS/${tool##*/}"
+done
+PY_BASH="$(command -v bash)"
+cat > "$SYNC_OLDPY/python3" <<EOF
+#!$PY_BASH
+case "\$*" in *sys.exit*) exit 1 ;; esac
+printf '3.9.6\\n'
+EOF
+chmod +x "$SYNC_OLDPY/python3"
+PYF="$(make_fixture py-preflight yes)"
+py_head="$(git -C "$PYF" rev-parse HEAD)"
+py_branch="$(git -C "$PYF" rev-parse --abbrev-ref HEAD)"
+set +e
+py_out="$(cd "$PYF" && PATH="$SYNC_OLDPY:$SYNC_TOOLS" MEMORY_DIR="$PYF" AI_MEMORY_CHANNEL=release "$PY_BASH" scripts/sync-system.sh 2>&1)"; py_rc=$?
+set -e
+assert_exit 1 "$py_rc" "python3 3.9: sync exits 1"
+assert_contains "$py_out" "python3 >= 3.11 is required (found: 3.9.6)" "python3 3.9: sync names the found version"
+assert_contains "$py_out" "nothing was changed" "python3 3.9: sync reports nothing changed"
+assert_eq "$py_head" "$(git -C "$PYF" rev-parse HEAD)" "python3 3.9: sync leaves HEAD unchanged"
+assert_eq "$py_branch" "$(git -C "$PYF" rev-parse --abbrev-ref HEAD)" "python3 3.9: sync stays on its branch"
+assert_not_file "$PYF/install-ran.txt" "python3 3.9: sync does not run install"
+set +e
+py_out="$(cd "$PYF" && PATH="$SYNC_TOOLS" MEMORY_DIR="$PYF" AI_MEMORY_CHANNEL=release "$PY_BASH" scripts/sync-system.sh 2>&1)"; py_rc=$?
+set -e
+assert_exit 1 "$py_rc" "no python3: sync exits 1"
+assert_contains "$py_out" "python3 >= 3.11 is required (found: not found)" "no python3: sync says not found"
+assert_contains "$py_out" "nothing was changed" "no python3: sync reports nothing changed"
+assert_eq "$py_head" "$(git -C "$PYF" rev-parse HEAD)" "no python3: sync leaves HEAD unchanged"
+assert_eq "$py_branch" "$(git -C "$PYF" rev-parse --abbrev-ref HEAD)" "no python3: sync stays on its branch"
+assert_not_file "$PYF/install-ran.txt" "no python3: sync does not run install"
+# dry-run is read-only: works on old python (exit 0), tree untouched
+set +e
+py_out="$(cd "$PYF" && PATH="$SYNC_OLDPY:$SYNC_TOOLS" MEMORY_DIR="$PYF" AI_MEMORY_CHANNEL=release "$PY_BASH" scripts/sync-system.sh --dry-run 2>&1)"; py_rc=$?
+set -e
+assert_exit 0 "$py_rc" "python3 3.9: sync --dry-run exits 0"
+assert_eq "$py_head" "$(git -C "$PYF" rev-parse HEAD)" "python3 3.9: sync --dry-run leaves HEAD unchanged"
+run_sync_channel "$PYF" release >/dev/null 2>&1
+assert_eq "v0.10.0" "$(git -C "$PYF" describe --tags --exact-match 2>/dev/null)" "real python3: sync still checks out the latest tag"
+
 finish

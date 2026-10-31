@@ -457,9 +457,9 @@ set +e
 guard_payload "terraform apply" | env -i PATH="$NOPARSER_BIN" AI_MEMORY_GUARD_SCOPE=all "$BASH_BIN" "$SHARED_GUARD" >"$OUT" 2>"$ERR"
 code=$?
 set -e
-assert_exit 0 "$code" "shared guard: no parser, main session exits 0"
-assert_contains "$(cat "$OUT")" '{"systemMessage":"ai-memory guard: no jq/python3' "shared guard: no parser, main session emits systemMessage"
-assert_contains "$(cat "$OUT")" "deny-list NOT enforced" "shared guard: no parser, main session warns not enforced"
+assert_exit 2 "$code" "shared guard: no parser, main session denied (exit 2)"
+assert_contains "$(cat "$ERR")" "no jq/python3" "shared guard: no parser, main session reason on stderr"
+assert_not_contains "$(cat "$OUT")" "deny-list NOT enforced" "shared guard: no parser, main session does not fail open"
 
 # run_guard <guard> <scope> <payload> — role unset, scope set verbatim.
 run_guard() {

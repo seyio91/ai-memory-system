@@ -63,13 +63,15 @@ deny() {
 }
 
 # Main-session Claude (AI_MEMORY_GUARD_SCOPE=all, no role, no agent_id) is asked
-# instead of denied when its permission_mode shows prompts (see header), and
-# fails open with a visible warning.
+# instead of denied when its permission_mode shows prompts (see header).
 ask() {
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":%s}}\n' "$(json_escape "$1$SCOPE_NOTE")"
     exit 0
 }
 
+# Main-session deny-list load failures (missing/empty list) fail open with a
+# visible warning; other contexts deny. A missing JSON parser is not routed here:
+# it denies in every context (see below).
 guard_fail() {
     if [ "$CONTEXT" = main ]; then
         printf '{"systemMessage":%s}\n' "$(json_escape "ai-memory guard: ${2:-$1} — deny-list NOT enforced$SCOPE_NOTE")"
@@ -80,8 +82,9 @@ guard_fail() {
 
 [ -n "$ROLE" ] || [ "$SCOPE" = all ] || exit 0
 
-# agent_id is present only in subagent tool calls. The raw grep runs first so a
-# subagent is still detected (and denied) when no JSON parser is available.
+# agent_id is present only in subagent tool calls. The raw grep runs first so the
+# subagent context is still detected when no JSON parser is available (a missing
+# parser denies in every context, below).
 CONTEXT=executor
 if [ -z "$ROLE" ]; then
     CONTEXT=main
@@ -92,7 +95,7 @@ if [ -z "$ROLE" ]; then
 fi
 
 if ! json_parser_available; then
-    guard_fail "no jq/python3, cannot inspect tool call"
+    deny "no jq/python3, cannot inspect tool call$SCOPE_NOTE"
 fi
 
 # The shell command lives at different JSON paths per harness's PreToolUse stdin:

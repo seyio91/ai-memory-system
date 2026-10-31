@@ -60,6 +60,50 @@ run_install() { HOME="$FHOME" MEMORY_DIR="$FAKE" bash "$FAKE/install.sh" "$@"; }
 # would make the default-scope assertions below depend on the caller's env.
 unset AI_MEMORY_GUARD_SCOPE
 
+# --- python3 >= 3.11 preflight: abort before any write ---
+PY_HOME="$SBROOT/py-home"; mkdir -p "$PY_HOME/.claude"
+PY_OLD="$SBROOT/py39-bin"; PY_NONE="$SBROOT/nopy3-bin"; mkdir -p "$PY_OLD" "$PY_NONE"
+PY_BASH="$(command -v bash)"
+cat > "$PY_OLD/python3" <<EOF
+#!$PY_BASH
+case "\$*" in *sys.exit*) exit 1 ;; esac
+printf '3.9.6\\n'
+EOF
+chmod +x "$PY_OLD/python3"
+# Full-tools PATH for both cases so install gets past the preflight position and
+# the "no files written" snapshots are not vacuous: the 3.9 stub goes first; the
+# no-python3 farm links every executable on PATH except python*.
+_oldifs="$IFS"; IFS=:
+for _d in $PATH; do
+    [ -d "$_d" ] || continue
+    for _t in "$_d"/*; do
+        _n="${_t##*/}"
+        case "$_n" in python*|pydoc*|idle*) continue ;; esac
+        [ -x "$_t" ] && [ ! -d "$_t" ] && [ ! -e "$PY_NONE/$_n" ] && ln -s "$_t" "$PY_NONE/$_n"
+    done
+done
+IFS="$_oldifs"
+py_snapshot() { find "$FAKE" "$PY_HOME" | sort | cksum; }
+py_before="$(py_snapshot)"
+set +e
+HOME="$PY_HOME" MEMORY_DIR="$FAKE" PATH="$PY_OLD:$PATH" "$PY_BASH" "$FAKE/install.sh" --harness claude >"$SBROOT/log.py39" 2>&1; rc=$?
+set -e
+assert_exit 1 "$rc" "python3 3.9: install exits 1"
+assert_contains "$(cat "$SBROOT/log.py39")" "python3 >= 3.11 is required (found: 3.9.6)" "python3 3.9: message names the found version"
+assert_contains "$(cat "$SBROOT/log.py39")" "install: did not run; install.sh itself changed nothing." "python3 3.9: reports nothing changed"
+assert_eq "$py_before" "$(py_snapshot)" "python3 3.9: no files written"
+set +e
+HOME="$PY_HOME" MEMORY_DIR="$FAKE" PATH="$PY_NONE" "$PY_BASH" "$FAKE/install.sh" --harness claude >"$SBROOT/log.nopy3" 2>&1; rc=$?
+set -e
+assert_exit 1 "$rc" "no python3: install exits 1"
+assert_contains "$(cat "$SBROOT/log.nopy3")" "python3 >= 3.11 is required (found: not found)" "no python3: message says not found"
+assert_contains "$(cat "$SBROOT/log.nopy3")" "install: did not run; install.sh itself changed nothing." "no python3: reports nothing changed"
+assert_eq "$py_before" "$(py_snapshot)" "no python3: no files written"
+set +e
+HOME="$PY_HOME" MEMORY_DIR="$FAKE" PATH="$PY_NONE" "$PY_BASH" "$FAKE/install.sh" --list >"$SBROOT/log.pylist" 2>&1; rc=$?
+set -e
+assert_exit 0 "$rc" "no python3: --list works without the preflight"
+
 # --- claude (hook archetype) ---
 mkdir -p "$FHOME/.claude"
 cat > "$FHOME/.claude/settings.json" <<'EOF'
@@ -585,7 +629,8 @@ assert_exit 0 "$rc" "copilot re-run exits 0"
 assert_eq "$first_copilot" "$(cat "$FHOME/.copilot/hooks/ai-memory.json")" "copilot: re-run is byte-identical"
 
 rm -f "$FHOME/.copilot/hooks/ai-memory.json"
-PATH="/usr/bin:/bin" run_install --harness copilot >"$SBROOT/log.copilot-missing" 2>&1; rc=$?
+CP_PYBIN="$SBROOT/copilot-py-bin"; mkdir -p "$CP_PYBIN"; ln -sf "$(command -v python3)" "$CP_PYBIN/python3"
+PATH="$CP_PYBIN:/usr/bin:/bin" run_install --harness copilot >"$SBROOT/log.copilot-missing" 2>&1; rc=$?
 assert_exit 0 "$rc" "copilot missing binary: install skips without error"
 if [ ! -e "$FHOME/.copilot/hooks/ai-memory.json" ]; then
     _ok "copilot missing binary: hook registration skipped"

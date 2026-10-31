@@ -100,6 +100,13 @@ cd "$REPO_ROOT"
 step() { printf '\n==> %s\n' "$1"; }
 info() { printf '  %s\n' "$1"; }
 
+# Preflight for real runs only (placed after the --dry-run exits, which are
+# read-only): runs before the dirty check, fetch, checkout, merge, migrations
+# and install, so a too-old python3 leaves the tree untouched.
+python_preflight() {
+  require_python311 || { echo "  ABORT: python3 >= 3.11 required; nothing was changed." >&2; exit 1; }
+}
+
 dirty_tracked_guard() {
   if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "  ABORT: tracked files have local modifications or staged changes." >&2
@@ -435,6 +442,7 @@ if [ "$DO_PULL" = 1 ]; then
     exit 0
   fi
 
+  python_preflight
   dirty_tracked_guard
 
   step "Fetching origin"
@@ -482,6 +490,7 @@ else
     dry_run_migrations
     exit 0
   fi
+  python_preflight
   info "--no-pull: re-linking from current tree (no fetch)"
 fi
 
