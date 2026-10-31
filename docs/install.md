@@ -8,6 +8,14 @@ mapped to a project (both directions).
 > Registered today: **Claude Code**, **Codex CLI**, **Antigravity**. To add another, see
 > [Adding a harness](harnesses/adding-a-harness.md).
 
+## Prerequisites
+
+- `bash` and `git`.
+- `python3` 3.9 or later, stdlib only. It runs `taskctl`, the payload lint, the hooks and the skill scripts. The macOS Command Line Tools `python3` (3.9) is enough. Remote skill resolution (`skills.toml`, `sync-system.sh --update`) needs 3.11 or later for `tomllib`.
+- `jq` is optional. The statuslines use it.
+
+`install.sh` and `sync-system.sh` check `python3` up front and abort without changing anything if it is missing or older than 3.9. One exception: the first sync onto the release that added this check is run by the previous `sync-system.sh`, which has no check. On a too-old python3 that run moves the tree to the new version and then `install.sh` stops; install python3 3.9 or later and re-run `/sync-system`.
+
 ## Install
 
 This repo **is** the memory tree. Clone it, then run the installer — it wires the

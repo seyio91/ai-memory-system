@@ -84,7 +84,7 @@ The guard reads the deny-list from `scripts/deny-list.txt` plus the optional, ad
 
 The main session gets a prompt only when the payload's `permission_mode` is `default`, `plan` or `acceptEdits`. In `bypassPermissions`, `dontAsk`, any other mode, or with no `permission_mode`, Claude does not show the prompt and treats `ask` as allow, so the guard denies the call instead. The reason names the mode.
 
-A denial exits 2 with the matched rule as the reason. If the guard cannot inspect the call (no `jq`/`python3`) or the deny-list is missing or has no rules, it denies executor runs and subagents (fail closed) and lets a main-session call through with a `systemMessage` warning that the deny-list is not enforced. A scope value that reaches the guard unvalidated is treated as `all`; the main session sees a warning, and deny reasons name the bad value. The deny-list matches command text, so it is a backstop, not a sandbox.
+A denial exits 2 with the matched rule as the reason. If the guard cannot inspect the call (no `jq`/`python3`), it denies in every context, the main session included. If the deny-list is missing or has no rules, it denies executor runs and subagents (fail closed) and lets a main-session call through with a `systemMessage` warning that the deny-list is not enforced. A scope value that reaches the guard unvalidated is treated as `all`; the main session sees a warning, and deny reasons name the bad value. The deny-list matches command text, so it is a backstop, not a sandbox.
 
 ### Chunked injection (`session_chunks` / `inject_chunks`)
 

@@ -104,7 +104,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 
 - **Real gates, not docs** — Claude's `PreToolUse` hook blocks `TaskCreate`/`TaskUpdate` to enforce the `todo.md` rule, and a `PostToolUse` write guard reports memory-file drift after every `Write`/`Edit`.
 - **Executor infra-deny** — executors are blocked from destructive/additive infra (`terraform apply`, `kubectl delete`, `helm upgrade`, PR merges) via a shared `scripts/deny-list.txt` and a tokenizing matcher that resists flag/wrapper/quoting bypasses; instance-local rules are additive. `executor.sh --run` prepends the list to every CLI executor prompt and refuses to run without one.
-- **Per-harness enforcement** — Claude, Codex, Copilot and Antigravity `PreToolUse` guards apply the same deny list to delegated runs; Antigravity's also adds a read-only allowlist for `explore`/`validate`. On Claude, `AI_MEMORY_GUARD_SCOPE=all` extends the guard to every session: subagents are denied, and the main session is asked to confirm in `default`/`plan`/`acceptEdits` mode and denied in `bypassPermissions` or any other mode, where Claude shows no prompt. Guards **fail closed** for executors and subagents — a missing parser or deny-list is treated as unsafe; Claude's main session fails open with a visible warning.
+- **Per-harness enforcement** — Claude, Codex, Copilot and Antigravity `PreToolUse` guards apply the same deny list to delegated runs; Antigravity's also adds a read-only allowlist for `explore`/`validate`. On Claude, `AI_MEMORY_GUARD_SCOPE=all` extends the guard to every session: subagents are denied, and the main session is asked to confirm in `default`/`plan`/`acceptEdits` mode and denied in `bypassPermissions` or any other mode, where Claude shows no prompt. Guards **fail closed** for executors and subagents — a missing parser or deny-list is treated as unsafe. A missing `jq`/`python3` denies in every context, the main session included; only a missing or empty deny-list lets Claude's main session fail open, with a visible warning.
 - **Release/sync guards** — `release.sh` refuses to run under an executor role; `sync-system.sh` refuses to change versions on a dirty tracked tree.
 
 ### Derived views
@@ -120,7 +120,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 
 ### Tooling & quality
 
-- **Dependency-free** — shell + Python stdlib, targeting macOS Bash 3.2, so the system runs as a plain cloned tree.
+- **Dependency-free** — shell + Python stdlib, targeting macOS Bash 3.2, so the system runs as a plain cloned tree. It needs `python3` 3.9 or later (stdlib only, no pip); `jq` is optional. Remote skill resolution (`skills.toml`, `sync-system.sh --update`) needs 3.11+ for `tomllib`. `install.sh` and `sync-system.sh` check this up front.
 - **Hermetic test suite** — `run-tests.sh` runs bash tests, Python provider tests, memory lint, skill validation, a doc-vs-code gate, and shellcheck under a scrubbed environment; `/test-system` runs it read-only from Claude.
 - **Drift gates** — a doc-vs-code check keeps the `docs/scripts.md` env table honest against the code, and manifest validation runs before any harness is wired.
 
