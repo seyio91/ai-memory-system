@@ -44,6 +44,7 @@ column points to where each capability is toured.
 | Knowledge lifecycle | Capture → graduate scratch notes into durable wiki / skills | `/checkpoint` · `/promote-memory` | 5 |
 | Task provider | Pluggable capture→plan→execute backend (local + Notion) | `/task` · `/start` | — |
 | Design gate | Collaborative brainstorming before feature-tier work | `design-brainstorm` skill | — |
+| Repo-scan onboarding | Proposes memory.md from a read-only checkout scan — points at existing docs, cites every line | `project-scan` skill · `/new-project` | — |
 | Skills subsystem | Canonical skill store + symlink, static validation, self-rating | `skills/` · `link-skills.sh` | — |
 
 **Platform & rigor**
