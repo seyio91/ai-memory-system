@@ -7,10 +7,7 @@
 
 ## Active
 
-### Require python3 >= 3.11 and fail the guard closed → [plan](plans/require-python3-and-fail-guard-closed.md)
-- [x] P1 — shared preflight in install.sh and sync-system.sh
-- [x] P2 — guard no-parser path denies everywhere
-- [x] P3 — docs, changelog, full gate (needs: P1, P2)
+_(no items yet)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
