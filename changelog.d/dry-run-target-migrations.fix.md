@@ -1,1 +1,0 @@
-- **`/sync-system --dry-run` lists the target's migrations.** It read `migrations/` from the working tree, so a migration added by the release being previewed was missing from the list and then ran on the real sync. It now reads the resolved target ref (`--no-pull` still reads the working tree).
