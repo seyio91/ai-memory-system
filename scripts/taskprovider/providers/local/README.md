@@ -19,8 +19,9 @@ to a later investigation.
 ```
 
 The frontmatter is the record (`project` · `status` · `created` · `title`); the body is
-the summary. `status` is the only lifecycle knob — `done` flips it in place, `archived`
-moves the file to `archive/tasks/`, `delete` unlinks it.
+the summary. `status` is the only lifecycle knob — `backlog`/`started` live in `tasks/`,
+`done`/`archived` live in `archive/tasks/` (setting the status moves the file), `delete`
+unlinks a live task.
 
 ## Setup
 
@@ -53,8 +54,10 @@ scripts/taskctl ping        # -> {"ok": true}
   `status`, and `created` frontmatter, with the summary as the body.
 - **Status lives only in frontmatter** — there are no status-named subfolders. Encoding
   status in the path would duplicate the fact and invite drift.
-- `done` is an in-place frontmatter flip. **Only `archived` moves the file**, to
-  `$MEMORY_DIR/archive/tasks/` — mirroring `/plan-done` vs `/plan-archive`.
+- The directory is derived from status: open tasks (`backlog`, `started`) live in `tasks/`,
+  closed ones (`done`, `archived`) in `$MEMORY_DIR/archive/tasks/`. `set_status` moves the
+  file when the status crosses that line, so a done task leaves the board; reopening moves
+  it back.
 - **`delete` hard-unlinks** the live `tasks/<ref>.md`. There is no recoverable trash:
   `tasks/` is gitignored, so a deleted task is gone. Use `archived` for the
   "retire but keep" case.
