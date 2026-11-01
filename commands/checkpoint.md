@@ -47,3 +47,5 @@ Step 5 — report back, three lines max:
 - Path written.
 - Heading of the new checkpoint.
 - One-line summary of what was captured; include the appended decision-stream id, if any (e.g. "agent-friendly Terraform refactor — Track A files ready, awaiting go-ahead").
+
+Then count the `### ` entries now in `## Checkpoints` (fence-depth 0). Sessions load only the newest `AI_MEMORY_CHECKPOINT_WINDOW` (default 2); if count − window ≥ 5, add one line: "N checkpoints are no longer loaded into sessions — run `/checkpoint-archive`?" Do not run it unasked.
