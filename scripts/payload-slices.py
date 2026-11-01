@@ -75,7 +75,7 @@ def run_emit(idx, total, data):
         note = b"[ai-memory: payload at %d/%d chunks \xe2\x80\x94 trim memory.md or Open threads]\n" % (
             len(slices), total)
         if len(slices) < total and len(slices[-1]) + 1 + len(note) > MAX:
-            slices.append(note)
+            slices.append(note if slices[-1].endswith(b"\n") else b"\n" + note)
         else:
             for i in range(len(slices) - 1, -1, -1):
                 if len(slices[i]) + 1 + len(note) <= MAX:
