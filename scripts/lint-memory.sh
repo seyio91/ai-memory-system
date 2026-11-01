@@ -876,13 +876,13 @@ if [ "${#cp_files[@]}" -gt 0 ]; then
         FNR == 1 { flush(); fence = 0; fch = ""; flen = 0; incp = 0 }
         {
             raw = $0; sub(/\r$/, "", raw)
-            t = raw; sub(/^[ \t]+/, "", t)
+            t = raw; sub(/^ ? ? ?/, "", t)
             if (fence) {
                 s = t; sub(/[ \t]+$/, "", s)
                 if (substr(s, 1, 1) == fch && s ~ /^(`+|~+)$/ && length(s) >= flen) fence = 0
                 next
             }
-            if (raw ~ /^[ \t]*```+[^`]*$/ || raw ~ /^[ \t]*~~~+/) {
+            if (t ~ /^```+[^`]*$/ || t ~ /^~~~+/) {
                 fch = substr(t, 1, 1); flen = 0
                 while (substr(t, flen + 1, 1) == fch) flen++
                 fence = 1

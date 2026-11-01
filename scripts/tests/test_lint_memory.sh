@@ -306,6 +306,21 @@ Some fact, no task line.
 EOF
 run_lint
 assert_not_contains "$OUT" "outside ## Checkpoints" "dated learnings, fenced headings and in-section entries do not warn"
+cat > "$M19/projects/good/working.md" <<'EOF'
+# Working — good
+
+## Open threads
+
+    ```
+
+### 2026-10-01 — misplaced after an indented code line
+
+**Task:** must still warn
+
+## Checkpoints
+EOF
+run_lint
+assert_contains "$OUT" "outside ## Checkpoints" "a 4-space-indented backtick line opens no fence"
 rm -rf "$M19"
 
 # --- a working file holding only headings/placeholders is not "stale" ---
