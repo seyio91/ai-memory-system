@@ -1,6 +1,7 @@
 ---
 plan: working-md-checkpoint-window
-status: in_progress
+status: done
+completed: 2026-11-01
 created: 2026-11-01
 owner: claude (orchestrator)
 task_provider: notion
