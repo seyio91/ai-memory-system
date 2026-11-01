@@ -69,4 +69,78 @@ overflow="$(AI_MEMORY_CHUNK_INDEX=1 AI_MEMORY_CHUNK_TOTAL=1 python3 "$HELPER" < 
 assert_contains "$overflow" "[ai-memory: memory base truncated — raise session_chunks in the harness manifest]" \
     "emit: overflow chunk carries the truncation marker"
 
+# --- near-cap marker ------------------------------------------------------
+
+NEAR="[ai-memory: payload at"
+# gen N: N-1 full slices (9 x 1000-byte lines) plus a short tail line.
+gen_slices() { python3 -c "
+import sys
+n = int(sys.argv[1])
+sys.stdout.write(('x' * 999 + chr(10)) * (9 * (n - 1)) + 'tail' + chr(10))" "$1"; }
+# emit_all FILE TOTAL: every chunk 1..TOTAL, concatenated.
+emit_all() {
+    local i
+    for i in $(seq 1 "$2"); do
+        AI_MEMORY_CHUNK_INDEX="$i" AI_MEMORY_CHUNK_TOTAL="$2" python3 "$HELPER" < "$1"
+    done
+}
+max_chunk_bytes() {
+    local i
+    for i in $(seq 1 "$2"); do
+        AI_MEMORY_CHUNK_INDEX="$i" AI_MEMORY_CHUNK_TOTAL="$2" python3 "$HELPER" < "$1" | wc -c
+    done | sort -n | tail -1 | tr -d ' '
+}
+
+CAP=4
+for n in 2 3 4 5; do gen_slices "$n" > "$SANDBOX/near-$n.txt"; done
+assert_eq "3" "$(python3 "$HELPER" --count < "$SANDBOX/near-3.txt")" \
+    "near-cap: --count still counts content slices only"
+
+out="$(emit_all "$SANDBOX/near-3.txt" $CAP)"
+assert_contains "$out" "$NEAR 3/4 chunks — trim memory.md or Open threads]" \
+    "near-cap: cap-1 slices carry the marker"
+last="$(AI_MEMORY_CHUNK_INDEX=3 AI_MEMORY_CHUNK_TOTAL=$CAP python3 "$HELPER" < "$SANDBOX/near-3.txt")"
+assert_contains "$last" "tail" "near-cap: cap-1 last slice keeps the payload tail"
+case "$last" in
+    *"threads]
+</memory:chunk>") _ok "near-cap: marker closes the last slice" ;;
+    *) _bad "near-cap: marker closes the last slice" ;;
+esac
+assert_eq "1" "$(printf '%s' "$out" | grep -c -F "$NEAR")" \
+    "near-cap: cap-1 payload carries exactly one marker"
+
+out="$(emit_all "$SANDBOX/near-4.txt" $CAP)"
+assert_contains "$out" "$NEAR 4/4 chunks" "near-cap: exactly-cap slices carry the marker"
+assert_contains "$out" "tail" "near-cap: exactly-cap payload keeps the tail"
+
+out="$(emit_all "$SANDBOX/near-2.txt" $CAP)"
+assert_not_contains "$out" "$NEAR" "near-cap: cap-2 slices carry no marker"
+
+out="$(emit_all "$SANDBOX/near-5.txt" $CAP)"
+assert_contains "$out" "memory base truncated" "near-cap: over-cap keeps the overflow marker"
+assert_not_contains "$out" "$NEAR" "near-cap: over-cap carries no near-cap marker"
+
+for n in 2 3 4 5; do
+    assert_eq "ok" "$([ "$(max_chunk_bytes "$SANDBOX/near-$n.txt" $CAP)" -le 9300 ] && echo ok)" \
+        "near-cap: $n-slice payload keeps every chunk within MAX plus framing"
+done
+
+# Full last slice below cap: the marker gets its own slice, nothing dropped.
+python3 -c "import sys; sys.stdout.write(('x' * 999 + chr(10)) * 18)" > "$SANDBOX/full-2.txt"
+out="$(emit_all "$SANDBOX/full-2.txt" 3)"
+assert_contains "$out" '<memory:chunk index="3" of="3">' \
+    "near-cap: full last slice below cap puts the marker in a new slice"
+assert_eq "18" "$(printf '%s' "$out" | grep -c -E '^x+$')" \
+    "near-cap: full last slice below cap drops no content"
+
+# Exactly cap, last slice full: the note never costs content.
+python3 -c "import sys; sys.stdout.write(('x' * 999 + chr(10)) * 8 + 'y' * 8999 + chr(10))" > "$SANDBOX/cap-room.txt"
+out="$(emit_all "$SANDBOX/cap-room.txt" 2)"
+assert_contains "$out" "$NEAR 2/2 chunks" "near-cap: exactly-cap full last slice puts the marker in an earlier slice"
+assert_eq "1" "$(printf '%s' "$out" | grep -c -E '^y+$')" "near-cap: exactly-cap full last slice keeps the tail line"
+python3 -c "import sys; sys.stdout.write(('x' * 999 + chr(10)) * 18)" > "$SANDBOX/cap-full.txt"
+out="$(emit_all "$SANDBOX/cap-full.txt" 2)"
+assert_eq "18" "$(printf '%s' "$out" | grep -c -E '^x+$')" "near-cap: exactly-cap with no room drops no content"
+assert_not_contains "$out" "$NEAR" "near-cap: exactly-cap with no room skips the marker"
+
 finish

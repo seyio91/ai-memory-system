@@ -54,26 +54,39 @@ def emit(idx, of, body):
     sys.stdout.buffer.write(head + body + b"</memory:chunk>\n")
 
 
+def append_marker(out, marker):
+    sep = b"" if out.endswith(b"\n") or not out else b"\n"
+    while out and len(out) + len(sep) + len(marker) > MAX:
+        lines = out.splitlines(keepends=True)
+        if len(lines) <= 1:
+            out = b""
+            sep = b""
+            break
+        out = b"".join(lines[:-1])
+        sep = b"" if out.endswith(b"\n") or not out else b"\n"
+    return out + sep + marker
+
+
 def run_emit(idx, total, data):
     if not data:
         return
     slices = compute_slices(data)
+    if total > 1 and total - 1 <= len(slices) <= total:
+        note = b"[ai-memory: payload at %d/%d chunks \xe2\x80\x94 trim memory.md or Open threads]\n" % (
+            len(slices), total)
+        if len(slices) < total and len(slices[-1]) + 1 + len(note) > MAX:
+            slices.append(note)
+        else:
+            for i in range(len(slices) - 1, -1, -1):
+                if len(slices[i]) + 1 + len(note) <= MAX:
+                    slices[i] = append_marker(slices[i], note)
+                    break
     if idx > len(slices):
         return
 
     overflow = len(slices) > total
     if overflow and idx == total:
-        out = slices[idx - 1]
-        sep = b"" if out.endswith(b"\n") or not out else b"\n"
-        while out and len(out) + len(sep) + len(MARKER) > MAX:
-            lines = out.splitlines(keepends=True)
-            if len(lines) <= 1:
-                out = b""
-                sep = b""
-                break
-            out = b"".join(lines[:-1])
-            sep = b"" if out.endswith(b"\n") or not out else b"\n"
-        emit(idx, total, out + sep + MARKER)
+        emit(idx, total, append_marker(slices[idx - 1], MARKER))
         return
     if overflow and idx > total:
         return
