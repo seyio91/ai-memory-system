@@ -97,7 +97,7 @@ gaps 3+4 → gaps 6+7 → gaps 5, 8.
 |-----|------|
 | 2 | `402f6850-c619-8118-a392-e5815438ab0a` — protect guard config from executor edits |
 | 1 | `402f6850-c619-81bd-b67b-f3c49da741bc` — eval suite for harness behaviour |
-| 3, 4, PRD | `402f6850-c619-816e-88b1-f0649303e7d5` — plan template: files, R-ids, diff drift, PRD borrowings |
+| 3, 4, PRD | `402f6850-c619-816e-88b1-f0649303e7d5` — plan template and authoring checks (absorbed `3dbf6850-…815d`, half of `…8117`) |
 | 6, 7 | `402f6850-c619-8123-b237-ec04f47b7fb0` — guard decision log + process metrics |
 | 5 | `402f6850-c619-8102-a44b-e46f36f47f99` — hook-enforced test-file protection |
 | 8 | `402f6850-c619-8135-b83d-d3e22469177d` — small adoptions |

@@ -72,6 +72,7 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 ## Pointers
 - memory.md content contract (what belongs, budgets, enforcement): `wikis/memory-md-content-contract.md`.
 - Env-var doc gate (what `check-docs.sh` can and cannot catch): `wikis/env-var-doc-gate.md`.
+- AI-native SDLC playbook comparison (gaps, plan vs PRD, tasks each gap became): `wikis/sdlc-playbook-comparison.md`.
 
 ## Related Projects
 
