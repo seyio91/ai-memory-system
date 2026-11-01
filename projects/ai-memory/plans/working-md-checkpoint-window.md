@@ -14,19 +14,19 @@ risk: medium
 Every session loads the newest working.md state: the payload carries only the newest checkpoints (a render window), so tail truncation can never drop the latest entries first; checkpoints always land in `## Checkpoints`; and the session is warned before the payload reaches its chunk cap.
 
 ## Success criteria
-- R1 — Rendering a working.md with 7 checkpoints yields only the newest 2 `### ` entries under `## Checkpoints`, preceded by one `_(5 older checkpoints not loaded — see working.md)_` line; every other section is byte-identical to the file. Proven on both formatters (xml, md).
+- R1 — Rendering a working.md with 7 checkpoints yields only the newest 2 `### ` entries under `## Checkpoints`; preamble lines before the first entry (e.g. the `_(rolled …)_` line) pass through, followed by one `_(5 older checkpoints not loaded — see working.md)_` line (absent when nothing is omitted); every other section is identical to the unfiltered render (not the raw file — `xml.sh`'s `$(cat …)` already strips trailing newlines). Proven on both formatters (xml, md).
 - R2 — `AI_MEMORY_CHECKPOINT_WINDOW=3` renders 3; the var has a row in `docs/scripts.md` and `bash scripts/check-docs.sh` passes.
 - R3 — Rendering never modifies working.md (file hash identical before/after a session-start render).
 - R4 — If the filter fails, the unfiltered file is rendered (fail-safe), proven by an injected failure.
 - R5 — `check-memory-size.sh --payload` measures the windowed payload (same render path as the hook).
-- R6 — `lint-memory.sh` WARNs on a dated `### YYYY-MM-DD` heading outside `## Checkpoints`; a mutation removing the rule fails its test; the live tree shows zero such WARNs after the ai-memory fix.
-- R7 — A payload needing `cap − 1` or more slices carries the near-cap marker in its last slice; `cap − 2` does not; the payload tail is otherwise intact.
+- R6 — `lint-memory.sh` WARNs on a checkpoint entry outside `## Checkpoints` — a dated `### YYYY-MM-DD` heading whose entry contains a `**Task:**` line (dated learnings headings without it are not checkpoints: fiter-cloudformation and git-cli carry 4 such, which must NOT warn); a mutation removing the rule fails its test; the live tree shows exactly 3 WARNs before the ai-memory fix and 0 after.
+- R7 — A payload needing `cap − 1` or `cap` slices carries the near-cap marker at the end of slice `idx == total`, trimmed to fit `MAX` with the same loop the overflow marker uses; `cap − 2` does not; over-cap keeps the existing overflow marker only; the payload tail is otherwise intact.
 - R8 — `/checkpoint`, when ≥5 checkpoints sit outside the window after its write, reports it in one line and offers `/checkpoint-archive` (live-exercised).
 - R9 — Full gate green (`bash scripts/run-tests.sh`), changed scripts pass under `/bin/bash` 3.2.
 
 ## Design
 - **Render window (chosen).** Shared `render_working <path>` filter (awk, bash-3.2 safe) applied at the working-section output of `scripts/formatters/xml.sh` and `md.sh`. Finds fence-depth-0 `## Checkpoints`, emits only its last `${AI_MEMORY_CHECKPOINT_WINDOW:-2}` `### ` entries, prefixed by one omitted-count line; all other sections pass through. Covers every harness and injection path (session start, `@memory`, post-compaction) and the size checker, since all render through the formatters. The file is never mutated (Two-Path holds). On filter failure, emit the raw file.
-- **Placement.** Convention: `## Checkpoints` is the last section of working.md, so an end-of-file append is correct. Template + `/checkpoint` prose state it; lint WARN on dated entries outside the section. One-time hand fix of ai-memory's working.md (move `## Open threads` above `## Checkpoints`, relocate the 4 misfiled dated entries). Other projects already have Checkpoints last (checked 2026-11-01).
+- **Placement.** Convention: `## Checkpoints` is the last section of working.md, so an end-of-file append is correct. `docs/file-formats.md` → `working.md shape` + `/checkpoint` prose state it (`projects/_template/working.md` is empty by design — nothing to edit there); lint WARN on dated entries outside the section. One-time hand fix of ai-memory's working.md (move `## Open threads` above `## Checkpoints`, relocate the 4 misfiled dated entries). Other projects already have Checkpoints last (checked 2026-11-01).
 - **Near-cap marker** in `scripts/payload-slices.py`, which already knows slice count and cap: at count ≥ cap − 1 append a marker line to the last slice. Chunked harnesses only (claude, codex).
 - **`/checkpoint` warning** keyed on hidden count (entries outside the window) ≥ 5, not file size — file size no longer governs what loads.
 - Rejected: auto-roll on write → manual writes and other harnesses bypass it. Overflow-aware cut in the slicer → puts working.md structure knowledge in the format-agnostic slicer. File-size trigger for `/checkpoint` → nags without a load-time reason once the window exists. Windowing Open threads / Cross-project learnings → not chronological, "newest" ill-defined.
@@ -50,12 +50,12 @@ Every session loads the newest working.md state: the payload carries only the ne
 **Verify:** R1–R5 pass via new tests; `bash scripts/run-tests.sh --only formatter` and a live `bash scripts/hooks/session_start_memory.sh` render on ai-memory show 2 checkpoints + the omitted line; `shasum` of working.md unchanged.
 
 ### Phase 2 — Checkpoints-last placement
-- Template working.md + `commands/checkpoint.md`: `## Checkpoints` is the last section.
-- `lint-memory.sh` rule: dated `### YYYY-MM-DD` outside `## Checkpoints` → WARN; seeded-defect + mutation test.
+- `docs/file-formats.md` (`working.md shape`) + `commands/checkpoint.md`: `## Checkpoints` is the last section.
+- `lint-memory.sh` rule: dated `### YYYY-MM-DD` entry containing `**Task:**` outside `## Checkpoints` → WARN; fence-aware (reuse `checkpoint-archive.sh`'s section parser behaviour); seeded-defect + mutation test + negative case for a dated learnings heading.
 - Hand-fix `projects/ai-memory/working.md` (gitignored, done by the orchestrator on main).
 
 **Depends:** none
-**Verify:** R6 — new lint test passes and fails under mutation; `bash scripts/lint-memory.sh` on the live tree reports 0 misplaced-checkpoint WARNs.
+**Verify:** R6 — new lint test passes and fails under mutation; `bash scripts/lint-memory.sh` on the live tree reports 3 misplaced-checkpoint WARNs before the hand-fix (all ai-memory) and 0 after; no WARN on fiter-cloudformation or git-cli.
 
 ### Phase 3 — Near-cap marker
 - `payload-slices.py`: marker in last slice at slices ≥ cap − 1.
@@ -81,4 +81,5 @@ Every session loads the newest working.md state: the payload carries only the ne
 - Open threads keeps growing unbounded; the near-cap marker is the only signal. Revisit if it becomes the overflow cause.
 - Window of 2 by position can show two entries from one workstream while another stream's latest is hidden; per-workstream windowing deferred until it bites.
 - Whole-payload harnesses (copilot, antigravity) have no declared cap, so no near-cap marker — separate task.
+- The window applies to every render path — session start, `@memory`, post-compaction re-inject, and codex's static base from `build-context-md.sh` — so a post-compaction session sees only the newest 2 from disk, whatever it had in context before.
 - The window hides older checkpoints from the session; anything still open in them must be in Open threads, todo.md or a task — `/checkpoint-archive`'s open-item check remains the safety net.
