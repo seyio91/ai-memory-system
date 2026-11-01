@@ -73,7 +73,7 @@ The gate lives in `contract.py` (`validate_summary`, applied by `__init_subclass
 
 ## Local store (`FileTaskProvider`)
 
-The always-available default. Tasks are **flat** at `$MEMORY_DIR/tasks/<slug>.md` (not per-project — mirrors one Notion database with a `Project` property), each carrying `project`, `status`, `created` frontmatter and the summary as body. **Status lives only in frontmatter — no status-named subfolders** (encoding status in the path duplicates the fact and invites drift). `done` is an in-place frontmatter flip; **only `archived` moves the file** (to `$MEMORY_DIR/archive/tasks/`) — mirroring `/plan-done` vs `/plan-archive`. **`delete` hard-unlinks the live `tasks/<ref>.md`** (no recoverable trash — `tasks/` is gitignored, so a deleted task is gone; `archive/tasks/` already serves the "retire but keep" case via `archived`). `MEMORY_DIR` is the only location knob.
+The always-available default. Tasks are **flat** at `$MEMORY_DIR/tasks/<slug>.md` (not per-project — mirrors one Notion database with a `Project` property), each carrying `project`, `status`, `created` frontmatter and the summary as body. **Status lives only in frontmatter** and the directory is derived from it, never the other way round — open (`backlog`, `started`) in `tasks/`, closed (`done`, `archived`) in `$MEMORY_DIR/archive/tasks/` — so `set_status` moves the file when it crosses that line (a done task leaves the board; reopening moves it back). **`delete` hard-unlinks the live `tasks/<ref>.md`** (no recoverable trash — `tasks/` is gitignored, so a deleted task is gone; `archive/tasks/` already serves the "retire but keep" case via `archived`). `MEMORY_DIR` is the only location knob.
 
 ## Notion provider (`NotionProvider`)
 

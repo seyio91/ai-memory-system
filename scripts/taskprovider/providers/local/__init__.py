@@ -37,7 +37,7 @@ class FileTaskProvider(TaskProvider):
 
     def list(self, project, status):
         self.resolve_project(project)
-        tasks_dir = self.root / "tasks"
+        tasks_dir = self._dir_for(status)
         if not tasks_dir.is_dir():
             return []
         tasks = []
@@ -58,7 +58,7 @@ class FileTaskProvider(TaskProvider):
         return self._read_task(path)
 
     def update(self, ref, *, title=None, summary=None):
-        path = self._live_path(ref)
+        path = self._find_path(ref)
         fields, body = self._parse(path)
         if title is not None:
             fields["title"] = title
@@ -67,17 +67,16 @@ class FileTaskProvider(TaskProvider):
         self._write_task(path, fields, body)
 
     def set_status(self, ref, status):
-        path = self._live_path(ref)
+        path = self._find_path(ref)
         fields, body = self._parse(path)
         fields["status"] = status
-        if status == "archived":
-            archive_dir = self.root / "archive" / "tasks"
-            archive_dir.mkdir(parents=True, exist_ok=True)
-            archive_path = archive_dir / path.name
-            self._write_task(path, fields, body)
-            shutil.move(str(path), str(archive_path))
-        else:
-            self._write_task(path, fields, body)
+        target = self._dir_for(status) / path.name
+        if target != path:
+            if target.exists():
+                raise ValueError("task ref %r exists in both %s and %s" % (ref, path.parent, target.parent))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), str(target))
+        self._write_task(target, fields, body)
 
     def delete(self, ref):
         # Hard delete of the live task file (decision A). archive/tasks/ already
@@ -94,6 +93,18 @@ class FileTaskProvider(TaskProvider):
         if not path.is_file():
             raise ValueError("unknown live task ref %r" % ref)
         return path
+
+    def _find_path(self, ref):
+        for directory in (self.root / "tasks", self.root / "archive" / "tasks"):
+            path = directory / (ref + ".md")
+            if path.is_file():
+                return path
+        raise ValueError("unknown task ref %r" % ref)
+
+    def _dir_for(self, status):
+        if status in ("done", "archived"):
+            return self.root / "archive" / "tasks"
+        return self.root / "tasks"
 
     def _read_task(self, path):
         fields, body = self._parse(path)
