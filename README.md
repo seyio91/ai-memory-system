@@ -110,6 +110,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 ### Derived views
 
 - **`/state`** — an on-demand, cross-project table of category, project, last-touched, current goal, and open todos (derived, gitignored, never auto-injected).
+- **`/threads`** — the active project's open threads: last checkpoint's next steps and blockers, unclosed open threads, unticked todos, open PRs.
 - **`/activity`** — plans created within a time window, grouped by category — useful for review or invoicing since the unit is the plan, not task status.
 
 ### Release & upgrade engineering
