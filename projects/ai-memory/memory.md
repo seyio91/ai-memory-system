@@ -34,7 +34,7 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 - **Orchestrator / executor / validator.** Roles resolve through harness manifests + `config.local.sh`; read-only roles never fall back to a write-capable executor. The validator defaults to the orchestrator's plane so validation is cross-model.
 - **Task Contract at plan and phase level** — a plan-only check let a phase-2 defect surface after phases 3–6 were built on it. Phase dependencies are declared (`**Depends:**`, mirrored as `(needs: Pn)` in `todo.md`) because `todo.md` is what is read on resume.
 - **Decomposition rules live inline in `/new-plan`**, not by reference to `superpowers:writing-plans` — that would bind us to an ungated plugin version, and its TDD loop doesn't fit Terraform/GitOps work.
-- **Task providers are a push-dominant projection** (local or Notion). Task `summary` is capped at 500 chars; long-form lives in a named investigation. Notion refs are always the full page UUID.
+- **Task providers are a push-dominant projection** (local or Notion). Task `summary` is capped at 500 chars; long-form lives in a named investigation. Notion refs are always the full page UUID — 8-char prefixes collide across live tasks.
 - **`add_progress` stays an unwired no-op on purpose** — the only concrete method on the provider ABC, so backends opt in. `/checkpoint` is project-scoped, not task-scoped, so wiring it has no ref to use. Don't "clean up" the method.
 - **Both plan entry points share one task-linking partial** (`scripts/partials/task-link.md`) with a byte-for-byte drift gate. Lint rule 12 flags plans with no `task_ref`; `task_ref: none` marks deliberate plan-only work.
 - **The drift gate's carrier count is a hardcoded literal on purpose** — marker discovery fails open when a carrier loses its block. Bump it when adding a carrier; never make it dynamic.
@@ -58,6 +58,7 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 - **`git branch --contains` lists branches containing a commit, not branches that exist** — a stale branch is absent because it's stale. Use `git for-each-ref refs/heads/`.
 - **A silent failure that exits 0 (or dies silently under `set -e`) reads as "nothing to do"** and gets blamed on whatever looks suspicious nearby. Bisect the environment; check that functions used in `$(…)` end with `return 0`.
 - **`ls`/glob output is not evidence for counts or absence** — corroborate with `find` or `git ls-files`.
+- **Never record a lint warning count as a baseline** — it moves with the tree (other projects, staleness thresholds), not just rules. Diff warning *sets* before/after a change; to attribute a move, run the previous script on the current tree. Leave stale-`working.md` WARNs (dormant, not closed) and the `task_ref`-less `initiative-not-consulted-under-work-pressure` WARN (deliberate signal).
 - **Hook entries for the same event run concurrently on Claude and are concatenated in completion order** — fanned-out payloads must self-order (`<memory:chunk index of>`).
 - **Claude caps `additionalContext` at ~10,000 chars; copilot and antigravity take the payload whole.** Verify the payload's tail (`working` renders last), not just presence.
 - **`config.local.sh` overrides process env** — change instance settings there, not in the shell.
