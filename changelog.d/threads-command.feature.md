@@ -1,1 +1,0 @@
-- **`/threads` shows the active project's open threads.** One block with the last checkpoint's Next, Blockers and Resume, `## Open threads` items not marked closed, unticked `todo.md` boxes, and open PRs. Read-only.

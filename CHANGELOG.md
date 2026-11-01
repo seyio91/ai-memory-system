@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-01
+### Breaking
+
+- **`install.sh` and `sync-system.sh` now require `python3` 3.9 or later.** Both check up front and abort, changing nothing, when `python3` is missing or older. The macOS Command Line Tools `python3` (3.9) is enough; otherwise `brew install python`. Remote skill resolution (`skills.toml`, `sync-system.sh --update`) still needs 3.11 or later for `tomllib`; `--update` with a `skills.toml` aborts up front on older python3. `sync-system.sh --dry-run` skips the check. The first upgrade onto this release is performed by the previous `sync-system.sh`, which has no check: on a too-old `python3` the tree moves to the new version and `install.sh` then stops. Install `python3` 3.9 or later and re-run `/sync-system`.
+- **In guarded contexts (executor roles, or Claude with `AI_MEMORY_GUARD_SCOPE=all`), the guard now denies when no `jq`/`python3` is found.** Previously Claude's main session failed open with a warning; executor roles already denied. A missing or empty deny-list still fails open in the main session.
+
+### Added
+
+- **`/threads` shows the active project's open threads.** One block with the last checkpoint's Next, Blockers and Resume, `## Open threads` items not marked closed, unticked `todo.md` boxes, and open PRs. Read-only.
+- **Sessions always load the newest checkpoints.** The session payload now carries only the newest `AI_MEMORY_CHECKPOINT_WINDOW` (default 2) entries of `working.md`'s `## Checkpoints`, with a count of the rest, so truncation can no longer drop the latest state first. The file itself is unchanged. `## Checkpoints` is now the last section of `working.md`, and lint rule 19 warns on a checkpoint entry outside it. A payload that needs `cap − 1` or `cap` chunks carries an in-band near-cap note (it never displaces content), and `/checkpoint` offers `/checkpoint-archive` once 5 or more entries are no longer loaded.
+
+### Fixed
+
+- **A done local task now leaves the board.** The local task provider moves a task to `archive/tasks/` when its status becomes `done` (as well as `archived`), instead of leaving it in `tasks/`. Reopening a closed task moves it back, and `list` reads the directory that matches the requested status. `update` now works on a closed task, and a move that would overwrite an existing file is refused. The Notion provider is unchanged.
+
 ## [1.7.0] - 2026-10-31
 ### Added
 
