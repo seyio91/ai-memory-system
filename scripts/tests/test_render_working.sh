@@ -160,4 +160,23 @@ assert_exit 0 "$RC" "--payload: windowed render fits a 1-chunk cap"
 runp env AI_MEMORY_CHECKPOINT_WINDOW=99
 assert_exit 1 "$RC" "--payload: same file with a 99 window exceeds the cap (window is what keeps it under)"
 
+# --- long fence holding shorter fences; info-string line is not a closer ------
+printf '## Checkpoints\n### old1\no\n\n### recent1\n````md\n```bash\n### fake\n```\n````\n\n### recent2\nr\n' > "$T/fence4.md"
+out="$(render_working "$T/fence4.md")"
+assert_contains "$out" "_(1 older checkpoints not loaded" "fence4: one entry omitted, fenced ### not counted"
+assert_contains "$out" "### recent1" "fence4: recent1 kept"
+assert_contains "$out" "### fake" "fence4: fenced ### kept inside recent1"
+assert_not_contains "$out" "### old1" "fence4: old1 dropped"
+printf '## Checkpoints\n### a\n```\nx\n```sh\n### b-fenced\n```\n### c\nz\n### d\nw\n' > "$T/fenceinfo.md"
+out="$(render_working "$T/fenceinfo.md")"
+assert_not_contains "$out" "### b-fenced" "fence-info: info-string line does not close (b-fenced drops with a)"
+assert_contains "$out" "_(1 older checkpoints not loaded" "fence-info: only a omitted"
+
+# --- CRLF ---------------------------------------------------------------------
+printf '## Checkpoints\r\n### c1\r\nx\r\n### c2\r\ny\r\n### c3\r\nz\r\n' > "$T/crlf.md"
+out="$(render_working "$T/crlf.md")"
+assert_contains "$out" "_(1 older checkpoints not loaded" "crlf: window applies"
+assert_not_contains "$out" "### c1" "crlf: c1 dropped"
+assert_contains "$out" "### c3" "crlf: c3 kept"
+
 finish

@@ -143,4 +143,17 @@ out="$(emit_all "$SANDBOX/cap-full.txt" 2)"
 assert_eq "18" "$(printf '%s' "$out" | grep -c -E '^x+$')" "near-cap: exactly-cap with no room drops no content"
 assert_not_contains "$out" "$NEAR" "near-cap: exactly-cap with no room skips the marker"
 
+# Exact fit: slice ends in a newline and has exactly len(note) bytes free.
+python3 - "$SANDBOX/exact.txt" <<'PY'
+import sys
+note = len("[ai-memory: payload at 2/2 chunks — trim memory.md or Open threads]\n".encode())
+free = note
+body = ("x" * 999 + "\n") * 8
+body += "y" * (9000 - len(body) - free - 1) + "\n"
+body += "z" * 8999 + "\n"
+open(sys.argv[1], "w").write(body)
+PY
+out="$(emit_all "$SANDBOX/exact.txt" 2)"
+assert_contains "$out" "$NEAR 2/2 chunks" "near-cap: note that exactly fits after a newline is placed"
+
 finish

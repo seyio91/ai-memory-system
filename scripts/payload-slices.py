@@ -74,11 +74,12 @@ def run_emit(idx, total, data):
     if total > 1 and total - 1 <= len(slices) <= total:
         note = b"[ai-memory: payload at %d/%d chunks \xe2\x80\x94 trim memory.md or Open threads]\n" % (
             len(slices), total)
-        if len(slices) < total and len(slices[-1]) + 1 + len(note) > MAX:
+        fits = lambda s: len(s) + (0 if s.endswith(b"\n") else 1) + len(note) <= MAX
+        if len(slices) < total and not fits(slices[-1]):
             slices.append(note if slices[-1].endswith(b"\n") else b"\n" + note)
         else:
             for i in range(len(slices) - 1, -1, -1):
-                if len(slices[i]) + 1 + len(note) <= MAX:
+                if fits(slices[i]):
                     slices[i] = append_marker(slices[i], note)
                     break
     if idx > len(slices):

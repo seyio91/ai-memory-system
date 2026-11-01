@@ -9,18 +9,25 @@ render_working() {
     case "$w" in ''|*[!0-9]*) w=2 ;; esac
     [ "$((10#$w))" -gt 0 ] || w=2
     out=$(awk -v w="$((10#$w))" '
-        function fenceline(s,   c) {
-            if (s !~ /^ ? ? ?(```|~~~)/) return 0
-            c = substr(s, match(s, /[`~]/), 1)
-            if (!fence) { fence = c; return 1 }
-            if (c == fence) { fence = ""; return 1 }
+        function fenceline(s,   t, c, k) {
+            t = s; sub(/^ ? ? ?/, "", t)
+            if (fence) {
+                sub(/[ \t]+$/, "", t)
+                if (substr(t, 1, 1) == fch && t ~ /^(`+|~+)$/ && length(t) >= flen) fence = 0
+                return 1
+            }
+            if (t !~ /^```+[^`]*$/ && t !~ /^~~~+/) return 0
+            fch = substr(t, 1, 1); k = 0
+            while (substr(t, k + 1, 1) == fch) k++
+            flen = k; fence = 1
             return 1
         }
         {
             line[NR] = $0
-            if (fenceline($0) || fence) { ent[NR] = insec ? n : 0; next }
-            if ($0 ~ /^## /) { insec = ($0 ~ /^## Checkpoints[ \t]*$/); ent[NR] = 0; next }
-            if (insec && $0 ~ /^### /) { n++; start[n] = NR }
+            r = $0; sub(/\r$/, "", r)
+            if (fenceline(r) || fence) { ent[NR] = insec ? n : 0; next }
+            if (r ~ /^## /) { insec = (r ~ /^## Checkpoints[ \t]*$/); ent[NR] = 0; next }
+            if (insec && r ~ /^### /) { n++; start[n] = NR }
             ent[NR] = insec ? n : 0
         }
         END {
