@@ -8,7 +8,9 @@ Step 2 — gather four sources. Skip any that is missing or empty; never read `a
 - **Unticked todos** — `- [ ]` lines in `todo.md`, grouped under their `###` heading.
 - **Open PRs** — from `repo_path`: GitHub remote → `gh pr list --state open --author @me --json number,title,headRefName,isDraft,reviewDecision`; Bitbucket remote → `bkt pr list`. If the CLI fails, show `PRs: unavailable (<reason>)` — do not retry.
 
-Step 3 — cross-check before printing: a checkpoint `Next` item that an open PR, a ticked todo, or a later commit (`git -C <repo_path> log --oneline -10`) shows as done is stale — drop it and note `(stale: <evidence>)` once at the end rather than listing it as open.
+Step 3 — cross-check before printing: a checkpoint `Next` item that an open PR, a ticked todo, or a later commit (`git -C <repo_path> log --oneline -10`) shows as done is stale — drop it and note `(stale: <evidence>)` once at the end rather than listing it as open. For a task the checkpoint references, take the full UUID from its `**Task:**` line (never a `…` short ref) and run `bash ~/.claude-memory/scripts/taskctl get <uuid>`; its `status` is the evidence (`done`/`archived` → stale). If `taskctl` fails, say `task status unknown` — never assume.
+
+If every `Next` item is stale and `Blockers` is none, the checkpoint is fully resolved: print only `Last checkpoint: <date> — <title> (fully resolved: <evidence>)` and drop its Next/Blockers/Resume lines; lead with PRs.
 
 Step 4 — print one compact block, nothing else:
 
