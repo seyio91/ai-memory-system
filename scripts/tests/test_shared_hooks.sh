@@ -71,6 +71,7 @@ stage_old_claude_hooks() {
     cp "$LEGACY/memory_common.sh"        "$OLD_REPO/harnesses/claude/hooks/memory_common.sh"
     cp "$REPO/scripts/content-core.sh" "$OLD_REPO/scripts/content-core.sh"
     cp "$REPO/scripts/formatters/xml.sh" "$OLD_REPO/scripts/formatters/xml.sh"
+    cp "$REPO/scripts/formatters/working.sh" "$OLD_REPO/scripts/formatters/working.sh"
     chmod +x "$OLD_REPO/harnesses/claude/hooks/"*.sh
 }
 
@@ -180,8 +181,9 @@ PY
     # and reassemble sorted — the SHUFFLED order below is the point of the test.
     CHUNK_DIR="$MEM/chunk-parts"
     mkdir -p "$CHUNK_DIR"
+    # cap 8, not 4: 3 slices under cap 4 is near-cap and carries the in-band note
     for i in 1 2 3 4; do
-        AI_MEMORY_HOOK_CHUNK="$i/4" emit_hook_chunk "$payload" > "$CHUNK_DIR/part.$i"
+        AI_MEMORY_HOOK_CHUNK="$i/8" emit_hook_chunk "$payload" > "$CHUNK_DIR/part.$i"
     done
     # deliberately shuffled — reassembly must depend on index, not arrival
     strip_chunks "$CHUNK_DIR/part.3" "$CHUNK_DIR/part.1" "$CHUNK_DIR/part.4" \

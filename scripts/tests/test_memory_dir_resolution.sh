@@ -22,6 +22,7 @@ stage_tree() {
     cp "$REPO/scripts/content-core.sh" "$root/scripts/content-core.sh"
     cp "$REPO/scripts/formatters/xml.sh" "$root/scripts/formatters/xml.sh"
     cp "$REPO/scripts/formatters/md.sh" "$root/scripts/formatters/md.sh"
+    cp "$REPO/scripts/formatters/working.sh" "$root/scripts/formatters/working.sh"
     ln -s "$root/scripts/hooks/lib.sh" "$root/link/lib.sh"
     printf '%s/link/lib.sh' "$root"
 }

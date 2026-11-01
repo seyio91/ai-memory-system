@@ -857,6 +857,59 @@ EOF
     fi
 fi
 
+# 19. Misplaced checkpoint — a `### YYYY-MM-DD` entry holding a `**Task:**`
+#     line that sits outside `## Checkpoints` in a working file. Checkpoints
+#     are appended at end of file, so one under another section is invisible
+#     to the checkpoint window. Dated headings without `**Task:**` (dated
+#     learnings) are not checkpoints. Fenced code (``` and ~~~) is skipped.
+cp_files=()
+for f in "$MEMORY_DIR"/projects/*/working.md "$MEMORY_DIR"/projects/*/working.*.md; do
+    [ -e "$f" ] || continue
+    cp_files[${#cp_files[@]}]="$f"
+done
+if [ "${#cp_files[@]}" -gt 0 ]; then
+    cp_out="$(LC_ALL=C awk '
+        function flush() {
+            if (hl > 0 && istask && !incp) print "WARN:  " hf ":" hl " checkpoint entry outside ## Checkpoints — move it into the ## Checkpoints section"
+            hl = 0; istask = 0
+        }
+        FNR == 1 { flush(); fence = 0; fch = ""; flen = 0; incp = 0 }
+        {
+            raw = $0; sub(/\r$/, "", raw)
+            t = raw; sub(/^ ? ? ?/, "", t)
+            if (fence) {
+                s = t; sub(/[ \t]+$/, "", s)
+                if (substr(s, 1, 1) == fch && s ~ /^(`+|~+)$/ && length(s) >= flen) fence = 0
+                next
+            }
+            if (t ~ /^```+[^`]*$/ || t ~ /^~~~+/) {
+                fch = substr(t, 1, 1); flen = 0
+                while (substr(t, flen + 1, 1) == fch) flen++
+                fence = 1
+                next
+            }
+            if (raw ~ /^## /) { flush(); incp = (raw ~ /^## Checkpoints[ \t]*$/); next }
+            if (raw ~ /^### /) {
+                flush()
+                if (raw ~ /^### [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]([^0-9]|$)/) { hl = FNR; hf = FILENAME }
+                next
+            }
+            if (hl > 0 && raw ~ /^\*\*Task:\*\*/) istask = 1
+        }
+        END { flush() }
+    ' "${cp_files[@]}" 2>/dev/null)"
+    cp_rc=$?
+    if [ "$cp_rc" -ne 0 ]; then
+        emit "ERROR: $MEMORY_DIR lint rule 19 could not scan working files (awk exit $cp_rc)"
+    elif [ -n "$cp_out" ]; then
+        while IFS= read -r finding; do
+            emit "$finding"
+        done <<EOF
+$cp_out
+EOF
+    fi
+fi
+
 if [ "$FOUND" -eq 0 ]; then
     echo "lint-memory: clean (no warnings or errors)"
     exit 0
