@@ -7,7 +7,12 @@
 
 ## Active
 
-_(no items yet)_
+### Keep newest working.md loaded; warn before the payload cap → [plan](plans/working-md-checkpoint-window.md)
+- [ ] P1 — Render window filter
+- [ ] P2 — Checkpoints-last placement
+- [ ] P3 — Near-cap marker
+- [ ] P4 — /checkpoint hidden-count warning (needs: P1, P2)
+- [ ] Checkpoint — pre-ship (needs: P1, P2, P3, P4)
 
 ## Done
 _(checked items stay above until the file is rolled)_
