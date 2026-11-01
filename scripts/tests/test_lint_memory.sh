@@ -254,6 +254,60 @@ run_lint
 assert_contains "$OUT" "working.wt-old.md stale" "lint flags a stale worktree overlay"
 rm -rf "$M8"
 
+# --- rule 19: a checkpoint entry (### date + **Task:**) outside ## Checkpoints warns ---
+M19="$(new_sandbox)"; export MEMORY_DIR="$M19"; build_clean "$M19"
+cat > "$M19/projects/good/working.md" <<'EOF'
+# Working — good
+
+## Open threads
+
+- thread
+
+### 2026-10-01 — misplaced
+
+**Task:** lands in the wrong section
+
+## Checkpoints
+
+### 2026-10-02 — fine
+
+**Task:** inside the section
+EOF
+run_lint
+assert_contains "$OUT" "working.md:7 checkpoint entry outside ## Checkpoints" "checkpoint under Open threads warns"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -c 'outside ## Checkpoints')" "only the misplaced entry warns"
+cat > "$M19/projects/good/working.md" <<'EOF'
+# Working — good
+
+## Learnings
+
+### 2026-10-01 — a dated learning
+
+Some fact, no task line.
+
+~~~
+### 2026-10-03 — in a fence
+
+**Task:** fenced
+~~~
+
+```
+## Elsewhere
+### 2026-10-04 — in a backtick fence
+
+**Task:** fenced
+```
+
+## Checkpoints
+
+### 2026-10-02 — fine
+
+**Task:** inside the section
+EOF
+run_lint
+assert_not_contains "$OUT" "outside ## Checkpoints" "dated learnings, fenced headings and in-section entries do not warn"
+rm -rf "$M19"
+
 # --- a working file holding only headings/placeholders is not "stale" ---
 # Both halves matter: the skip must fire on the placeholder file AND must not
 # swallow a genuinely stale one, or it silences the check it is narrowing.
