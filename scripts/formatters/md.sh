@@ -9,6 +9,8 @@
 # file cat; it depends on extract_fm_field (from _lib.sh), which the caller must
 # source. The overlay/header framing is NOT here — it lives in build-context-md.sh.
 
+. "$(dirname "${BASH_SOURCE[0]}")/working.sh"
+
 # md_render — read records on stdin, print the markdown sections.
 md_render() {
     local kind path name
@@ -28,7 +30,7 @@ md_render() {
             domain)
                 _md_render_domain "$path" ;;
             working)
-                echo "# === WORKING MEMORY ==="; echo; cat "$path"; echo ;;
+                echo "# === WORKING MEMORY ==="; echo; render_working "$path"; echo ;;
         esac
     done
 }

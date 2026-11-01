@@ -12,6 +12,8 @@
 # `domain` record (emitted by the core for the md formatter) is simply ignored
 # here, preserving the historical Claude output byte-for-byte.
 
+. "$(dirname "${BASH_SOURCE[0]}")/working.sh"
+
 # xml_render_full — read records on stdin, print the full `<memory:*>` payload.
 xml_render_full() {
     local kind path name out=""
@@ -40,7 +42,7 @@ xml_render_full() {
                 out+=$'\n'"</memory:index>"$'\n' ;;
             working)
                 out+="<memory:working>"$'\n'
-                out+=$(cat "$path")
+                out+=$(render_working "$path")
                 out+=$'\n'"</memory:working>"$'\n' ;;
         esac
     done
