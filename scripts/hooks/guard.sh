@@ -14,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
 . "$REPO/scripts/jsonutil.sh"
 . "$REPO/scripts/deny-match.sh"
+. "$REPO/scripts/path-match.sh"
 
 INPUT="$(cat)"
 ROLE="${AI_MEMORY_ROLE:-}"
@@ -79,6 +80,13 @@ guard_fail() {
     fi
     deny "$1$SCOPE_NOTE"
 }
+
+# Raw pre-filter keeps the main session off the JSON parse (~130ms per call); path_guard_match
+# re-checks agent_id on the parsed input, so a coincidental match costs time, never a deny.
+if { [ -n "$ROLE" ] || printf '%s' "$INPUT" | grep -q '"agent_id"'; } \
+    && PATH_REASON="$(path_guard_match "$INPUT")"; then
+    deny "$PATH_REASON"
+fi
 
 [ -n "$ROLE" ] || [ "$SCOPE" = all ] || exit 0
 

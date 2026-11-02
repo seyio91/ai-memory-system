@@ -50,5 +50,5 @@ exec         = subagent
 session_bootstrap = SessionStart
 per_turn_inject   = UserPromptSubmit
 task_tool_block   = PreToolUse:TaskCreate|TaskUpdate
-infra_guard       = PreToolUse:Bash
+infra_guard       = PreToolUse:Bash|Write|Edit|NotebookEdit
 memory_write_guard = PostToolUse:Write|Edit

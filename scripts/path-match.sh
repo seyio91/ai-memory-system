@@ -19,9 +19,18 @@ _pg_realpath() { # <path> <base-for-relative>
                 if [ -L "$cand" ]; then
                     n=$((n + 1))
                     [ "$n" -le 40 ] || { printf '%s' "$cand"; return 0; }
-                    link="$(readlink "$cand")"
-                    case "$link" in /*) cur="/" ;; esac
-                    rest="$link/$rest"
+                    # Directories via builtins: the guard may run with a PATH lacking readlink.
+                    if [ -d "$cand" ]; then
+                        link="$(cd -P "$cand" 2>/dev/null && pwd -P)" || link=""
+                    else
+                        link="$(readlink "$cand" 2>/dev/null)" || link=""
+                    fi
+                    if [ -z "$link" ]; then
+                        cur="$cand"
+                    else
+                        case "$link" in /*) cur="/" ;; esac
+                        rest="$link/$rest"
+                    fi
                 else
                     cur="$cand"
                 fi

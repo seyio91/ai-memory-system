@@ -418,7 +418,7 @@ EMPTYDENY_REPO="$(new_sandbox)"
 trap 'rm -rf "$MEM" "$WORK" "$OLD_REPO" "$NODENY_REPO" "$EMPTYDENY_REPO"' EXIT
 mkdir -p "$NODENY_REPO/scripts/hooks"
 cp "$REPO/scripts/hooks/guard.sh" "$NODENY_REPO/scripts/hooks/guard.sh"
-cp "$REPO/scripts/jsonutil.sh" "$REPO/scripts/deny-match.sh" "$NODENY_REPO/scripts/"
+cp "$REPO/scripts/jsonutil.sh" "$REPO/scripts/deny-match.sh" "$REPO/scripts/path-match.sh" "$REPO/scripts/protected-paths.txt" "$NODENY_REPO/scripts/"
 NODENY_GUARD="$NODENY_REPO/scripts/hooks/guard.sh"
 
 set +e
@@ -504,7 +504,7 @@ assert_eq "" "$(cat "$OUT")" "shared guard: role set + scope=all prints no ask J
 
 mkdir -p "$EMPTYDENY_REPO/scripts/hooks"
 cp "$REPO/scripts/hooks/guard.sh" "$EMPTYDENY_REPO/scripts/hooks/guard.sh"
-cp "$REPO/scripts/jsonutil.sh" "$REPO/scripts/deny-match.sh" "$EMPTYDENY_REPO/scripts/"
+cp "$REPO/scripts/jsonutil.sh" "$REPO/scripts/deny-match.sh" "$REPO/scripts/path-match.sh" "$REPO/scripts/protected-paths.txt" "$EMPTYDENY_REPO/scripts/"
 printf '# comments only\n\n' > "$EMPTYDENY_REPO/scripts/deny-list.txt"
 run_guard "$EMPTYDENY_REPO/scripts/hooks/guard.sh" all "$(guard_payload_sub "ls -la")"
 assert_exit 2 "$code" "shared guard: no usable rules, subagent exits 2"
