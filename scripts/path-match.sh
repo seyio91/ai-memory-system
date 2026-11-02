@@ -161,9 +161,35 @@ _pg_bash_match() { # <command> <cwd>
     return 1
 }
 
+_pg_patch_match() { # <patch text> <cwd>
+    local patch="$1" cwd="$2" line path first="" last="" n=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        line="${line%$'\r'}"
+        [ -n "$first" ] || first="$line"
+        last="$line"
+        case "$line" in
+            "*** Add File: "*) path="${line#\*\*\* Add File: }" ;;
+            "*** Update File: "*) path="${line#\*\*\* Update File: }" ;;
+            "*** Delete File: "*) path="${line#\*\*\* Delete File: }" ;;
+            "*** Move to: "*) path="${line#\*\*\* Move to: }" ;;
+            "*** Begin Patch"|"*** End Patch"|"*** End of File") continue ;;
+            "*** "*) PG_UNPARSED=1; return 0 ;;
+            *) continue ;;
+        esac
+        path="$(_deny_trim "$path")"
+        if [ -z "$path" ]; then PG_UNPARSED=1; return 0; fi
+        n=$((n + 1))
+        if _pg_is_protected "$path" "$cwd"; then PG_HIT="$path"; return 0; fi
+    done <<< "$patch"
+    if [ "$first" != "*** Begin Patch" ] || [ "$last" != "*** End Patch" ] || [ "$n" -eq 0 ]; then
+        PG_UNPARSED=1; return 0
+    fi
+    return 1
+}
+
 path_guard_match() {
     local input="$1" tool target cwd cmd
-    PG_HIT=""
+    PG_HIT=""; PG_UNPARSED=0
     _pg_guarded "$input" || return 1
     if ! json_parser_available; then
         printf '%s\n' "path-guard: no jq/python3, cannot inspect tool call; $_pg_route"
@@ -195,6 +221,18 @@ path_guard_match() {
             [ -n "$cmd" ] || return 1
             if _pg_bash_match "$cmd" "$cwd"; then
                 printf '%s\n' "path-guard: command writes protected path $PG_HIT; $_pg_route"
+                return 0
+            fi
+            return 1
+            ;;
+        apply_patch)
+            cmd="$(printf '%s' "$input" | json_get_path tool_input command)"
+            if _pg_patch_match "$cmd" "$cwd"; then
+                if [ "$PG_UNPARSED" -eq 1 ]; then
+                    printf '%s\n' "path-guard: cannot parse apply_patch targets; $_pg_route"
+                else
+                    printf '%s\n' "path-guard: $PG_HIT is protected; $_pg_route"
+                fi
                 return 0
             fi
             return 1

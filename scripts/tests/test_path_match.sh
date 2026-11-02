@@ -53,7 +53,6 @@ for rel in scripts/run-tests.sh scripts/tests/test_path_match.sh docs/workflow.m
 done
 pg ALLOW "Write ~/.claude/other.json" "$(file_in Write "$HOME/.claude/other.json")"
 pg ALLOW "Read of a protected path" "$(file_in Read "$ROOT/scripts/deny-list.txt")"
-pg ALLOW "apply_patch is not handled here" "$(file_in apply_patch "$ROOT/scripts/deny-list.txt")"
 
 # R3: live root only; target realpath'd
 pg ALLOW "worktree copy" "$(file_in Write "$ROOT/.claude/worktrees/x/scripts/hooks/guard.sh")"
@@ -163,5 +162,72 @@ assert_contains "$PG_REASON" "report this deny" "file-tool reason: report in ret
 assert_eq 1 "$(printf '%s\n' "$PG_REASON" | wc -l | tr -d ' ')" "reason is one line"
 pg DENY "reason check (bash)" "$(bash_in 'rm scripts/deny-list.txt')"
 assert_contains "$PG_REASON" "only via the orchestrator" "bash reason: orchestrator route"
+
+# apply_patch: driven from the captured Codex payload
+FIX="$SCRIPTS_DIR/tests/fixtures/codex/pre_tool_use_apply_patch.json"
+patch_in() { # <patch text> [cwd] [agent_id]
+    jq -c --arg p "$1" --arg c "${2:-$ROOT}" --arg a "${3:-}" \
+        '.tool_input.command = $p | .cwd = $c | if $a != "" then .agent_id = $a else . end' "$FIX"
+}
+hdr() { printf '*** Begin Patch\n%s\n*** End Patch' "$1"; }
+fx_patch="$(jq -r .tool_input.command "$FIX")"
+pg ALLOW "apply_patch captured fixture, unprotected targets" "$(patch_in "$fx_patch" "$TMP")"
+pg DENY "apply_patch fixture, cwd in scripts/hooks (relative Add)" "$(patch_in "$fx_patch" "$ROOT/scripts/hooks")"
+assert_contains "$PG_REASON" "only via the orchestrator" "apply_patch reason: orchestrator route"
+pg DENY "apply_patch Add protected" "$(patch_in "$(hdr "*** Add File: $ROOT/scripts/deny-list.txt
++x")")"
+pg DENY "apply_patch Update protected" "$(patch_in "$(hdr "*** Update File: scripts/deny-list.txt
+@@
+-a
++b")")"
+pg DENY "apply_patch Add protected beside benign target" "$(patch_in "$(hdr "*** Delete File: $TMP/z.txt
+*** Add File: $ROOT/scripts/deny-list.txt
++x")")"
+pg DENY "apply_patch Update protected beside benign target" "$(patch_in "$(hdr "*** Delete File: $TMP/z.txt
+*** Update File: $ROOT/scripts/deny-list.txt
+@@
+-a
++b")")"
+pg DENY "apply_patch Delete plan file" "$(patch_in "$(hdr "*** Delete File: projects/ai-memory/plans/x.md")")"
+pg DENY "apply_patch Update plan file" "$(patch_in "$(hdr "*** Update File: $ROOT/projects/ai-memory/plans/executor-protected-paths.md
+@@
+-a
++b")")"
+pg DENY "apply_patch Move to protected" "$(patch_in "$(hdr "*** Update File: $TMP/a.txt
+*** Move to: $ROOT/scripts/deny-list.txt
+@@
+-a
++b")")"
+pg DENY "apply_patch multi-file, last target protected" "$(patch_in "$(hdr "*** Add File: $TMP/a.txt
++a
+*** Update File: $TMP/b.txt
+@@
+-a
++b
+*** Delete File: $ROOT/scripts/deny-list.txt")")"
+pg ALLOW "apply_patch multi-file unprotected" "$(patch_in "$(hdr "*** Add File: $TMP/a.txt
++a
+*** Delete File: $TMP/b.txt")")"
+pg DENY "apply_patch no Begin Patch" "$(patch_in "*** Add File: $TMP/a.txt
++a
+*** End Patch")"
+pg DENY "apply_patch no End Patch" "$(patch_in "*** Begin Patch
+*** Add File: $TMP/a.txt
++a")"
+pg DENY "apply_patch no headers" "$(patch_in "$(hdr "+a")")"
+pg DENY "apply_patch empty text" "$(patch_in "")"
+pg DENY "apply_patch empty header path" "$(patch_in "$(hdr "*** Add File: 
++a")")"
+pg DENY "apply_patch unknown header" "$(patch_in "$(hdr "*** Add File: $TMP/a.txt
++a
+*** Rename File: $TMP/b.txt")")"
+assert_contains "$PG_REASON" "cannot parse" "apply_patch unparseable reason"
+pg DENY "apply_patch missing command field" "$(jq -c 'del(.tool_input.command)' "$FIX")"
+reason="$(path_guard_match "$(patch_in "$(hdr "*** Add File: $ROOT/scripts/deny-list.txt
++x")")")" && got=DENY || got=ALLOW
+assert_eq ALLOW "$got" "apply_patch main session allowed"
+reason="$(path_guard_match "$(patch_in "$(hdr "*** Add File: $ROOT/scripts/deny-list.txt
++x")" "$ROOT" sub1)")" && got=DENY || got=ALLOW
+assert_eq DENY "$got" "apply_patch agent_id guarded"
 
 finish
