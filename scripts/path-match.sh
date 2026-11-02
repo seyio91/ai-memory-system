@@ -117,7 +117,8 @@ _pg_guarded() {
     if json_parser_available; then
         [ -n "$(printf '%s' "$1" | json_get agent_id)" ]
     else
-        printf '%s' "$1" | grep -q '"agent_id"'
+        case "$1" in *'"agent_id"'*) return 0 ;; esac
+        return 1
     fi
 }
 

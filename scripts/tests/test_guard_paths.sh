@@ -71,6 +71,12 @@ assert_exit 0 "$code" "guard paths: Copilot deny exits 0"
 assert_contains "$(cat "$OUT")" '"permissionDecision":"deny"' "guard paths: Copilot deny emits the JSON envelope"
 assert_contains "$(cat "$OUT")" "only via the orchestrator" "guard paths: Copilot envelope carries the route text"
 
+# Large multiline payload with agent_id early: grep -q in a pipe would SIGPIPE the writer
+# under pipefail and skip the path check (exit 0).
+BIG="$(python3 -c 'import sys,json;print(json.dumps({"agent_id":"a1","hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":sys.argv[1],"content":"x"*100000},"cwd":sys.argv[2]},indent=2))' "$PROT" "$REPO")"
+run "$BIG"
+assert_exit 2 "$code" "guard paths: large multiline subagent Write on protected path denied"
+
 # The live root is usually reached through a symlink (~/.claude-memory) and the guard may run
 # with a PATH lacking readlink; resolving the root must not kill guard.sh (exit 1 = fail open).
 ln -s "$REPO" "$TMP/rootlink"

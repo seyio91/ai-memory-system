@@ -83,7 +83,10 @@ guard_fail() {
 
 # Raw pre-filter keeps the main session off the JSON parse (~130ms per call); path_guard_match
 # re-checks agent_id on the parsed input, so a coincidental match costs time, never a deny.
-if { [ -n "$ROLE" ] || printf '%s' "$INPUT" | grep -q '"agent_id"'; } \
+# A `case`, not `printf | grep -q`: under pipefail grep's early exit SIGPIPEs printf on large input.
+PG_SUSPECT=0
+case "$INPUT" in *'"agent_id"'*) PG_SUSPECT=1 ;; esac
+if { [ -n "$ROLE" ] || [ "$PG_SUSPECT" -eq 1 ]; } \
     && PATH_REASON="$(path_guard_match "$INPUT")"; then
     deny "$PATH_REASON"
 fi
