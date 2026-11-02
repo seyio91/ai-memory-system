@@ -49,6 +49,7 @@ Rejected:
 - Executors + Claude subagents guarded regardless of `GUARD_SCOPE`; main session never denied by the path check.
 - Engine work routing is unchanged by this plan.
 - Divergence reporting is prose in the executor's return.
+- **R5 validation cap (2026-11-02, after validator round 2):** the Bash heuristic is best-effort. Round-2 findings (redirect operands, `cd` chains, `truncate -r`) are fixed; from validator round 3 on, any further Bash parsing edge case outside R5's listed write forms goes to Risks, not blockers.
 
 ## Phases
 
@@ -84,8 +85,11 @@ Rejected:
 
 ## Risks / open questions
 
+- **Interpreter writes — observed, deferred:** during fix round 2 a well-meaning executor edited protected `path-match.sh` via a python heredoc, contradicting this plan's assumption that interpreters imply deliberate evasion. Deferred to follow-up task `40cf6850-c619-8141-a6ea-e887e51abb18`, which also amends the threat model.
+- **Uncovered shell forms (accepted):** `>|` (noclobber override — the shared tokenizer splits on `|`) and GNU `cp -t DIR src`.
 - **Deliberate evasion is not covered** — indirect writes (hook-executed scripts, `install.sh`, interpreters, variables) remain possible; out of scope per the threat model.
-- **Copilot / Antigravity executors unguarded** by this plan — follow-up task; payload shapes and native-subagent markers unknown.
+- **Copilot / Antigravity executors unguarded** by this plan — follow-up task `40cf6850-c619-814d-b101-e80aecdbae02`; payload shapes and native-subagent markers unknown.
+- **Codex `apply_patch` (verified P2, codex 0.163.0):** patch text is in `tool_input.command` — the same field `guard.sh` reads as `CMDLINE`, so patches are also deny-list-matched. A scratch hook only fired with `--dangerously-bypass-hook-trust`.
 - **Known false positive:** `~/.claude/settings.json` is protected for every subagent, so the `statusline-setup` agent is denied; run it from the main session.
 - **Codex `apply_patch` payload shape** unverified until P2.
 - **Widened Claude matcher** sends every `Write`/`Edit` through `guard.sh`; its deny-list path must stay a no-op for non-Bash tools (empty `CMDLINE`) — covered by existing guard tests staying green.
