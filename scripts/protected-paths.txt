@@ -1,0 +1,13 @@
+# Paths a guarded executor/subagent may not write (see path-match.sh).
+# Globs are anchored at the live root; `*` stays within a segment, `**` crosses.
+# `~/` entries are anchored at $HOME.
+scripts/deny-list*.txt
+scripts/hooks/**
+scripts/deny-match.sh
+scripts/jsonutil.sh
+scripts/path-match.sh
+scripts/protected-paths.txt
+config.local.sh
+projects/*/plans/**
+~/.claude/settings.json
+~/.codex/hooks.json

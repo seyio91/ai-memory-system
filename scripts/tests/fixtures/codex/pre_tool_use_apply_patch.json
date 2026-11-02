@@ -1,0 +1,14 @@
+{
+  "session_id": "01a19e1c-7884-7352-82ad-b84b604c2d35",
+  "turn_id": "01a19e1c-7a36-7051-8b01-ba7f0d9a4fa5",
+  "transcript_path": "/private/tmp/claude-502/-Users-seyi-Projects-claude-memory/bdce374b-16e0-445b-b548-62b1d41ae8fe/scratchpad/cap/home/sessions/2026/11/02/rollout-2026-11-02T22-13-48-01a19e1c-7884-7352-82ad-b84b604c2d35.jsonl",
+  "cwd": "/private/tmp/claude-502/-Users-seyi-Projects-claude-memory/bdce374b-16e0-445b-b548-62b1d41ae8fe/scratchpad/cap/repo",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Add File: n.txt\n+n\n*** Update File: b.txt\n@@\n-hello\n+world\n*** Update File: d.txt\n*** Move to: moved.txt\n@@\n-old\n+new\n*** Delete File: e.txt\n*** End Patch"
+  },
+  "tool_use_id": "exec-1c3a77d9-025a-4277-8e7a-76a40fa44e15"
+}

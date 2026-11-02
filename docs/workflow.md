@@ -88,6 +88,7 @@ To delegate (or to validate), the orchestrator runs `scripts/executor.sh --role 
 - **No `TaskCreate`.** `todo.md` is the single source of truth for executable work.
 - **Archive is never read unless the user explicitly asks.** Don't load it, grep it, or quote from it.
 - **Executors never apply or merge to running infrastructure.** The deny-list lives in `scripts/deny-list.txt` (plus any instance additions in `scripts/deny-list.local.txt`), and each harness's `PreToolUse` guard enforces it. The prompt restatement is defence in depth: `executor.sh --run` prepends the list to every CLI executor prompt and refuses to run if the list is missing, unreadable or empty; a subagent-plane delegation prompt must paste the rules from both files. Claude subagents are guarded by the hook only with `AI_MEMORY_GUARD_SCOPE=all` (see [Claude Code › Infra guard](harnesses/claude.md#infra-guard-pretoolusebash)). For the `codex` CLI executor, `~/.codex/rules/default.rules` is optional defense-in-depth if installed. Generic principle: any destructive or additive action directly to running infrastructure is off-limits to executors.
+- **Executors never edit the plan or guard config.** An executor that hits a guard deny, or finds the design diverged from the plan, reports it in its return and stops. Guarded contexts cannot write the paths in `scripts/protected-paths.txt` (guard config, plans); the guard denies them with the route to the orchestrator.
 
 ---
 

@@ -118,6 +118,10 @@ design stops and reports back instead of designing on its own.
   list: `scripts/deny-list.txt` + `scripts/deny-list.local.txt` (instance
   additions), enforced by each harness's `PreToolUse` guard (Claude
   subagents only under `AI_MEMORY_GUARD_SCOPE=all`).
+- **Executors never edit the plan or guard config.** An executor that hits a
+  guard deny, or finds the design diverged from the plan, reports it in its
+  return and stops. Guarded contexts cannot write the paths in
+  `scripts/protected-paths.txt` (guard config, plans).
 - **Skill self-rating is on-request only.** When the user asks "rate this
   run" — and only then — append a dated entry to the skill's own
   `skills/<name>/self-rating.md`. Never automatic; an empty log is healthy.

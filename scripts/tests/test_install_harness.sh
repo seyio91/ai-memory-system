@@ -167,7 +167,7 @@ assert_contains "$csj" "session_start_memory.sh" "claude settings: SessionStart 
 assert_contains "$csj" "block_task_tools.sh" "claude settings: task-tool block command -> block script"
 assert_contains "$csj" '"matcher": "TaskCreate|TaskUpdate"' "claude settings: task-tool matcher registered"
 assert_contains "$csj" "AI_MEMORY_GUARD_SCOPE=executor bash $FAKE/scripts/hooks/guard.sh" "claude settings: guard command carries the default scope"
-assert_contains "$csj" '"matcher": "Bash"' "claude settings: guard matcher registered"
+assert_contains "$csj" '"matcher": "Bash|Write|Edit|NotebookEdit"' "claude settings: guard matcher registered"
 assert_contains "$csj" "env MEMORY_DIR=$FAKE bash $FAKE/scripts/hooks/memory_write_guard.sh" "claude settings: write-guard command registered"
 assert_contains "$csj" '"matcher": "Write|Edit"' "claude settings: write-guard matcher registered"
 assert_not_contains "$(cat "$SBROOT/log.claude")" "ai-memory install:" "claude: no sweep report when nothing of ours was swept"
@@ -249,7 +249,7 @@ expected = [
     # That is different from chunks==1, where _hook_chunked_commands emits the
     # un-chunked form of a chunk-capable event.
     ("PreToolUse", "TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo, None),
-    ("PreToolUse", "Bash", "env MEMORY_DIR=%s AI_MEMORY_GUARD_SCOPE=executor bash %s/scripts/hooks/guard.sh" % (repo, repo), None),
+    ("PreToolUse", "Bash|Write|Edit|NotebookEdit", "env MEMORY_DIR=%s AI_MEMORY_GUARD_SCOPE=executor bash %s/scripts/hooks/guard.sh" % (repo, repo), None),
     ("PostToolUse", "Write|Edit", "env MEMORY_DIR=%s bash %s/scripts/hooks/memory_write_guard.sh" % (repo, repo), None),
 ]
 for event, matcher, template, chunks in expected:
@@ -337,11 +337,11 @@ if command -v python3 >/dev/null 2>&1; then
     assert_exit 0 "$rc" "scope=all: claude install exits 0"
     g="$(hook_lines scripts/hooks/guard.sh)"
     assert_eq "1" "$(printf '%s\n' "$g" | grep -c .)" "scope=all: exactly one guard entry"
-    assert_contains "$g" "PreToolUse	Bash	" "scope=all: guard on PreToolUse matcher Bash"
+    assert_contains "$g" "PreToolUse	Bash|Write|Edit|NotebookEdit	" "scope=all: guard on PreToolUse matcher Bash|Write|Edit|NotebookEdit"
     assert_contains "$g" "AI_MEMORY_GUARD_SCOPE=all bash $FAKE/scripts/hooks/guard.sh" "scope=all: guard command carries AI_MEMORY_GUARD_SCOPE=all"
     # The flip rewrites our own earlier entry: one "updated" line, no JSON dump.
     flip_log="$(grep 'ai-memory install:' "$SBROOT/log.scope-all" || true)"
-    assert_contains "$flip_log" "ai-memory install: updated managed hook guard.sh (PreToolUse [Bash]) (backup: $CSJ.bak-" \
+    assert_contains "$flip_log" "ai-memory install: updated managed hook guard.sh (PreToolUse [Bash|Write|Edit|NotebookEdit]) (backup: $CSJ.bak-" \
         "scope flip: 'updated managed hook guard.sh' line names the backup path"
     assert_eq "1" "$(printf '%s\n' "$flip_log" | grep -c .)" \
         "scope flip: exactly one report line and nothing else"
@@ -482,7 +482,7 @@ hooks = json.load(open(os.environ["NOPY_OUT"]))["hooks"]
 ptu = [(g.get("matcher"), g["hooks"][0]["command"]) for g in hooks["PreToolUse"]]
 want = [
     ("TaskCreate|TaskUpdate", "bash %s/harnesses/claude/hooks/block_task_tools.sh" % repo),
-    ("Bash", "env MEMORY_DIR=%s AI_MEMORY_GUARD_SCOPE=executor bash %s/scripts/hooks/guard.sh" % (repo, repo)),
+    ("Bash|Write|Edit|NotebookEdit", "env MEMORY_DIR=%s AI_MEMORY_GUARD_SCOPE=executor bash %s/scripts/hooks/guard.sh" % (repo, repo)),
 ]
 if ptu != want:
     sys.stderr.write("PreToolUse groups %r != %r\n" % (ptu, want)); sys.exit(1)
