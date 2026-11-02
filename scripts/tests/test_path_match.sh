@@ -155,6 +155,21 @@ pg ALLOW "bash write in worktree copy" "$(bash_in "rm $ROOT/.claude/worktrees/x/
 pg ALLOW "bash write via symlink-free clone" "$(bash_in "echo x > $TMP/clone/scripts/deny-list.txt")"
 pg DENY "bash write through symlink" "$(bash_in "echo x > $TMP/filelink")"
 
+# R5: directory destinations and quoted redirect text
+mkdir -p "$TMP/probe" "$TMP/outdir"
+for c in "cp $TMP/probe/deny-list.txt scripts/" "mv $TMP/probe/deny-list.txt scripts/" \
+    "cp $TMP/probe/deny-list.txt scripts" "cp $TMP/probe/x.sh scripts/hooks/" \
+    "cp -r $TMP/probe/a $TMP/probe/deny-list.txt scripts/" "mv $TMP/probe/new.sh scripts/hooks/" \
+    'echo x >"scripts/deny-list.txt"' 'echo x >scripts/deny-list.txt' 'echo x >>scripts/deny-list.txt' \
+    'echo "a b" > scripts/deny-list.txt'; do
+    pg DENY "bash: $c" "$(bash_in "$c")"
+done
+for c in "cp $TMP/probe/deny-list.txt $TMP/outdir/" "mv $TMP/probe/deny-list.txt $TMP/outdir" \
+    "cp scripts/deny-list.txt $TMP/outdir/" 'printf "%s\n" ">scripts/deny-list.txt"' \
+    'echo "example >scripts/deny-list.txt"' "echo 'x > scripts/deny-list.txt'"; do
+    pg ALLOW "bash: $c" "$(bash_in "$c")"
+done
+
 # R6: reason names the route
 pg DENY "reason check (file tool)" "$(file_in Write "$ROOT/scripts/deny-list.txt")"
 assert_contains "$PG_REASON" "only via the orchestrator" "file-tool reason: orchestrator route"

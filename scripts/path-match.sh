@@ -83,14 +83,27 @@ _pg_load() {
     [ "${#_PG_RES[@]}" -gt 0 ]
 }
 
-_pg_is_protected() { # <path> <cwd>
-    local p="$1" base="$2" re
-    case "$p" in
-        '~') p="${HOME:-}" ;;
-        \~/*) p="${HOME:-}/${p#\~/}" ;;
-        '$HOME/'*) p="${HOME:-}/${p#\$HOME/}" ;;
-        '${HOME}/'*) p="${HOME:-}/${p#\$\{HOME\}/}" ;;
+_pg_expand_home() {
+    case "$1" in
+        '~') printf '%s' "${HOME:-}" ;;
+        \~/*) printf '%s' "${HOME:-}/${1#\~/}" ;;
+        '$HOME/'*) printf '%s' "${HOME:-}/${1#\$HOME/}" ;;
+        '${HOME}/'*) printf '%s' "${HOME:-}/${1#\$\{HOME\}/}" ;;
+        *) printf '%s' "$1" ;;
     esac
+}
+
+_pg_is_dir_dest() { # <path> <cwd>
+    local p
+    case "$1" in */) return 0 ;; esac
+    p="$(_pg_expand_home "$1")"
+    [ -n "$p" ] || return 1
+    [ -d "$(_pg_realpath "$p" "$2")" ]
+}
+
+_pg_is_protected() { # <path> <cwd>
+    local p base="$2" re
+    p="$(_pg_expand_home "$1")"
     [ -n "$p" ] || return 1
     p="$(_pg_realpath "$p" "$base")"
     for re in "${_PG_RES[@]}"; do
@@ -108,24 +121,53 @@ _pg_guarded() {
     fi
 }
 
+_pg_redirect_targets() { # <segment>: unquoted > and >> targets into PG_REDIRS
+    local s="$1" ch quote="" i=0 n="${#1}" cur="" in_word=0 want=0
+    PG_REDIRS=()
+    while [ "$i" -lt "$n" ]; do
+        ch="${s:$i:1}"
+        if [ "$ch" = "\\" ] && [ "$quote" != "'" ] && [ $((i + 1)) -lt "$n" ]; then
+            [ "$want" -eq 1 ] && { in_word=1; cur="${cur}${s:$((i + 1)):1}"; }
+            i=$((i + 2))
+            continue
+        elif [ "$ch" = "'" ] && [ "$quote" != '"' ]; then
+            if [ "$quote" = "'" ]; then quote=""; else quote="'"; fi
+            [ "$want" -eq 1 ] && in_word=1
+        elif [ "$ch" = '"' ] && [ "$quote" != "'" ]; then
+            if [ "$quote" = '"' ]; then quote=""; else quote='"'; fi
+            [ "$want" -eq 1 ] && in_word=1
+        elif [ -n "$quote" ]; then
+            [ "$want" -eq 1 ] && cur="${cur}${ch}"
+        elif [ "$ch" = ">" ]; then
+            if [ "$want" -eq 1 ] && [ "$in_word" -eq 0 ]; then :; else
+                [ "$in_word" -eq 1 ] && PG_REDIRS[${#PG_REDIRS[@]}]="$cur"
+                cur=""; in_word=0; want=1
+            fi
+        elif [ "$ch" = " " ] || [ "$ch" = "	" ] || [ "$ch" = $'\r' ] || [ "$ch" = "<" ]; then
+            if [ "$in_word" -eq 1 ]; then PG_REDIRS[${#PG_REDIRS[@]}]="$cur"; cur=""; in_word=0; want=0; fi
+        elif [ "$want" -eq 1 ]; then
+            in_word=1; cur="${cur}${ch}"
+        fi
+        i=$((i + 1))
+    done
+    [ "$in_word" -eq 1 ] && PG_REDIRS[${#PG_REDIRS[@]}]="$cur"
+    return 0
+}
+
 _pg_bash_match() { # <command> <cwd>
-    local cmd="$1" cwd="$2" seg i tok rest p idx base writes arg last
-    local args
+    local cmd="$1" cwd="$2" seg i tok p idx base writes arg last src
+    local args derived
     _deny_split_segments "$cmd"
     for seg in "${DENY_SEGMENTS[@]}"; do
         [ -n "$seg" ] || continue
         _deny_tokenize_segment "$seg"
         [ "${#DENY_TOKENS[@]}" -gt 0 ] || continue
 
-        i=0
-        while [ "$i" -lt "${#DENY_TOKENS[@]}" ]; do
-            tok="${DENY_TOKENS[$i]}"
-            i=$((i + 1))
-            case "$tok" in *'>'*) ;; *) continue ;; esac
-            rest="${tok#*>}"; rest="${rest#>}"; rest="${rest#|}"
-            if [ -z "$rest" ] && [ "$i" -lt "${#DENY_TOKENS[@]}" ]; then rest="${DENY_TOKENS[$i]}"; fi
-            if [ -n "$rest" ] && _pg_is_protected "$rest" "$cwd"; then
-                PG_HIT="$rest"; return 0
+        _pg_redirect_targets "$seg"
+        for tok in ${PG_REDIRS[@]+"${PG_REDIRS[@]}"}; do
+            tok="${tok#|}"
+            if [ -n "$tok" ] && _pg_is_protected "$tok" "$cwd"; then
+                PG_HIT="$tok"; return 0
             fi
         done
 
@@ -154,9 +196,19 @@ _pg_bash_match() { # <command> <cwd>
                     case "${DENY_TOKENS[$i]}" in -*) ;; *) args[${#args[@]}]="${DENY_TOKENS[$i]}" ;; esac
                     i=$((i + 1))
                 done
-                if [ "$base" = cp ] && [ "${#args[@]}" -gt 0 ]; then
+                if { [ "$base" = cp ] || [ "$base" = mv ]; } && [ "${#args[@]}" -gt 1 ]; then
                     last="${args[$((${#args[@]} - 1))]}"
-                    args=("$last")
+                    derived=()
+                    if _pg_is_dir_dest "$last" "$cwd"; then
+                        for src in "${args[@]:0:$((${#args[@]} - 1))}"; do
+                            src="${src%/}"
+                            [ -n "$src" ] && derived[${#derived[@]}]="${last%/}/${src##*/}"
+                        done
+                    fi
+                    if [ "$base" = cp ]; then args=("$last"); fi
+                    for src in ${derived[@]+"${derived[@]}"}; do args[${#args[@]}]="$src"; done
+                elif [ "$base" = cp ] && [ "${#args[@]}" -gt 0 ]; then
+                    args=("${args[$((${#args[@]} - 1))]}")
                 fi
                 for arg in ${args[@]+"${args[@]}"}; do
                     if _pg_is_protected "$arg" "$cwd"; then PG_HIT="$arg"; return 0; fi
