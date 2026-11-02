@@ -155,8 +155,8 @@ _pg_redirect_targets() { # <segment>: unquoted > and >> targets into PG_REDIRS
 }
 
 _pg_bash_match() { # <command> <cwd>
-    local cmd="$1" cwd="$2" seg i tok p idx base writes arg last src
-    local args derived
+    local cmd="$1" cwd0="$2" cwd="$2" seg i tok p idx base writes arg last src
+    local args derived skip redir_re='^[0-9]*&?[<>]' redir_op_re='^[0-9]*&?[<>]+&?$'
     _deny_split_segments "$cmd"
     for seg in "${DENY_SEGMENTS[@]}"; do
         [ -n "$seg" ] || continue
@@ -173,6 +173,20 @@ _pg_bash_match() { # <command> <cwd>
 
         _deny_command_start
         idx="$DENY_CMD_START"
+        if [ "$(_deny_basename "${DENY_TOKENS[$idx]:-}")" = cd ] && [ "$DENY_WRAPPED" -eq 0 ]; then
+            # Non-literal or missing target: fall back to the original cwd.
+            i=$((idx + 1))
+            while [ "$i" -lt "${#DENY_TOKENS[@]}" ]; do
+                case "${DENY_TOKENS[$i]}" in -) ;; --) i=$((i + 1)) ;; -*) i=$((i + 1)); continue ;; esac
+                break
+            done
+            arg="${DENY_TOKENS[$i]:-}"
+            case "$arg" in
+                ''|-|*[\$\`\*\?\[]*) cwd="$cwd0" ;;
+                *) cwd="$(_pg_realpath "$(_pg_expand_home "$arg")" "$cwd")" ;;
+            esac
+            continue
+        fi
         p="$idx"
         while [ "$p" -lt "${#DENY_TOKENS[@]}" ]; do
             base="$(_deny_basename "${DENY_TOKENS[$p]}")"
@@ -192,9 +206,21 @@ _pg_bash_match() { # <command> <cwd>
             if [ "$writes" -eq 1 ]; then
                 args=()
                 i=$((p + 1))
+                skip=0
                 while [ "$i" -lt "${#DENY_TOKENS[@]}" ]; do
-                    case "${DENY_TOKENS[$i]}" in -*) ;; *) args[${#args[@]}]="${DENY_TOKENS[$i]}" ;; esac
+                    tok="${DENY_TOKENS[$i]}"
                     i=$((i + 1))
+                    if [ "$skip" -eq 1 ]; then skip=0; continue; fi
+                    if [[ "$tok" =~ $redir_re ]]; then
+                        [[ "$tok" =~ $redir_op_re ]] && skip=1
+                        continue
+                    fi
+                    case "$tok" in
+                        -r|--reference) [ "$base" = truncate ] && skip=1 ;;
+                        -S|--suffix) { [ "$base" = cp ] || [ "$base" = mv ]; } && skip=1 ;;
+                        -*) ;;
+                        *) args[${#args[@]}]="$tok" ;;
+                    esac
                 done
                 if { [ "$base" = cp ] || [ "$base" = mv ]; } && [ "${#args[@]}" -gt 1 ]; then
                     last="${args[$((${#args[@]} - 1))]}"

@@ -170,6 +170,21 @@ for c in "cp $TMP/probe/deny-list.txt $TMP/outdir/" "mv $TMP/probe/deny-list.txt
     pg ALLOW "bash: $c" "$(bash_in "$c")"
 done
 
+# R5: redirect tokens are not operands; cd carries across a chain; truncate -r source is read
+mkdir -p "$TMP/cdbase"
+for c in 'cp /tmp/new scripts/deny-list.txt 2>/dev/null' 'mv x scripts/deny-list.txt 2>&1' \
+    'rm scripts/deny-list.txt >/dev/null 2>&1' 'cd scripts && rm deny-list.txt' \
+    'cd scripts/hooks; rm guard.sh' 'cd projects/p && echo x > plans/a.md' \
+    'cd scripts && cd hooks && rm guard.sh' 'cd /tmp && cd - && rm scripts/deny-list.txt' \
+    'cd /tmp && cd $X && rm scripts/deny-list.txt' 'cd -- scripts && rm deny-list.txt'; do
+    pg DENY "bash: $c" "$(bash_in "$c")"
+done
+for c in 'cd /tmp && rm scripts/deny-list.txt' 'truncate -r scripts/deny-list.txt /tmp/sized-file' \
+    'truncate --reference=scripts/deny-list.txt /tmp/sized-file' 'cp scripts/deny-list.txt /tmp/x 2>/dev/null' \
+    'cd scripts && cd /tmp && rm deny-list.txt'; do
+    pg ALLOW "bash: $c" "$(bash_in "$c")"
+done
+
 # R6: reason names the route
 pg DENY "reason check (file tool)" "$(file_in Write "$ROOT/scripts/deny-list.txt")"
 assert_contains "$PG_REASON" "only via the orchestrator" "file-tool reason: orchestrator route"
