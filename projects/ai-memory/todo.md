@@ -7,7 +7,11 @@
 
 ## Active
 
-_(no items yet)_
+### Executor-protected paths: guard config and plans → [plan](plans/executor-protected-paths.md)
+- [ ] P1 — path-match.sh: protected set, Claude file tools, Bash obvious writes
+- [ ] P2 — Codex apply_patch extraction (needs: P1)
+- [ ] P3 — Wiring, doctrine, docs (needs: P1, P2)
+- [ ] P4 — Post-merge live probe (needs: P3, merge)
 
 ## Done
 _(checked items stay above until the file is rolled)_
