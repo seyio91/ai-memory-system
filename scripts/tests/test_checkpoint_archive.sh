@@ -284,4 +284,441 @@ assert_contains "$(cat "$first_snap")" "learning body" "first snapshot keeps the
 assert_contains "$(cat "$second_snap")" "checkpoint body" "second snapshot holds the checkpoints"
 assert_contains "$second_snap" "-2.md" "collision suffix appended to the second snapshot"
 
+# === --list / --keep: selective roll ========================================
+snap_count_of() {
+    if [ -d "$1/archive/working" ]; then
+        find "$1/archive/working" -type f ! -name .gitkeep | wc -l | tr -d ' '
+    else
+        printf '0'
+    fi
+}
+
+write_multi() {
+    cat > "$1" <<'EOF'
+# Working — multi
+
+## Cross-project learnings (pending promotion)
+
+Learnings stay.
+
+## Checkpoints
+
+_(none yet — rolled 2026-06-01 to archive/working/old.md)_
+
+### 2026-07-01 — first (old)
+
+**Done:**
+- one
+
+~~~
+## fake h2 in tilde fence
+### fake h3 in tilde fence
+~~~
+
+### 2026-07-02 — second (middle)
+
+**Next:**
+- two
+
+### 2026-07-03 — third (newest)
+
+**Next:**
+- three
+
+## Open threads (not blocking)
+
+- sibling stays
+EOF
+}
+
+PDIR_M="$(mkproject "$MEM" multi)"
+write_multi "$PDIR_M/working.md"
+before_multi_sum="$(cksum < "$PDIR_M/working.md")"
+
+run "$ARCHIVE" --list "$PDIR_M/working.md"
+assert_exit 0 "$code" "--list exits 0"
+assert_eq "$(printf '1\t### 2026-07-01 — first (old)\n2\t### 2026-07-02 — second (middle)\n3\t### 2026-07-03 — third (newest)')" "$out" \
+    "--list prints numbered fence-depth-0 entries only"
+assert_eq "$before_multi_sum" "$(cksum < "$PDIR_M/working.md")" "--list leaves file byte-identical"
+assert_eq "0" "$(snap_count_of "$PDIR_M")" "--list writes no snapshot"
+
+run "$ARCHIVE" --list --section "$LEARN" "$PDIR_M/working.md"
+assert_exit 0 "$code" "--list on entry-less section exits 0"
+assert_eq "" "$out" "--list on entry-less section prints nothing"
+run "$ARCHIVE" --list --section "No such section" "$PDIR_M/working.md"
+assert_exit 2 "$code" "--list on absent section exits 2"
+assert_contains "$out" "not found" "--list on absent section says not found"
+
+run "$ARCHIVE" --list --keep 1 "$PDIR_M/working.md"
+assert_exit 2 "$code" "--list with --keep is a usage error"
+assert_eq "0" "$(snap_count_of "$PDIR_M")" "--list with --keep writes no snapshot"
+
+# keep newest
+write_multi "$PDIR_M/working.md"
+before_open_m="$(section "$PDIR_M/working.md" "## Open threads (not blocking)")"
+before_learn_m="$(section "$PDIR_M/working.md" "## Cross-project learnings (pending promotion)")"
+run "$ARCHIVE" --keep 3 "$PDIR_M/working.md"
+assert_exit 0 "$code" "--keep newest exits 0"
+msnap="$(snapshot_path)"
+live="$(section "$PDIR_M/working.md" "## Checkpoints")"
+assert_contains "$out" "kept 1 of 3" "--keep reports kept count"
+assert_contains "$(cat "$msnap")" "### 2026-07-01 — first (old)" "keep newest: snapshot has first"
+assert_contains "$(cat "$msnap")" "### 2026-07-02 — second (middle)" "keep newest: snapshot has second"
+assert_not_contains "$(cat "$msnap")" "third (newest)" "keep newest: snapshot lacks kept entry"
+assert_contains "$(cat "$msnap")" "## Checkpoints" "snapshot carries section heading"
+assert_contains "$(cat "$msnap")" "## fake h2 in tilde fence" "tilde-fenced h2 stays inside its entry in snapshot"
+assert_contains "$(cat "$msnap")" "### fake h3 in tilde fence" "tilde-fenced h3 stays inside its entry in snapshot"
+assert_not_contains "$live" "first (old)" "keep newest: live lacks rolled first"
+assert_not_contains "$(cat "$PDIR_M/working.md")" "fake h2" "keep newest: live file lacks tilde-fenced lines of rolled entry"
+assert_contains "$live" "### 2026-07-03 — third (newest)" "keep newest: live has kept entry"
+assert_contains "$live" "- three" "keep newest: live keeps entry body"
+assert_eq "## Checkpoints" "$(printf '%s\n' "$live" | sed -n 1p)" "live: heading first"
+assert_eq "" "$(printf '%s\n' "$live" | sed -n 2p)" "live: blank after heading"
+assert_contains "$(printf '%s\n' "$live" | sed -n 3p)" "_(none yet — rolled " "live: placeholder third"
+assert_eq "" "$(printf '%s\n' "$live" | sed -n 4p)" "live: blank after placeholder"
+assert_eq "### 2026-07-03 — third (newest)" "$(printf '%s\n' "$live" | sed -n 5p)" "live: kept entry follows placeholder"
+assert_eq "$before_open_m" "$(section "$PDIR_M/working.md" "## Open threads (not blocking)")" "keep: sibling after section byte-identical"
+assert_eq "$before_learn_m" "$(section "$PDIR_M/working.md" "## Cross-project learnings (pending promotion)")" "keep: sibling before section byte-identical"
+assert_eq "# Working — multi" "$(sed -n 1p "$PDIR_M/working.md")" "keep: H1 untouched"
+assert_not_contains "$live" "rolled 2026-06-01" "preamble (old placeholder) replaced in live file"
+assert_contains "$(cat "$msnap")" "rolled 2026-06-01 to archive/working/old.md" "preamble (old placeholder) included in snapshot"
+run "$ARCHIVE" --list "$PDIR_M/working.md"
+assert_eq "$(printf '1\t### 2026-07-03 — third (newest)')" "$out" "--list after keep shows only kept entry"
+
+# keep a middle entry
+PDIR_M2="$(mkproject "$MEM" multi2)"
+write_multi "$PDIR_M2/working.md"
+run "$ARCHIVE" --keep=2 "$PDIR_M2/working.md"
+assert_exit 0 "$code" "--keep=2 (middle) exits 0"
+msnap2="$(snapshot_path)"
+live2="$(section "$PDIR_M2/working.md" "## Checkpoints")"
+assert_contains "$(cat "$msnap2")" "first (old)" "keep middle: snapshot has first"
+assert_contains "$(cat "$msnap2")" "third (newest)" "keep middle: snapshot has third"
+assert_not_contains "$(cat "$msnap2")" "second (middle)" "keep middle: snapshot lacks kept"
+assert_contains "$live2" "second (middle)" "keep middle: live has kept"
+assert_not_contains "$live2" "third (newest)" "keep middle: live lacks rolled third"
+assert_eq "first (old)" "$(grep -o 'first (old)' "$msnap2" </dev/null)" "keep middle: snapshot order preserved (first)"
+assert_eq "1" "$(awk '/first \(old\)/{a=NR} /third \(newest\)/{b=NR} END{print (a<b)}' "$msnap2" </dev/null)" "keep middle: rolled entries in original order"
+
+# keep two non-adjacent
+PDIR_M3="$(mkproject "$MEM" multi3)"
+write_multi "$PDIR_M3/working.md"
+run "$ARCHIVE" --keep 1 --keep 3 "$PDIR_M3/working.md"
+assert_exit 0 "$code" "--keep 1 --keep 3 exits 0"
+msnap3="$(snapshot_path)"
+live3="$(section "$PDIR_M3/working.md" "## Checkpoints")"
+assert_contains "$(cat "$msnap3")" "second (middle)" "keep non-adjacent: snapshot has the rolled one"
+assert_not_contains "$(cat "$msnap3")" "first (old)" "keep non-adjacent: snapshot lacks kept first"
+assert_not_contains "$(cat "$msnap3")" "third (newest)" "keep non-adjacent: snapshot lacks kept third"
+assert_eq "1" "$(awk '/first \(old\)/{a=NR} /third \(newest\)/{b=NR} END{print (a>0 && b>a)}' "$PDIR_M3/working.md")" "keep non-adjacent: kept in original order"
+assert_contains "$(cat "$PDIR_M3/working.md")" "fake h2 in tilde fence" "keep non-adjacent: kept entry's fenced lines byte-intact"
+assert_not_contains "$live3" "second (middle)" "keep non-adjacent: live lacks rolled"
+assert_eq "$before_open_m" "$(section "$PDIR_M3/working.md" "## Open threads (not blocking)")" "keep non-adjacent: sibling byte-identical"
+
+# kept entry bytes are identical to the original
+write_multi "$MEM/orig.md"
+assert_eq "$(awk '/^### 2026-07-01/{p=1} /^### 2026-07-02/{p=0} p' "$MEM/orig.md")" \
+    "$(awk '/^### 2026-07-01/{p=1} /^### 2026-07-03/{p=0} p' "$PDIR_M3/working.md" | awk '/^### 2026-07-02/{exit} {print}')" \
+    "kept entry 1 byte-identical to original"
+
+# fail closed on invalid keeps
+PDIR_V="$(mkproject "$MEM" invalid)"
+for bad in abc 0 4 -1 "" 1x; do
+    write_multi "$PDIR_V/working.md"
+    sum_v="$(cksum < "$PDIR_V/working.md")"
+    run "$ARCHIVE" --keep "$bad" "$PDIR_V/working.md"
+    assert_exit 2 "$code" "--keep '$bad' exits 2"
+    assert_eq "$sum_v" "$(cksum < "$PDIR_V/working.md")" "--keep '$bad' leaves file byte-identical"
+    assert_eq "0" "$(snap_count_of "$PDIR_V")" "--keep '$bad' writes no snapshot"
+done
+write_multi "$PDIR_V/working.md"
+sum_v="$(cksum < "$PDIR_V/working.md")"
+run "$ARCHIVE" --keep 1 --keep 9 "$PDIR_V/working.md"
+assert_exit 2 "$code" "valid keep plus invalid keep exits 2"
+assert_eq "$sum_v" "$(cksum < "$PDIR_V/working.md")" "valid+invalid keep leaves file byte-identical"
+assert_eq "0" "$(snap_count_of "$PDIR_V")" "valid+invalid keep writes no snapshot"
+run "$ARCHIVE" --keep
+assert_exit 2 "$code" "--keep with no value exits 2"
+
+# keep-all is a no-op
+run "$ARCHIVE" --keep 1 --keep 2 --keep 3 "$PDIR_V/working.md"
+assert_exit 0 "$code" "keep-all exits 0"
+assert_contains "$out" "nothing to roll" "keep-all reports nothing to roll"
+assert_eq "$sum_v" "$(cksum < "$PDIR_V/working.md")" "keep-all leaves file byte-identical"
+assert_eq "0" "$(snap_count_of "$PDIR_V")" "keep-all writes no snapshot"
+
+# keep-all with carried (non-placeholder) preamble must still be a no-op
+PDIR_KP="$(mkproject "$MEM" keepall-preamble)"
+cat > "$PDIR_KP/working.md" <<'EOF'
+# Working — kp
+
+## Checkpoints
+
+Carried note, not a placeholder.
+
+### 2026-07-01 — only
+
+- x
+EOF
+sum_kp="$(cksum < "$PDIR_KP/working.md")"
+run "$ARCHIVE" --keep 1 "$PDIR_KP/working.md"
+assert_exit 0 "$code" "keep-all with real preamble exits 0"
+assert_contains "$out" "nothing to roll" "keep-all with real preamble reports nothing to roll"
+assert_eq "$sum_kp" "$(cksum < "$PDIR_KP/working.md")" "keep-all with real preamble leaves file byte-identical"
+assert_eq "0" "$(snap_count_of "$PDIR_KP")" "keep-all with real preamble writes no snapshot"
+
+# ~~~ fence with ## / ### lines inside an entry does not split under legacy roll
+PDIR_T="$(mkproject "$MEM" tilde)"
+write_multi "$PDIR_T/working.md"
+run "$ARCHIVE" "$PDIR_T/working.md"
+assert_exit 0 "$code" "legacy roll with tilde fence exits 0"
+assert_contains "$(cat "$(snapshot_path)")" "### fake h3 in tilde fence" "legacy roll: tilde-fenced h3 in snapshot"
+assert_eq "## Open threads (not blocking)" "$(grep '^## Open' "$PDIR_T/working.md")" "legacy roll: next section intact after tilde fence"
+assert_not_contains "$(section "$PDIR_T/working.md" "## Checkpoints")" "fake h2" "legacy roll: tilde-fenced lines gone from live section"
+
+# longer fence is closed only by an equal-or-longer fence
+PDIR_F="$(mkproject "$MEM" longfence)"
+cat > "$PDIR_F/working.md" <<'EOF'
+# Working — longfence
+
+## Checkpoints
+
+### 2026-07-01 — a
+
+````
+```
+### not an entry
+````
+
+### 2026-07-02 — b
+
+## Open threads
+
+- x
+EOF
+run "$ARCHIVE" --list "$PDIR_F/working.md"
+assert_eq "$(printf '1\t### 2026-07-01 — a\n2\t### 2026-07-02 — b')" "$out" "longer fence not closed by shorter inner fence"
+
+# === B1: --keep values are never glob-expanded or word-split ===============
+PDIR_G="$(mkproject "$MEM" globby)"
+GCWD="$MEM/globcwd"
+mkdir -p "$GCWD"
+: > "$GCWD/k1"; : > "$GCWD/k2"; : > "$GCWD/1"; : > "$GCWD/2"
+for bad in '*' '?' '1 2' '[1-3]'; do
+    write_multi "$PDIR_G/working.md"
+    sum_g="$(cksum < "$PDIR_G/working.md")"
+    set +e; out="$(cd "$GCWD" && bash "$ARCHIVE" --keep "$bad" "$PDIR_G/working.md" 2>&1)"; code=$?; set -e
+    assert_exit 2 "$code" "--keep '$bad' with matching files in cwd exits 2"
+    assert_eq "$sum_g" "$(cksum < "$PDIR_G/working.md")" "--keep '$bad' glob case leaves file byte-identical"
+    assert_eq "0" "$(snap_count_of "$PDIR_G")" "--keep '$bad' glob case writes no snapshot"
+done
+
+# === B3: open fence at EOF fails closed =====================================
+write_openfence() {
+    cat > "$1" <<'EOF'
+# Working — open
+
+## Checkpoints
+
+### 2026-07-01 — a
+
+~~~
+unterminated
+
+### 2026-07-02 — b
+
+## Open threads
+
+- x
+EOF
+}
+PDIR_O="$(mkproject "$MEM" openfence)"
+write_openfence "$PDIR_O/working.md"
+sum_o="$(cksum < "$PDIR_O/working.md")"
+for mode in "" "--list" "--keep 1" ; do
+    # shellcheck disable=SC2086
+    run "$ARCHIVE" $mode "$PDIR_O/working.md"
+    assert_exit 2 "$code" "open fence swallowing the section (mode '$mode') exits 2"
+    assert_contains "$out" "unclosed code fence" "open fence (mode '$mode') names the problem"
+    assert_eq "$sum_o" "$(cksum < "$PDIR_O/working.md")" "open fence (mode '$mode') leaves file byte-identical"
+    assert_eq "0" "$(snap_count_of "$PDIR_O")" "open fence (mode '$mode') writes no snapshot"
+done
+cat > "$PDIR_O/working.md" <<'EOF'
+# Working — open
+
+## Checkpoints
+
+### 2026-07-01 — a
+
+- x
+
+## Open threads
+
+```
+unterminated in a later sibling
+EOF
+run "$ARCHIVE" --list "$PDIR_O/working.md"
+assert_exit 0 "$code" "open fence in a later sibling is harmless for --list"
+assert_eq "$(printf '1\t### 2026-07-01 — a')" "$out" "open fence in a later sibling still lists entries"
+run "$ARCHIVE" "$PDIR_O/working.md"
+assert_exit 0 "$code" "open fence in a later sibling is harmless for a roll"
+assert_file "$(snapshot_path)" "open fence in a later sibling still snapshots"
+
+# === B4: duplicate target heading fails closed ==============================
+PDIR_D="$(mkproject "$MEM" dupheading)"
+cat > "$PDIR_D/working.md" <<'EOF'
+# Working — dup
+
+## Checkpoints
+
+### 2026-07-01 — a
+
+## Open threads
+
+- x
+
+## Checkpoints
+
+### 2026-07-02 — b
+EOF
+sum_d="$(cksum < "$PDIR_D/working.md")"
+for mode in "" "--list" "--keep 1"; do
+    # shellcheck disable=SC2086
+    run "$ARCHIVE" $mode "$PDIR_D/working.md"
+    assert_exit 2 "$code" "duplicate target heading (mode '$mode') exits 2"
+    assert_contains "$out" "more than once" "duplicate heading (mode '$mode') names the problem"
+    assert_eq "$sum_d" "$(cksum < "$PDIR_D/working.md")" "duplicate heading (mode '$mode') leaves file byte-identical"
+    assert_eq "0" "$(snap_count_of "$PDIR_D")" "duplicate heading (mode '$mode') writes no snapshot"
+done
+cat > "$PDIR_D/working.md" <<'EOF'
+# Working — dup
+
+## Checkpoints
+
+### 2026-07-01 — a
+
+```
+## Checkpoints
+```
+EOF
+run "$ARCHIVE" --list "$PDIR_D/working.md"
+assert_exit 0 "$code" "target heading inside a fence is not a duplicate"
+
+# === B2: --list creates no temp files =======================================
+write_multi "$PDIR_M/working.md"
+before_ls="$(ls -A "$PDIR_M" | sort)"
+run "$ARCHIVE" --list "$PDIR_M/working.md"
+assert_exit 0 "$code" "--list (temp-file check) exits 0"
+assert_eq "$before_ls" "$(ls -A "$PDIR_M" | sort)" "--list creates no files in the working file's dir"
+
+# === N1/N4 ==================================================================
+write_multi "$PDIR_M/working.md"
+sum_n="$(cksum < "$PDIR_M/working.md")"
+run "$ARCHIVE" --section "No such section" --keep 1 "$PDIR_M/working.md"
+assert_exit 2 "$code" "--keep with absent section exits 2"
+assert_contains "$out" "not found" "--keep with absent section says not found"
+assert_eq "$sum_n" "$(cksum < "$PDIR_M/working.md")" "--keep with absent section leaves file byte-identical"
+run "$ARCHIVE" --list "$PDIR_M/working.md" extra-slug
+assert_exit 2 "$code" "--list with a slug argument is a usage error"
+
+# === slug is validated: trailing options are not slugs ======================
+PDIR_S="$(mkproject "$MEM" slugcheck)"
+for bad in --keep=2 --list --keep ../x -x "a/b" "" ".hidden" "a b"; do
+    write_multi "$PDIR_S/working.md"
+    sum_s="$(cksum < "$PDIR_S/working.md")"
+    run "$ARCHIVE" "$PDIR_S/working.md" "$bad"
+    assert_exit 2 "$code" "slug '$bad' exits 2"
+    assert_eq "$sum_s" "$(cksum < "$PDIR_S/working.md")" "slug '$bad' leaves file byte-identical"
+    assert_eq "0" "$(snap_count_of "$PDIR_S")" "slug '$bad' writes no snapshot"
+done
+write_multi "$PDIR_S/working.md"
+run "$ARCHIVE" "$PDIR_S/working.md" "v1.2_fix-3"
+assert_exit 0 "$code" "valid slug exits 0"
+assert_contains "$(snapshot_path)" "-v1.2_fix-3.md" "valid slug used in snapshot name"
+
+# === awk values are literal: backslashes are never interpreted ==============
+PDIR_B="$(mkproject "$MEM" 'back\slash')"
+cat > "$PDIR_B/working.md" <<'EOF'
+# Working — bs
+
+## Notes \t tab
+
+### 2026-07-01 — one
+
+- x
+
+### 2026-07-02 — two
+
+- y
+
+## Other
+
+- z
+EOF
+run "$ARCHIVE" --list --section 'Notes \t tab' "$PDIR_B/working.md"
+assert_exit 0 "$code" "--section with backslash escape lists"
+assert_eq "$(printf '1\t### 2026-07-01 — one\n2\t### 2026-07-02 — two')" "$out" "--section with backslash escape matches literally"
+run "$ARCHIVE" --section 'Notes \t tab' --keep 2 "$PDIR_B/working.md"
+assert_exit 0 "$code" "--section with backslash escape rolls in a backslash dir"
+bsnap="$(snapshot_path)"
+assert_contains "$(cat "$bsnap")" "## Notes \\t tab" "backslash heading in snapshot"
+assert_contains "$(cat "$bsnap")" "### 2026-07-01 — one" "backslash section rolled entry 1"
+assert_contains "$(cat "$PDIR_B/working.md")" "### 2026-07-02 — two" "backslash section kept entry 2"
+assert_contains "$(cat "$PDIR_B/working.md")" "- z" "backslash section sibling intact"
+
+# === --list on absent vs empty section ======================================
+PDIR_E="$(mkproject "$MEM" listabsent)"
+cat > "$PDIR_E/working.md" <<'EOF'
+# Working — e
+
+## Checkpoints
+
+_(none yet)_
+EOF
+run "$ARCHIVE" --list "$PDIR_E/working.md"
+assert_exit 0 "$code" "--list on empty-but-present section exits 0"
+assert_eq "" "$out" "--list on empty-but-present section prints nothing"
+run "$ARCHIVE" --list --section "Nope" "$PDIR_E/working.md"
+assert_exit 2 "$code" "--list on absent section exits 2"
+assert_contains "$out" "section '## Nope' not found" "--list absent message matches --keep's"
+run "$ARCHIVE" --section "Nope" "$PDIR_E/working.md"
+assert_exit 0 "$code" "legacy roll on absent section still exits 0"
+assert_contains "$out" "nothing to roll" "legacy roll on absent section still says nothing to roll"
+
+# === section last + last kept entry ends blank: no extra blank at EOF =======
+PDIR_Z="$(mkproject "$MEM" eofblank)"
+cat > "$PDIR_Z/working.md" <<'EOF'
+# Working — z
+
+## Checkpoints
+
+### 2026-07-01 — old
+
+- a
+
+### 2026-07-02 — keep
+
+- b
+
+EOF
+run "$ARCHIVE" --keep 2 "$PDIR_Z/working.md"
+assert_exit 0 "$code" "keep with trailing blank at EOF exits 0"
+assert_eq "- b" "$(tail -n 1 "$PDIR_Z/working.md")" "no trailing blank line left at EOF after keep"
+write_multi "$MEM/z2.md"; cp "$MEM/z2.md" "$PDIR_Z/working.md"
+run "$ARCHIVE" --section "Open threads (not blocking)" --keep 1 "$PDIR_Z/working.md"
+assert_exit 2 "$code" "keep on section without entries exits 2"
+
+# === relative path shaped like name=value is a file, not an awk assignment ===
+EQDIR="$(mkproject "$MEM" eqpath)"
+printf '%s\n' '# Working' '' '## Checkpoints' '' '### 2026-01-01 — a' '' '- a' > "$EQDIR/x=y"
+set +e
+lout="$(cd "$EQDIR" && bash "$ARCHIVE" --list x=y </dev/null 2>&1)"; lcode=$?
+rout="$(cd "$EQDIR" && bash "$ARCHIVE" x=y </dev/null 2>&1)"; rcode=$?
+set -e
+assert_exit 0 "$lcode" "name=value path: --list exits 0"
+assert_contains "$lout" "### 2026-01-01 — a" "name=value path: --list reads the file"
+assert_exit 0 "$rcode" "name=value path: roll exits 0"
+assert_contains "$rout" "checkpoint-archive: snapshot " "name=value path: roll writes a snapshot"
+assert_not_contains "$(cat "$EQDIR/x=y")" "### 2026-01-01 — a" "name=value path: entry rolled out of live file"
+
 finish
