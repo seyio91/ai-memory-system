@@ -19,7 +19,7 @@ In-flight entries are **kept**: they stay in `## Checkpoints` untouched. Superse
 
 Then collect the open items on the **rolled** entries: any follow-up, carry-forward or blocker a closed entry still flags as open (superseded entries hand their state to a later entry, so skip them). For each, check whether it is tracked elsewhere — an unchecked `todo.md` box, a backlog task, an initiative Target, a kept in-flight entry, or a `working.md` section the roll does not touch. If every open item is tracked, proceed without asking. Otherwise list each untracked item with its entry and ask: "N open item(s) on rolled checkpoints are tracked nowhere else. Roll anyway?" Do NOT proceed without explicit yes.
 
-Step 4 — run the script, passing one `--keep <n>` per in-flight entry, numbered from Step 2's list. Options go **before** the working file:
+Step 4 — if you asked the user in Step 3, re-run `--list` first; if its output differs from Step 2's, another session changed the file: stop, report it, and start again from Step 2. Then run the script, passing one `--keep <n>` per in-flight entry, numbered from Step 2's list. Options go **before** the working file:
 ```
 bash ~/.claude-memory/scripts/checkpoint-archive.sh --keep <n> [--keep <n> ...] <working-file> $ARGUMENTS
 ```

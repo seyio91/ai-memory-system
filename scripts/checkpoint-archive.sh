@@ -151,7 +151,7 @@ SCAN="$(CA_HEADING="$SECTION_HEADING" awk "$FENCE_AWK"'
 case "$SCAN_RC" in
     0) ;;
     3) echo "checkpoint-archive: '$SECTION_HEADING' appears more than once in $WORKING_FILE; refusing to guess" >&2; exit 2 ;;
-    4) echo "checkpoint-archive: unclosed code fence from line $SCAN in $WORKING_FILE swallows section boundaries; refusing to guess" >&2; exit 2 ;;
+    4) echo "checkpoint-archive: unclosed code fence from line $SCAN in $WORKING_FILE may hide section boundaries; refusing to guess" >&2; exit 2 ;;
     *) echo "checkpoint-archive: scan failed on $WORKING_FILE" >&2; exit 1 ;;
 esac
 

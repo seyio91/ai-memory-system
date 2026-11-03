@@ -66,7 +66,7 @@ Step 6 — roll **only the learnings section**, exactly once at the end of the r
 bash ~/.claude-memory/scripts/checkpoint-archive.sh --section "Cross-project learnings (pending promotion)" <working-file>
 ```
 
-Use the working-file path from the `working:` line of the `<memory:active>` breadcrumb (it may be a `working.<key>.md` worktree overlay), exactly like `/checkpoint`. The script snapshots that section to `archive/working/YYYY-MM-DD-HHMM.md`, resets it to a `_(none yet — rolled …)_` placeholder naming the snapshot, and leaves every sibling section byte-identical.
+Use the working-file path from the `working:` line of the `<memory:active>` breadcrumb (it may be a `working.<key>.md` worktree overlay), exactly like `/checkpoint`. The script snapshots that section to `archive/working/YYYY-MM-DD-HHMM.md`, resets it to a `_(none yet — rolled …)_` placeholder naming the snapshot, and leaves every sibling section byte-identical. If it exits 2 (a duplicate learnings heading, or a code fence left open), nothing was rolled: report its stderr message and tell the user the promoted learnings are still in the section and must be removed or rolled by hand, or they will be offered again.
 
 **Do NOT move, delete, or blank the whole `working.md`.** It also holds `## Checkpoints` — owned by `/checkpoint-archive`, and possibly mid-flight — and free-form sections such as `## Open threads` that no command owns. This command previously `mv`-ed the entire file and started a fresh empty one, silently destroying both.
 
