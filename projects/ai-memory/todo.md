@@ -15,8 +15,8 @@
 
 ### checkpoint-archive should roll only closed and superseded checkpoints → [plan](plans/checkpoint-archive-selective-roll.md)
 - [x] P1 — script: --list, --keep, fence parity
-- [ ] P2 — command text, docs, changelog (needs: P1)
-- [ ] P3 — validate and ship (needs: P1, P2)
+- [x] P2 — command text, docs, changelog (needs: P1)
+- [ ] P3 — validate and ship (needs: P1, P2) — final pass PR-READY, PR #147 open, awaiting merge
 
 ## Done
 _(checked items stay above until the file is rolled)_
