@@ -41,6 +41,7 @@ Rejected: `--keep <heading>` (ambiguous on duplicate headings); `--keep-last N` 
 - Position-based `--keep`, numbered by `--list` from the same script.
 - Fail closed on any invalid keep; never roll an entry the caller asked to keep.
 - Kept entries keep original order; the rolled placeholder sits above them.
+- Malformed input fails closed in every mode, legacy included (validator round 1, 2026-11-03): a duplicate target `## ` heading, or a fence left open at EOF that opened before the target section ends, exits 2 and writes nothing. This is a deliberate exception to S5 and is called out in the changelog.
 
 ## Phases
 
@@ -60,3 +61,5 @@ Rejected: `--keep <heading>` (ambiguous on duplicate headings); `--keep-last N` 
 - Positions can drift if the file changes between `--list` and the roll. Both run in one command turn, so the window is negligible; not guarded.
 - A kept in-flight entry older than `AI_MEMORY_CHECKPOINT_WINDOW` stays in the file but out of the session payload. Out of scope here.
 - Same-minute snapshot collision handling is unchanged and still applies.
+- Fences indented 4+ spaces (code inside list items) are not fences, matching `formatters/working.sh`; a `## `/`### ` inside one shifts boundaries. Accepted for parity.
+- The fence parser now exists in three copies (this script, `formatters/working.sh`, a backtick-only one in `_lib.sh`). Extracting a shared awk include is a follow-up, not this plan.

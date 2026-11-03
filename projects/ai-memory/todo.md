@@ -14,7 +14,7 @@
 - [ ] P4 — Post-merge live probe (needs: P3, merge)
 
 ### checkpoint-archive should roll only closed and superseded checkpoints → [plan](plans/checkpoint-archive-selective-roll.md)
-- [ ] P1 — script: --list, --keep, fence parity
+- [x] P1 — script: --list, --keep, fence parity
 - [ ] P2 — command text, docs, changelog (needs: P1)
 - [ ] P3 — validate and ship (needs: P1, P2)
 
