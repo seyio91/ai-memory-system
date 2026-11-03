@@ -1,22 +1,31 @@
-Snapshot the active project's `## Checkpoints` section into `archive/working/` and reset only that section.
+Roll the active project's superseded and closed `## Checkpoints` entries into `archive/working/`, keeping in-flight entries in place.
 
 Argument: `$ARGUMENTS` — optional one-line slug for the snapshot filename (kebab-case).
 
 Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, abort and tell the user to pin the repo. Read the **working-file path** from the `working:` line of the `<memory:active>` breadcrumb, exactly like `/checkpoint`; it may be `working.<key>.md` for a worktree overlay. If the breadcrumb has no `working:` line, fall back to `~/.claude-memory/projects/<active>/working.md`.
 
-Step 2 — read that working file and classify every `### ` entry under the fence-depth-0 `## Checkpoints` section from its **content**, never from a heading keyword (no writer emits a status marker, and `/checkpoint` forbids editing a prior entry, so a heading cannot be relied on to say an entry closed). Group entries by the work they track — the `**Task:**` line, else the plan, task or PR the heading names. Each entry is exactly one of:
+Step 2 — list the entries with the script, which owns entry numbering and fence handling:
+```
+bash ~/.claude-memory/scripts/checkpoint-archive.sh --list <working-file>
+```
+It prints one `<n><TAB><### heading>` line per entry in file order. Exit 2 means the section is missing or the file is malformed (a duplicate `## Checkpoints`, or a code fence left open): report the stderr message and stop. Empty output means nothing to roll: report that and stop.
+
+Step 3 — read the working file and classify every listed entry from its **content**, never from a heading keyword (no writer emits a status marker, and `/checkpoint` forbids editing a prior entry, so a heading cannot be relied on to say an entry closed). Group entries by the work they track — the `**Task:**` line, else the plan, task or PR the heading names. Each entry is exactly one of:
 - **superseded** — a later entry tracks the same work. Only the newest entry per piece of work can be in-flight.
 - **closed** — the newest for its work, and it records the work as finished (merged/shipped and closed out: plan archived, task done, branch removed), with Next empty or pointing only at *new* work.
 - **in-flight** — the newest for its work, and its Next or Blockers names an unfinished step *of that same work* (an unmerged PR, an unrun migration, a pending phase, an open close-out step).
 
-Then collect the **open items**: every in-flight entry's unfinished step, plus any follow-up, carry-forward or blocker a non-superseded entry flags as still open (a closed entry can still carry one). For each open item, check whether it is already tracked outside `## Checkpoints` — an unchecked `todo.md` box, a backlog task, an initiative Target, or a `working.md` section the roll does not touch. If every open item is tracked elsewhere, the roll loses nothing: proceed without asking. Otherwise list each untracked open item with its entry and ask: "N open item(s) are tracked only in checkpoints. Roll anyway?" Do NOT proceed without explicit yes. When the user says yes, offer to carry the listed items into the fresh `## Checkpoints` section after Step 3.
+In-flight entries are **kept**: they stay in `## Checkpoints` untouched. Superseded and closed entries are rolled to `archive/working/`.
 
-Step 3 — run the script:
-```
-bash ~/.claude-memory/scripts/checkpoint-archive.sh <working-file> $ARGUMENTS
-```
+Then collect the open items on the **rolled** entries: any follow-up, carry-forward or blocker a closed entry still flags as open (superseded entries hand their state to a later entry, so skip them). For each, check whether it is tracked elsewhere — an unchecked `todo.md` box, a backlog task, an initiative Target, a kept in-flight entry, or a `working.md` section the roll does not touch. If every open item is tracked, proceed without asking. Otherwise list each untracked item with its entry and ask: "N open item(s) on rolled checkpoints are tracked nowhere else. Roll anyway?" Do NOT proceed without explicit yes.
 
-Step 4 — report back, three lines max:
+Step 4 — run the script, passing one `--keep <n>` per in-flight entry, numbered from Step 2's list. Options go **before** the working file:
+```
+bash ~/.claude-memory/scripts/checkpoint-archive.sh --keep <n> [--keep <n> ...] <working-file> $ARGUMENTS
+```
+With no in-flight entries, omit `--keep` and the whole section rolls. If every entry is in-flight the script reports nothing to roll and writes nothing. An invalid `--keep` exits 2 without writing: report it and stop, never retry without the keep.
+
+Step 5 — report back, three lines max:
 - Snapshot path from the script output, or "nothing to roll" if the script no-oped.
-- Checkpoint counts at roll time: total, superseded, closed, in-flight, and untracked open items.
+- Checkpoint counts at roll time: total, rolled (superseded + closed), kept (in-flight), and untracked open items.
 - One-line summary of the rolled batch / slug.
