@@ -22,7 +22,7 @@
 - [x] P1 — window default 5 and warning threshold
 - [x] P2 — /checkpoint living entries (needs: P1)
 - [x] P3 — archive check, docs, /threads, changelog (needs: P2)
-- [ ] P4 — validate and ship (needs: P1, P2, P3)
+- [x] P4 — validate and ship (needs: P1, P2, P3) — PR #148 open, awaiting merge
 
 ## Done
 _(checked items stay above until the file is rolled)_
