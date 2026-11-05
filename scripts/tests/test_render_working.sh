@@ -143,6 +143,7 @@ assert_contains "$xo" "<memory:working>" "xml formatter: wrapper kept"
 assert_contains "$mo" "# === WORKING MEMORY ===" "md formatter: header kept"
 xo3="$(printf '%s\n' "$rec" | AI_MEMORY_CHECKPOINT_WINDOW=3 xml_render_full)"
 assert_contains "$xo3" "### cp5" "xml formatter: env override honoured"
+assert_not_contains "$xo3" "### cp4" "xml formatter: env override honoured (cp4 dropped at window=3)"
 
 # --- check-memory-size --payload counts the windowed render (R5) ------------
 MEM="$T/mem"; HARN="$T/harn"
