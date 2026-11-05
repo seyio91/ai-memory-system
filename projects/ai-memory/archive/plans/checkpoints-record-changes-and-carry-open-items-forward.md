@@ -1,6 +1,7 @@
 ---
 plan: checkpoints-record-changes-and-carry-open-items-forward
-status: in_progress
+status: done
+completed: 2026-11-05
 created: 2026-11-05
 owner: claude (orchestrator)
 task_provider: local
