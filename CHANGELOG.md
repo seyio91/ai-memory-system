@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-05
+### Breaking
+
+- **`install.sh` and `sync-system.sh` now require `python3` 3.9 or later.** Both check up front and abort, changing nothing, when `python3` is missing or older. The macOS Command Line Tools `python3` (3.9) is enough; otherwise `brew install python`. Remote skill resolution (`skills.toml`, `sync-system.sh --update`) still needs 3.11 or later for `tomllib`; `--update` with a `skills.toml` aborts up front on older python3. `sync-system.sh --dry-run` skips the check. The first upgrade onto this release is performed by the previous `sync-system.sh`, which has no check: on a too-old `python3` the tree moves to the new version and `install.sh` then stops. Install `python3` 3.9 or later and re-run `/sync-system`.
+- **In guarded contexts (executor roles, or Claude with `AI_MEMORY_GUARD_SCOPE=all`), the guard now denies when no `jq`/`python3` is found.** Previously Claude's main session failed open with a warning; executor roles already denied. A missing or empty deny-list still fails open in the main session.
+
+### Added
+
+- **`/checkpoint` keeps one living entry per piece of work.** A session on work that already has an entry (matched by the `plan <slug>`, `task <ref>` or `PR #<n>` in its `**Task:**` line) now rewrites that entry in place and moves it to the bottom instead of appending another: the heading keeps its start date, Done gains one dated `- [YYYY-MM-DD]` group per run, and Next, Blockers and Resume are replaced. Every prior Next/Blockers item is accounted for: tracker lookups (`todo.md`, `taskctl`, plan status, `gh pr view`) annotate an item but never close it, so only what the session did, observed or moved to a tracked home leaves the list. Open side items that no todo box, task, plan or initiative tracks are listed as task candidates in the report and never captured. `/threads` shows `<start date> (last touched <date>)`.
+- **The checkpoint load window defaults to 5 and warns on any unloaded entry.** `AI_MEMORY_CHECKPOINT_WINDOW` defaults to 5 (set it to override), and `/checkpoint` offers `/checkpoint-archive` as soon as any entry falls outside the window.
+- **`/checkpoint-archive` checks open items on every rolled entry.** The tracked-elsewhere check now covers superseded entries as well as closed ones; classification is otherwise unchanged and the script is untouched.
+- **Executors can no longer write guard config or plan files.** `guard.sh` now denies guarded-context writes (executor role or Claude subagent; Bash, `Write`, `Edit`, `NotebookEdit`, Codex `apply_patch`) to the paths in `scripts/protected-paths.txt`, with a deny that tells the executor to report instead. The main session is unaffected. Claude's guard matcher widens to `Bash|Write|Edit|NotebookEdit`; re-run install (`/sync-system`) to pick it up.
+- **`/threads` shows the active project's open threads.** One block with the last checkpoint's Next, Blockers and Resume, `## Open threads` items not marked closed, unticked `todo.md` boxes, and open PRs. Read-only.
+- **Sessions always load the newest checkpoints.** The session payload now carries only the newest `AI_MEMORY_CHECKPOINT_WINDOW` (default 5) entries of `working.md`'s `## Checkpoints`, with a count of the rest, so truncation can no longer drop the latest state first. The file itself is unchanged. `## Checkpoints` is now the last section of `working.md`, and lint rule 19 warns on a checkpoint entry outside it. A payload that needs `cap − 1` or `cap` chunks carries an in-band near-cap note (it never displaces content), and `/checkpoint` offers `/checkpoint-archive` once any entry is no longer loaded.
+
+### Fixed
+
+- **`/checkpoint-archive` keeps in-flight checkpoints.** It used to classify entries but still archive the whole `## Checkpoints` section, so unfinished work left `working.md` and had to be restored by hand. It now rolls only superseded and closed entries and leaves in-flight ones in place, in order. `checkpoint-archive.sh` gained `--list` (numbered entries) and a repeatable `--keep <n>`. An invalid keep exits 2 and writes nothing.
+- **`checkpoint-archive.sh` refuses malformed input in every mode.** A duplicate target `## ` heading, or a code fence left open at the end of the file that started at or before the target section, now exits 2 and writes nothing. That applies to `/promote-memory`'s learnings roll too, where it could previously roll the wrong span. A slug that is not a plain name (for example `--keep=2` placed after the working file) is a usage error instead of a filename. Tilde and long backtick fences are now recognised the same way the session payload renders them.
+- **A done local task now leaves the board.** The local task provider moves a task to `archive/tasks/` when its status becomes `done` (as well as `archived`), instead of leaving it in `tasks/`. Reopening a closed task moves it back, and `list` reads the directory that matches the requested status. `update` now works on a closed task, and a move that would overwrite an existing file is refused. The Notion provider is unchanged.
+
 ## [1.7.0] - 2026-10-31
 ### Added
 
