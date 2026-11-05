@@ -1,31 +1,61 @@
-Capture this session's salient state as a checkpoint in the active project's working memory. Do NOT ask the user questions — synthesize the five fields directly from this session's context (what's been discussed, decisions made, files touched, next steps, blockers).
+Capture this session's salient state as a checkpoint in the active project's working memory. Do NOT ask the user questions — synthesize the five fields from this session's context.
 
-Step 1 — resolve the active project from the injected memory context: the `<memory:active project="...">` breadcrumb (present every prompt) or the `<memory:project name="...">` block. If neither is present, no project is pinned to this repo — abort and tell the user to pin it (`/pin <project>` from inside the repo, or add `.agents/memory-project`). Also read the **working-file path** from the `working:` line of the `<memory:active>` breadcrumb — this is the exact file to read and write below. It may be a per-worktree overlay (`working.<key>.md`) when you are in a linked git worktree; use that path verbatim, do **not** hand-build `projects/<active>/working.md` (that would write a concurrent session's file). If the breadcrumb has no `working:` line, fall back to `~/.claude-memory/projects/<active>/working.md`.
+Step 1 — resolve the active project from the `<memory:active project="...">` breadcrumb or the `<memory:project name="...">` block; if neither is present, abort and tell the user to pin it (`/pin <project>` inside the repo, or add `.agents/memory-project`). Read and write the path on the breadcrumb's `working:` line verbatim (it may be a worktree overlay, `working.<key>.md`); never hand-build `projects/<active>/working.md`. Without that line, use `~/.claude-memory/projects/<active>/working.md`.
 
-Step 2 — read the working file resolved in Step 1 (create it if it does not exist yet — a fresh worktree overlay starts empty). Identify:
-- Whether a `## Checkpoints` section exists. If not, you'll create it as the last section of the file.
-- The order of existing checkpoints: last-touched (bottom = most recently written), because a rewritten entry moves to the bottom. `## Checkpoints` is the last section, so the bottom of it is the end of the file.
-- The session's **work reference**: the SET of all identifiers its work carries — the plan slug of the plan the session's work belongs to (executed, written, revised or validated; `plan <slug>` / `plans/<slug>.md`), the task ref (`task <ref>`), the PR number (`PR #<n>`), any that apply. The PR identifier is the number: a `#<n>` in a Task line counts when it reads as a PR reference (e.g. `PR #n`, `#n` in a PR list), not an issue or a count (legacy lines write `(#125, #126)`), while new Task lines use `PR #<n>`. Derive each existing entry's reference set the same way from its whole `**Task:**` paragraph (it may wrap onto following lines up to the blank line; an entry may carry several identifiers). Identifiers compare literally, after stripping backticks: `plan X` and `task X` are two identifiers, so name both when both apply. **Match rule:** when both the session and the entry have a plan slug, they match only if they share a plan slug — an entry or session may name several plans (a shared task or PR never folds a session into an entry about a different plan); when either side has no plan slug, any shared identifier (task ref or PR number) matches. If several entries match, a match on a plan slug outranks a match on a task ref or PR number only (a legacy entry that names only `#147` must not win over the entry that names the plan); among matches of the same rank, the bottom-most in the file wins. An entry with no `**Task:**` line never matches.
-- The session's work may span several pieces (e.g. it closed plan A and ran plan B's phase 4). Group the session's identifiers by piece of work — each plan, or a task/PR not belonging to any plan the session touched, is one piece — and run Steps 2–4 once per piece, except Step 3a, which runs once per session. Each piece has its own reference set: match or append for that piece alone, and write that piece's new content only; every prior Next/Blockers bullet of that entry is still reconciled per Step 3 (plus, for the last entry written, the pieceless work and side items). Compute every piece's match (and rank) once, against the file as it is before any write, then perform the writes in that order; never re-match after a write — a moved entry must not become another piece's bottom-most match. Two pieces that resolve to the same entry (one legacy line naming both) are ONE pass for that entry: one combined reference set, one reconciliation, one `[today]` group — never two passes on one entry in a session. Process pieces in the file order of their matched entries (top to bottom), then pieces that append new entries, in the order they first appear in the session. Work this session did that belongs to no piece (e.g. housekeeping like pruning symlinks), and side items it raised that belong to no piece, go into the LAST entry written in the session under that order (its Done group / its Next). A session with no piece at all writes one new entry for them: its Task line is a plain sentence with no identifier, so it will never be matched again — that is fine, and its side items get the Step 5 candidate lines.
-- Whether a `## Cross-project learnings (pending promotion)` section exists above `## Checkpoints` — leave it untouched.
+Step 2 — read the working file (create it if missing); leave `## Cross-project learnings (pending promotion)` untouched. `## Checkpoints` is the last section, in last-touched order (bottom = most recent).
 
-Step 3 — if Step 2 found a matched entry, first look up the current state of every tracker its prior Next/Blockers bullets name: `todo.md` checkbox state (the entry's OWN plan section only — for an entry whose Task names several plans, the union of those plans' sections); `bash ~/.claude-memory/scripts/taskctl get <ref>` for task refs (pass the full ref, never a `…`-shortened one); a plan's frontmatter `status:`; `gh pr view <n> --json state` for PR numbers. Lookups inform, they never close: write the result as an annotation on the bullet ("(#50 merged)", "(box ticked)", "(task archived)", "(state unknown)" when a lookup fails — never assume). When restating an already-annotated bullet, replace the old annotation rather than stacking ("(#50 merged) (#50 merged)" never appears), and drop a "(state unknown)" once a later lookup succeeds. Closure comes from the session alone. Every prior Next/Blockers bullet must land in exactly one place in the rewritten entry: today's Done group only when (a) this session did it, (b) this session observed it done through its own work before `/checkpoint` — the user said so, or the session itself produced the artifact (merged the PR, ticked the box, archived the plan); a Step 3 lookup result never counts as observation, or (c) this session moved it to a home that now tracks it (`moved to <todo box | task <ref> | plan <slug> | initiative Target>`); otherwise restated in Next/Blockers, annotation included. `/checkpoint` performs no move: record `moved to …` only for an item that had no home before and now has one — that home already tracks the item (a todo box, task, plan or initiative Target that names it, e.g. after the user ran `/task add` this session); a plan or initiative merely existing is not a home. Nothing may be dropped silently. State that `todo.md`, a plan or an initiative tracks (remaining phases etc.) is pointed at ("remaining phases: todo.md"), not copied into Next; a prior item naming `todo.md` phases that are still unticked lands as that Next pointer, never as "moved to todo box"; a bullet naming unticked phases AND something else ("Phases 3–4; also bump CHANGELOG") keeps its non-phase part as its own restated item, and only the phase part collapses into the pointer. Homes are named, not searched: an item has a home only when the item itself names one — a todo box's text, `task <ref>`, `plan <slug>`, an initiative Target. Do not search the backlog or plans for a possible match. When a matched entry's `**Next:**`/`**Blockers:**`/`**Done:**` holds inline prose instead of bullets, treat that prose as one item; in Done keep it verbatim (the byte-identical rule covers it) and never reformat it into bullets.
+**Work reference**
+1. The session's reference: the identifiers its work carries — each plan it executed, wrote, revised or validated (`plan <slug>` / `plans/<slug>.md`), `task <ref>`, `PR #<n>`.
+2. An entry's reference: its whole `**Task:**` paragraph, to the next blank line.
+3. The PR identifier is the number: a bare `#<n>` equals `PR #<n>` where it reads as a PR (`PR #n`, a PR list), not an issue or count.
+4. Compare literally, backticks stripped; `plan X` and `task X` differ.
 
-Then synthesize the five fields from this session's context:
-- **Task** — one sentence naming what we're working on. Concrete, not vague. It must name every identifier the work carries (on a matched entry, append what the paragraph lacks, see Step 4), as `plan <slug>`, `task <ref>` and `PR #<n>` (a plan whose frontmatter has a `task_ref:` is named with both `plan <slug>` and `task <ref>`) — Step 2 derives an entry's reference only from this paragraph, so an entry without them can never be matched again.
-- **Done** — what's been completed *in this session*, plus items this session observed done or moved per the reconciliation above (files changed, decisions locked in, work that produced an artifact). Bulleted if multiple items. Reference file paths where useful.
-- **Next** — the immediate next step(s). Bulleted if multiple. Should be specific enough that the next session can pick it up cold.
-- **Blockers** — open decisions, unanswered questions, external dependencies. Use "None" if there genuinely are none.
-- **Resume** — one prose line that drops a cold session straight into the work: which file to open, what's stubbed/half-done, and the exact line or function to start at (e.g. "open `scripts/foo.sh`; `parse()` is stubbed at L40 — wire it to `_lib.sh:bar` next"). This is the orienting pointer, not a restatement of Next.
+**Match**
+5. If both sides have plan slugs, match only on a shared slug; otherwise any shared task ref or PR matches.
+6. A plan-slug match outranks a task/PR match; among equals, the bottom-most entry wins.
+7. An entry without a `**Task:**` line never matches.
 
-Be honest. If nothing material happened in this session, say so in Done (e.g. "Discussion only — no artifacts produced") rather than padding. If Next is unclear, write "Awaiting user direction on …".
+**Pieces**
+8. Each plan the session touched is a piece of work; so is each task or PR outside those plans. Run Steps 2–4 per piece, matching on that piece's identifiers only; Step 3a once.
+9. Compute all matches and ranks before the first write; never re-match.
+10. Pieces matching one entry are one pass: combined reference set, one reconciliation, one `[today]` group.
+11. Write matched entries top to bottom, then new entries in the order their pieces first came up.
+12. A pass writes only its piece's new content but reconciles every prior Next/Blockers bullet of its entry.
+13. Work and side items of no piece go into the last entry written (its Done group / its Next); a session with no piece writes one new entry whose Task names no identifier.
 
-Step 3a — once per session, not per piece (it asks a whole-session question), before writing the checkpoint, check active `initiatives/<slug>.md` files for `kind: initiative`, `status: active`, and a `### <active-project>/...` Target heading. If the active project owns a Target, answer from this session's context: **did this session settle anything that binds another repo?** If yes, append it to that initiative's `## Decision stream` now as the next `D<n> proposed <today>` entry with an `unconfirmed:` continuation line, before writing the checkpoint. Do not ask the user. A decision recorded only in a plan, runbook, or project memory has not been recorded.
+Rationale and worked examples for Steps 2–4: `docs/file-formats.md`, "Why the `/checkpoint` rules".
 
-Step 4 — write the checkpoint to the `## Checkpoints` section (today's date is in the `<memory:identity>` injection context — use it; do not invent). Two paths:
+Step 3 — for a matched entry, first:
 
-- **Matched** — rewrite the matched entry in place and move it to the bottom of `## Checkpoints`. The heading line is unchanged (it keeps its original start date). The `**Task:**` line gains every identifier of this piece (of both, in a combined pass) that it lacks, never another piece's (append `, plan <slug>` / `, task <ref>` / `, PR #<n>` before the paragraph's final period, even when the paragraph wraps onto several lines); nothing else changes. In Done, keep every existing bullet byte-identical and append ONE new group whose bullets are prefixed `- [YYYY-MM-DD] ` (today) — always a new group per run, never merged into an earlier group, even on the same day (no blank line inside the bullets this run appends, and a second run on the same day just appends more `- [today]` bullets; a legacy Done block that already contains blank lines is left as it is, byte-identical). Next, Blockers and Resume are replaced with current state; a legacy entry with no `**Resume:**` line gets one, and a missing `**Blockers:**` is added with "None" rather than left absent. Every other entry stays byte-identical.
-- **No match** — append a new entry at the bottom, in this exact shape, its Task paragraph naming every identifier of THIS PIECE only (a session that closes plan A and starts plan B never puts `plan A` on B's Task); every existing entry stays byte-identical:
+**Lookups** — for each tracker a prior Next/Blockers bullet names, check: `todo.md` boxes (the entry's own plan section, or the union of its plans' sections); `bash ~/.claude-memory/scripts/taskctl get <ref>` (full ref, never `…`-shortened); plan frontmatter `status:`; `gh pr view <n> --json state`. Annotate the bullet — "(#50 merged)", "(box ticked)", "(task archived)", or "(state unknown)" on failure; never assume. A lookup never closes an item. Replace an old annotation, never stack one; drop "(state unknown)" once a lookup succeeds.
+
+**Reconcile** — every prior Next/Blockers bullet lands in exactly one place; none is dropped silently.
+- It goes to today's Done group only if this session (a) did it; (b) saw it done through its own work (the user said so, or it produced the artifact — merged the PR, ticked the box), never via a lookup; or (c) gave it a home that now tracks it: `moved to <todo box | task <ref> | plan <slug> | initiative Target>`.
+- Otherwise restate it in Next/Blockers, annotation included.
+- `/checkpoint` performs no move: write `moved to …` only when the item had no home and one now names it; a plan or initiative merely existing is not a home.
+- Point at what `todo.md`, a plan or an initiative tracks ("remaining phases: todo.md"), never copy it; unticked phases become that pointer, never "moved to todo box". In a mixed bullet ("Phases 3–4; also bump CHANGELOG") only the phase part collapses; restate the rest as its own item.
+- An item has a home only if it names one (a todo box's text, `task <ref>`, `plan <slug>`, an initiative Target); never search for one.
+- Inline prose in Next or Blockers is one item.
+
+Then synthesize the five fields:
+- **Task** — one concrete sentence naming every identifier of this piece, no other piece's, as `plan <slug>`, `task <ref>`, `PR #<n>` (a plan with `task_ref:` gets both).
+- **Done** — what this session completed, plus items it saw done or moved; bulleted, file paths where useful.
+- **Next** — immediate next steps, bulleted, specific enough to pick up cold.
+- **Blockers** — open decisions, questions, external dependencies; else "None".
+- **Resume** — one prose line: file to open, what's stubbed, exact line or function to start at; not a restatement of Next.
+
+Be honest: if nothing material happened, Done says "Discussion only — no artifacts produced"; if Next is unclear, write "Awaiting user direction on …".
+
+Step 3a — once per session, before writing: if an active initiative (`initiatives/<slug>.md` with `kind: initiative`, `status: active`) has a `### <active-project>/...` Target heading and this session settled anything that binds another repo, append it to that initiative's `## Decision stream` as the next `D<n> proposed <today>` entry with an `unconfirmed:` continuation line, without asking the user. A decision recorded only in a plan, runbook or project memory has not been recorded.
+
+Step 4 — write to `## Checkpoints` with today's date from `<memory:identity>` (never invent one). Every entry this pass does not write stays byte-identical.
+
+- **Matched** — rewrite the entry in place and move it to the bottom:
+  - Leave the heading line unchanged (start date kept).
+  - Append each identifier of this piece (every piece, in a combined pass) missing from the `**Task:**` paragraph — `, plan <slug>` etc. — before its final period, even when it wraps; change nothing else.
+  - Keep existing Done content byte-identical (legacy blank lines and inline prose included; never reformat into bullets). Append ONE new group of `- [YYYY-MM-DD] ` bullets (today), no blank line inside — every run, never merged into an earlier group, even the same day (a same-day run just appends more `- [today]` bullets, no blank line before them).
+  - Replace Next, Blockers and Resume; add a missing `**Resume:**`, and a missing `**Blockers:**` as "None".
+- **No match** — append a new entry at the bottom in this exact shape:
 
 ```
 ### YYYY-MM-DD — <Task summary, one line>
@@ -46,17 +76,10 @@ Step 4 — write the checkpoint to the `## Checkpoints` section (today's date is
 **Resume:** <one prose line — file to open, what's stubbed, exact line/function to start at>
 ```
 
-Older Done groups and other entries are never edited, and a heading is never rewritten.
+If `## Checkpoints` is missing, create it as the file's last section. If the file is empty, also add `# Working — <active>` and `## Cross-project learnings (pending promotion)` (holding `_(none yet)_`) above it.
 
-If `## Checkpoints` doesn't exist, create it as the last section of the file with this checkpoint as its first entry. If the working file is empty entirely, also add a top-level `# Working — <active>` heading and a `## Cross-project learnings (pending promotion)` section above the new `## Checkpoints` (with a `_(none yet)_` placeholder under it).
-
-Step 5 — report back, with no fixed cap. Per written entry:
-- Path written.
-- Heading of the written entry (new or rewritten).
-- One-line summary of what was captured (e.g. "agent-friendly Terraform refactor — Track A files ready, awaiting go-ahead").
-
-After the per-entry blocks, report the appended decision-stream id, if any, once.
-
-Then, for each open Next/Blockers item of a written entry that is not a step of that entry's own piece of work AND names no `todo.md` box, `task <ref>`, `plan <slug>` or initiative Target (do not search for one) — a side item — add one line naming it as a task candidate: `open item has no todo/task home: "<item>" — /task add? (or name its existing task/todo/plan on the item)`. An entry's own steps (its phases, its PR, its close-out) close with the entry and need no other home, so they never get a candidate line (a side item is e.g. "mark the Notion project-scan task done" in an entry about plan foo). These lines follow the per-entry lines. `/checkpoint` never captures a task itself.
-
-Then, once at the end, count the `### ` entries now in `## Checkpoints` (fence-depth 0). Sessions load only the newest `AI_MEMORY_CHECKPOINT_WINDOW` (default 5); if count > window, add one line (N = count − window; it can be 1): "N checkpoint(s) are no longer loaded into sessions — run `/checkpoint-archive`?" Do not run it unasked.
+Step 5 — report back, with no fixed cap:
+- Per written entry: the path, its heading (new or rewritten), a one-line summary.
+- Then the appended decision-stream id, if any, once.
+- Then one line per side item — an open Next/Blockers item of a written entry that is not one of its own piece's steps (phases, PR, close-out) and names no `todo.md` box, `task <ref>`, `plan <slug>` or initiative Target (do not search): `open item has no todo/task home: "<item>" — /task add? (or name its existing task/todo/plan on the item)`. Never capture a task yourself.
+- Last, count the `### ` entries in `## Checkpoints` (fence-depth 0). Sessions load only the newest `AI_MEMORY_CHECKPOINT_WINDOW` (default 5); if count > window, add: "N checkpoint(s) are no longer loaded into sessions — run `/checkpoint-archive`?" (N = count − window; it can be 1). Do not run it unasked.

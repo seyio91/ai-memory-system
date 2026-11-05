@@ -207,6 +207,23 @@ A wiki page holds what stays true; findings gathered before a task exists are an
 - [YYYY-MM-DD] Discussion only — no artifacts produced
 ```
 
+### Why the `/checkpoint` rules
+
+`commands/checkpoint.md` states the rules; this is why they are shaped that way, with the examples that settled them.
+
+- **Plan slug outranks task and PR.** When both sides name a plan, the plan is the piece of work: a shared task or PR never folds a session into an entry about a different plan. The rank matters for legacy entries: one whose Task names only `#147` must not win over the entry that names the plan, even when it sits lower in the file.
+- **PR numbers in legacy lines.** Older Task lines list PRs bare, `(#125, #126)`; a `#<n>` counts only where it reads as a PR, not an issue number or a count. New Task lines write `PR #<n>`. Identifiers compare literally, so `plan X` and `task X` never match each other — name both when both apply.
+- **The Task paragraph is the only key.** An entry whose Task names no identifier can never be matched again. That is deliberate for a session with no piece of work: its entry is a one-off.
+- **Matches are computed before any write.** A rewritten entry moves to the bottom; matching again after a write would let it become another piece's bottom-most match.
+- **Several pieces in one session.** A session that closes plan A and runs phase 4 of plan B updates A's entry and B's entry separately, and `plan A` never appears on B's Task. Work that belongs to no piece (housekeeping such as pruning symlinks) and side items go into the last entry written.
+- **Step 3a runs once per session**, not per piece, because it asks a whole-session question.
+- **Lookups annotate; only the session closes.** Five validation rounds each found a phrasing where a terminal tracker state closed an item that was still live: a precondition mention ("rebase once PR #50 merges" — #50 merging does not mean the rebase happened), a plan not yet created, a same-named box in another plan's section. With annotate-only, an unforeseen phrasing leaves an item open (a nudge), never loses it; `/checkpoint-archive` checks open items again at roll time.
+- **Moves are recorded, not performed.** `moved to task <ref>` is right after the user ran `/task add` for the item this session; a plan that exists but does not name the item is not a home.
+- **Pointers, not copies.** What `todo.md`, a plan or an initiative tracks lives there. A prior Next bullet "Phases 3–4; also bump CHANGELOG" becomes two Next items: "remaining phases: todo.md" and "bump CHANGELOG".
+- **Same-day groups.** Every run appends its own `[today]` group, so older groups stay byte-identical. A second run on the same day appends more `- [today]` bullets with no separator, so the two groups read as one; that is accepted.
+- **Side items are nudged, never captured.** In an entry about plan foo, "mark the Notion project-scan task done" is a side item and gets a task-candidate line; foo's phases, PR and close-out close with the entry and need no other home. Capturing the task automatically would be a backend write the user never approved.
+- **Resume** points a cold session at a spot, e.g. "open `scripts/foo.sh`; `parse()` is stubbed at L40 — wire it to `_lib.sh:bar` next". The report's per-entry summary is one line, e.g. "agent-friendly Terraform refactor — Track A files ready, awaiting go-ahead".
+
 ### Per-worktree overlays (`working.<key>.md`)
 
 Two concurrent sessions on one repo run in separate git worktrees (a checkout has one HEAD, so concurrency *requires* it). They would otherwise share one `working.md` and clobber each other's checkpoints. To prevent that, the scratchpad is resolved per session: in a **linked git worktree** the working file becomes `working.<worktree-name>.md`; in the main checkout it stays `working.md`. `memory.md`, `todo.md`, `index`, and `plans/` are always shared — only the volatile scratchpad splits.
