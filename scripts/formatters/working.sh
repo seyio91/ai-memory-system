@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # formatters/working.sh — render_working <path>: print working.md with the
-# `## Checkpoints` section cut to its newest AI_MEMORY_CHECKPOINT_WINDOW (default 2)
+# `## Checkpoints` section cut to its newest AI_MEMORY_CHECKPOINT_WINDOW (default 5)
 # `### ` entries. Sourced by xml.sh and md.sh. Read-only; any filter failure or
 # nothing-to-cut prints the file unchanged.
 
 render_working() {
-    local path="$1" w="${AI_MEMORY_CHECKPOINT_WINDOW:-2}" out rc body
-    case "$w" in ''|*[!0-9]*) w=2 ;; esac
-    [ "$((10#$w))" -gt 0 ] || w=2
+    local path="$1" w="${AI_MEMORY_CHECKPOINT_WINDOW:-5}" out rc body
+    case "$w" in ''|*[!0-9]*) w=5 ;; esac
+    [ "$((10#$w))" -gt 0 ] || w=5
     out=$(awk -v w="$((10#$w))" '
         function fenceline(s,   t, c, k) {
             t = s; sub(/^ ? ? ?/, "", t)

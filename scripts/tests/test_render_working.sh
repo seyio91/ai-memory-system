@@ -29,27 +29,34 @@ mkwork() {
 MARK='older checkpoints not loaded'
 W="$T/working.md"
 
-# --- 0 / 1 / 2 checkpoints: raw ---------------------------------------------
-for n in 0 1 2; do
+# --- 0 / 1 / 2 / 5 checkpoints: raw (5 = the default window) -----------------
+for n in 0 1 2 5; do
     mkwork "$W" "$n"
     assert_eq "$(cat "$W")" "$(render_working "$W")" "$n checkpoints: unchanged"
 done
 
+# --- 6 checkpoints: one past the default window ------------------------------
+mkwork "$W" 6
+out="$(render_working "$W")"
+assert_contains "$out" "_(1 older checkpoints not loaded — see working.md)_" "6 cp: one omitted"
+assert_not_contains "$out" "### cp1" "6 cp: cp1 dropped"
+assert_contains "$out" "### cp2" "6 cp: cp2 kept"
+
 # --- 7 checkpoints ----------------------------------------------------------
 mkwork "$W" 7 '_(rolled 2026-01-01)_'
 out="$(render_working "$W")"
-assert_contains "$out" "_(5 older checkpoints not loaded — see working.md)_" "7 cp: omitted line says 5"
+assert_contains "$out" "_(2 older checkpoints not loaded — see working.md)_" "7 cp: omitted line says 2"
 assert_contains "$out" "_(rolled 2026-01-01)_" "7 cp: preamble preserved"
-assert_contains "$out" "### cp6" "7 cp: cp6 kept"
+assert_contains "$out" "### cp3" "7 cp: cp3 kept"
 assert_contains "$out" "### cp7" "7 cp: cp7 kept"
-assert_not_contains "$out" "### cp5" "7 cp: cp5 dropped"
+assert_not_contains "$out" "### cp2" "7 cp: cp2 dropped"
 assert_not_contains "$out" "body1" "7 cp: cp1 body dropped"
 assert_contains "$out" "- thread" "7 cp: other section kept"
 assert_eq "1" "$(printf '%s\n' "$out" | grep -c "$MARK")" "7 cp: exactly one omitted line"
 pre_line=$(printf '%s\n' "$out" | grep -n 'rolled' | cut -d: -f1)
 mark_line=$(printf '%s\n' "$out" | grep -n "$MARK" | cut -d: -f1)
-cp6_line=$(printf '%s\n' "$out" | grep -n '### cp6' | cut -d: -f1)
-assert_eq "yes" "$([ "$pre_line" -lt "$mark_line" ] && [ "$mark_line" -lt "$cp6_line" ] && echo yes)" "7 cp: order preamble < marker < kept"
+cp3_line=$(printf '%s\n' "$out" | grep -n '### cp3' | cut -d: -f1)
+assert_eq "yes" "$([ "$pre_line" -lt "$mark_line" ] && [ "$mark_line" -lt "$cp3_line" ] && echo yes)" "7 cp: order preamble < marker < kept"
 
 # --- sections outside Checkpoints identical to the unfiltered render --------
 before="$(printf '%s\n' "$(cat "$W")" | sed '/^## Checkpoints/,$d')"
@@ -70,7 +77,7 @@ assert_contains "$out" "### cp5" "window=3: cp5 kept"
 assert_not_contains "$out" "### cp4" "window=3: cp4 dropped"
 for bad in 0 abc -1 ""; do
     out="$(AI_MEMORY_CHECKPOINT_WINDOW=$bad render_working "$W")"
-    assert_contains "$out" "_(5 older checkpoints not loaded" "window='$bad': falls back to 2"
+    assert_contains "$out" "_(2 older checkpoints not loaded" "window='$bad': falls back to 5"
 done
 
 # --- missing Checkpoints section -------------------------------------------
@@ -100,7 +107,7 @@ cat > "$T/fence.md" <<'X'
 ### real3
 last
 X
-out="$(render_working "$T/fence.md")"
+out="$(AI_MEMORY_CHECKPOINT_WINDOW=2 render_working "$T/fence.md")"
 assert_contains "$out" "_(1 older checkpoints not loaded" "fence: only fence-depth-0 headings count (1 dropped)"
 assert_not_contains "$out" "real1" "fence: real1 dropped"
 assert_not_contains "$out" "inside-fence" "fence: fenced ### stays inside its entry (dropped with real1)"
@@ -127,15 +134,16 @@ xo="$(printf '%s\n' "$rec" | xml_render_full)"
 mo="$(printf '%s\n' "$rec" | md_render)"
 for pair in "xml:$xo" "md:$mo"; do
     f="${pair%%:*}"; o="${pair#*:}"
-    assert_contains "$o" "_(5 older checkpoints not loaded — see working.md)_" "$f formatter: omitted line"
+    assert_contains "$o" "_(2 older checkpoints not loaded — see working.md)_" "$f formatter: omitted line"
     assert_contains "$o" "### cp7" "$f formatter: newest kept"
-    assert_not_contains "$o" "### cp5" "$f formatter: older dropped"
+    assert_not_contains "$o" "### cp2" "$f formatter: older dropped"
     assert_contains "$o" "- thread" "$f formatter: other section kept"
 done
 assert_contains "$xo" "<memory:working>" "xml formatter: wrapper kept"
 assert_contains "$mo" "# === WORKING MEMORY ===" "md formatter: header kept"
 xo3="$(printf '%s\n' "$rec" | AI_MEMORY_CHECKPOINT_WINDOW=3 xml_render_full)"
 assert_contains "$xo3" "### cp5" "xml formatter: env override honoured"
+assert_not_contains "$xo3" "### cp4" "xml formatter: env override honoured (cp4 dropped at window=3)"
 
 # --- check-memory-size --payload counts the windowed render (R5) ------------
 MEM="$T/mem"; HARN="$T/harn"
@@ -146,7 +154,7 @@ import sys
 with open(sys.argv[1], "w") as f:
     f.write("# Working\n\n## Checkpoints\n")
     for i in range(1, 8):
-        f.write("### cp%d\n%s\n\n" % (i, ("w%d" % i) * 1000))
+        f.write("### cp%d\n%s\n\n" % (i, ("w%d" % i) * 700))
 PY
 printf 'name = capped\nformat = xml\nsession_chunks = 1\n' > "$HARN/capped/manifest"
 runp() {
@@ -162,19 +170,19 @@ assert_exit 1 "$RC" "--payload: same file with a 99 window exceeds the cap (wind
 
 # --- long fence holding shorter fences; info-string line is not a closer ------
 printf '## Checkpoints\n### old1\no\n\n### recent1\n````md\n```bash\n### fake\n```\n````\n\n### recent2\nr\n' > "$T/fence4.md"
-out="$(render_working "$T/fence4.md")"
+out="$(AI_MEMORY_CHECKPOINT_WINDOW=2 render_working "$T/fence4.md")"
 assert_contains "$out" "_(1 older checkpoints not loaded" "fence4: one entry omitted, fenced ### not counted"
 assert_contains "$out" "### recent1" "fence4: recent1 kept"
 assert_contains "$out" "### fake" "fence4: fenced ### kept inside recent1"
 assert_not_contains "$out" "### old1" "fence4: old1 dropped"
 printf '## Checkpoints\n### a\n```\nx\n```sh\n### b-fenced\n```\n### c\nz\n### d\nw\n' > "$T/fenceinfo.md"
-out="$(render_working "$T/fenceinfo.md")"
+out="$(AI_MEMORY_CHECKPOINT_WINDOW=2 render_working "$T/fenceinfo.md")"
 assert_not_contains "$out" "### b-fenced" "fence-info: info-string line does not close (b-fenced drops with a)"
 assert_contains "$out" "_(1 older checkpoints not loaded" "fence-info: only a omitted"
 
 # --- CRLF ---------------------------------------------------------------------
 printf '## Checkpoints\r\n### c1\r\nx\r\n### c2\r\ny\r\n### c3\r\nz\r\n' > "$T/crlf.md"
-out="$(render_working "$T/crlf.md")"
+out="$(AI_MEMORY_CHECKPOINT_WINDOW=2 render_working "$T/crlf.md")"
 assert_contains "$out" "_(1 older checkpoints not loaded" "crlf: window applies"
 assert_not_contains "$out" "### c1" "crlf: c1 dropped"
 assert_contains "$out" "### c3" "crlf: c3 kept"

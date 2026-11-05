@@ -135,4 +135,4 @@ Outside a Codex session — useful after exiting Codex while a session insight i
 ~/.claude-memory/harnesses/codex/scripts/codex-mem-checkpoint.sh
 ```
 
-Opens `$EDITOR` on `working.md` with a checkpoint scaffold appended. Fill in done/next/blockers, save, done.
+Opens `$EDITOR` on `working.md` with a checkpoint scaffold appended. Fill in done/next/blockers/resume, save, done (it always appends; if a living entry for the same work exists, merge by hand: keep its heading, add a dated Done group, replace Next/Blockers/Resume restating every earlier open item, move it to the bottom, delete the appended scaffold).

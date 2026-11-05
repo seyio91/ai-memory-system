@@ -178,7 +178,7 @@ Shared-state criteria, enforcement detail, and worked examples:
   the events. Where installed (Claude, by `install.sh`),
   `scripts/hooks/memory_write_guard.sh` reports drift back after every write.
 - **Checkpoint before pauses, tool switches, or session end** — task / done /
-  next / blockers, into the active project's `working.md`. Use `/checkpoint`,
+  next / blockers / resume, into the active project's `working.md`. Use `/checkpoint`,
   or write directly when informal.
 - **Promote durable scratchpad entries** with `/promote-memory` — targets a
   domain file (cross-project), the active project's `memory.md`, or a
