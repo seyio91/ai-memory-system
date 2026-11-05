@@ -11,7 +11,7 @@
 - [x] P1 — path-match.sh: protected set, Claude file tools, Bash obvious writes
 - [x] P2 — Codex apply_patch extraction (needs: P1)
 - [x] P3 — Wiring, doctrine, docs (needs: P1, P2)
-- [ ] P4 — Post-merge live probe (needs: P3, merge)
+- [x] P4 — Post-merge live probe (needs: P3, merge)
 
 ### checkpoint-archive should roll only closed and superseded checkpoints → [plan](archive/plans/checkpoint-archive-selective-roll.md)
 - [x] P1 — script: --list, --keep, fence parity
