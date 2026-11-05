@@ -1,6 +1,7 @@
 ---
 plan: checkpoint-archive-selective-roll
-status: in_progress
+status: done
+completed: 2026-11-05
 created: 2026-11-03
 owner: claude (orchestrator)
 task_provider: local

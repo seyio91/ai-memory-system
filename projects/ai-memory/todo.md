@@ -13,10 +13,10 @@
 - [x] P3 — Wiring, doctrine, docs (needs: P1, P2)
 - [ ] P4 — Post-merge live probe (needs: P3, merge)
 
-### checkpoint-archive should roll only closed and superseded checkpoints → [plan](plans/checkpoint-archive-selective-roll.md)
+### checkpoint-archive should roll only closed and superseded checkpoints → [plan](archive/plans/checkpoint-archive-selective-roll.md)
 - [x] P1 — script: --list, --keep, fence parity
 - [x] P2 — command text, docs, changelog (needs: P1)
-- [ ] P3 — validate and ship (needs: P1, P2) — final pass PR-READY, PR #147 open, awaiting merge
+- [x] P3 — validate and ship (needs: P1, P2) — merged as #147 (`08226e0`)
 
 ## Done
 _(checked items stay above until the file is rolled)_
