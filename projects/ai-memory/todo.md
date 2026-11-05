@@ -7,7 +7,7 @@
 
 ## Active
 
-### Executor-protected paths: guard config and plans → [plan](plans/executor-protected-paths.md)
+### Executor-protected paths: guard config and plans → [plan](archive/plans/executor-protected-paths.md)
 - [x] P1 — path-match.sh: protected set, Claude file tools, Bash obvious writes
 - [x] P2 — Codex apply_patch extraction (needs: P1)
 - [x] P3 — Wiring, doctrine, docs (needs: P1, P2)
