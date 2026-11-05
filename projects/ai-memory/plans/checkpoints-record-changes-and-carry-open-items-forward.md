@@ -77,6 +77,7 @@ Rejected:
 (S1–S5)
 
 ### Phase 3 — Archive check, docs, `/threads`
+- `commands/checkpoint.md` two wording risks from the Phase 2 final pass: L9 "write that piece's … only" must not be readable against L12's every-bullet rule (say "its own new content only; every prior bullet of that entry is still reconciled"); the todo lookup's "entry's own plan section" for an entry naming several plans = the union of those plans' sections.
 - `commands/checkpoint-archive.md` Step 3: run the open-item check on all rolled entries; drop the "superseded entries hand their state to a later entry, so skip them" clause; reword L13's "`/checkpoint` forbids editing a prior entry" to the new rule (a living entry is rewritten, so a heading or position still says nothing about closure); note that superseded arises only for pre-change entries or a legacy entry a living entry continued.
 - `docs/file-formats.md` `## Checkpoints` block (~L185–201): Done-group shape, rewrite rule, last-touched ordering.
 - `docs/harnesses/claude.md` rows for `/checkpoint` and `/checkpoint-archive`.
