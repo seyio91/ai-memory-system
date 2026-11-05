@@ -15,7 +15,7 @@ Make `/checkpoint` keep one living entry per piece of work (dated Done groups, c
 
 ## Success criteria
 
-1. **S1 — one entry per piece of work.** An entry's **work reference** is derived from its `**Task:**` line: the plan slug if one is named (`plan <slug>` or `plans/<slug>.md`), else the task ref, else the PR number; a Task line naming several is matched on any of them. The session's reference is derived the same way from the work it did. `/checkpoint` matches when the two share any identifier; when several entries match, the **bottom-most in the working file** is the match. A match rewrites that entry in place and moves it to the bottom; no match, or no `**Task:**` line to derive from, appends a new entry. The heading keeps its original start date and is never rewritten. Section order is therefore last-touched, not start-date.
+1. **S1 — one entry per piece of work.** An entry's **work reference** is derived from its `**Task:**` line: the plan slug if one is named (`plan <slug>` or `plans/<slug>.md`), else the task ref, else the PR number; a Task line naming several is matched on any of them. The session's reference is derived the same way from the work it did. `/checkpoint` matches on the plan slug when both sides have one (a plan-bearing entry never matches a session on a different plan, even if they share a task or PR); when either side has no plan, any shared identifier matches. When several entries match, the **bottom-most in the working file** is the match. A match rewrites that entry in place and moves it to the bottom; no match, or no `**Task:**` line to derive from, appends a new entry. The heading keeps its original start date and is never rewritten. Section order is therefore last-touched, not start-date.
 2. **S2 — dated Done, current state elsewhere.** Every `/checkpoint` run on a matched entry appends one new `- [YYYY-MM-DD]`-prefixed group at the end of Done — always a new group, never merged into an earlier one, even on the same day — and older groups are byte-identical; Next, Blockers and Resume are replaced.
 3. **S3 — nothing drops silently.** Before writing, `/checkpoint` looks up the state of every tracker a prior Next/Blockers bullet names, the way `/threads` Step 3 does: `todo.md` boxes, `taskctl get <ref>` for task refs, plan `status:`, `gh pr view` for PR numbers; a lookup that fails leaves the item open. Then every prior Next/Blockers bullet appears in exactly one place afterwards: today's Done group (done this session, done outside the session per the lookup, or `moved to <todo box | task <ref> | plan <slug> | initiative Target>`), or restated in Next/Blockers. Tracked state (`todo.md` phases, plan, initiative Target) is pointed at, not copied.
 4. **S4 — side items are nudged, never captured.** `/checkpoint` writes nothing to the backlog (`tasks/` and `archive/tasks/` listings identical before and after). Its report lists each open Next/Blockers item that has no `todo.md` box, backlog task or initiative Target as a task candidate; these lines are exempt from the report's three-line cap.
@@ -41,7 +41,7 @@ Rejected:
 
 ## Decisions (locked)
 
-- Match key is a shared plan slug, task ref or PR number between the session's work and the entry's `**Task:**` line; bottom-most match wins; no Task line never matches.
+- Match key is a shared plan slug, task ref or PR number between the session's work and the entry's `**Task:**` line; the plan slug takes priority when both sides have one; bottom-most match wins; no Task line never matches.
 - Heading keeps the start date only.
 - Done groups are `- [YYYY-MM-DD] …` bullets, one new group per `/checkpoint` run, never merged; Next/Blockers/Resume replaced.
 - Prior items are reconciled from tracker lookups first, session context second; unknown state stays open.
@@ -99,4 +99,6 @@ Rejected:
 - **Legacy entries** (written per session) rely on S6 at archive time; nothing back-fills them into the per-work shape.
 - **Concurrent sessions on the same work** can clobber each other's in-place rewrite. The append model had the same file-level race; not new, not addressed.
 - **Window 5 and the payload cap:** `check-memory-size.sh --payload` passes today at 5, but a project with very long entries could hit the 9,000-byte slice budget sooner than before; that script is the check.
+- **A PR-only entry whose work later gets a plan** is matched only if the session names the PR too; a session naming only the plan appends a second entry, and the PR-only one lingers until `/checkpoint-archive` classifies it under S6.
+- **An entry naming several pieces of work** (plan A + task B) still matches a session that touched only task B when that session has no plan of its own; plan-slug priority covers the common case, not this one. Rare; accepted.
 - **Report noise:** the S4 nudge repeats every untracked open item on every `/checkpoint` until it is filed or closed. Uncapped by decision; revisit if it gets long.
