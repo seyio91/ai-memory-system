@@ -189,16 +189,23 @@ A wiki page holds what stays true; findings gathered before a task exists are an
 **Task:** <one sentence>
 
 **Done:**
-- <bullet>
+- [YYYY-MM-DD] <bullet>
 
 **Next:**
 - <bullet>
 
 **Blockers:**
 - <bullet or None>
+
+**Resume:** <one line — file to open, where to start>
 ```
 
-`## Checkpoints` is the last section of the file, so an end-of-file append lands inside it; lint rule 19 warns on a checkpoint entry outside it. New checkpoints append at the bottom of `## Checkpoints` (newest last). `/checkpoint` synthesizes all four fields from the current session's context — it does not interview you. If a session produced no artifacts, the entry should say so honestly (e.g. `**Done:** Discussion only — no artifacts produced`).
+`## Checkpoints` is the last section of the file, so an end-of-file append lands inside it; lint rule 19 warns on a checkpoint entry outside it. An entry has five fields (Task, Done, Next, Blockers, Resume) and there is one living entry per piece of work, matched by the identifiers (`plan <slug>`, `task <ref>`, `PR #<n>`) in its `**Task:**` paragraph. A continuation rewrites the entry in place and moves it to the bottom: the heading keeps its start date, Done gains one dated `- [YYYY-MM-DD]` group per run (older groups untouched), and Next/Blockers/Resume are replaced. Section order is therefore last-touched, not start-date; work that matches no entry appends a new one. `/checkpoint` synthesizes all five fields from the current session's context — it does not interview you. If a session produced no artifacts, the entry should say so honestly, with a Done bullet like:
+
+```markdown
+**Done:**
+- [YYYY-MM-DD] Discussion only — no artifacts produced
+```
 
 ### Per-worktree overlays (`working.<key>.md`)
 

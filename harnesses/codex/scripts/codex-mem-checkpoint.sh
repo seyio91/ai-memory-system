@@ -88,16 +88,18 @@ read_recent_history() {
 # fails under restrictive sandboxes (e.g. codex --sandbox read-only).
 SCAFFOLD="### ${TODAY} — <fill in task summary>
 
-**Task:** <one sentence>
+**Task:** <one sentence naming plan <slug> / task <ref> / PR #<n>>
 
 **Done:**
-- <bullet>
+- [${TODAY}] <bullet>
 
 **Next:**
 - <bullet>
 
 **Blockers:**
-- <bullet or None>"
+- <bullet or None>
+
+**Resume:** <one line — file to open, where to start>"
 
 if [ "$FOR_CODEX" -eq 1 ]; then
     printf 'ACTIVE_PROJECT: %s\n' "$PROJECT"
@@ -105,13 +107,14 @@ if [ "$FOR_CODEX" -eq 1 ]; then
     printf 'TODAY: %s\n\n' "$TODAY"
     printf '# Recent Codex history (last %s entries, oldest first)\n' "$HISTORY_LINES"
     read_recent_history
-    printf '\n# Checkpoint scaffold (fill in done/next/blockers from this session, then append to WORKING_MD)\n'
+    printf '\n# Checkpoint scaffold (fill in done/next/blockers/resume from this session. Follow the `checkpoint` skill'"'"'s Steps 2-5 exactly: match by the identifiers in the **Task:** paragraph; rewrite the matched living entry in place and move it to the bottom, else append; account for every prior Next/Blockers bullet; dated Done bullets)\n'
     printf '%s\n' "$SCAFFOLD"
     exit 0
 fi
 
 # Interactive mode: append scaffold to working.md and open $EDITOR.
 printf '\n%s\n' "$SCAFFOLD" >> "$WORKING"
+printf 'Appended a new entry to %s. If a living entry for the same work already exists, merge by hand: keep that entry'"'"'s heading, add a dated Done group, replace Next/Blockers/Resume (restating every earlier open item), move the entry to the bottom, and delete the appended scaffold.\n' "$WORKING" >&2
 
 EDITOR_BIN="${EDITOR:-vi}"
 exec "$EDITOR_BIN" "$WORKING"

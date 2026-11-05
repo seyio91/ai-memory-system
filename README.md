@@ -96,7 +96,7 @@ Everything below ships in this repo. Slash commands (`/name`) work in Claude and
 
 ### Knowledge lifecycle
 
-- **Checkpoint** — `/checkpoint` (in any harness) captures task/done/next/blockers into the active project's working memory for the next session or agent.
+- **Checkpoint** — `/checkpoint` (in any harness) captures task/done/next/blockers/resume into the active project's working memory for the next session or agent.
 - **Promote** — `/promote-memory` graduates a scratchpad learning into a domain file or project memory, archives the old note, and reindexes.
 - **Maintenance** — `/lint-memory` (mechanical + LLM checks), `/archive-cleanup` (confirmed, dry-run-first pruning), and `/reindex`.
 
