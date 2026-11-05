@@ -60,7 +60,7 @@ Rejected:
 **Verify:** `bash scripts/run-tests.sh --only render_working` green; `grep -n 'CHECKPOINT_WINDOW' docs/scripts.md commands/checkpoint.md scripts/formatters/working.sh` shows 5 and no 2 on those lines; `bash scripts/check-docs.sh` exit 0. (S5 except the warning boundary, which Phase 2 exercises)
 
 ### Phase 2 — `/checkpoint` living entries
-- Rewrite `commands/checkpoint.md` Steps 2–5: work-reference derivation and bottom-most match (S1); rewrite-in-place-and-move vs append; one new dated Done group per run (S2); tracker lookups then reconciliation of prior Next/Blockers with the four move targets (S3); pointer rule; task-candidate lines in the Step 5 report, exempt from the three-line cap (S4); warning when count > window. Step 2's "chronological, oldest at top" becomes last-touched order. Remove the "never overwrite" sentence and the same-day clause; replace with the S1–S2 rules.
+- Rewrite `commands/checkpoint.md` Steps 2–5: work-reference derivation and bottom-most match (S1); rewrite-in-place-and-move vs append; one new dated Done group per run (S2); tracker lookups then reconciliation of prior Next/Blockers with the four move targets (S3); pointer rule; task-candidate lines in the Step 5 report, exempt from the three-line cap (S4); warning when count > window, stating N = count − window explicitly (the old wording left N implied, and it can now be 1). Step 2's "chronological, oldest at top" becomes last-touched order. Remove the "never overwrite" sentence and the same-day clause; replace with the S1–S2 rules.
 - Keep Step 3a (initiative decision stream) and the overlay-path handling as they are.
 
 **Depends:** Phase 1 (the count line it edits).
@@ -79,7 +79,7 @@ Rejected:
 - `docs/file-formats.md` `## Checkpoints` block (~L185–201): Done-group shape, rewrite rule, last-touched ordering.
 - `docs/harnesses/claude.md` rows for `/checkpoint` and `/checkpoint-archive`.
 - `commands/threads.md`: last checkpoint line shows `<start date> (last touched <date of the last Done group>)`; fall back to the heading date when Done has no dated group (legacy entry).
-- `changelog.d/checkpoints-record-changes-and-carry-open-items-forward.feature.md`.
+- `changelog.d/checkpoints-record-changes-and-carry-open-items-forward.feature.md`; and edit the unreleased `changelog.d/working-md-checkpoint-window.feature.md` ("default 2", "5 or more entries") so the two fragments agree — they ship in the same release.
 
 **Depends:** Phase 2.
 **Verify:** live exercise: a fixture with one superseded entry whose Next holds an item tracked nowhere → `/checkpoint-archive` lists it and asks before rolling; `grep -c 'skip them\|forbids editing a prior entry' commands/checkpoint-archive.md` is 0; `git diff --stat main -- scripts/checkpoint-archive.sh` empty; `/threads` on a living entry prints both dates and on a legacy entry prints one; `docs/file-formats.md` shows the `- [YYYY-MM-DD]` group and the ordering note; `grep -n 'living\|rewrit' docs/harnesses/claude.md` hits both command rows; the changelog fragment names all three changes. (S6, S7 docs)

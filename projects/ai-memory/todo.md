@@ -19,7 +19,7 @@
 - [x] P3 — validate and ship (needs: P1, P2) — merged as #147 (`08226e0`)
 
 ### Checkpoints record changes and carry open items forward → [plan](plans/checkpoints-record-changes-and-carry-open-items-forward.md)
-- [ ] P1 — window default 5 and warning threshold
+- [x] P1 — window default 5 and warning threshold
 - [ ] P2 — /checkpoint living entries (needs: P1)
 - [ ] P3 — archive check, docs, /threads, changelog (needs: P2)
 - [ ] P4 — validate and ship (needs: P1, P2, P3)
