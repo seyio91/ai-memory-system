@@ -57,7 +57,12 @@ scripts/taskctl ping        # -> {"ok": true}
 - The directory is derived from status: open tasks (`backlog`, `started`) live in `tasks/`,
   closed ones (`done`, `archived`) in `$MEMORY_DIR/archive/tasks/`. `set_status` moves the
   file when the status crosses that line, so a done task leaves the board; reopening moves
-  it back.
+  it back. The move rewrites the status first, then renames, so an interrupted move leaves
+  one file; `list` scans both directories and trusts the recorded `status`, and re-running
+  `set_status` finishes the move.
+- **Writes are atomic.** `capture` publishes a complete file with a hard link (exclusive —
+  a taken ref gets the next `-N` suffix, never overwritten); updates go through a hidden
+  `.tmp-*.tmp` file and `os.replace`. The data root must support hard links.
 - **`delete` hard-unlinks** the live `tasks/<ref>.md`. There is no recoverable trash:
   `tasks/` is gitignored, so a deleted task is gone. Use `archived` for the
   "retire but keep" case.

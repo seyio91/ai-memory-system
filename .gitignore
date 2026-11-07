@@ -17,6 +17,7 @@ __pycache__/
 
 # Real index is regenerated from frontmatter; ship templates/index.template.md only
 /index.md
+/.index.*
 
 # Derived on-demand "In Flight" snapshot (scripts/regenerate-state.sh) — a
 # projection of every project's goals; regenerated, never authored, personal.

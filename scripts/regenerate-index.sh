@@ -23,14 +23,14 @@ emit_autogen() {
     printf '## Projects\n\n'
     printf '| Project | Summary |\n'
     printf '|---------|---------|\n'
-    for f in $(find "$MEMORY_DIR/projects" -mindepth 2 -maxdepth 2 -type f -name 'memory.md' 2>/dev/null | sort); do
+    while IFS= read -r -d '' f; do
         # Skip _template — it's a scaffold, not an active project.
         case "$f" in *"/_template/"*) continue;; esac
         name=$(basename "$(dirname "$f")")
         summary=$(extract_fm_field "$f" "summary")
         [ -z "$summary" ] && summary="(no summary; add frontmatter)"
         printf '| %s | %s |\n' "$name" "$summary"
-    done
+    done < "$TMP_PROJ_LIST"
     printf '\n'
 
     # Domain: topic + triggers + summary. Path is derivable as domain/<topic>.md.
@@ -40,7 +40,7 @@ emit_autogen() {
     printf '| Topic | Triggers | Summary |\n'
     printf '|-------|----------|---------|\n'
     if [ -d "$MEMORY_DIR/domain" ]; then
-        for f in $(find "$MEMORY_DIR/domain" -maxdepth 1 -type f -name '*.md' | sort); do
+        while IFS= read -r -d '' f; do
             case "$f" in */_template.md) continue;; esac
             topic=$(extract_fm_field "$f" "topic")
             triggers=$(extract_fm_field "$f" "triggers")
@@ -50,16 +50,39 @@ emit_autogen() {
             [ -z "$topic" ] && topic="$(basename "$f" .md)"
             [ -z "$summary" ] && summary="(no summary; add frontmatter)"
             printf '| %s | %s | %s |\n' "$topic" "${triggers:-—}" "$summary"
-        done
+        done < "$TMP_DOM_LIST"
     fi
     printf '\n'
 
     printf '%s\n' "$END_MARK"
 }
 
+# Temp files live beside the index (same filesystem -> atomic mv) and are always
+# cleaned up. index.md is only ever replaced by one final mv of a complete file.
+INDEX_DIR="$(dirname "$INDEX")"
+TMP_OUT="" TMP_STAGE="" TMP_BODY="" TMP_PROJ_LIST="" TMP_DOM_LIST=""
+cleanup() { rm -f "$TMP_OUT" "$TMP_STAGE" "$TMP_BODY" "$TMP_PROJ_LIST" "$TMP_DOM_LIST"; return 0; }
+trap cleanup EXIT
+TMP_OUT="$(mktemp "$INDEX_DIR/.index.XXXXXX")"
+# mktemp creates 0600; give the index the mode a plain redirect would (umask).
+chmod "$(printf '%o' $((0666 & ~$(umask))))" "$TMP_OUT"
+
+# Enumerate as top-level commands (not process substitutions) so a find/sort
+# failure trips errexit/pipefail and aborts before index.md is touched. A missing
+# projects/ or domain/ dir is simply an empty list.
+TMP_PROJ_LIST="$(mktemp "$INDEX_DIR/.index.XXXXXX")"
+TMP_DOM_LIST="$(mktemp "$INDEX_DIR/.index.XXXXXX")"
+if [ -d "$MEMORY_DIR/projects" ]; then
+    find "$MEMORY_DIR/projects" -mindepth 2 -maxdepth 2 -type f -name 'memory.md' -print0 | sort -z > "$TMP_PROJ_LIST"
+fi
+if [ -d "$MEMORY_DIR/domain" ]; then
+    find "$MEMORY_DIR/domain" -maxdepth 1 -type f -name '*.md' -print0 | sort -z > "$TMP_DOM_LIST"
+fi
+
 # If the index doesn't exist yet, write the autogen block on its own.
 if [ ! -f "$INDEX" ]; then
-    emit_autogen > "$INDEX"
+    emit_autogen > "$TMP_OUT"
+    mv "$TMP_OUT" "$INDEX"
     echo "regenerate-index: created $INDEX"
     exit 0
 fi
@@ -70,11 +93,14 @@ if ! grep -qF "$BEGIN_MARK" "$INDEX"; then
         cat "$INDEX"
         printf '\n'
         emit_autogen
-    } > "$INDEX.tmp"
-    mv "$INDEX.tmp" "$INDEX"
+    } > "$TMP_OUT"
+    mv "$TMP_OUT" "$INDEX"
     echo "regenerate-index: added autogen fence to $INDEX"
     exit 0
 fi
+
+TMP_STAGE="$(mktemp "$INDEX_DIR/.index.XXXXXX")"
+TMP_BODY="$(mktemp "$INDEX_DIR/.index.XXXXXX")"
 
 # Replace only the content between markers. Use awk to split.
 awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
@@ -91,18 +117,18 @@ awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
         next
     }
     { print }
-' "$INDEX" > "$INDEX.tmp1"
+' "$INDEX" > "$TMP_STAGE"
 
-# Now substitute __AUTOGEN_REPLACE__ with the new content. Build the new content
-# without the fence lines (the original fence lines are preserved in $INDEX.tmp1).
+# Build the new content without the fence lines (the original fence lines are
+# preserved in the staged file).
 emit_autogen \
     | awk -v begin="$BEGIN_MARK" -v end="$END_MARK" '
         $0 == begin { next }
         $0 == end { next }
         { print }
-    ' > "$INDEX.body"
+    ' > "$TMP_BODY"
 
-awk -v body_file="$INDEX.body" '
+awk -v body_file="$TMP_BODY" '
     BEGIN {
         while ((getline line < body_file) > 0) {
             body = (body == "" ? line : body ORS line)
@@ -111,9 +137,8 @@ awk -v body_file="$INDEX.body" '
     }
     /^__AUTOGEN_REPLACE__$/ { print body; next }
     { print }
-' "$INDEX.tmp1" > "$INDEX.tmp2"
+' "$TMP_STAGE" > "$TMP_OUT"
 
-mv "$INDEX.tmp2" "$INDEX"
-rm -f "$INDEX.tmp1" "$INDEX.body"
+mv "$TMP_OUT" "$INDEX"
 
 echo "regenerate-index: refreshed autogen block in $INDEX"
