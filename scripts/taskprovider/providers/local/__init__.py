@@ -1,7 +1,8 @@
 import datetime
 import os
 import re
-import shutil
+import secrets
+import stat
 from pathlib import Path
 
 from taskprovider.contract import CANONICAL_STATUSES, Task, TaskProvider
@@ -25,27 +26,48 @@ class FileTaskProvider(TaskProvider):
         project = self.resolve_project(project)
         tasks_dir = self.root / "tasks"
         tasks_dir.mkdir(parents=True, exist_ok=True)
-        ref = self._unique_ref(self._slug(title), tasks_dir)
         created = datetime.date.today().isoformat()
-        self._write_task(tasks_dir / (ref + ".md"), {
+        content = self._render({
             "project": project,
             "status": "backlog",
             "created": created,
             "title": title,
         }, summary)
-        return ref
+        # Build the full file in a hidden temp (".tmp" suffix: never matches the
+        # *.md globs readers use), then publish it with os.link: an atomic
+        # exclusive create that is complete from the instant it is visible.
+        tmp = self._write_temp(tasks_dir, content)
+        try:
+            return self._publish(self._slug(title), tasks_dir, tmp)
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
     def list(self, project, status):
         self.resolve_project(project)
-        tasks_dir = self._dir_for(status)
-        if not tasks_dir.is_dir():
-            return []
-        tasks = []
-        for path in sorted(tasks_dir.glob("*.md")):
-            task = self._read_task(path)
-            if task.project == project and task.status == status:
-                tasks.append(task)
-        return tasks
+        # Scan both live dirs and trust the recorded status: an interrupted
+        # set_status can leave a task whose status is ahead of its directory.
+        # The status's home dir is validated strictly; the other dir leniently.
+        home = self._dir_for(status)
+        found = {}
+        for directory in (self.root / "tasks", self.root / "archive" / "tasks"):
+            if not directory.is_dir():
+                continue
+            for path in directory.glob("*.md"):
+                if directory == home:
+                    task = self._read_task(path)
+                else:
+                    try:
+                        task = self._read_task(path)
+                    except (ValueError, OSError, UnicodeDecodeError):
+                        continue
+                prior = found.get(path.name)
+                if prior is None or (prior.status != status and task.status == status):
+                    found[path.name] = task
+        return [found[name] for name in sorted(found)
+                if found[name].project == project and found[name].status == status]
 
     def get(self, ref):
         path = self.root / "tasks" / (ref + ".md")
@@ -75,8 +97,13 @@ class FileTaskProvider(TaskProvider):
             if target.exists():
                 raise ValueError("task ref %r exists in both %s and %s" % (ref, path.parent, target.parent))
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(path), str(target))
-        self._write_task(target, fields, body)
+            # Rewrite the source in place first (atomic, keeps its mode), then
+            # rename it across: an interruption leaves exactly one file, which
+            # a retry of set_status completes. rename keeps inode and mode.
+            self._write_task(path, fields, body)
+            os.rename(str(path), str(target))
+        else:
+            self._write_task(target, fields, body)
 
     def delete(self, ref):
         # Hard delete of the live task file (decision A). archive/tasks/ already
@@ -141,8 +168,7 @@ class FileTaskProvider(TaskProvider):
             body += "\n"
         return fields, body
 
-    def _write_task(self, path, fields, body):
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def _render(self, fields, body):
         ordered = []
         for key in ("project", "status", "created", "title"):
             if key in fields:
@@ -154,19 +180,68 @@ class FileTaskProvider(TaskProvider):
         content.extend("%s: %s" % (key, value) for key, value in ordered)
         content.append("---")
         content.append(body or "")
-        path.write_text("\n".join(content), encoding="utf-8")
+        return "\n".join(content)
+
+    def _write_temp(self, directory, content, mode=None):
+        # Durable temp file in `directory`; returns its path. Removed on failure.
+        # Created 0666 so the kernel applies the umask (no process-global umask
+        # probing); `mode` (an existing file's mode) is fchmod'd over it.
+        directory.mkdir(parents=True, exist_ok=True)
+        while True:
+            tmp = str(directory / (".tmp-" + secrets.token_hex(8) + ".tmp"))
+            try:
+                fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666)
+                break
+            except FileExistsError:
+                continue
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                if mode is not None:
+                    os.fchmod(handle.fileno(), mode)
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+        return tmp
+
+    def _write_task(self, path, fields, body):
+        # Keep the existing file's mode; a new file gets the umask default.
+        mode = stat.S_IMODE(os.stat(str(path)).st_mode) if path.exists() else None
+        tmp = self._write_temp(path.parent, self._render(fields, body), mode)
+        try:
+            os.replace(tmp, str(path))
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
     def _slug(self, title):
         slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
         return slug or "task"
 
-    def _unique_ref(self, base, tasks_dir):
+    def _publish(self, base, tasks_dir, tmp):
+        # Publish the finished temp as tasks/<ref>.md via os.link, which fails
+        # with FileExistsError instead of overwriting, so concurrent captures
+        # can never pick the same ref. Archived refs are skipped too.
+        archive_dir = self.root / "archive" / "tasks"
         ref = base
         number = 2
-        while (tasks_dir / (ref + ".md")).exists() or (self.root / "archive" / "tasks" / (ref + ".md")).exists():
+        while True:
+            if not (archive_dir / (ref + ".md")).exists():
+                try:
+                    os.link(tmp, str(tasks_dir / (ref + ".md")))
+                    return ref
+                except FileExistsError:
+                    pass
             ref = "%s-%d" % (base, number)
             number += 1
-        return ref
 
 
 PROVIDER = FileTaskProvider
