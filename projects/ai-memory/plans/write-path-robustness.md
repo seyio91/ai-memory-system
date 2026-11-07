@@ -45,3 +45,6 @@ Changelog fragment, full suite, `git-cli ship`.
 
 ## Risks / open questions
 - `sort -z` availability on the CI ubuntu + macos matrix (GNU and BSD both support it).
+- Accepted (validator round 2): one unreadable `projects/<x>/` now fails regeneration loudly (old index kept) instead of silently skipping it.
+- Accepted: capture needs hard-link support (`os.link` publish); fails loudly on FS without it.
+- Accepted: `os.rename` into `archive/tasks` fails with EXDEV if that dir is symlinked to another filesystem; task stays put, listed under its new status.
