@@ -1,6 +1,6 @@
 ---
 topic: codex
-triggers: [codex, openai-codex, codex-mem, executor, executor-bare, validator, stall, fallback, agents-md, sandbox, workspace-write, writable_roots, network_access, mktemp, hooks, hooks.json, requirements.toml, PreToolUse, UserPromptSubmit, hook-trust, CODEX_HOME]
+triggers: [codex, codex-mem, executor, validator, stall, sandbox, writable_roots, hooks.json, hook-trust, CODEX_HOME]
 summary: OpenAI Codex CLI — reliability/stall behavior, the codex-mem executor adapter (token-stripping, deny-rules, sandbox), and the native-hooks schema/trust/stdin contract (probe-verified)
 ---
 
