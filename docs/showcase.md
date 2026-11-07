@@ -272,8 +272,9 @@ engine**: each harness ships a declarative `harnesses/<name>/manifest`, an arche
 (hooks, commands, skills) get wired to that harness's runtime dirs (diagram below).
 
 - **Claude** reads memory in-band via the hook (the `hook` archetype).
-- **Codex** reads the *same files* via a generated `~/.codex/AGENTS.md` (`codex-mem.sh`);
-  **Antigravity** via `agy.sh`. Only the delivery mechanism differs — the tree is one.
+- **Codex**, **Copilot** and **Antigravity** read the *same files* through their native hooks;
+  Codex layers them over a hand-owned static `~/.codex/AGENTS.md`. Only the delivery mechanism
+  differs — the tree is one.
 - `install.sh --list` shows registered harnesses; `--harness <name>` or auto-detect wires
   one. It's idempotent and backs up anything it overwrites.
 
@@ -288,8 +289,8 @@ flowchart LR
   DR -- hook --> HK["hook.sh<br/>live per-prompt injection"]
   DR -- file --> FL["file.sh<br/>context-file prep"]
   HK --> CL["Claude Code<br/>~/.claude hooks + commands"]
-  FL --> CX["Codex CLI<br/>generated ~/.codex/AGENTS.md"]
-  FL --> AG["Antigravity<br/>~/.agents via agy.sh"]
+  FL --> CX["Codex CLI<br/>native hooks + hand-owned ~/.codex/AGENTS.md"]
+  HK --> AG["Antigravity<br/>PreInvocation hook"]
 ```
 
 Reference: [harnesses/adding-a-harness.md](harnesses/adding-a-harness.md) · [scripts.md](scripts.md)
@@ -324,7 +325,7 @@ companion **[demo-runbook.md](demo-runbook.md)**.
 | 3 | Onboarding + repo↔project map | 2 | 7m | **Onboard `payments-svc` cold** (`/new-project`/`/pin`); `/reindex` (tie to PR #23) | — |
 | 4 | State · activity · Related Projects | 2/3 | 12m | Live `/state` + `/activity` (category-grouped); billing cluster `## Related Projects` | Mermaid 2: delegate-don't-load |
 | 5 | O/E/V + promotion | 3 | 10m | `executor.sh --which`; `/checkpoint` then `/promote-memory` on `payments-svc` | Mermaid 3: O/E/V + promotion |
-| 6 | Harness-agnostic + rigor | 3 | 6m | `install.sh --list`; Codex `AGENTS.md`; `run-tests.sh` → 27/27 | Mermaid 4: manifest→drivers→targets |
+| 6 | Harness-agnostic + rigor | 3 | 6m | `install.sh --list`; Codex hooks; `run-tests.sh` → 27/27 | Mermaid 4: manifest→drivers→targets |
 | — | Try-it-yourself / Q&A | — | ~8m built into beats | pointer to runbook | — |
 
 **Killer beat** (folds into §1 or §5): `/checkpoint` on `payments-svc` → **start a new session** → the checkpoint is recalled on SessionStart → "the memory is just a file you can read and diff."

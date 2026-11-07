@@ -102,7 +102,7 @@ Projects map one-to-one to repositories, but some repos relate: a single unit of
 |---------|--------------------|------------------------|
 | <other> | <trigger condition> | <what it owns — entry file/path> |
 
-Because `memory.md` is injected wholesale on the first prompt (Claude) and built into `AGENTS.md` on every launch (Codex), this table is always in context — so the active project *knows* its relationships before anything else is loaded. The "When it's involved" column is the trigger; "It owns / entry point" gives the sibling's starting file so a delegate lands somewhere concrete.
+Because `memory.md` is injected wholesale at session start on every hook harness (Claude, Codex, Copilot, Antigravity), this table is always in context — so the active project *knows* its relationships before anything else is loaded. The "When it's involved" column is the trigger; "It owns / entry point" gives the sibling's starting file so a delegate lands somewhere concrete.
 
 The table deliberately carries **no on-disk path**. A delegate that needs to inspect the sibling's *code* resolves the checkout with `resolve_repo_path <sibling>`, which reads `repo_path`/`repo` from the sibling's own frontmatter (see [Reverse map](install.md#reverse-map-project--checkout)). The path lives in one place — the sibling's `memory.md` — and is resolved per environment, so it is never duplicated into (and never goes stale in) the relationship table.
 
@@ -110,7 +110,7 @@ The table deliberately carries **no on-disk path**. A delegate that needs to ins
 
 **Delegation contract:**
 - *Dispatch* — the prompt is self-contained, because the delegate does not inherit the orchestrator's context: it points at `identity.md` (hard rules) and `projects/<sibling>/memory.md`, carries the executor deny-list (prepended by `executor.sh --run` on the CLI plane, pasted from `scripts/deny-list.txt` and `scripts/deny-list.local.txt` on the subagent plane), states the task, and sets the default deliverable to **plan only** (no edits to the sibling repo).
-  - *Codex caveat:* a `codex-mem.sh` launch builds `AGENTS.md` from the **active** project, not the sibling. So when the executor is Codex, either (a) pin the sibling repo (`.agents/memory-project`) and launch Codex there so its `AGENTS.md` resolves to the sibling, or (b) pass the sibling's `memory.md` path explicitly in the prompt for Codex to read with its shell tool. A Claude `Agent` subagent has no such caveat — it just reads the files named in the prompt.
+  - *Codex caveat:* a Codex launch injects memory for the project resolved from its cwd (`.agents/memory-project` walk-up), not the sibling. So when the executor is Codex, either (a) launch Codex in the pinned sibling repo so its injected memory resolves to the sibling, or (b) pass the sibling's `memory.md` path explicitly in the prompt for Codex to read with its shell tool. A Claude `Agent` subagent has no such caveat — it just reads the files named in the prompt.
 - *Work* — the delegate produces the core plan and persists it to `projects/<sibling>/plans/<name>.md` (frontmatter `plan`, `status: active`, `created`, `owner`).
 - *Return* — a compact, structured summary: `project`, `goal` (one line), `plan` (ordered core steps), `entry points`, `depends on / ordering`, `plan file` (path), `blockers`.
 

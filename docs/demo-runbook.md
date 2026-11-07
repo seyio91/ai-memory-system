@@ -166,8 +166,8 @@ bash install.sh --list                               # registered harnesses + ar
 sed -n '1,25p' harnesses/claude/manifest             # a real manifest (declarative data)
 bash scripts/run-tests.sh --no-lint                  # hermetic suite → 27/27 green
 ```
-- **Say:** Claude reads in-band via the hook; Codex reads the *same files* via a generated
-  `~/.codex/AGENTS.md`; only delivery differs. A green hermetic suite means a rebuild is
+- **Say:** Claude reads in-band via the hook; Codex reads the *same files* via its native hooks,
+  over a hand-owned `~/.codex/AGENTS.md`; only delivery differs. A green hermetic suite means a rebuild is
   verifiable.
 - **Reveal (diagram):** Mermaid 4 in showcase §6 (manifest → drivers → targets).
 
