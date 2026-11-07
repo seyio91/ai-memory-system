@@ -48,3 +48,5 @@ Changelog fragment, full suite, `git-cli ship`.
 - Accepted (validator round 2): one unreadable `projects/<x>/` now fails regeneration loudly (old index kept) instead of silently skipping it.
 - Accepted: capture needs hard-link support (`os.link` publish); fails loudly on FS without it.
 - Accepted: `os.rename` into `archive/tasks` fails with EXDEV if that dir is symlinked to another filesystem; task stays put, listed under its new status.
+- Accepted (round 4, user 2026-11-08): capture racing a concurrent archive of a same-slug task can reuse its ref (pre-existing in HEAD; belongs to the deferred lost-update/locking work).
+- Accepted (round 4): `list` skips a malformed file outside the status's home dir — a hand-corrupted archived file recording an open status is not listed (never listed before either).
