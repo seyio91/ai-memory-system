@@ -47,6 +47,7 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 - **CI skips the suite only for the four root community files, via a gate job, not `paths-ignore`.** `paths-ignore` reports no status and would deadlock a required check. The match is anchored (`grep -vxE`) and fails closed; `docs/` is never exempt.
 - **`tests.yml` runs on `pull_request` only — no `push: main`.** PR runs test the merge result, so they already report what `main` will be; `projects/**` pushes change no shipped behavior. Hence the badge tracks `?event=pull_request`.
 - **Initiatives are root-level `initiatives/<slug>.md`, and the decision stream is the record (stream-first).** Plans, runbooks and memory cite stream ids. Staleness alerts persist until a stream append or `--ack` — a self-silencing warning recreates the omission it exists to catch.
+- **The staleness alert covers `software_adw` Targets only — accepted.** `interactive`/`runbook` Targets have no derivable stage, and the one observed miss came from non-Target work after closure, which no stage alert can see; that gap is covered by `/checkpoint` Step 3a and accurate initiative `status:`.
 - **Instance config never lives in tracked memory** — channel, provider and executor choices go in gitignored `config.local.sh`, and tracked memory ships to every consumer.
 - **Open-sourcing removed content going forward, never by scrubbing history.**
 
