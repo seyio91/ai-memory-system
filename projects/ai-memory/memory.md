@@ -45,6 +45,7 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 - **Hook layer: share the isomorphic, special-case the divergent** — no universal adapter over a bounded harness set. Codex gets a static base + chunked live injection; Antigravity a static base + whole-payload live injection.
 - **Release = a git tag; no build step.** Changelog fragments are written per PR while the *why* is live — a model is kept off the CI critical path, because drafting notes at release time reconstructs intent from commit subjects.
 - **CI skips the suite only for the four root community files, via a gate job, not `paths-ignore`.** `paths-ignore` reports no status and would deadlock a required check. The match is anchored (`grep -vxE`) and fails closed; `docs/` is never exempt.
+- **`tests.yml` runs on `pull_request` only — no `push: main`.** PR runs test the merge result, so they already report what `main` will be; `projects/**` pushes change no shipped behavior. Hence the badge tracks `?event=pull_request`.
 - **Initiatives are root-level `initiatives/<slug>.md`, and the decision stream is the record (stream-first).** Plans, runbooks and memory cite stream ids. Staleness alerts persist until a stream append or `--ack` — a self-silencing warning recreates the omission it exists to catch.
 - **Instance config never lives in tracked memory** — channel, provider and executor choices go in gitignored `config.local.sh`, and tracked memory ships to every consumer.
 - **Open-sourcing removed content going forward, never by scrubbing history.**

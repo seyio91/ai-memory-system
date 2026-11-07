@@ -7,7 +7,8 @@
 
 ## Active
 
-_(no items yet)_
+### Docs truth pass: Codex AGENTS.md drift and guard wording → [plan](plans/docs-truth-pass.md)
+- [ ] P1 — Fix the drift and wording; ship
 
 ## Done
 _(checked items stay above until the file is rolled)_
