@@ -620,7 +620,14 @@ assert_eq "$FAKE/harnesses/opencode/plugin/ai-memory.ts" "$(readlink "$OC_CFG/pl
 assert_eq "$FAKE/harnesses/opencode/agents/ai-memory-explore.md" "$(readlink "$OC_CFG/agents/ai-memory-explore.md")" "opencode: ai-memory-explore agent installed"
 if [ ! -e "$OC_CFG/agents/demo-agent.md" ]; then _ok "opencode: shared claude-shaped agents/ store not fanned into agents_dir"; else _bad "opencode: demo-agent leaked into agents_dir"; fi
 assert_file "$FHOME/.agents/skills/demo-skill" "opencode: canonical skill fanned to ~/.agents/skills"
-assert_file "$FHOME/.agents/skills/pin/SKILL.md" "opencode: command delivered as skill"
+# commands are native: one symlink per commands/*.md in commands_dir, resolving into the repo commands/.
+oc_nc=0; oc_bad=0
+for f in "$FAKE"/commands/*.md; do
+    oc_nc=$((oc_nc+1)); b="$(basename "$f")"
+    [ "$(readlink "$OC_CFG/commands/$b")" = "$FAKE/commands/$b" ] || oc_bad=$((oc_bad+1))
+done
+assert_eq "0" "$oc_bad" "opencode: every commands/*.md symlinked into commands_dir -> commands/"
+assert_eq "$oc_nc" "$(find "$OC_CFG/commands" -maxdepth 1 -type l | wc -l | tr -d ' ')" "opencode: one command symlink per commands/*.md"
 assert_contains "$(cat "$SBROOT/log.opencode")" "export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1" "opencode: skills-switch export line printed"
 assert_contains "$(cat "$SBROOT/log.opencode")" "Restart any running opencode service" "opencode: service-restart line printed"
 assert_contains "$(cat "$SBROOT/log.opencode")" "Plugin harness: a fresh launch gets full memory only after" "opencode: closing note qualified by restart"

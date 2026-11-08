@@ -1,0 +1,1 @@
+- **opencode gets native slash commands.** `install.sh --harness opencode` now symlinks `commands/*.md` into `~/.config/opencode/commands/` instead of delivering them as skills. Re-run the installer to pick it up. Command-skills installed by other harnesses in `~/.agents/skills` remain (accepted duplication).

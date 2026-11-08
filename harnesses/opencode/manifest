@@ -22,9 +22,12 @@ guard_script   = $MEMORY_DIR/scripts/hooks/guard.sh
 # claude-shaped repo agents/ store is NOT fanned into this dir.
 agents_dir     = ~/.config/opencode/agents
 
-# skills fan into the shared ~/.agents/skills; commands arrive as skills.
+# skills fan into the shared ~/.agents/skills. Commands are native (symlinked into
+# commands_dir); ~/.agents/skills still carries command-skills installed by other
+# harnesses (codex/copilot/antigravity) - accepted duplication.
 skills_dir     = ~/.agents/skills
-commands       = skill
+commands       = native
+commands_dir   = ~/.config/opencode/commands
 
 # execute face: headless opencode via the memory wrapper (skills-switch export,
 # --last-message extraction). {prompt}/{model} substituted by executor.sh;
