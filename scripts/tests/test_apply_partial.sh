@@ -131,6 +131,13 @@ assert_exit 1 "$code" "START without END refuses re-sync"
 set +e; cmp -s "$MEM/broken-before" "$BROKEN"; unchanged=$?; set -e
 assert_exit 0 "$unchanged" "START without END leaves carrier untouched"
 
+{ printf '# Dup\n'; cat "$MEM/start-line"; printf 'PRECIOUS\n'; cat "$MEM/start-line"; printf 'old\n'; grep -F 'partial:task-link END' "$TWO" | head -1; printf '## tail\n'; } > "$BROKEN"
+cp "$BROKEN" "$MEM/broken-before"
+run "$AP" --file "$BROKEN" --partial task-link
+assert_exit 1 "$code" "duplicate START refuses re-sync"
+set +e; cmp -s "$MEM/broken-before" "$BROKEN"; unchanged=$?; set -e
+assert_exit 0 "$unchanged" "duplicate START leaves carrier untouched"
+
 PLAN_SCAFFOLD="$SCRIPTS_DIR/partials/plan-scaffold.md"
 PLAN_START="<!-- partial:plan-scaffold START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-scaffold.md) -->"
 PLAN_END="<!-- partial:plan-scaffold END -->"

@@ -156,6 +156,7 @@ Grammar — what lint rule 20, the drift script and the feasibility brief parse;
 - **Phase heading:** `^### Phase [0-9]+ — `; any other `###` (such as `### Checkpoint`) is not a phase.
 - **Phase fields**, each on its own line: `**Files touched:**` (comma-separated backticked repo-relative paths or globs; a file the phase creates is suffixed ` (new)` after its closing backtick), `**Risk:** low|medium|high`, `**Depends:** none | Phase N[, Phase N…]` (phase numbers only), `**Verify:** R<n>[, R<n>…] — <condition>` (R-ids before the em dash; single line).
 - **Sections:** `## Non-goals` and `## Security` are exact headings; `**Before:**` / `**After:**` sit under `## Goal`.
+- **Path patterns:** bash `case` semantics — `*` matches across `/` (`scripts/*` covers subdirectories); a path ending in `/` means the whole directory. `**Files touched:**` lines inside fenced code blocks are not phase fields; a phase ends at the next `### ` or `## ` heading.
 
 **Baseline dir.** A `baseline` parity reference points at `plans/<slug>.baseline/` beside the plan, on disk in the memory tree, created by a `### Phase N — Baseline`. `/plan-archive` moves it to `archive/plans/<slug>.baseline/` with the plan. Prefer `vs <git-ref>` when the check can be re-run at a ref; a stored snapshot drifts with the tree.
 

@@ -82,6 +82,10 @@ apply_target() {
 
     tmp="$f.partial.$$"
     if grep -Fxq -- "$START" "$f"; then
+        if [ "$(grep -Fxc -- "$START" "$f")" != 1 ]; then
+            printf 'apply-partial: %s has more than one %s START marker — fix by hand\n' "$label" "$PARTIAL" >&2
+            return 1
+        fi
         if ! awk -v s="$START" -v e="$END" '$0 == s { o = 1 } o && $0 == e { found = 1; exit } END { exit !found }' "$f"; then
             printf 'apply-partial: %s has a %s START marker with no END after it — fix by hand\n' "$label" "$PARTIAL" >&2
             return 1
