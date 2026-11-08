@@ -14,7 +14,7 @@
 - [x] P4 — Feasibility brief (needs: P1)
 - [x] P5 — Baseline lifecycle
 - [x] P6 — Validator and doctrine (needs: P3)
-- [ ] Checkpoint — pre-ship (needs: P2, P4, P5, P6)
+- [x] Checkpoint — pre-ship (needs: P2, P4, P5, P6)
 
 ### Onboard opencode as a harness → [plan](plans/onboard-opencode-harness.md)
 - [x] P1 — Spike: verify opencode v2 hook surface
