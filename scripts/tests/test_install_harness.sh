@@ -607,6 +607,55 @@ assert_exit 0 "$rc" "antigravity re-run exits 0"
 assert_eq "1" "$(grep -c 'ai-memory-inject' "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single inject entry"
 assert_eq "1" "$(grep -c 'ai-memory-guard'  "$FHOME/.gemini/config/hooks.json")" "antigravity: re-run leaves a single guard entry"
 
+# --- opencode (file archetype + JS plugin): plugin symlink, harness agents, skills ---
+# P3 owns the real plugin; stage a stub in the fixture memory dir so the link has a target.
+mkdir -p "$FAKE/harnesses/opencode/plugin"
+[ -f "$FAKE/harnesses/opencode/plugin/ai-memory.ts" ] || printf 'export default {}\n' > "$FAKE/harnesses/opencode/plugin/ai-memory.ts"
+OC_CFG="$FHOME/.config/opencode"
+run_install --harness opencode >"$SBROOT/log.opencode" 2>&1; rc=$?
+assert_exit 0 "$rc" "opencode install exits 0"
+assert_file "$OC_CFG" "opencode: context dir prepared"
+if [ ! -e "$OC_CFG/AGENTS.md" ]; then _ok "opencode: no AGENTS.md written (hand-owned static base)"; else _bad "opencode: unexpected AGENTS.md written by installer"; fi
+assert_eq "$FAKE/harnesses/opencode/plugin/ai-memory.ts" "$(readlink "$OC_CFG/plugins/ai-memory.ts")" "opencode: plugin symlinked into plugins_dir"
+assert_eq "$FAKE/harnesses/opencode/agents/ai-memory-explore.md" "$(readlink "$OC_CFG/agents/ai-memory-explore.md")" "opencode: ai-memory-explore agent installed"
+if [ ! -e "$OC_CFG/agents/demo-agent.md" ]; then _ok "opencode: shared claude-shaped agents/ store not fanned into agents_dir"; else _bad "opencode: demo-agent leaked into agents_dir"; fi
+assert_file "$FHOME/.agents/skills/demo-skill" "opencode: canonical skill fanned to ~/.agents/skills"
+assert_file "$FHOME/.agents/skills/pin/SKILL.md" "opencode: command delivered as skill"
+assert_contains "$(cat "$SBROOT/log.opencode")" "export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1" "opencode: skills-switch export line printed"
+assert_contains "$(cat "$SBROOT/log.opencode")" "Restart any running opencode service" "opencode: service-restart line printed"
+assert_contains "$(cat "$SBROOT/log.opencode")" "Plugin harness: a fresh launch gets full memory only after" "opencode: closing note qualified by restart"
+assert_not_contains "$(cat "$SBROOT/log.opencode")" "hooks.json" "opencode: no hooks.json registration attempted"
+if [ ! -e "$OC_CFG/hooks.json" ]; then _ok "opencode: no hooks.json written"; else _bad "opencode: unexpected hooks.json"; fi
+oc_snap() { { find "$OC_CFG" "$FHOME/.agents" | sort; find "$OC_CFG" "$FHOME/.agents" -type l -exec readlink {} \; ; } | cksum; }
+oc_before="$(oc_snap)"
+run_install --harness opencode >"$SBROOT/log.opencode2" 2>&1; rc=$?
+assert_exit 0 "$rc" "opencode re-run exits 0"
+assert_eq "$oc_before" "$(oc_snap)" "opencode: re-run changes nothing"
+assert_not_contains "$(cat "$SBROOT/log.opencode2")" "backed up" "opencode: re-run backs nothing up"
+assert_eq "0" "$(find "$OC_CFG" -name '*.bak-*' | wc -l | tr -d ' ')" "opencode: no .bak files after re-run"
+
+# --- opencode detection: PATH binary or ~/.opencode/bin/opencode (installer puts it off PATH) ---
+OCD_HOME="$SBROOT/ocd-home"; mkdir -p "$OCD_HOME"
+OCD_PATH="$SBROOT/ocd-bin"; mkdir -p "$OCD_PATH"
+for _t in bash env dirname basename sed awk grep cat mkdir ln mv rm date head tr python3 uname mktemp readlink cp; do
+    _p="$(command -v "$_t" 2>/dev/null)" && [ -n "$_p" ] && ln -sf "$_p" "$OCD_PATH/$_t"
+done
+set +e
+HOME="$OCD_HOME" MEMORY_DIR="$FAKE" PATH="$OCD_PATH" bash "$FAKE/install.sh" >"$SBROOT/log.ocd0" 2>&1; rc=$?
+set -e
+assert_contains "$(cat "$SBROOT/log.ocd0")" "could not auto-detect" "opencode detect: no binary anywhere -> not detected"
+mkdir -p "$OCD_HOME/.opencode/bin"; printf '#!/bin/sh\nexit 0\n' > "$OCD_HOME/.opencode/bin/opencode"; chmod +x "$OCD_HOME/.opencode/bin/opencode"
+set +e
+HOME="$OCD_HOME" MEMORY_DIR="$FAKE" PATH="$OCD_PATH" bash "$FAKE/install.sh" >"$SBROOT/log.ocd1" 2>&1; rc=$?
+set -e
+assert_contains "$(cat "$SBROOT/log.ocd1")" "installing memory system for harness: opencode" "opencode detect: ~/.opencode/bin/opencode detected"
+rm -rf "$OCD_HOME/.opencode"; rm -rf "$OCD_HOME/.config"
+printf '#!/bin/sh\nexit 0\n' > "$OCD_PATH/opencode"; chmod +x "$OCD_PATH/opencode"
+set +e
+HOME="$OCD_HOME" MEMORY_DIR="$FAKE" PATH="$OCD_PATH" bash "$FAKE/install.sh" >"$SBROOT/log.ocd2" 2>&1; rc=$?
+set -e
+assert_contains "$(cat "$SBROOT/log.ocd2")" "installing memory system for harness: opencode" "opencode detect: opencode on PATH detected"
+
 # --- copilot (hook archetype, owned ~/.copilot/hooks/ai-memory.json) ---
 mkdir -p "$FHOME/.copilot/hooks"
 printf '{"version":1,"hooks":{"sessionStart":[]}}\n' > "$FHOME/.copilot/hooks/foo.json"

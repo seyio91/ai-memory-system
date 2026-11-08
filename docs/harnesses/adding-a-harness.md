@@ -19,15 +19,22 @@ Declare either or both capability faces:
 | `hooks_json`, `hook_script`, `guard_script` | *(hook, JSON style)* a JSON hooks file to register into + the injection script (`hook_script`) and optional enforcement guard (`guard_script`) — Antigravity |
 | `context_target`, `refresh` | *(file)* where the context file lives; `refresh = launch` (rebuilt by the wrapper) or `hook` |
 | `commands` | `native` (symlink into `commands_dir`) · `skill` (wrap each command as a `SKILL.md` into `skills_dir`) · `doc` (render a reference) · `none` |
-| `commands_dir`, `skills_dir`, `agents_dir` | fan-out targets (a shared `~/.agents/skills` is the cross-agent standard) |
+| `commands_dir`, `skills_dir`, `agents_dir` | fan-out targets (a shared `~/.agents/skills` is the cross-agent standard); `agents_dir` on a plugin harness receives the harness-owned `harnesses/<name>/agents/*.md` symlinks |
+| `plugins_dir`, `plugin_file` | *(plugin style)* the installer symlinks `plugin_file` into `plugins_dir`, idempotently; `plugins_dir` requires `plugin_file` — opencode |
 
-A `hook` harness declares **one of two registration styles**: `hooks_dir` (Claude
+A harness declares **one of three registration styles** (the third, plugin, is below): `hooks_dir` (Claude
 — the driver symlinks `harnesses/<name>/hooks/*.sh` into a runtime dir; you merge
 the entries into `settings.json`) **or** `hooks_json` + `hook_script` (Antigravity
 — the driver registers a namespaced entry running `hook_script` into the harness's
 JSON hooks file, idempotently). Both flavours build the *same* `<memory:*>` payload
 via the shared `content-core.sh` + formatter; only the I/O envelope and
 registration differ.
+
+The third style is **plugin** (opencode): `plugins_dir` + `plugin_file`. The driver
+symlinks the plugin into the dir the host auto-loads (no config edit), and registers
+nothing in a hooks file; the plugin itself runs the hook and guard scripts over stdin. For opencode `hook_script`/`guard_script` are descriptive manifest entries only: the plugin hard-codes both paths, resolved relative to `MEMORY_DIR`.
+It pairs with `archetype = file` + `refresh = hook` (`install.sh` calls `_hook_register_plugin`
+for file-archetype manifests that set `plugins_dir`). See [opencode](opencode.md).
 
 **Execute face** (usable as an executor — consumed by `executor.sh`):
 
@@ -38,6 +45,7 @@ registration differ.
 | `exec_model_flag` | model flag template, `{model}` (e.g. `--model {model}`) |
 | `exec_readonly` | optional read-only headless command; omit → the harness is a task-role executor only |
 | `exec_validate` | optional validate-role headless command: repo-read-only, scratch-writable (the validator runs code in a scratch dir). Validate-only; falls back to `exec_readonly`, then the subagent plane |
+| `exec_probe`, `exec_probe_cmd` | availability gate: `exec_probe` is a binary looked up on `PATH`; `exec_probe_cmd` is a command (`$MEMORY_DIR` expanded) that exits 0 when usable — for a binary that is often off `PATH` (opencode: `opencode-mem.sh --probe`) |
 | `exec_last_message` | optional flag template writing ONLY the final agent message to a file, `{file}` placeholder (e.g. codex `-o {file}`); enables `executor.sh --run --clean` for this harness |
 
 `executor.sh` exports `AI_MEMORY_ROLE` (`task`/`explore`) before running the command,

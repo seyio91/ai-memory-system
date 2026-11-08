@@ -1,0 +1,10 @@
+{
+ "tool": "shell",
+ "sessionID": "ses_e44cd5526ffeYYFBvto6fD2uqi",
+ "agent": "build",
+ "messageID": "msg_1bb32ac6d001WJXn5gu2Zh3OnC",
+ "id": "call_UDsmgv0VBeRMf2MiXmS6ZiTS",
+ "input": {
+  "command": "echo FORBIDDEN"
+ }
+}

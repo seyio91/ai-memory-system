@@ -15,7 +15,7 @@ ERRORS=0
 err()  { printf 'ERROR: %s\n' "$1"; ERRORS=$((ERRORS + 1)); }
 warn() { printf 'WARN:  %s\n' "$1"; }
 
-KNOWN_KEYS=" name archetype format probe hooks_dir hooks_json copilot_hooks_json settings_json hook_script guard_script write_guard_script session_script block_script arm_script hooks_min_version session_chunks inject_chunks statusline statusline_settings statusline_script commands commands_dir commands_doc skills_dir agents_dir context_target refresh exec exec_cmd exec_model_flag exec_readonly exec_validate exec_last_message exec_probe "
+KNOWN_KEYS=" name archetype format probe hooks_dir hooks_json copilot_hooks_json settings_json hook_script guard_script write_guard_script session_script block_script arm_script hooks_min_version session_chunks inject_chunks statusline statusline_settings statusline_script commands commands_dir commands_doc skills_dir agents_dir plugins_dir plugin_file context_target refresh exec exec_cmd exec_model_flag exec_readonly exec_validate exec_last_message exec_probe exec_probe_cmd "
 
 in_set() { case "$2" in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
@@ -56,6 +56,10 @@ validate_one() {
             in_set "$rf" " launch hook " || err "$label: file archetype 'refresh' must be launch|hook (got '${rf:-<empty>}')"
             ;;
     esac
+
+    # plugin registration (opencode): a plugins_dir is useless without the file to link
+    [ -z "$(manifest_get "$mf" plugins_dir)" ] || [ -n "$(manifest_get "$mf" plugin_file)" ] \
+        || err "$label: plugins_dir requires 'plugin_file'"
 
     # commands surface enum + native needs a target dir
     local cmds; cmds="$(manifest_get "$mf" commands)"

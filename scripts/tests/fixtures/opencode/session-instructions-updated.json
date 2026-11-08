@@ -1,0 +1,27 @@
+{
+ "id": "evt_1bb32ac63001jSVbTHAO49QR4d",
+ "created": 1794142022755,
+ "metadata": {
+  "instructions": {
+   "initial": true
+  }
+ },
+ "type": "session.instructions.updated",
+ "durable": {
+  "aggregateID": "ses_e44cd5526ffeYYFBvto6fD2uqi",
+  "seq": 3,
+  "version": 2
+ },
+ "location": {
+  "directory": "/scratch/oc-probe"
+ },
+ "data": {
+  "sessionID": "ses_e44cd5526ffeYYFBvto6fD2uqi",
+  "delta": {
+   "core/codemode": "1f1291478accf8b3e4d96a40c150bf844d60557dede4aae56c47ea0043bbdce2",
+   "core/skill-guidance": "dddbc8affc12653ec58445fb594ec2694580c3ffaffe17b3209a09eee60c5173",
+   "core/date": "f5037a79687112a772ccf5ed4b2589caebf713959392bc4d0630977e1a6b4009",
+   "core/environment": "8b187090f87832a4d6135252859839610fe3dd1cd71da9b80563b757016d829e"
+  }
+ }
+}
