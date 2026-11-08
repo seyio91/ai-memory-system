@@ -153,3 +153,5 @@ Rejected:
 - A Verify line citing an R-id it does not actually prove is invisible to lint — only the final-pass Goal check catches the aggregate miss.
 - R6 live scenarios (i)–(iv) and R4's runs test model behaviour: one run each, pasted, not a regression suite — a later regression is the eval-suite task's job (`402f6850-c619-81bd-b67b-f3c49da741bc`).
 - The validator must pass `--repo <reviewed checkout> --range <brief range>`; the brief already carries both, so S6 states it explicitly.
+- Feasibility CAUTION (R4 run on this plan, base `2f2cc3f`): P1 `apply-partial.sh --all`, P5 live `/plan-archive`, P2 R7 scratch extract and P4/P6 model runs have no dry form — run in the worktree / scratch fixtures, `git diff` as proof.
+- R4 evidence (2026-11-08, brief followed via general-purpose agent — `plan-feasibility` agent type not linked in-session): missing-path copy ⇒ REVISE naming `does/not/exist.sh`; pre-existing `(new)` copy ⇒ REVISE naming `scripts/_lib.sh`; unfenced placeholder scaffold ⇒ `REVISE: not drafted`; this plan ⇒ CAUTION. Post-P1/P4 re-run still owed at the pre-ship checkpoint.
