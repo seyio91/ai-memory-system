@@ -75,6 +75,8 @@ Rejected:
   - `run --format json`: JSONL with `type` ∈ `step_start|tool_use|step_finish|text|error`; last assistant text = last `type=="text"` line `.part.text`. Exit 0 ok, 1 on provider/model error.
   - Skills: no config switch; `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` only (disables the whole `.claude` config source, not just skills).
   - Compaction is triggered by `ctx.session.compact({sessionID})`; there is no CLI trigger.
+  - Primary use (user, 2026-11-08): opencode as a **multi-model executor** selected per role via `AI_MEMORY_EXECUTOR_<ROLE>=opencode:<provider>/<model>`, not on Anthropic models. P4 must test model threading, including a model id containing `:`.
+  - Execution: P2–P4 run in parallel in worktree `../memory-opencode` on branch `feat/opencode-harness`; executors do not commit, and the orchestrator commits per phase after validation.
   - Unverified: whether the background service (non-`--standalone` `run`, TUI) loads plugins from the global `~/.config/opencode/plugins/`. P3/P5 must confirm live.
 
 ## Phases
