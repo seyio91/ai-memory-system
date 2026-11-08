@@ -43,7 +43,16 @@ install.sh --harness opencode     # or auto-detected when `opencode` is on PATH 
 |------|--------|
 | `~/.config/opencode/plugins/ai-memory.ts` | `harnesses/opencode/plugin/ai-memory.ts` (v2 auto-loads the dir; no config edit) |
 | `~/.config/opencode/agents/ai-memory-explore.md` | `harnesses/opencode/agents/ai-memory-explore.md` |
-| `~/.agents/skills/*` | bundled skills and commands-as-skills (opencode has no native slash commands) |
+| `~/.config/opencode/commands/*.md` | `commands/*.md` (one symlink each; native slash commands) |
+| `~/.agents/skills/*` | bundled skills |
+
+Slash commands expand only in the TUI and the API; `opencode run "/x"` sends the literal
+text. `~/.agents/skills` may also hold command-skills installed by other harnesses
+(codex, copilot, antigravity) or by an earlier opencode install, so a command can appear
+both as a slash command and as a skill. This duplication is accepted. With no other
+`commands = skill` harness installed, those copies are frozen: delete the
+`~/.agents/skills/<name>` dirs that contain `.from-command`. Re-run
+`install.sh --harness opencode` to create the commands directory on an existing install.
 
 The installer prints, and never applies, this line for your shell rc:
 
