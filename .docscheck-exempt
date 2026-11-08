@@ -17,3 +17,4 @@ MEMORY_TASK_PROVIDER       # Read by the Python task-provider factory, not a she
 NOTION_TOKEN               # Consumed by the NotionProvider class (scripts/taskprovider/providers/notion.py), not a named script.
 NOTION_DATA_SOURCE_ID      # As above — a class, not a file.
 NOTION_STATUS_KIND         # As above — a class, not a file.
+AI_MEMORY_PLUGIN_TIMEOUT_MS   # Read by the opencode TypeScript plugin (harnesses/opencode/plugin/ai-memory.ts), not a shell script.

@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/seyio91/ai-memory-system/actions/workflows/tests.yml/badge.svg?event=pull_request)](https://github.com/seyio91/ai-memory-system/actions/workflows/tests.yml)
 
-A markdown-only memory tree shared by **Claude Code**, **OpenAI Codex CLI**, **GitHub Copilot CLI**, and **Antigravity** — no vector DB, no daemons, no MCP servers, just files, hooks, and short shell scripts. Insight captured in one agent is visible to the others on the next session, and it compounds: every non-trivial synthesis gets offered for filing.
+A markdown-only memory tree shared by **Claude Code**, **OpenAI Codex CLI**, **GitHub Copilot CLI**, **Antigravity**, and **opencode** — no vector DB, no daemons, no MCP servers, just files, hooks, and short shell scripts. Insight captured in one agent is visible to the others on the next session, and it compounds: every non-trivial synthesis gets offered for filing.
 
 ## Mental model
 
@@ -18,7 +18,7 @@ Every harness reads memory in-band through native hooks: the full tree injects a
 
 ## Install
 
-This repo **is** the memory tree. Clone it and run the installer — a generic, **manifest-driven** engine that wires whichever harness you name (`--harness claude | codex | copilot | antigravity`) or auto-detects one, and points `~/.claude-memory` at the clone. It's agent-runnable: an agent inside any harness can run it to wire that harness up.
+This repo **is** the memory tree. Clone it and run the installer — a generic, **manifest-driven** engine that wires whichever harness you name (`--harness claude | codex | copilot | antigravity | opencode`) or auto-detects one, and points `~/.claude-memory` at the clone. It's agent-runnable: an agent inside any harness can run it to wire that harness up.
 
 ```bash
 git clone https://github.com/seyio91/ai-memory-system.git ~/.claude-memory
@@ -46,7 +46,7 @@ Everything below ships in this repo. Slash commands (`/name`) live in `commands/
 
 ### One memory, every agent
 
-- **Four harnesses, one tree** — **Claude Code**, **OpenAI Codex CLI**, **GitHub Copilot CLI**, and **Antigravity** read and write the same memory. Insight captured in one is visible to the next.
+- **Five harnesses, one tree** — **Claude Code**, **OpenAI Codex CLI**, **GitHub Copilot CLI**, **Antigravity**, and **opencode** read and write the same memory. Insight captured in one is visible to the next.
 - **Live injection** — every harness injects `<memory:*>` blocks via native hooks: full payload on session start, a lightweight breadcrumb on ordinary turns. Payloads that exceed a harness's per-hook cap fan out as ordered chunks, and overflow is loud, never silent.
 - **Post-compaction recovery** — a per-session sentinel deterministically re-injects the full payload once after a context compaction, on Claude, Codex and Copilot.
 - **Manual reload** — `@memory` re-injects the full payload mid-session after you edit memory files.
@@ -57,7 +57,7 @@ Everything below ships in this repo. Slash commands (`/name`) live in `commands/
 ### Install & harness engine
 
 - **Manifest-driven installer** — `install.sh` reads `harnesses/<name>/manifest` and wires that harness with generic drivers (context, commands, skills, agents, statusline, config). Idempotent; backs up anything it overwrites.
-- **Auto-detect or pick** — installs a detected harness or a named one (`--harness claude|codex|copilot|antigravity`); `--list` shows what's registered.
+- **Auto-detect or pick** — installs a detected harness or a named one (`--harness claude|codex|copilot|antigravity|opencode`); `--list` shows what's registered.
 - **Add a harness by manifest** — new harnesses are a manifest + optional wrapper/hook adapter + detection signal, not engine edits. `hook` vs `file` archetype decides live-inject vs generated-context-file.
 - **Repo pinning** — `/pin <project>` writes both directions of the map: `.agents/memory-project` in the repo, `repo`/`repo_path` in project memory. Sessions auto-load the right project; tools resolve a project back to its checkout.
 
@@ -68,7 +68,7 @@ Everything below ships in this repo. Slash commands (`/name`) live in `commands/
 - **`todo.md` execution tracking** — the single source of truth for plan-step checkboxes (harness-native task tools are blocked to enforce this).
 - **Plan lifecycle** — `/plan-done`, `/plan-archive`, `/todo-archive` move plans and todos through completion into the archive, with guards against archiving unfinished work.
 - **Orchestrator / Executor / Validator** — the main agent plans and delegates; executors do scoped work; validators independently check output against the plan's success criteria.
-- **Selectable executor backends** — `executor.sh` resolves `task` (write), `explore` (read-only scout), and `validate` (read-only check) roles to the calling harness's subagent plane, Codex, Copilot, Antigravity, or a generic CLI, per harness manifest.
+- **Selectable executor backends** — `executor.sh` resolves `task` (write), `explore` (read-only scout), and `validate` (read-only check) roles to the calling harness's subagent plane, Codex, Copilot, Antigravity, opencode (any provider/model), or a generic CLI, per harness manifest.
 - **Cross-model validation** — the `validate` role defaults to a *different* model from the executor, so CLI-executor output is checked by an independent, read-only invocation by default.
 - **Cross-project relationships** — a project can declare related repos; the orchestrator delegates sibling-scoped work rather than loading every sibling's memory into the main thread.
 - **Initiatives** — decision streams plus cross-project Targets, with local derived readiness and dependency order rather than another authored status record.
@@ -107,7 +107,7 @@ Everything below ships in this repo. Slash commands (`/name`) live in `commands/
 
 - **Hooks, not just docs** — Claude's `PreToolUse` hook blocks `TaskCreate`/`TaskUpdate` to enforce the `todo.md` rule. A `PostToolUse` write guard reports memory-file drift after every `Write`/`Edit` — it reports, it does not block.
 - **Executor infra-deny** — executors are blocked from destructive/additive infra (`terraform apply`, `kubectl delete`, `helm upgrade`, PR merges) via a shared `scripts/deny-list.txt` and a tokenizing matcher that resists flag/wrapper/quoting bypasses; instance-local rules are additive. `executor.sh --run` prepends the list to every CLI executor prompt and refuses to run without one.
-- **Per-harness enforcement** — Claude, Codex, Copilot and Antigravity `PreToolUse` guards apply the same deny list to delegated runs; Antigravity's also adds a read-only allowlist for `explore`/`validate`. On Claude, `AI_MEMORY_GUARD_SCOPE=all` extends the guard to every session: subagents are denied, and the main session is asked to confirm in `default`/`plan`/`acceptEdits` mode and denied in `bypassPermissions` or any other mode, where Claude shows no prompt. Guards **fail closed** for executors and subagents — a missing parser or deny-list is treated as unsafe. A missing `jq`/`python3` denies in every context, the main session included; only a missing or empty deny-list lets Claude's main session fail open, with a visible warning.
+- **Per-harness enforcement** — Claude, Codex, Copilot, Antigravity and opencode (plugin `execute.before`) guards apply the same deny list to delegated runs; Antigravity's also adds a read-only allowlist for `explore`/`validate`. On Claude, `AI_MEMORY_GUARD_SCOPE=all` extends the guard to every session: subagents are denied, and the main session is asked to confirm in `default`/`plan`/`acceptEdits` mode and denied in `bypassPermissions` or any other mode, where Claude shows no prompt. Guards **fail closed** for executors and subagents — a missing parser or deny-list is treated as unsafe. A missing `jq`/`python3` denies in every context, the main session included; only a missing or empty deny-list lets Claude's main session fail open, with a visible warning.
 - **Protected paths** — guarded contexts (executor roles, Claude subagents) cannot write guard config or plan files (`scripts/protected-paths.txt`, across Bash, `Write`/`Edit`/`NotebookEdit` and Codex `apply_patch`); the deny tells the executor to report instead. The main session is unaffected.
 - **Release/sync guards** — `release.sh` refuses to run under an executor role; `sync-system.sh` refuses to change versions on a dirty tracked tree.
 
@@ -139,6 +139,7 @@ Everything below ships in this repo. Slash commands (`/name`) live in `commands/
 | [docs/harnesses/codex.md](docs/harnesses/codex.md) | Codex CLI: live hook injection (chunked past the per-hook cap), the hand-owned `AGENTS.md` base, the `codex-mem.sh` executor/validator launcher, `/checkpoint` in Codex |
 | [docs/harnesses/copilot.md](docs/harnesses/copilot.md) | GitHub Copilot CLI: `sessionStart`/`preToolUse`/`preCompact`/`postToolUse` hooks, the guarded executor face with read-only mode, the statusline |
 | [docs/harnesses/antigravity.md](docs/harnesses/antigravity.md) | Antigravity (`agy`): live `PreInvocation` injection, the `PreToolUse` enforcement guard + read-only executor, skills/commands via `~/.agents/skills`, the memory-aware statusline |
+| [docs/harnesses/opencode.md](docs/harnesses/opencode.md) | opencode v2: the `ai-memory` plugin (full per-call injection, `execute.before` guard), the `opencode-mem.sh` multi-model executor, security model, troubleshooting |
 | [docs/harnesses/adding-a-harness.md](docs/harnesses/adding-a-harness.md) | Register a new harness by manifest — archetype, surfaces, launch wrapper, detection |
 | [docs/workflow.md](docs/workflow.md) | Orchestrator / Executor / Validator roles, the Task Contract, executor selection, cross-project relationships |
 | [docs/initiatives.md](docs/initiatives.md) | Cross-project initiative format, lifecycle, readiness derivation, and deferred controls |
@@ -165,7 +166,7 @@ domain/<topic>.md        Cross-project knowledge (lazy-loaded on trigger match)
 projects/<name>/         memory.md · working.md · todo.md · plans/ · investigations/ · wikis/ · audits/ · archive/
 initiatives/<slug>.md    Cross-project initiatives: decision stream + Targets — per-instance, git-ignored
 commands/                Slash commands (/checkpoint, /start, …) → ~/.claude/commands, mirrored as skills elsewhere
-harnesses/<name>/        Per-harness wiring + manifest (claude · codex · copilot · antigravity)
+harnesses/<name>/        Per-harness wiring + manifest (claude · codex · copilot · antigravity · opencode)
 skills/  ·  agents/       Authored + in-engine skills, bundled subagents (→ ~/.claude, ~/.agents/skills)
 templates/               Seed files install.sh copies when a target is missing (identity, index, skills.toml, config)
 migrations/              Forward-only instance migrations
