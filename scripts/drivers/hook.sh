@@ -52,7 +52,7 @@ driver_install() {
 # _hook_register_plugin — plugin style (opencode): symlink plugin_file into
 # plugins_dir (the harness auto-loads that dir; no config edit) and symlink every
 # harnesses/<h>/agents/*.md into agents_dir. Idempotent via link(). The plugin, not
-# this driver, invokes hook_script/arm_script/guard_script, so nothing is written
+# this driver, runs the hook and guard scripts (paths hard-coded), so nothing is written
 # to a hooks.json. Never edits a shell rc: the skills-switch export is only printed.
 # Also called directly by install.sh for file-archetype harnesses (like Codex's
 # native-hooks branch).
@@ -85,6 +85,7 @@ _hook_register_plugin() {
     step "Skills double-listing switch (printed, not applied)"
     info "export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1"
     info "  (add to your shell rc: otherwise skills listed in both ~/.claude/skills and ~/.agents/skills show twice)"
+    info "Restart any running opencode service (opencode service restart) or quit the TUI so the plugin loads."
 }
 
 # _hook_ts — timestamp for .bak-<ts> names. install.sh exports TS; fall back so the

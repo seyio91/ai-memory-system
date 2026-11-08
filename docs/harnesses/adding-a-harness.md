@@ -32,7 +32,7 @@ registration differ.
 
 The third style is **plugin** (opencode): `plugins_dir` + `plugin_file`. The driver
 symlinks the plugin into the dir the host auto-loads (no config edit), and registers
-nothing in a hooks file; the plugin itself runs `hook_script` and `guard_script` over stdin.
+nothing in a hooks file; the plugin itself runs the hook and guard scripts over stdin. For opencode `hook_script`/`guard_script` are descriptive manifest entries only: the plugin hard-codes both paths, resolved relative to `MEMORY_DIR`.
 It pairs with `archetype = file` + `refresh = hook` (`install.sh` calls `_hook_register_plugin`
 for file-archetype manifests that set `plugins_dir`). See [opencode](opencode.md).
 

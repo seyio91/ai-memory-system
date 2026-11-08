@@ -46,6 +46,9 @@ driver_notes() {
      native hooks below, so a plain launch gets full memory with no wrapper.
   2. Put permanent per-harness instructions directly in $ctx — it is yours to edit.
 EOF
+        if [ -n "$(manifest_get "$MANIFEST" plugins_dir)" ]; then
+            echo "     Plugin harness: a fresh launch gets full memory only after any running service is restarted (see the restart line above)."
+        fi
     else
         cat <<EOF
   1. Launch this harness through its wrapper so $ctx is rebuilt from memory

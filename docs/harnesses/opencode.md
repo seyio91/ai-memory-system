@@ -4,16 +4,18 @@ Pinned to **opencode v2 (verified on v2.2.6)**. v1 plugins do not run on v2 and 
 not supported; the v2 hook API is days old, so re-verify after an upgrade.
 
 opencode is registered by manifest like the other harnesses and has both faces:
-**delivery** (an interactive session gets memory and the infra guard through a JS
-plugin) and **execute** (`executor.sh` delegates runs to `opencode run`, typically on a
+**delivery** (an interactive session gets memory injection through a JS plugin; the
+infra guard enforces in executor runs, see [Security model](#security-model)) and **execute** (`executor.sh` delegates runs to `opencode run`, typically on a
 non-Anthropic model).
 
 ## Delivery — the `ai-memory` plugin
 
-`harnesses/opencode/plugin/ai-memory.ts` is a thin v2 plugin (no memory logic). It pipes
-`{directory, sessionID, event}` as JSON on stdin to bash scripts built on the shared
-`content-core.sh` + `formatters/xml.sh`, so the payload is the same `<memory:*>` tree
-Claude gets.
+`harnesses/opencode/plugin/ai-memory.ts` is a thin v2 plugin (no memory logic). It runs bash
+scripts built on the shared `content-core.sh` + `formatters/xml.sh`, so the payload is the
+same `<memory:*>` tree Claude gets. JSON on stdin: `context.sh` gets only
+`{directory, sessionID}`; `guard.sh` gets the `execute.before` event's fields flattened
+(`tool`, `sessionID`, `agent`, `input`) plus `directory`, with no `event` key. The scripts
+are resolved from `MEMORY_DIR`, not read from the manifest.
 
 | hook | script | effect |
 |------|--------|--------|
@@ -34,7 +36,7 @@ active project is resolved from the `directory` the plugin supplies, via
 ## Install
 
 ```bash
-install.sh --harness opencode     # or auto-detected when `opencode` is on PATH
+install.sh --harness opencode     # or auto-detected when `opencode` is on PATH or at `~/.opencode/bin/opencode`
 ```
 
 | link | target |
@@ -53,10 +55,19 @@ Without it opencode lists skills twice, from `~/.claude/skills` and `~/.agents/s
 There is no config-level switch, and the variable disables the whole `.claude` config
 source, not only skills. The executor wrapper exports it for you.
 
+Auto-detection runs in the order claude, codex, antigravity, copilot, opencode, ...
+(`install.sh` `detect_harness`) and takes the first match, so another detected harness wins;
+pass `--harness opencode` explicitly.
+
 **Interactive caveat.** `opencode run` (non-standalone) and the TUI go through a shared
 background service that keeps the plugins it started with. After installing, restart the
 service (quit all opencode sessions and stop the service) before expecting injection or
-the guard in an interactive session.
+injection in an interactive session
+(`opencode service restart`, or quit the TUI).
+
+**Unverified.** That a restarted background service and the TUI load global plugins from
+`~/.config/opencode/plugins/` has **not** been verified on v2.2.6; `--standalone` loading
+has. To check, start opencode: a session should quote the active project.
 
 ## Execute — `opencode-mem.sh`
 
@@ -93,6 +104,12 @@ agent, so it cannot run code (use another plane for validators that must).
 
 ## Security model
 
+- **Who is guarded.** `guard.sh` exits with allow unless `AI_MEMORY_ROLE` is set or
+  `AI_MEMORY_GUARD_SCOPE=all`. Interactive sessions get injection only;
+  the guard enforces in executor runs, where `executor.sh` sets the role. To opt an
+  interactive session in, export `AI_MEMORY_GUARD_SCOPE=all` before starting opencode or
+  its service. Under that scope deny-listed commands are denied outright: opencode has no
+  ask path, so the `ask` and `permission_mode` handling is Claude-only.
 - **`--standalone` is forced** so the guard plugin loads in a private server; the shared
   service may not have it. Under `--auto` the guard is the only stop.
 - **Global plugin registration is required.** The wrapper refuses a `run` unless
@@ -111,7 +128,8 @@ agent, so it cannot run code (use another plane for validators that must).
     skill question`; everything else, including MCP tools, is denied;
   - denied tool families for every role: `execute`, `opencode_session_*`,
     `opencode_worktree_*`, `opencode_artifact_*`, `opencode_schedule_*` and subagent tools.
-  - the agent file also denies `edit`, `bash` and `execute` natively, independent of the guard.
+  - the agent file also denies `edit`, `bash` and `execute` natively, independent of the guard;
+    that native permission does not cover `experimental_image_generate`, so the guard is the layer that stops it.
 - **Fail closed.** The guard denies on spawn error, timeout (15s, `AI_MEMORY_PLUGIN_TIMEOUT_MS`),
   non-zero exit, or output that is not a JSON object with `decision: allow|deny`; unparseable
   input or a missing tool name is denied. Injection fails open (no injection, logged).
@@ -132,6 +150,7 @@ agent, so it cannot run code (use another plane for validators that must).
 - **`Agent not found: ai-memory-explore`** The agent link is missing, or the file used the
   wrong frontmatter (v2 needs singular `permission:`; an object-form `permissions:` silently
   drops the agent). Re-run the installer.
-- **No memory / no guard in an interactive session.** The background service is stale and
-  predates the install; restart it. Executor runs are unaffected (`--standalone`).
+- **No memory in an interactive session.** The background service is stale and
+  predates the install; restart it (`opencode service restart`). The interactive guard is off
+  by default (see Security model). Executor runs are unaffected (`--standalone`).
 - **Skills listed twice.** Add the `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` export.

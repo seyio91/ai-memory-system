@@ -622,6 +622,8 @@ if [ ! -e "$OC_CFG/agents/demo-agent.md" ]; then _ok "opencode: shared claude-sh
 assert_file "$FHOME/.agents/skills/demo-skill" "opencode: canonical skill fanned to ~/.agents/skills"
 assert_file "$FHOME/.agents/skills/pin/SKILL.md" "opencode: command delivered as skill"
 assert_contains "$(cat "$SBROOT/log.opencode")" "export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1" "opencode: skills-switch export line printed"
+assert_contains "$(cat "$SBROOT/log.opencode")" "Restart any running opencode service" "opencode: service-restart line printed"
+assert_contains "$(cat "$SBROOT/log.opencode")" "Plugin harness: a fresh launch gets full memory only after" "opencode: closing note qualified by restart"
 assert_not_contains "$(cat "$SBROOT/log.opencode")" "hooks.json" "opencode: no hooks.json registration attempted"
 if [ ! -e "$OC_CFG/hooks.json" ]; then _ok "opencode: no hooks.json written"; else _bad "opencode: unexpected hooks.json"; fi
 oc_snap() { { find "$OC_CFG" "$FHOME/.agents" | sort; find "$OC_CFG" "$FHOME/.agents" -type l -exec readlink {} \; ; } | cksum; }
