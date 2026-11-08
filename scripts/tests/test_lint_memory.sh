@@ -1568,4 +1568,86 @@ run_lint
 assert_contains "$OUT" "$MDB/initiatives/"'back\name.md decision-stream D1 status '"'bogus'" "backslash-n in a filename is reported literally"
 rm -rf "$MDB"
 
+# --- rule 20: plan contract (one sandbox, one lint run, per-plan check letters) ---
+# Every plan below is the clean base with exactly one defect; each plan's set of
+# (letter) tags in the plan-contract: lines must equal its expected set.
+MP="$(new_sandbox)"; export MEMORY_DIR="$MP"; build_clean "$MP"
+PD="$MP/projects/good/plans"
+pc_base() { # pc_base <status> <created-line>
+    cat <<EOF
+---
+plan: x
+status: $1
+$2
+task_ref: none
+---
+# x
+
+## Goal
+**Before:** old
+**After:** new
+
+## Non-goals
+- none
+
+## Success criteria
+- R1 [acceptance] a thing works
+- R2 [parity] same output vs \`origin/main\`
+
+## Design
+d
+
+## Decisions (locked)
+- d
+
+## Phases
+
+### Phase 1 — One
+**Files touched:** \`a.sh\`, \`b.sh\` (new)
+**Risk:** low
+**Depends:** none
+**Verify:** R1, R2 — it passes
+
+## Risks / open questions
+- none
+EOF
+}
+pc_mk() { # pc_mk <name> <sed-script> [status] [created-line]
+    pc_base "${3:-in_progress}" "${4-created: 2026-11-08}" | sed -E "$2" > "$PD/$1.md"
+}
+pc_mk clean 's/^$/&/'
+pc_mk a '/^- R[12] /d'
+pc_mk b 's/^- R1 \[acceptance\]/- R1/'
+pc_mk c 's/^## Risks/### Phase 2 — Two\n**Files touched:** `c.sh`\n**Risk:** low\n**Depends:** Phase 1\n**Verify:** R9 — x\n\n&/'
+pc_mk d 's/^\*\*Verify:\*\* R1, R2/**Verify:** R1/'
+pc_mk e '/^\*\*Risk:\*\* low/d'
+pc_mk f '/^## Non-goals/,/^- none/d'
+pc_mk g 's/ vs `origin\/main`//'
+pc_mk g2 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt`/'
+pc_mk h 's/^\*\*Risk:\*\* low/**Risk:** high/'
+pc_mk i '/^\*\*Before:\*\*/d'
+pc_mk j 's/^$/&/' in_progress ''
+pc_mk jbad 's/^$/&/' in_progress 'created: 11/08/2026'
+pc_mk draftf '/^## Non-goals/,/^- none/d' draft
+pc_mk pre '/^## Non-goals/,/^- none/d;/^\*\*Risk:\*\*/d;/^- R/d' in_progress 'created: 2026-11-07'
+pc_mk finished '/^## Non-goals/,/^- none/d' 'done'
+pc_mk baseok 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt`/;s/^## Risks/### Phase 2 — Baseline\n**Files touched:** `plans\/x.baseline\/` (new)\n**Risk:** low\n**Depends:** Phase 1\n**Verify:** R1 — x\n\n&/'
+# fenced field lines, a #### sub-heading and a non-phase ### are not parsed as phase fields
+pc_mk fenced 's/^## Risks/```\n### Phase 7 — Fake\n**Files touched:** junk\n```\n#### Detail\n### Checkpoint\n**Risk:** nonsense\n\n&/'
+printf '# plain\n' > "$PD/legacy.md"
+run_lint
+pc_letters() { # pc_letters <name> -> sorted unique letters, no separators
+    printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/$1.md (" \
+        | sed -E 's/^plan-contract: [^ ]+ \(([a-j])\).*/\1/' | sort -u | tr -d '\n'
+}
+assert_eq "1" "$CODE" "rule 20 dirty sandbox exits 1"
+for pair in a:ac b:b c:c d:d e:e f:f g:g g2:g h:h i:i j:j jbad:j draftf:f; do
+    assert_eq "${pair#*:}" "$(pc_letters "${pair%%:*}")" "rule 20: plan ${pair%%:*} warns exactly ${pair#*:}"
+done
+for n in clean pre finished baseok fenced legacy; do
+    assert_eq "" "$(pc_letters "$n")" "rule 20: plan $n is silent"
+done
+assert_eq "0" "$(printf '%s\n' "$OUT" | grep -F 'plan-contract:' | grep -vc '^plan-contract: ')" "every plan-contract finding line starts with the prefix"
+rm -rf "$MP"
+
 finish
