@@ -60,24 +60,19 @@ project_dir="$(dirname "$plan_dir")"
 [ "$(basename "$project_dir")" = archive ] && project_dir="$(dirname "$project_dir")"
 project="$(basename "$project_dir")"
 
-patterns="$(awk -v want="$PHASE" '
-    { t = $0; sub(/\r$/, "", t); sub(/^ ? ? ?/, "", t) }
-    match(t, /^(```+|~~~+)/) {
-        m = substr(t, 1, RLENGTH)
-        if (fence == "") { fence = m; next }
-        if (substr(m, 1, 1) == substr(fence, 1, 1) && RLENGTH >= length(fence) && t ~ /^(`+|~+)[[:space:]]*$/) { fence = ""; next }
-    }
-    fence != "" { next }
-    /^### Phase [0-9]+ — / { split($0, a, " "); phase = a[3]; next }
-    /^(## |### )/ { phase = ""; next }
-    phase != "" && (want == "" || phase == want) && /^\*\*Files touched:\*\*/ {
-        line = $0
+patterns="$(awk -v want="$PHASE" -f "$(dirname "$0")/plan-fence.awk" -f /dev/stdin "$PLAN" <<'AWK'
+    pf_skip($0) { next }
+    PF_RAW ~ /^### Phase [0-9]+ — / { split(PF_RAW, a, " "); phase = a[3]; next }
+    PF_RAW ~ /^(## |### )/ { phase = ""; next }
+    phase != "" && (want == "" || phase == want) && PF_RAW ~ /^\*\*Files touched:\*\*/ {
+        line = PF_RAW
         while (match(line, /`[^`]+`/)) {
             print substr(line, RSTART + 1, RLENGTH - 2)
             line = substr(line, RSTART + RLENGTH)
         }
     }
-' "$PLAN")"
+AWK
+)"
 [ -n "$patterns" ] || die "no Files touched in plan${PHASE:+ phase $PHASE}: $PLAN"
 
 # common_dir <checkout> — absolute, symlink-resolved git common dir.

@@ -332,7 +332,7 @@ done
 #     WARN only, every line prefixed `plan-contract:` and tagged with its check
 #     letter (a)-(j); shape only, never truth. Grammar and check table:
 #     docs/file-formats.md "Plan body (verification contract)". Reuses the rule 8
-#     plan walk. Fenced code (``` and ~~~) is not parsed; `####` stays in a phase.
+#     plan walk. Fence/frontmatter handling is scripts/plan-fence.awk (shared with check-plan-drift.sh); `####` stays in a phase.
 for k in "${!live_plans[@]}"; do
     f="${live_plans[$k]}"
     case "${FM_VALUES[$k]}" in draft|in_progress) ;; *) continue;; esac
@@ -345,32 +345,20 @@ for k in "${!live_plans[@]}"; do
             ;;
     esac
     [[ "$created" < "$PLAN_CONTRACT_SINCE" ]] && continue
-    pc_out="$(PC_FILE="$f" LC_ALL=C awk '
+    pc_out="$(PC_FILE="$f" LC_ALL=C awk -f "$SCRIPT_DIR/plan-fence.awk" -f /dev/stdin "$f" 2>/dev/null <<'PCAWK'
         function w(letter, msg) { print "plan-contract: " ENVIRON["PC_FILE"] " (" letter ") " msg }
         function endphase() {
             if (!cur) return
             if (!pf)  w("e", "Phase " cur " has no valid **Files touched:** (comma-separated backticked paths)")
             if (!pr)  w("e", "Phase " cur " has no valid **Risk:** low|medium|high")
             if (!pd)  w("e", "Phase " cur " has no valid **Depends:** none | Phase N[, Phase N...]")
+            if (pft > 1) w("e", "Phase " cur " has " pft " **Files touched:** lines (need exactly one)")
             if (pv != 1) w("e", "Phase " cur " has " pv " **Verify:** lines (need exactly one)")
             cur = 0
         }
-        FNR == 1 && /^---[ \t]*$/ { infm = 1; next }
-        infm { if ($0 ~ /^---[ \t]*$/) infm = 0; next }
         {
-            raw = $0; sub(/\r$/, "", raw)
-            t = raw; sub(/^ ? ? ?/, "", t)
-            if (fence) {
-                s = t; sub(/[ \t]+$/, "", s)
-                if (substr(s, 1, 1) == fch && s ~ /^(`+|~+)$/ && length(s) >= flen) fence = 0
-                next
-            }
-            if (t ~ /^```+[^`]*$/ || t ~ /^~~~+/) {
-                fch = substr(t, 1, 1); flen = 0
-                while (substr(t, flen + 1, 1) == fch) flen++
-                fence = 1
-                next
-            }
+            if (pf_skip($0)) next
+            raw = PF_RAW
             if (raw ~ /^## /) {
                 endphase()
                 insec = 0
@@ -384,9 +372,9 @@ for k in "${!live_plans[@]}"; do
                 insec = 1
                 if (raw ~ /^### Phase [0-9]+ — /) {
                     cur = raw; sub(/^### Phase /, "", cur); sub(/[^0-9].*$/, "", cur)
-                    pf = pr = pd = pv = 0
+                    pf = pr = pd = pv = pft = 0
                     if (raw ~ /^### Phase [0-9]+ — Baseline/) baseline = 1
-                } else if (raw ~ /^### Phase [0-9]+/)
+                } else if (raw ~ /^### Phase /)
                     w("e", "line \"" raw "\" is not a phase heading per the Grammar (### Phase <n> — <title>)")
                 next
             }
@@ -410,6 +398,7 @@ for k in "${!live_plans[@]}"; do
             if (!cur && !insec && raw ~ /^\*\*(Verify|Files touched|Risk|Depends):\*\*/)
                 w("e", "a phase field line \"" raw "\" sits outside any ### Phase section")
             if (raw ~ /^\*\*Files touched:\*\*/) {
+                if (cur) pft++
                 v = raw; sub(/^\*\*Files touched:\*\*[ \t]*/, "", v)
                 if (cur && v ~ /^`[^`]+`( \(new\))?([ \t]*,[ \t]*`[^`]+`( \(new\))?)*[ \t]*$/) pf = 1
             } else if (raw ~ /^\*\*Risk:\*\*/) {
@@ -428,7 +417,7 @@ for k in "${!live_plans[@]}"; do
                 ok = 0
                 if (head ~ /^R[0-9]+([ \t]*,[ \t]*R[0-9]+)*[ \t]*$/) {
                     n = split(head, parts, /[ \t]*,[ \t]*/)
-                    for (i = 1; i <= n; i++) { gsub(/[ \t]/, "", parts[i]); cited[parts[i]] = 1 }
+                    for (i = 1; i <= n; i++) { gsub(/[ \t]/, "", parts[i]); if (cur) cited[parts[i]] = 1 }
                     ok = 1
                 } else if (cur) w("e", where " **Verify:** does not start with R<n>[, R<n>...] before an em dash")
                 if (ok) { ok = 0; for (i = 1; i <= n; i++) if (parts[i] in known) ok = 1 }
@@ -445,7 +434,8 @@ for k in "${!live_plans[@]}"; do
             if (!before) w("i", "**Before:** missing under ## Goal")
             if (!after) w("i", "**After:** missing under ## Goal")
         }
-    ' "$f" 2>/dev/null)"
+PCAWK
+)"
     pc_rc=$?
     if [ "$pc_rc" -ne 0 ]; then
         emit "ERROR: $f lint rule 20 could not scan the plan (awk exit $pc_rc)"

@@ -42,7 +42,8 @@ Parity proof = the re-run against the named ref, or the diff against the
 baseline dir, with output. If the plan has no criteria, stop and report a
 process failure; do not invent a passing bar.
 
-Only when the brief carries `goal_check: yes`:
+Only when the brief carries `goal_check: yes` AND `scope: final` (a
+`goal_check` on any other scope is a misset brief: ignore it):
 - **Goal check.** All criteria PASS but the evidence does not show the plan's
   `**After:**` state ⇒ `VERDICT: BLOCKED (goal)`; escalate.
 - **Drift.** Run `scripts/check-plan-drift.sh <plan> --repo <the checkout

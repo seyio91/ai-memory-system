@@ -137,6 +137,86 @@ assert_not_contains "$OUT" "scripts/drivers/x.sh" "* matches across / (scripts/*
 assert_not_contains "$OUT" "dir/sub/f" "a path ending in / means the whole directory"
 assert_not_contains "$OUT" "sub.txt" "a #### sub-heading stays inside the phase"
 
+# --- shared fence parser: round-2 repro and parity fixtures ---------------
+# An info string containing a backtick is NOT a fence opener (CommonMark); the
+# old drift parser opened a fence there, inverted state, and made the example
+# `Files touched: *` below live -> drift exit 0 over everything.
+echo s > "$REPO/secret.txt"; g add -A; g commit -q -m secret
+R2P="$SB/mem/projects/demo/plans/round2.md"
+cat > "$R2P" <<'PLAN'
+---
+created: 2026-11-08
+---
+
+### Phase 1 — R
+**Files touched:** `scripts/*`
+
+```inline`span```
+
+```
+**Files touched:** `*`
+```
+PLAN
+run "$R2P" --repo "$REPO" --range "HEAD~1...HEAD"
+assert_exit 1 "$RC" "round-2 repro: backtick in an info string does not invert fence state"
+assert_eq "drift: secret.txt" "$OUT" "…the fenced example \`*\` stays inert"
+
+# Parity fixtures: each fence style holds `Files touched: *` (live => drift
+# widens to exit 0). test_lint_memory.sh carries the same body with a bad Risk
+# in each fence and requires rule 20 silent.
+PF_BODY='### Phase 1 — P
+**Files touched:** `scripts/*`
+
+```
+**Files touched:** `*`
+```
+
+   ```
+**Files touched:** `*`
+   ```
+
+```bash title="x"
+**Files touched:** `*`
+```
+
+```inline`span```
+text
+
+```
+**Files touched:** `*`
+```
+
+````
+~~~
+**Files touched:** `*`
+~~~
+**Files touched:** `*`
+````
+
+~~~
+```
+**Files touched:** `*`
+```
+**Files touched:** `*`
+~~~
+
+```
+**Files touched:** `*`
+`````
+
+after
+'
+PFP="$SB/mem/projects/demo/plans/parity.md"
+printf -- '---\ncreated: 2026-11-08\n---\n\n%s' "$PF_BODY" > "$PFP"
+run "$PFP" --repo "$REPO" --range "HEAD~1...HEAD"
+assert_exit 1 "$RC" "parity fixtures (LF): no fence style widens the set"
+assert_eq "drift: secret.txt" "$OUT" "…only secret.txt is drift"
+PFC="$SB/mem/projects/demo/plans/parity-crlf.md"
+{ printf -- '---\ncreated: 2026-11-08\n---\n\n'; printf '%s' "$PF_BODY" | sed 's/$/\r/'; } > "$PFC"
+run "$PFC" --repo "$REPO" --range "HEAD~1...HEAD"
+assert_exit 1 "$RC" "parity fixtures (CRLF): no fence style widens the set"
+assert_eq "drift: secret.txt" "$OUT" "…only secret.txt is drift (CRLF)"
+
 ODD1="$(printf 'we\tird"na\\me')"
 ODD2="$(printf 'new\nline')"
 echo q > "$REPO/$ODD1"; echo q > "$REPO/$ODD2"

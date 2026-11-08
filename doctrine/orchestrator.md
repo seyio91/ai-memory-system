@@ -85,7 +85,7 @@ design stops and reports back instead of designing on its own.
   Checks executor output against the plan's `## Success criteria` (Task
   Contract) plus the phase `Verify:`, each pass/fail with evidence (Part A);
   `goal_check: yes` adds the Goal check (`BLOCKED (goal)`) and
-  `check-plan-drift.sh`. Missing criteria is a process failure: draft them
+  `check-plan-drift.sh`. Missing criteria is a process failure: **stop and** draft them
   first. Fallbacks: `docs/workflow.md`.
   - **Invoke it on the orchestrator's judgment when correctness matters** —
     code writes, terraform changes, anything visible to GitOps, multi-step
