@@ -16,9 +16,9 @@
 #     editing the canonical block source).
 #
 # Usage:
-#   apply-partial.sh --skill <name> [--partial self-rating] [--force]
-#   apply-partial.sh --file <path> [--partial self-rating] [--force]
-#   apply-partial.sh --all [--partial self-rating]   # re-sync all carriers
+#   apply-partial.sh --skill <name> [--partial <name>] [--force]
+#   apply-partial.sh --file <path> [--partial <name>] [--force]
+#   apply-partial.sh --all [--partial <name>]   # re-sync all carriers
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -82,6 +82,10 @@ apply_target() {
 
     tmp="$f.partial.$$"
     if grep -Fxq -- "$START" "$f"; then
+        if ! awk -v s="$START" -v e="$END" '$0 == s { o = 1 } o && $0 == e { found = 1; exit } END { exit !found }' "$f"; then
+            printf 'apply-partial: %s has a %s START marker with no END after it — fix by hand\n' "$label" "$PARTIAL" >&2
+            return 1
+        fi
         # Re-sync: replace the existing block where it sits, so other partials keep their order.
         awk -v s="$START" -v e="$END" -v pf="$PFILE" '
             !done && $0 == s {

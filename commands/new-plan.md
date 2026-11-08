@@ -18,7 +18,7 @@ Step 3.5 — decompose into phases. The scaffold gives you the section; this is 
 
 Merge a phase into its neighbour when it has no `**Verify:**` of its own — setup, scaffolding, and doc touch-ups belong to the phase whose deliverable needs them, not to phases of their own.
 
-**Ordering.** Foundations first: a phase that changes a shape others build on (a scaffold, a schema, a contract) precedes its dependents. Put high-risk and high-unknown phases early — a plan that is going to fail should fail before five phases of work sit on top of it. Independent phases carry no `**Depends:**` and are explicitly parallelizable; say so in `## Decisions (locked)` so the orchestrator can fan them out.
+**Ordering.** Foundations first: a phase that changes a shape others build on (a scaffold, a schema, a contract) precedes its dependents. Put high-risk and high-unknown phases early — a plan that is going to fail should fail before five phases of work sit on top of it. Independent phases carry `**Depends:** none` and are explicitly parallelizable; say so in `## Decisions (locked)` so the orchestrator can fan them out.
 
 **Checkpoints.** Insert a `### Checkpoint` before any phase the project cannot walk back:
 - before a PR is opened or merged, and before any `terraform`/`kubectl` apply — the human/CI gates executors are forbidden to cross;

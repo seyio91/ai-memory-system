@@ -122,6 +122,15 @@ done
 first_marker="$(grep -o -E 'partial:(task-link|plan-scaffold) START' "$TWO" | head -1)"
 assert_eq "partial:task-link START" "$first_marker" "re-sync keeps task-link block ahead of plan-scaffold"
 
+BROKEN="$MEM/commands/broken.md"
+grep -F 'partial:task-link START' "$TWO" | head -1 > "$MEM/start-line"
+{ printf '# Broken\n'; cat "$MEM/start-line"; printf 'stale\n\n## Keep\n'; } > "$BROKEN"
+cp "$BROKEN" "$MEM/broken-before"
+run "$AP" --file "$BROKEN" --partial task-link
+assert_exit 1 "$code" "START without END refuses re-sync"
+set +e; cmp -s "$MEM/broken-before" "$BROKEN"; unchanged=$?; set -e
+assert_exit 0 "$unchanged" "START without END leaves carrier untouched"
+
 PLAN_SCAFFOLD="$SCRIPTS_DIR/partials/plan-scaffold.md"
 PLAN_START="<!-- partial:plan-scaffold START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-scaffold.md) -->"
 PLAN_END="<!-- partial:plan-scaffold END -->"
