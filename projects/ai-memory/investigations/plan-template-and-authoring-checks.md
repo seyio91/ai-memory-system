@@ -6,9 +6,9 @@ status: scoped; awaiting /start brainstorm gate
 created: 2026-11-01
 ---
 
-# Plan template and authoring checks
+# Verification contract: plan template, criterion modes, evidence discipline
 
-Merged scope of three sources (2026-11-01):
+Merged scope (2026-11-01; widened 2026-11-08 with verification modes + evidence discipline, sections below):
 - gaps 3+4 and the plan-vs-PRD review in wiki `sdlc-playbook-comparison`;
 - task `3dbf6850-c619-815d-a0b3-c6d2e6a1a7ec` (Plan authoring checks) — merged whole, archived;
 - half 1 of task `3dbf6850-c619-8117-8cb5-d8989a06f58c` (Plan position and deviation) — that task keeps
@@ -37,6 +37,20 @@ Merged scope of three sources (2026-11-01):
   before/after block, not only criteria + Verify, and judges whether the evidence together shows the
   after-state. Goal missed with all criteria passing → BLOCKED and escalate to the user (user decision).
   Today `agents/validator.md` reads only Verify + Success criteria and checks "nothing beyond them".
+
+## Verification modes (merged 2026-11-08 from task `40bf6850-c619-8188-9328-e930e646cf55`, archived)
+
+- Tag each Success criterion **acceptance** (new behaviour works) or **parity** (new system matches the old one's outcomes).
+- Parity needs an early phase that captures a baseline to disk, not scratchpad.
+- Precedents: status-token migration (1601 lines byte-identical), initiative-status oracle lost with scratchpad, #138 refactors, terraform-state-move identity parity, EKS upgrade, Flannel→Cilium.
+- Open: exact vs declared diffs.
+
+## Evidence discipline (merged 2026-11-08 from task `3dbf6850-c619-8197-addf-fc26738653ab`, archived)
+
+- Skill that fires before any completion claim and blocks it without fresh evidence: name the proving command, run it now, read full output, then speak.
+- Claim→evidence table (executor reporting success ≠ evidence; VCS diff is); rationalization table.
+- After three failed fixes, stop and question the architecture.
+- Hosts validator contract prose: conservative bias; every PASS carries command, output, and how it satisfies the criterion.
 
 ## Authoring prose
 
