@@ -373,6 +373,7 @@ for k in "${!live_plans[@]}"; do
             }
             if (raw ~ /^## /) {
                 endphase()
+                insec = 0
                 sec = raw; sub(/[ \t]+$/, "", sec)
                 if (sec == "## Non-goals") nongoals = 1
                 if (sec == "## Security") security = 1
@@ -380,11 +381,13 @@ for k in "${!live_plans[@]}"; do
             }
             if (raw ~ /^### /) {
                 endphase()
+                insec = 1
                 if (raw ~ /^### Phase [0-9]+ — /) {
                     cur = raw; sub(/^### Phase /, "", cur); sub(/[^0-9].*$/, "", cur)
                     pf = pr = pd = pv = 0
                     if (raw ~ /^### Phase [0-9]+ — Baseline/) baseline = 1
-                }
+                } else if (raw ~ /^### Phase [0-9]+/)
+                    w("e", "line \"" raw "\" is not a phase heading per the Grammar (### Phase <n> — <title>)")
                 next
             }
             if (sec == "## Goal") {
@@ -402,6 +405,10 @@ for k in "${!live_plans[@]}"; do
                 }
                 next
             }
+            if (sec == "## Success criteria" && raw ~ /^- (\*\*)?R[0-9]+/ && raw !~ /^- R[0-9]+ /)
+                w("b", "malformed criterion line \"" raw "\" (need - R<n> [acceptance|parity] ...)")
+            if (!cur && !insec && raw ~ /^\*\*(Verify|Files touched|Risk|Depends):\*\*/)
+                w("e", "a phase field line \"" raw "\" sits outside any ### Phase section")
             if (raw ~ /^\*\*Files touched:\*\*/) {
                 v = raw; sub(/^\*\*Files touched:\*\*[ \t]*/, "", v)
                 if (cur && v ~ /^`[^`]+`( \(new\))?([ \t]*,[ \t]*`[^`]+`( \(new\))?)*[ \t]*$/) pf = 1

@@ -165,10 +165,10 @@ Grammar — what lint rule 20, the drift script and the feasibility brief parse;
 | | Check |
 |---|---|
 | a | at least one `R` criterion line |
-| b | every `R` line carries a tag |
+| b | every `R` line carries a tag; a line starting `- R<n>` or `- **R<n>` that is not `- R<n> [acceptance\|parity] ` is malformed |
 | c | every `**Verify:**` cites at least one existing R-id |
 | d | every R-id is cited by at least one `**Verify:**` |
-| e | every `### Phase N` has `Files touched`, `Risk` and `Depends` matching the grammar, and exactly one `**Verify:**` citing at least one R-id |
+| e | every `### Phase N` has `Files touched`, `Risk` and `Depends` matching the grammar, and exactly one `**Verify:**` citing at least one R-id; a `### Phase <n>` line not in the em-dash form, or a field line outside any `###` section, also warns |
 | f | `## Non-goals` is present |
 | g | every `[parity]` line names `vs` or `baseline` as above; a `baseline` form requires a `### Phase N — Baseline` |
 | h | any `Risk: high` phase requires `## Security` |

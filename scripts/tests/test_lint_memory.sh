@@ -1634,6 +1634,16 @@ pc_mk finished '/^## Non-goals/,/^- none/d' 'done'
 pc_mk baseok 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt`/;s/^## Risks/### Phase 2 — Baseline\n**Files touched:** `plans\/x.baseline\/` (new)\n**Risk:** low\n**Depends:** Phase 1\n**Verify:** R1 — x\n\n&/'
 # fenced field lines, a #### sub-heading and a non-phase ### are not parsed as phase fields
 pc_mk fenced 's/^## Risks/```\n### Phase 7 — Fake\n**Files touched:** junk\n```\n#### Detail\n### Checkpoint\n**Risk:** nonsense\n\n&/'
+# (e) sub-checks: Verify count (none / two), Files touched shape, Depends shape
+pc_mk enov '/^\*\*Verify:\*\*/d'
+pc_mk etwo 's/^\*\*Verify:\*\*.*/&\n&/'
+pc_mk efile 's/^\*\*Files touched:\*\*.*/**Files touched:** junk/'
+pc_mk edep 's/^\*\*Depends:\*\*.*/**Depends:** soon/'
+# (e) near-miss phase headings (hyphen, colon, en dash) and phase fields outside any ### section
+pc_mk ehead 's/^## Risks/### Phase 2 - X\n### Phase 3: X\n### Phase 4 – X\n\n&/'
+pc_mk eout 's/^## Phases/**Verify:** R1 — x\n&/;s/^## Design/&\n**Risk:** low/'
+# (b) malformed criterion lines
+pc_mk bmal 's/^- R2 /- R3: x\n- **R4** [acceptance] x\n- R5[acceptance] x\n&/'
 printf '# plain\n' > "$PD/legacy.md"
 run_lint
 pc_letters() { # pc_letters <name> -> sorted unique letters, no separators
@@ -1641,9 +1651,12 @@ pc_letters() { # pc_letters <name> -> sorted unique letters, no separators
         | sed -E 's/^plan-contract: [^ ]+ \(([a-j])\).*/\1/' | sort -u | tr -d '\n'
 }
 assert_eq "1" "$CODE" "rule 20 dirty sandbox exits 1"
-for pair in a:ac b:b c:c d:d e:e f:f g:g g2:g h:h i:i j:j jbad:j draftf:f; do
+for pair in a:ac b:b c:c d:d e:e f:f g:g g2:g h:h i:i j:j jbad:j draftf:f enov:de etwo:e efile:e edep:e ehead:e eout:e bmal:b; do
     assert_eq "${pair#*:}" "$(pc_letters "${pair%%:*}")" "rule 20: plan ${pair%%:*} warns exactly ${pair#*:}"
 done
+assert_eq "3" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/ehead.md (e)" | grep -cF 'not a phase heading per the Grammar')" "rule 20: three near-miss phase headings each named"
+assert_eq "2" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/eout.md (e)" | grep -cF 'outside any ### Phase section')" "rule 20: two phase fields outside any phase named"
+assert_eq "3" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/bmal.md (b)" | grep -cF 'malformed criterion line')" "rule 20: three malformed criterion lines named"
 for n in clean pre finished baseok fenced legacy; do
     assert_eq "" "$(pc_letters "$n")" "rule 20: plan $n is silent"
 done
