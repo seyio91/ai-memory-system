@@ -97,6 +97,13 @@ Rejected:
     - A non-default `OPENCODE_CONFIG_DIR`/`XDG_CONFIG_HOME` dir is unprotected, so a task run can plant a plugin there.
     - The TUI `write_terminal` tool would get past the deny-list; executor runs can't reach it (`--standalone`, no TUI).
     - The guard falls back to its own cwd when an event lacks `directory`; the plugin always supplies it.
+  - **Final pass (2026-11-08):** R1–R7 PASS (Opus). R8 failed on 2 doc-vs-code contradictions (interactive guard scope, stdin protocol), fixed in a doc round and spot-checked by the orchestrator against `guard.sh` and the plugin. The native explore `permission` layer was verified live without the guard.
+  - **Drift (`check-plan-drift.sh` after rebase onto #151, exit 1), all explained:**
+    - `scripts/executor.sh`: `exec_probe_cmd` fixup.
+    - `scripts/protected-paths.txt`: orchestrator, rounds 1/5.
+    - `scripts/drivers/file.sh`: plugin restart notice.
+    - `.docscheck-exempt`: TS-only env var.
+    - `fixtures/opencode/run-format-json.jsonl`: P1 glob was `*.json`.
   - Unverified: whether the background service (non-`--standalone` `run`, TUI) loads plugins from the global `~/.config/opencode/plugins/`. P3/P5 must confirm live.
 
 ## Phases

@@ -21,7 +21,7 @@
 - [x] P2 — Engine: manifest, registration style, detection, install (needs: P1)
 - [x] P3 — Plugin and hook scripts (needs: P1)
 - [x] P4 — Executor wrapper (needs: P1)
-- [ ] P5 — Docs, changelog, live end-to-end (needs: P2, P3, P4)
+- [x] P5 — Docs, changelog, live end-to-end (needs: P2, P3, P4) — PR #152
 
 ## Done
 _(checked items stay above until the file is rolled)_
