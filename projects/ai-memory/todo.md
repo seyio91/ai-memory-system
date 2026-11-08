@@ -14,7 +14,7 @@
 
 ### opencode: deliver commands as native slash commands → [plan](plans/opencode-native-commands.md)
 - [x] P1 — Spike: opencode command loading
-- [ ] P2 — Manifest, frontmatter, tests, docs (needs: P1)
+- [x] P2 — Manifest, frontmatter, tests, docs (needs: P1) — PR #154
 - [ ] P3 — Live verification (needs: P2)
 
 ## Done
