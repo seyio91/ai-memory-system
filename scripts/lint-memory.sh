@@ -333,19 +333,8 @@ done
 #     letter (a)-(j); shape only, never truth. Grammar and check table:
 #     docs/file-formats.md "Plan body (verification contract)". Reuses the rule 8
 #     plan walk. Fence/frontmatter handling is scripts/plan-fence.awk (shared with check-plan-drift.sh); `####` stays in a phase.
-for k in "${!live_plans[@]}"; do
-    f="${live_plans[$k]}"
-    case "${FM_VALUES[$k]}" in draft|in_progress) ;; *) continue;; esac
-    created="$(extract_fm_field "$f" created)"
-    case "$created" in
-        [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
-        *)
-            emit "plan-contract: $f (j) created: '${created}' is missing or not YYYY-MM-DD — contract scope cannot be decided"
-            continue
-            ;;
-    esac
-    [[ "$created" < "$PLAN_CONTRACT_SINCE" ]] && continue
-    pc_out="$(PC_FILE="$f" LC_ALL=C awk -f "$SCRIPT_DIR/plan-fence.awk" -f /dev/stdin "$f" 2>/dev/null <<'PCAWK'
+# Heredoc kept outside $(...): bash 3.2 mis-parses quotes/parens in a heredoc inside command substitution.
+read -r -d '' PC_AWK <<'PCAWK' || true
         function w(letter, msg) { print "plan-contract: " ENVIRON["PC_FILE"] " (" letter ") " msg }
         function endphase() {
             if (!cur) return
@@ -435,7 +424,19 @@ for k in "${!live_plans[@]}"; do
             if (!after) w("i", "**After:** missing under ## Goal")
         }
 PCAWK
-)"
+for k in "${!live_plans[@]}"; do
+    f="${live_plans[$k]}"
+    case "${FM_VALUES[$k]}" in draft|in_progress) ;; *) continue;; esac
+    created="$(extract_fm_field "$f" created)"
+    case "$created" in
+        [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+        *)
+            emit "plan-contract: $f (j) created: '${created}' is missing or not YYYY-MM-DD — contract scope cannot be decided"
+            continue
+            ;;
+    esac
+    [[ "$created" < "$PLAN_CONTRACT_SINCE" ]] && continue
+    pc_out="$(PC_FILE="$f" LC_ALL=C awk -f "$SCRIPT_DIR/plan-fence.awk" -f /dev/stdin "$f" 2>/dev/null <<< "$PC_AWK")"
     pc_rc=$?
     if [ "$pc_rc" -ne 0 ]; then
         emit "ERROR: $f lint rule 20 could not scan the plan (awk exit $pc_rc)"

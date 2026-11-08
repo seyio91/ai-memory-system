@@ -1692,4 +1692,9 @@ done
 assert_eq "0" "$(printf '%s\n' "$OUT" | grep -F 'plan-contract:' | grep -vc '^plan-contract: ')" "every plan-contract finding line starts with the prefix"
 rm -rf "$MP"
 
+if [ -x /bin/bash ]; then
+    set +e; /bin/bash -n "$SCRIPTS_DIR/lint-memory.sh" 2>/dev/null; rc=$?; set -e
+    assert_exit 0 "$rc" "lint-memory.sh parses under /bin/bash (macOS 3.2)"
+fi
+
 finish

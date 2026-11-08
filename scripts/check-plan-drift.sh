@@ -60,7 +60,7 @@ project_dir="$(dirname "$plan_dir")"
 [ "$(basename "$project_dir")" = archive ] && project_dir="$(dirname "$project_dir")"
 project="$(basename "$project_dir")"
 
-patterns="$(awk -v want="$PHASE" -f "$(dirname "$0")/plan-fence.awk" -f /dev/stdin "$PLAN" <<'AWK'
+read -r -d '' DRIFT_AWK <<'AWK' || true
     pf_skip($0) { next }
     PF_RAW ~ /^### Phase [0-9]+ — / { split(PF_RAW, a, " "); phase = a[3]; next }
     PF_RAW ~ /^(## |### )/ { phase = ""; next }
@@ -72,7 +72,7 @@ patterns="$(awk -v want="$PHASE" -f "$(dirname "$0")/plan-fence.awk" -f /dev/std
         }
     }
 AWK
-)"
+patterns="$(awk -v want="$PHASE" -f "$(dirname "$0")/plan-fence.awk" -f /dev/stdin "$PLAN" <<< "$DRIFT_AWK")"
 [ -n "$patterns" ] || die "no Files touched in plan${PHASE:+ phase $PHASE}: $PLAN"
 
 # common_dir <checkout> — absolute, symlink-resolved git common dir.

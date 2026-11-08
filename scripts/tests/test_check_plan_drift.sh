@@ -329,4 +329,9 @@ mkdir -p "$UR/projects/demo"; echo t > "$UR/projects/demo/x"; git -C "$UR" add -
 run "$PLAN" --repo "$UR" --range "$UB...HEAD"
 assert_exit 1 "$RC" "a repo outside the memory root's object store gets no exclusion"
 
+if [ -x /bin/bash ]; then
+    set +e; /bin/bash -n "$SCRIPTS_DIR/check-plan-drift.sh" 2>/dev/null; rc=$?; set -e
+    assert_exit 0 "$rc" "check-plan-drift.sh parses under /bin/bash (macOS 3.2)"
+fi
+
 finish
