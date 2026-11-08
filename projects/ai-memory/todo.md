@@ -7,21 +7,7 @@
 
 ## Active
 
-### Verification contract: plan template, criterion modes, evidence discipline → [plan](archive/plans/verification-contract.md)
-- [x] P1 — Template and scaffold partial
-- [x] P2 — Lint rule 20 (needs: P1, P3)
-- [x] P3 — Drift script
-- [x] P4 — Feasibility brief (needs: P1)
-- [x] P5 — Baseline lifecycle
-- [x] P6 — Validator and doctrine (needs: P3)
-- [x] Checkpoint — pre-ship (needs: P2, P4, P5, P6)
-
-### Onboard opencode as a harness → [plan](plans/onboard-opencode-harness.md)
-- [x] P1 — Spike: verify opencode v2 hook surface
-- [x] P2 — Engine: manifest, registration style, detection, install (needs: P1)
-- [x] P3 — Plugin and hook scripts (needs: P1)
-- [x] P4 — Executor wrapper (needs: P1)
-- [x] P5 — Docs, changelog, live end-to-end (needs: P2, P3, P4) — PR #152
+_(no items yet)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
