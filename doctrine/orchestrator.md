@@ -74,14 +74,19 @@ design stops and reports back instead of designing on its own.
   is defence in depth (Claude subagents are guarded only under
   `AI_MEMORY_GUARD_SCOPE=all`). For the `codex` CLI executor,
   `~/.codex/rules/default.rules` is optional defense-in-depth if installed.
+- **Evidence before claims.** Run the proving command now; "done" is a claim,
+  output is evidence. Three failed fixes on one finding ⇒ question the design.
+- **Task executors end with `diverged: no | yes — <what>`**; on `yes`, update
+  the plan in a housekeeping commit before the next delegation.
 - **Validator:** its own **`validate` role**
   (`scripts/executor.sh --role validate --which`), **read-only** — it
   verifies, never repairs. Defaults to the orchestrator's own agent plane
   (not the executor's value), so validation is **cross-model by default**.
   Checks executor output against the plan's `## Success criteria` (Task
-  Contract) — each criterion pass/fail with evidence (Part A); nothing
-  beyond them. Missing criteria is a process failure: stop and draft them
-  first. Full decorrelation/fallback mechanics: `docs/workflow.md`.
+  Contract) plus the phase `Verify:`, each pass/fail with evidence (Part A);
+  `goal_check: yes` adds the Goal check (`BLOCKED (goal)`) and
+  `check-plan-drift.sh`. Missing criteria is a process failure: draft them
+  first. Fallbacks: `docs/workflow.md`.
   - **Invoke it on the orchestrator's judgment when correctness matters** —
     code writes, terraform changes, anything visible to GitOps, multi-step
     changes where intermediate state matters — not only per-phase; a
@@ -89,17 +94,16 @@ design stops and reports back instead of designing on its own.
   - **For code phases** the validator also runs a review (Part B), reported
     separately: cold pass, then the brief's `hypotheses:` in their own pass.
     Hypotheses are never delivered by resuming the validator — use a fresh
-    invocation. Defect classes and the cold-first procedure are
-    single-sourced in `agents/validator.md` — not duplicated here.
-  - Brief fields: `scope:` (`fix-round` default | `final`, once per phase
-    before PR-READY, different model family from the executor), `risk:`
-    (`low` = Part A only, `medium` = + fix-round review and one final pass,
-    `high` = all of it, cross-model final pass and run-it mandatory, no
+    invocation. Defect classes and cold-first procedure: `agents/validator.md`.
+  - Brief fields: `goal_check:` (`yes` only on the last phase's `final`
+    pass), `scope:` (`fix-round` default | `final`, once per
+    phase before PR-READY, different model family from the executor), `risk:`
+    (default: the phase `Risk:`; `low` = Part A only, `medium` = + fix-round
+    review and one final pass, `high` = all of it, cross-model final pass and run-it mandatory, no
     same-model fallback — escalate), `hypotheses:` (the brief's suspicions,
     never the lead).
   - **The executor fixes; the validator re-runs both parts (A and B) on the
-    fix commits** — a fix-round is re-checked whole, not patched onto the
-    prior verdict.
+    fix commits** — re-checked whole, not patched onto the prior verdict.
   - **Round cap.** A round is one validator verdict on the branch, counting
     PR-bot rounds that triggered fixes. At 5 rounds still NOT-READY, stop and
     escalate: findings per round, recurring defect classes, options (named

@@ -31,6 +31,7 @@ deny_pre() { # deny_pre <scripts-dir>
         | grep -E '^[[:space:]]*[^#[:space:]]+[[:space:]]+[^[:space:]]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^/- /')"
     printf 'EXECUTOR DENY-LIST — hard rule: never run these, or any destructive/additive action against running infrastructure:\n%s\nEND DENY-LIST\n\n' "$rules"
 }
+DIV_RULE='RETURN RULE — end your final message with exactly one line: "diverged: no" or "diverged: yes — <what differed from the plan>".'
 DENY_PRE="$(deny_pre "$SCRIPTS_DIR"; printf x)"; DENY_PRE="${DENY_PRE%x}"
 
 run() { # run <args...> ; sets OUT (stdout), ERR (stderr), CODE
@@ -128,7 +129,9 @@ export AI_MEMORY_EXECUTOR="echoexec"
 export AI_MEMORY_EXECUTOR_CMD_echoexec="echoexec ARG {prompt} END"
 run --run "do the thing"
 assert_exit 0 "$CODE" "--run generic CLI exits 0 via stub"
-assert_eq "ARG ${DENY_PRE}do the thing END" "$(cat "$MARK")" "--run substitutes {prompt} (quoted)"
+assert_eq "ARG ${DENY_PRE}${DIV_RULE}
+
+do the thing END" "$(cat "$MARK")" "--run substitutes {prompt} (quoted)"
 export PATH="$OLDPATH"
 
 # --- 8. --run resolving to subagent -> sentinel + exit 3 ---
@@ -154,7 +157,9 @@ export AI_MEMORY_EXECUTOR="echoexec2"
 export AI_MEMORY_EXECUTOR_CMD_echoexec2="echoexec2 {prompt}"
 run --run "it's a test"
 assert_exit 0 "$CODE" "--run apostrophe prompt exits 0"
-assert_eq "${DENY_PRE}it's a test" "$(cat "$MARK2")" "--run preserves apostrophe in prompt"
+assert_eq "${DENY_PRE}${DIV_RULE}
+
+it's a test" "$(cat "$MARK2")" "--run preserves apostrophe in prompt"
 export PATH="$OLDPATH"
 
 # ============ Phase 7: roles + manifest exec_* resolution ============
@@ -331,6 +336,7 @@ assert_eq "${DENY_PRE}${VBODY}
 --- CALLER-SUPPLIED VALIDATION INPUTS ---
 
 check the diff" "${args#*--ro }" "--run validate: deny-list preamble precedes the validator preamble"
+assert_not_contains "$args" "diverged:" "--run validate has no diverged rule"
 
 # task and explore prompts get only the deny-list preamble.
 export AI_MEMORY_EXECUTOR_TASK=ww
@@ -338,7 +344,10 @@ run --run "task prompt"
 assert_exit 0 "$CODE" "--run task exits 0 via stub"
 args="$(cat "$WMARK")"
 assert_not_contains "$args" "CALLER-SUPPLIED VALIDATION INPUTS" "--run task does not prepend validator prompt"
-assert_eq "${DENY_PRE}task prompt" "${args#*--do }" "--run task: deny-list preamble + prompt byte-for-byte"
+assert_eq "${DENY_PRE}${DIV_RULE}
+
+task prompt" "${args#*--do }" "--run task: deny-list + diverged rule + prompt byte-for-byte"
+assert_contains "$args" "diverged: no" "--run task carries the diverged return rule"
 
 export AI_MEMORY_EXECUTOR_EXPLORE=ww
 run --role explore --run "explore prompt"
@@ -346,6 +355,7 @@ assert_exit 0 "$CODE" "--run explore exits 0 via stub"
 args="$(cat "$WMARK")"
 assert_not_contains "$args" "CALLER-SUPPLIED VALIDATION INPUTS" "--run explore does not prepend validator prompt"
 assert_eq "${DENY_PRE}explore prompt" "${args#*--ro }" "--run explore: deny-list preamble + prompt byte-for-byte"
+assert_not_contains "$args" "diverged:" "--run explore has no diverged rule"
 
 # The composed prompt is passed positionally (codex exec {prompt}); a leading '-'
 # would be parsed as a flag. Holds for every role.

@@ -232,6 +232,8 @@ ${more}"
     printf 'EXECUTOR DENY-LIST — hard rule: never run these, or any destructive/additive action against running infrastructure:\n%s\nEND DENY-LIST' "$rules"
 }
 
+DIVERGED_RULE='RETURN RULE — end your final message with exactly one line: "diverged: no" or "diverged: yes — <what differed from the plan>".'
+
 # --- arg parse: optional --role, then the mode ---
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -300,6 +302,10 @@ case "$MODE" in
 
 ${PROMPT}"
         fi
+        # Task runs only: the return rule sits beside the deny-list (which stays role-blind).
+        [ "$ROLE" = task ] && deny="${deny}
+
+${DIVERGED_RULE}"
         PROMPT="${deny}
 
 ${PROMPT}"
