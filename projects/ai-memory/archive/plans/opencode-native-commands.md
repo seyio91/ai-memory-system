@@ -1,6 +1,7 @@
 ---
 plan: opencode-native-commands
-status: in_progress
+status: done
+completed: 2026-11-08
 created: 2026-11-08
 owner: claude (orchestrator)
 task_provider: notion
@@ -44,6 +45,7 @@ Deliver the memory system's commands to opencode v2 as native slash commands in 
 - Native commands for opencode; skill duplicates accepted.
 - Frontmatter, if required, goes in the canonical command files.
 - P1 spike (v2.2.6, standalone server + `session.command` API, expansion read back from stored user message, no model call): (a) frontmatter-less loads — YES → R4 N/A, no frontmatter added; (b) symlink (target outside config dir) loads — YES; (c) `$ARGUMENTS` substituted, incl. quoted/backticked forms in `pin.md`/`new-project.md` — YES; (d) `$HOME/.config/opencode/commands/` (plural) scanned — YES, `.opencode/commands/` and `OPENCODE_CONFIG_DIR` too. All 21 repo commands resolve to their own bodies — no clashes. Unknown frontmatter keys ignored, frontmatter stripped from prompt. `opencode run "/x"` does NOT expand slash commands (literal text) — Phase 3 must use the TUI or the API.
+- P3 live (2026-11-08): after #154 merge (`0354372`), `install.sh --harness opencode` + service restart → 21 symlinks in `~/.config/opencode/commands/`, none dangling; user confirmed `/threads` listed in the TUI slash menu and ran. R5 PASS.
 - Binary evidence (v2.2.6): command loader scans `{command,commands}/**/*.md` with `symlink:!0`, names by relative path, substitutes `$ARGUMENTS`/`$n`; returns early when frontmatter parse yields nothing.
 
 ## Phases
