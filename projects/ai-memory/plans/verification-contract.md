@@ -69,6 +69,7 @@ Rejected:
   - Phase heading: `^### Phase [0-9]+ — `; any other `###` (e.g. `### Checkpoint`) is not a phase.
   - Phase fields, each on its own line: `**Files touched:**` (comma-separated backticked paths or globs, repo-relative; a file the phase creates is suffixed ` (new)` after its closing backtick), `**Risk:** low|medium|high`, `**Depends:** none | Phase N[, Phase N…]` (phase numbers only, no names; what the feasibility brief's transitive closure and `todo.md`'s `(needs: Pn)` mirror read), `**Verify:** R<n>[, R<n>…] — <condition>` (R-ids before the em dash; single line).
   - Sections: `## Non-goals`, `## Security` exact headings; `**Before:**` / `**After:**` under `## Goal`.
+  - Path patterns (accepted 2026-11-08, P3 validation): bash `case` semantics — `*` matches across `/` (`scripts/*` covers subdirectories); a path ending in `/` means the whole directory (`dir/` ≡ `dir/*`). `Files touched` lines inside fenced code blocks are not phase fields; a phase ends only at the next `### `/`## ` heading.
 - Cutover literal `2026-11-08` as `PLAN_CONTRACT_SINCE` in `scripts/_lib.sh` — one definition read by rule 20 and the drift script (only this plan qualifies today).
 - P1, P3, P5 are independent and run in parallel (disjoint `Files touched`); P2 needs P1 (`docs/file-formats.md` rule-20 paragraph) and P3 (`PLAN_CONTRACT_SINCE` in `_lib.sh`); P4 needs P1; P6 needs P3.
 - Before Phase 1 starts, record here: `feasibility base: <main SHA>` — every feasibility run on this plan passes it as `base:`.
