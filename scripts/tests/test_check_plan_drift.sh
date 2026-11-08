@@ -121,6 +121,10 @@ created: 2026-11-08
 ~~~
 ````
 
+  ```
+**Files touched:** `*`
+  ```
+
 #### Sub-heading
 **Files touched:** `sub.txt`
 

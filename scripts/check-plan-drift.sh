@@ -61,10 +61,11 @@ project_dir="$(dirname "$plan_dir")"
 project="$(basename "$project_dir")"
 
 patterns="$(awk -v want="$PHASE" '
-    match($0, /^(```+|~~~+)/) {
-        m = substr($0, 1, RLENGTH)
+    { t = $0; sub(/\r$/, "", t); sub(/^ ? ? ?/, "", t) }
+    match(t, /^(```+|~~~+)/) {
+        m = substr(t, 1, RLENGTH)
         if (fence == "") { fence = m; next }
-        if (substr(m, 1, 1) == substr(fence, 1, 1) && RLENGTH >= length(fence) && $0 ~ /^(`+|~+)[[:space:]]*$/) { fence = ""; next }
+        if (substr(m, 1, 1) == substr(fence, 1, 1) && RLENGTH >= length(fence) && t ~ /^(`+|~+)[[:space:]]*$/) { fence = ""; next }
     }
     fence != "" { next }
     /^### Phase [0-9]+ — / { split($0, a, " "); phase = a[3]; next }

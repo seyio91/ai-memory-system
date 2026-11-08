@@ -1624,6 +1624,7 @@ pc_mk e '/^\*\*Risk:\*\* low/d'
 pc_mk f '/^## Non-goals/,/^- none/d'
 pc_mk g 's/ vs `origin\/main`//'
 pc_mk g2 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt`/'
+pc_mk g3 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt` vs `origin\/main`/'
 pc_mk h 's/^\*\*Risk:\*\* low/**Risk:** high/'
 pc_mk i '/^\*\*Before:\*\*/d'
 pc_mk j 's/^$/&/' in_progress ''
@@ -1651,7 +1652,7 @@ pc_letters() { # pc_letters <name> -> sorted unique letters, no separators
         | sed -E 's/^plan-contract: [^ ]+ \(([a-j])\).*/\1/' | sort -u | tr -d '\n'
 }
 assert_eq "1" "$CODE" "rule 20 dirty sandbox exits 1"
-for pair in a:ac b:b c:c d:d e:e f:f g:g g2:g h:h i:i j:j jbad:j draftf:f enov:de etwo:e efile:e edep:e ehead:e eout:e bmal:b; do
+for pair in a:ac b:b c:c d:d e:e f:f g:g g2:g g3:g h:h i:i j:j jbad:j draftf:f enov:de etwo:e efile:e edep:e ehead:e eout:e bmal:b; do
     assert_eq "${pair#*:}" "$(pc_letters "${pair%%:*}")" "rule 20: plan ${pair%%:*} warns exactly ${pair#*:}"
 done
 assert_eq "3" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/ehead.md (e)" | grep -cF 'not a phase heading per the Grammar')" "rule 20: three near-miss phase headings each named"

@@ -401,7 +401,7 @@ for k in "${!live_plans[@]}"; do
                 else if (raw ~ /^- R[0-9]+ \[parity\] /) {
                     if (raw !~ /vs `[^`]+`/ && raw !~ /baseline `plans\/[^`]*\.baseline\/[^`]+`/)
                         w("g", id " [parity] names neither vs `<git-ref>` nor baseline `plans/<slug>.baseline/<path>`")
-                    if (raw ~ /baseline `plans\/[^`]*\.baseline\/[^`]+`/ && raw !~ /vs `[^`]+`/) needbase = 1
+                    if (raw ~ /baseline `plans\/[^`]*\.baseline\/[^`]+`/) needbase = 1
                 }
                 next
             }
