@@ -77,6 +77,20 @@ Rejected:
   - Compaction is triggered by `ctx.session.compact({sessionID})`; there is no CLI trigger.
   - Primary use (user, 2026-11-08): opencode as a **multi-model executor** selected per role via `AI_MEMORY_EXECUTOR_<ROLE>=opencode:<provider>/<model>`, not on Anthropic models. P4 must test model threading, including a model id containing `:`.
   - Execution: P2–P4 run in parallel in worktree `../memory-opencode` on branch `feat/opencode-harness`; executors do not commit, and the orchestrator commits per phase after validation.
+  - P4 (2026-11-08): plain `opencode run` goes through the shared background service, which keeps the plugins it started with. A scratch-config guard plugin did **not** load and `echo` ran unguarded; with `--standalone` it loaded and denied. So the wrapper always forces `--standalone`. Interactive/TUI sessions: the plugin only takes effect after the service restarts, and P5 docs + installer output must say so.
+  - `exec_probe` gap: `~/.opencode/bin` is often off PATH, and `executor.sh` doesn't expand `exec_probe`. Fix = option (a): `executor.sh` expands `exec_probe` via `expand_memdir`, and the manifest probe points at `opencode-mem.sh --probe` (exits 0 only if it resolves a binary). Lands as a fixup after P2/P3.
+  - **Injection amended (2026-11-08, P1 fixture evidence):** `event.system` is rebuilt every model call and pushes don't persist (`context-after-tool.json` holds only the 4 stock entries). So `context.sh` injects the **full** payload on every call, with no counter, no breadcrumb and no compaction hook. **R3 amended:** consecutive `context` calls on one session both emit the full payload, and a build failure emits nothing and exits 0.
+  - **R2 amended (P2):** the installer does not write `~/.config/opencode/AGENTS.md`. `file` archetype parity with Codex (hand-owned base) is enough, since the per-call injection carries identity and doctrine. Accepted: `install.sh` registers the plugin via `_hook_register_plugin` for `file`-archetype manifests with `plugins_dir`, and skips the claude-shaped shared `agents/` fan-out for this harness.
+  - Fixup after P3 (P2+P4 residue): drop `arm_script` from the manifest; apply the `exec_probe` fix above.
+  - **Code Mode (spike, 2026-11-08):** this is not a shell/write bypass.
+    - `execute.before` fires for `execute` and for each inner call (`opencode_<tool>`).
+    - Built-ins (shell/write/edit/patch) are `codemode:false`, so they are unreachable from inside `execute`.
+    - Inner namespace = `opencode_*` management tools + MCP tools. `opencode_worktree_create`, `artifact_*` and `schedule_*` mutate outside the guard's shell/write checks.
+    - Fix round:
+      - `opencode-mem.sh` sets `OPENCODE_CONFIG_CONTENT` with `permission.execute: deny` (drops the tool and its ~5KB catalog, live-verified); `ai-memory-explore` adds `execute: deny`.
+      - The guard parses `patch.patchText` and accepts `filePath` as well as `path`.
+      - The explore/validate allowlist already denies the rest.
+  - **Accepted risk (user, 2026-11-08, validator r2 finding 1):** shell interpreter writes (e.g. `python3 -c … write_text`) to protected paths pass the guard. This is pre-existing in the shared `path-match.sh` for Claude/Codex on main too (string matching, not a sandbox). Real enforcement is tracked in task `412f6850-c619-8141-a311-d1f155a19913`; validators treat it as known, not bug-grade.
   - Unverified: whether the background service (non-`--standalone` `run`, TUI) loads plugins from the global `~/.config/opencode/plugins/`. P3/P5 must confirm live.
 
 ## Phases

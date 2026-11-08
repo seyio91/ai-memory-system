@@ -8,12 +8,12 @@
 ## Active
 
 ### Verification contract: plan template, criterion modes, evidence discipline → [plan](plans/verification-contract.md)
-- [ ] P1 — Template and scaffold partial
-- [ ] P2 — Lint rule 20 (needs: P1, P3)
-- [ ] P3 — Drift script
-- [ ] P4 — Feasibility brief (needs: P1)
-- [ ] P5 — Baseline lifecycle
-- [ ] P6 — Validator and doctrine (needs: P3)
+- [x] P1 — Template and scaffold partial
+- [x] P2 — Lint rule 20 (needs: P1, P3)
+- [x] P3 — Drift script
+- [x] P4 — Feasibility brief (needs: P1)
+- [x] P5 — Baseline lifecycle
+- [x] P6 — Validator and doctrine (needs: P3)
 - [ ] Checkpoint — pre-ship (needs: P2, P4, P5, P6)
 
 ### Onboard opencode as a harness → [plan](plans/onboard-opencode-harness.md)
