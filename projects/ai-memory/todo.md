@@ -7,10 +7,7 @@
 
 ## Active
 
-### Write-path robustness: index regen and local task provider → [plan](plans/write-path-robustness.md)
-- [x] P1 — regenerate-index.sh: path-safe enumeration + atomic temp handling
-- [x] P2 — local task provider: exclusive create + atomic writes
-- [x] P3 — gate and ship (needs: P1, P2) (PR #150)
+_(no items yet)_
 
 ## Done
 _(checked items stay above until the file is rolled)_
