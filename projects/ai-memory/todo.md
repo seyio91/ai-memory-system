@@ -7,7 +7,15 @@
 
 ## Active
 
-_(no items yet)_
+### Split /checkpoint: model synthesizes, script does bookkeeping → [plan](plans/checkpoint-script-split.md)
+- [ ] P1 — Parser, prepare, identifier expansion
+- [ ] P2 — apply: validate, merge, write, report (needs: P1)
+- [ ] P3 — Wire command, Codex, docs, changelog (needs: P2)
+
+### opencode: deliver commands as native slash commands → [plan](plans/opencode-native-commands.md)
+- [x] P1 — Spike: opencode command loading
+- [ ] P2 — Manifest, frontmatter, tests, docs (needs: P1)
+- [ ] P3 — Live verification (needs: P2)
 
 ## Done
 _(checked items stay above until the file is rolled)_
