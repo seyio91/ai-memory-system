@@ -1,0 +1,1 @@
+- **`/checkpoint` merges duplicate entries for the same work.** When several entries match a piece at the same rank, the bottom-most is rewritten and the others are folded into it (earliest start date, Done in order, every open item reconciled) and deleted. Before, the others stayed untouched with stale Next items.
