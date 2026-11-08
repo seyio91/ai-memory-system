@@ -52,6 +52,7 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 - **Open-sourcing removed content going forward, never by scrubbing history.**
 
 ## Known Constraints / Gotchas
+- **A green suite does not prove bash 3.2** — tests call `bash` on PATH (Homebrew 5 here). A heredoc inside `$(...)` with quotes/parens fails to parse on `/bin/bash` 3.2; only `test_memory_write_guard.sh` (PATH `/usr/bin:/bin` first) caught it. Run touched suites with `PATH="/usr/bin:/bin:$PATH" /bin/bash` and `/bin/bash -n` changed scripts.
 - **A branch switch here is a live downgrade of the running harness.** Use `git switch -C main origin/main` or `merge --ff-only origin/main`; local `main` has been 182 commits stale. Check the channel before authoring — `release`-pinned instances get yanked back by `/sync-system`. Re-run `install.sh` after a version hop.
 - **Housekeeping created on a feature branch rides that branch** — `main` has never seen branch-born files, and most of `projects/*` and `initiatives/*` is gitignored with no commit route at all. Check `git check-ignore --no-index` first.
 - **A worktree forks the memory tree but `MEMORY_DIR` stays pinned to the main checkout.** Keep plan/todo bookkeeping in main; the isolation guard blocks `projects/**` edits, `rtk git` and `GIT_CONFIG_COUNT` overrides inside a worktree.
