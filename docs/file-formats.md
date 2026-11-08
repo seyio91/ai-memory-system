@@ -145,6 +145,37 @@ synonym silently splits one column into two and a missing `status:` renders blan
 > `/plan-archive` *tolerates* reading `complete` or `closed` when deciding whether to prompt, but
 > those are not values to write. Use `done`.
 
+### Plan body (verification contract)
+
+The body template lives once in `scripts/partials/plan-scaffold.md` (the *Plan scaffold* section of `/new-plan` and `/start`); this section is the grammar it follows and the lint that reads it. Shape, in order: `## Goal` (with `**Before:**` and `**After:**` lines), `## Non-goals`, `## Success criteria`, `## Design` (ending in a `**Builds on:**` line of references, never a dependency declaration), `## Security` (only when needed), `## Decisions (locked)`, `## Phases`, `## Risks / open questions`.
+
+Grammar — what lint rule 20, the drift script and the feasibility brief parse; none changes it without a plan edit:
+
+- **Criterion:** `^- R[0-9]+ \[(acceptance|parity)\] ` at the start of a line under `## Success criteria`; one line per criterion.
+- **Parity reference**, within the `[parity]` line: ``vs `<git-ref>` `` (re-run the check at that ref and compare) or ``baseline `plans/<slug>.baseline/<path>` `` (compare against a snapshot kept on disk).
+- **Phase heading:** `^### Phase [0-9]+ — `; any other `###` (such as `### Checkpoint`) is not a phase.
+- **Phase fields**, each on its own line: `**Files touched:**` (comma-separated backticked repo-relative paths or globs; a file the phase creates is suffixed ` (new)` after its closing backtick), `**Risk:** low|medium|high`, `**Depends:** none | Phase N[, Phase N…]` (phase numbers only), `**Verify:** R<n>[, R<n>…] — <condition>` (R-ids before the em dash; single line).
+- **Sections:** `## Non-goals` and `## Security` are exact headings; `**Before:**` / `**After:**` sit under `## Goal`.
+
+**Baseline dir.** A `baseline` parity reference points at `plans/<slug>.baseline/` beside the plan, on disk in the memory tree, created by a `### Phase N — Baseline`. `/plan-archive` moves it to `archive/plans/<slug>.baseline/` with the plan. Prefer `vs <git-ref>` when the check can be re-run at a ref; a stored snapshot drifts with the tree.
+
+**Lint rule 20** (`lint-memory.sh`; WARN only, every line prefixed `plan-contract:`) applies to plans with `status: draft` or `in_progress` and `created:` on or after the cutover `2026-11-08` (`PLAN_CONTRACT_SINCE` in `scripts/_lib.sh`, the one definition read by rule 20 and `check-plan-drift.sh`). Plans created earlier are not linted. Checks:
+
+| | Check |
+|---|---|
+| a | at least one `R` criterion line |
+| b | every `R` line carries a tag |
+| c | every `**Verify:**` cites at least one existing R-id |
+| d | every R-id is cited by at least one `**Verify:**` |
+| e | every `### Phase N` has `Files touched`, `Risk` and `Depends` matching the grammar, and exactly one `**Verify:**` citing at least one R-id |
+| f | `## Non-goals` is present |
+| g | every `[parity]` line names `vs` or `baseline` as above; a `baseline` form requires a `### Phase N — Baseline` |
+| h | any `Risk: high` phase requires `## Security` |
+| i | `**Before:**` and `**After:**` are present under `## Goal` |
+| j | a live plan with no `created:`, or one not matching `YYYY-MM-DD`, warns rather than falling out of scope |
+
+Rule 20 checks shape, not truth: whether a `Verify` line actually proves the R-id it cites is the validator's judgement.
+
 ## Domain file body
 
 Just `## Knowledge`. Entries append as `**[YYYY-MM-DD]** what — why it matters`.

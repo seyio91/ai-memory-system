@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # apply-partial.sh — inject/sync a managed partial block into a markdown carrier (#5).
-# The one partial we ship is `self-rating`. The canonical text lives once at
+# Partials we ship: `self-rating`, `task-link`, `plan-scaffold`. The canonical text lives once at
 # scripts/partials/<partial>.md; this script splices it into a skill between
 # demarcation markers so a re-run re-syncs from source (idempotent) and an
 # external skill stays fork-safe (the block is clearly machine-managed).
@@ -81,22 +81,32 @@ apply_target() {
     fi
 
     tmp="$f.partial.$$"
-    # Strip any existing managed block (markers inclusive), then trailing blanks.
-    awk -v s="$START" -v e="$END" '
-        $0 == s { inblk = 1; next }
-        inblk && $0 == e { inblk = 0; next }
-        inblk { next }
-        { print }
-    ' "$f" | awk '
-        { buf[NR] = $0 }
-        END { last = NR; while (last > 0 && buf[last] ~ /^[[:space:]]*$/) last--; for (i = 1; i <= last; i++) print buf[i] }
-    ' > "$tmp"
-
-    {
-        printf '\n%s\n' "$START"
-        cat "$PFILE"
-        printf '%s\n' "$END"
-    } >> "$tmp"
+    if grep -Fxq -- "$START" "$f"; then
+        # Re-sync: replace the existing block where it sits, so other partials keep their order.
+        awk -v s="$START" -v e="$END" -v pf="$PFILE" '
+            !done && $0 == s {
+                print
+                while ((getline line < pf) > 0) print line
+                close(pf)
+                print e
+                inblk = 1; done = 1; next
+            }
+            inblk && $0 == e { inblk = 0; next }
+            inblk { next }
+            { print }
+        ' "$f" > "$tmp"
+    else
+        # First injection: append at EOF after trimming trailing blanks.
+        awk '
+            { buf[NR] = $0 }
+            END { last = NR; while (last > 0 && buf[last] ~ /^[[:space:]]*$/) last--; for (i = 1; i <= last; i++) print buf[i] }
+        ' "$f" > "$tmp"
+        {
+            printf '\n%s\n' "$START"
+            cat "$PFILE"
+            printf '%s\n' "$END"
+        } >> "$tmp"
+    fi
 
     mv "$tmp" "$f"
     printf 'applied: %s -> %s\n' "$PARTIAL" "${f#"$MEMORY_CANON"/}"

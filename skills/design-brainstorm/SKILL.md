@@ -55,6 +55,8 @@ Treat the design as a **tree**: each decision has further decisions hanging off 
 
 Count rounds, not questions. A clear feature may need one round of three questions — that is a success, not a shortcut.
 
+**Round cap.** Stop at three rounds of clarifying questions (steps 3–5 together). If the frontier is still open after round three, do not start a fourth: play back *Decided / Assumed / Deferred* from the closing gate, mark the open branches as assumptions or deferrals, and let the user redirect. Past three rounds the questions are usually refining detail the plan can carry as a risk.
+
 Put each round to the user with the **`AskUserQuestion` tool** when the harness has it:
 
 - One tool question per frontier question, with a short `header` and 2–4 options phrased as *answers* (not yes/no), so there's no ambiguity about what agreeing means.

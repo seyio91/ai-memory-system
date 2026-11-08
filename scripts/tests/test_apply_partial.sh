@@ -103,4 +103,61 @@ done <<EOF
 $task_carriers
 EOF
 
+
+TWO="$MEM/commands/two.md"
+printf '# Two\n' > "$TWO"
+run "$AP" --file "$TWO" --partial task-link --force
+assert_exit 0 "$code" "two-partial carrier: task-link injects"
+run "$AP" --file "$TWO" --partial plan-scaffold --force
+assert_exit 0 "$code" "two-partial carrier: plan-scaffold injects"
+cp "$TWO" "$MEM/two-before"
+for order in "task-link plan-scaffold" "plan-scaffold task-link"; do
+    for part in $order; do
+        run "$AP" --file "$TWO" --partial "$part"
+        assert_exit 0 "$code" "two-partial carrier: re-sync $part"
+    done
+    set +e; cmp -s "$MEM/two-before" "$TWO"; identical=$?; set -e
+    assert_exit 0 "$identical" "two-partial carrier byte-identical after re-sync ($order)"
+done
+first_marker="$(grep -o -E 'partial:(task-link|plan-scaffold) START' "$TWO" | head -1)"
+assert_eq "partial:task-link START" "$first_marker" "re-sync keeps task-link block ahead of plan-scaffold"
+
+PLAN_SCAFFOLD="$SCRIPTS_DIR/partials/plan-scaffold.md"
+PLAN_START="<!-- partial:plan-scaffold START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-scaffold.md) -->"
+PLAN_END="<!-- partial:plan-scaffold END -->"
+PLAN_BLOCK="$(mktemp 2>/dev/null || mktemp -t plan-scaffold-block)"
+trap 'rm -rf "$MEM" "$OUTSIDE" "$TASK_BLOCK" "$PLAN_BLOCK"' EXIT
+
+set +e
+plan_carriers="$(grep -l -F "$PLAN_START" "$ROOT"/commands/*.md)"
+code=$?
+set -e
+assert_exit 0 "$code" "plan-scaffold carriers discovered by START marker"
+
+plan_carrier_count="$(printf '%s\n' "$plan_carriers" | awk 'NF { count++ } END { print count + 0 }')"
+# Literal 2, same reasoning as the task-link count above: never make it dynamic.
+assert_eq "2" "$plan_carrier_count" "both plan-scaffold command carriers remain present"
+
+while IFS= read -r carrier; do
+    [ -n "$carrier" ] || continue
+    set +e
+    awk -v start="$PLAN_START" -v end="$PLAN_END" '
+        $0 == start { if (found || in_block) exit 1; found = 1; in_block = 1; next }
+        in_block && $0 == end { in_block = 0; closed = 1; next }
+        in_block { print; next }
+        END { if (!found || !closed || in_block) exit 1 }
+    ' "$carrier" > "$PLAN_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-scaffold block extracts"
+
+    set +e
+    cmp -s "$PLAN_SCAFFOLD" "$PLAN_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-scaffold block matches source bytes"
+done <<EOF
+$plan_carriers
+EOF
+
 finish
