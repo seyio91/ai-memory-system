@@ -7,60 +7,76 @@ Step 1 — resolve the active project from the injected memory context: the `<me
 
 Step 2 — verify the plan exists at `~/.claude-memory/projects/<active>/plans/$ARGUMENTS.md`. If not, abort with the path and a hint to check `ls plans/`.
 
-Step 3 — sanity check the plan's status. Read the file's frontmatter — note its `task_ref` value too (empty if absent); it is needed for Step 5. If `status:` is not `done`, `complete`, or `closed`, ask the user explicitly: "Plan status is `<current>`, not `done`. Archive anyway?" Don't proceed without a yes.
+Step 3 — sanity check the plan's status. Read the file's frontmatter — note its `task_ref` value too (empty if absent); it is needed for Step 6. If `status:` is not `done`, `complete`, or `closed`, ask the user explicitly: "Plan status is `<current>`, not `done`. Archive anyway?" Don't proceed without a yes.
 
 Step 4 — sanity check the todo. Grep `~/.claude-memory/projects/<active>/todo.md` for references to the plan (`plans/$ARGUMENTS.md`). If any unchecked checkboxes are in the same section, surface them to the user and ask: "Plan has N open todos referencing it. Archive anyway?" Don't proceed without a yes.
 
-Step 5 — resolve the linked investigation, if any. There is no index to consult — check candidates directly:
+Step 5 — move the plan's baseline, if any. A plan with a verification contract may have a baseline directory at `~/.claude-memory/projects/<active>/plans/$ARGUMENTS.baseline/`. This step runs before the investigation steps on purpose: the no-investigation branch of Step 6 jumps ahead, so a baseline step placed after it would be skipped.
+- If `plans/$ARGUMENTS.baseline/` doesn't exist, there is no baseline — do nothing and report "no baseline" in Step 9.
+- If `~/.claude-memory/projects/<active>/archive/plans/$ARGUMENTS.baseline` **already exists**, do NOT move the baseline and do NOT overwrite anything. Remember this as a collision to report in Step 9. This never blocks the plan's own archival — continue to Step 6 regardless.
+- Otherwise, create the destination parent if needed and move the directory:
+  ```
+  mkdir -p ~/.claude-memory/projects/<active>/archive/plans
+  mv ~/.claude-memory/projects/<active>/plans/$ARGUMENTS.baseline \
+     ~/.claude-memory/projects/<active>/archive/plans/$ARGUMENTS.baseline
+  ```
+  Remember source and destination to report in Step 9.
+
+Step 6 — resolve the linked investigation, if any. There is no index to consult — check candidates directly:
 - If `~/.claude-memory/projects/<active>/investigations/` doesn't exist, or is empty, there is nothing to
-  resolve — skip Step 6 and continue at Step 7 (the plan is still archived), reporting "no investigation
-  linked" in Step 8.
+  resolve — skip Step 7 and continue at Step 8 (the plan is still archived), reporting "no investigation
+  linked" in Step 9.
 - **`task_ref` match first.** If the plan's frontmatter carried a non-empty `task_ref` (from Step 3), read
   the frontmatter of every file in `~/.claude-memory/projects/<active>/investigations/*.md` and look for
   one whose own `task_ref` field equals the plan's. At most one should match; if you find one, that file
-  is the resolved investigation — go to Step 6.
+  is the resolved investigation — go to Step 7.
 - **Same-slug fallback.** If the plan had no `task_ref`, or no investigation's `task_ref` matched it, check
   whether `~/.claude-memory/projects/<active>/investigations/$ARGUMENTS.md` exists (same filename as the
-  plan). If it does, that file is the resolved investigation — go to Step 6.
-- If neither step resolves a file, there is no linked investigation — skip Step 6 and continue at Step 7
-  (the plan is still archived), reporting "no investigation linked" in Step 8 (no error, no noise beyond
+  plan). If it does, that file is the resolved investigation — go to Step 7.
+- If neither step resolves a file, there is no linked investigation — skip Step 7 and continue at Step 8
+  (the plan is still archived), reporting "no investigation linked" in Step 9 (no error, no noise beyond
   that one line).
 
-Step 6 — move the resolved investigation, handling a destination collision:
+Step 7 — move the resolved investigation, handling a destination collision:
 - Let `<inv-file>` be the resolved file's name (e.g. `$ARGUMENTS.md`, or a different name if resolved by
   `task_ref`).
 - If `~/.claude-memory/projects/<active>/archive/investigations/<inv-file>` **already exists**, do NOT
-  move the investigation and do NOT overwrite anything. Remember this as a collision to report in Step 8.
-  This never blocks the plan's own archival — continue to Step 7 regardless.
+  move the investigation and do NOT overwrite anything. Remember this as a collision to report in Step 9.
+  This never blocks the plan's own archival — continue to Step 8 regardless.
 - Otherwise, create the destination directory if needed and move the file:
   ```
   mkdir -p ~/.claude-memory/projects/<active>/archive/investigations
   mv ~/.claude-memory/projects/<active>/investigations/<inv-file> \
      ~/.claude-memory/projects/<active>/archive/investigations/<inv-file>
   ```
-  Remember source and destination to report in Step 8.
+  Remember source and destination to report in Step 9.
 
-Step 7 — move the plan file:
+Step 8 — move the plan file:
 ```
 mv ~/.claude-memory/projects/<active>/plans/$ARGUMENTS.md \
    ~/.claude-memory/projects/<active>/archive/plans/$ARGUMENTS.md
 ```
 
-Step 7b — relink the **live** `todo.md`. Moving the plan leaves every reference to it pointing at a file that no longer exists. In `~/.claude-memory/projects/<active>/todo.md`, rewrite each link target `plans/$ARGUMENTS.md` to `archive/plans/$ARGUMENTS.md`, leaving the link text and surrounding line intact:
+Step 8b — relink the **live** `todo.md`. Moving the plan leaves every reference to it pointing at a file that no longer exists. In `~/.claude-memory/projects/<active>/todo.md`, rewrite each link target `plans/$ARGUMENTS.md` to `archive/plans/$ARGUMENTS.md`, leaving the link text and surrounding line intact:
 
 ```
 ### Session-scoped project pin → [plan](plans/session-project-pin.md)
 ### Session-scoped project pin → [plan](archive/plans/session-project-pin.md)
 ```
 
-Only the live `todo.md`. **Never rewrite links inside `archive/todos/*.md`** — those are point-in-time snapshots of what `todo.md` said the day it was rolled, and editing one to reflect a later event falsifies an audit record. A dangling link in a snapshot is correct; a dangling link in the live file is the bug. If `todo.md` contains no reference to the plan, do nothing and say so in Step 8.
+Only the live `todo.md`. **Never rewrite links inside `archive/todos/*.md`** — those are point-in-time snapshots of what `todo.md` said the day it was rolled, and editing one to reflect a later event falsifies an audit record. A dangling link in a snapshot is correct; a dangling link in the live file is the bug. If `todo.md` contains no reference to the plan, do nothing and say so in Step 9.
 
-Step 8 — report back:
+Step 9 — report back:
 - The plan's source → destination paths.
 - The `todo.md` relink: how many link targets were rewritten, or "no todo reference" if none.
 - The investigation outcome, exactly one of:
   - source → destination paths, if one was moved;
   - which file was found and why it was left in place, if a destination collision blocked the move
     (name the existing `archive/investigations/<inv-file>`);
-  - "no investigation linked," if Step 5 resolved nothing.
+  - "no investigation linked," if Step 6 resolved nothing.
+- The baseline outcome, exactly one of:
+  - source → destination paths, if the baseline directory was moved;
+  - which baseline was found and why it was left in place, if a destination collision blocked the move
+    (name the existing `archive/plans/$ARGUMENTS.baseline`);
+  - "no baseline," if there was none.
 - A reminder that the archive is not read on future sessions unless the user explicitly asks.
