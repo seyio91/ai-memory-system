@@ -60,14 +60,13 @@ Auto-detection runs in the order claude, codex, antigravity, copilot, opencode, 
 pass `--harness opencode` explicitly.
 
 **Interactive caveat.** `opencode run` (non-standalone) and the TUI go through a shared
-background service that keeps the plugins it started with. After installing, restart the
-service (quit all opencode sessions and stop the service) before expecting injection or
-injection in an interactive session
-(`opencode service restart`, or quit the TUI).
+background service that keeps the plugins it started with. After installing, restart it
+(`opencode service restart`, or quit the TUI) before expecting injection in an interactive
+session.
 
-**Unverified.** That a restarted background service and the TUI load global plugins from
-`~/.config/opencode/plugins/` has **not** been verified on v2.2.6; `--standalone` loading
-has. To check, start opencode: a session should quote the active project.
+**Verified on v2.2.6:** after `opencode service restart`, the background service and the TUI
+load global plugins from `~/.config/opencode/plugins/`, the same as `--standalone`. To check,
+start opencode: a session should quote the active project.
 
 ## Execute — `opencode-mem.sh`
 
