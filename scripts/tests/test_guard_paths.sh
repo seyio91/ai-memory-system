@@ -130,7 +130,9 @@ assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to a prot
 assert_contains "$(jq -r .reason "$OUT")" "only via the orchestrator" "guard opencode: protected write reason is the path guard's"
 run "$(oc_ptool edit '{"path":"scripts/protected-paths.txt","oldString":"a","newString":"b"}')" $OC AI_MEMORY_ROLE=task
 assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task edit of a protected path is denied"
-run "$(oc_ptool write "{\"path\":$(json_escape "$REPO/projects/x/plans/p.md"),\"content\":\"x\"}" /elsewhere)" $OC AI_MEMORY_ROLE=task
+# JSON built outside "$(...)": bash 3.2 mangles \" nested in a quoted command substitution
+in_json="$(jq -nc --arg p "$REPO/projects/x/plans/p.md" '{path:$p, content:"x"}')"
+run "$(oc_ptool write "$in_json" /elsewhere)" $OC AI_MEMORY_ROLE=task
 assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: absolute protected path is denied regardless of directory"
 run "$(oc_ptool shell '{"command":"echo hi > projects/x/plans/p.md"}')" $OC AI_MEMORY_ROLE=task
 assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: shell redirect into a protected path is denied"
@@ -173,13 +175,16 @@ assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: same command with a
 
 # B2: enforcement/injection files are protected from task writes
 for rel in harnesses/opencode/hooks/context.sh harnesses/opencode/plugin/ai-memory.ts harnesses/opencode/scripts/opencode-mem.sh; do
-    run "$(oc_ptool write "{\"path\":\"$rel\",\"content\":\"exit 0\"}")" $OC AI_MEMORY_ROLE=task
+    in_json="$(jq -nc --arg p "$rel" '{path:$p, content:"exit 0"}')"
+    run "$(oc_ptool write "$in_json")" $OC AI_MEMORY_ROLE=task
     assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to $rel is denied"
 done
 OCHOME="$TMP/home"; mkdir -p "$OCHOME"
-run "$(oc_ptool write "{\"path\":\"$OCHOME/.config/opencode/plugins/x.ts\",\"content\":\"x\"}" /elsewhere)" $OC AI_MEMORY_ROLE=task HOME="$OCHOME"
+in_json="$(jq -nc --arg p "$OCHOME/.config/opencode/plugins/x.ts" '{path:$p, content:"x"}')"
+run "$(oc_ptool write "$in_json" /elsewhere)" $OC AI_MEMORY_ROLE=task HOME="$OCHOME"
 assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to ~/.config/opencode/plugins/x.ts is denied"
-run "$(oc_ptool write "{\"path\":\"$OCHOME/.config/opencode/agents/x.md\",\"content\":\"x\"}" /elsewhere)" $OC AI_MEMORY_ROLE=task HOME="$OCHOME"
+in_json="$(jq -nc --arg p "$OCHOME/.config/opencode/agents/x.md" '{path:$p, content:"x"}')"
+run "$(oc_ptool write "$in_json" /elsewhere)" $OC AI_MEMORY_ROLE=task HOME="$OCHOME"
 assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to ~/.config/opencode/agents/x.md is denied"
 
 # B4c: Code Mode / state-mutating / child-session tools are denied under any guarded role
