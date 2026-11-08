@@ -92,4 +92,144 @@ set -e
 assert_exit 2 "$code" "guard paths: symlinked root, no readlink on PATH, protected Edit still denied"
 assert_contains "$(cat "$ERR")" "only via the orchestrator" "guard paths: symlinked root, no readlink, reason is the path guard's"
 
+# --- opencode mode (AI_MEMORY_GUARD_OUTPUT=opencode): execute.before event {tool, input:{command}},
+# verdict is one JSON line on stdout, exit 0; the plugin fails closed on anything else.
+OCFIX="$SCRIPTS_DIR/tests/fixtures/opencode"
+oc_event() { # <tool> [command]
+    jq -nc --arg t "$1" --arg c "${2:-}" '{tool:$t, sessionID:"ses_x", agent:"build", input:(if $c=="" then {} else {command:$c} end)}'
+}
+OC="AI_MEMORY_GUARD_OUTPUT=opencode"
+
+run "$(oc_event shell 'kubectl delete ns foo')" $OC AI_MEMORY_ROLE=task
+assert_exit 0 "$code" "guard opencode: deny verdict exits 0"
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: deny-listed shell command is denied"
+assert_contains "$(jq -r .reason "$OUT")" "kubectl delete" "guard opencode: deny reason names the rule"
+
+run "$(cat "$OCFIX/execute-before-shell.json")" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: captured benign shell fixture is allowed (explicit allow)"
+
+run "$(oc_event write)" $OC AI_MEMORY_ROLE=explore
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: explore + write tool is denied"
+run "$(oc_event edit)" $OC AI_MEMORY_ROLE=validate
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: validate + edit tool is denied"
+run "$(oc_event shell 'echo ok')" $OC AI_MEMORY_ROLE=explore
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: explore + benign shell is denied"
+run "$(oc_event read)" $OC AI_MEMORY_ROLE=explore
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: explore + read tool is allowed"
+oc_ptool() { # <tool> <input-json> [directory]: tool call with a given input object
+    jq -nc --arg t "$1" --argjson i "$2" --arg d "${3:-$REPO}" \
+        '{tool:$t, sessionID:"ses_x", agent:"build", directory:$d, input:$i}'
+}
+run "$(oc_ptool write '{"path":"notes/ordinary.txt","content":"x"}')" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: task role + write to an ordinary path is allowed"
+
+# protected-path writes through opencode's own tools (v2.2.6: write/edit use input.path, may be relative)
+run "$(oc_ptool write '{"path":"projects/x/plans/p.md","content":"x"}')" $OC AI_MEMORY_ROLE=task
+assert_exit 0 "$code" "guard opencode: protected-path deny still exits 0"
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to a protected plan path is denied"
+assert_contains "$(jq -r .reason "$OUT")" "only via the orchestrator" "guard opencode: protected write reason is the path guard's"
+run "$(oc_ptool edit '{"path":"scripts/protected-paths.txt","oldString":"a","newString":"b"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task edit of a protected path is denied"
+run "$(oc_ptool write "{\"path\":$(json_escape "$REPO/projects/x/plans/p.md"),\"content\":\"x\"}" /elsewhere)" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: absolute protected path is denied regardless of directory"
+run "$(oc_ptool shell '{"command":"echo hi > projects/x/plans/p.md"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: shell redirect into a protected path is denied"
+run "$(oc_ptool shell '{"command":"echo hi > notes/ok.txt"}')" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: shell redirect into an ordinary path is allowed"
+run "$(oc_ptool write '{"content":"x"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: write with no path field is denied (fail closed)"
+run "$(oc_ptool edit '{}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: edit with no path field is denied (fail closed)"
+run "$(oc_ptool apply_patch '{"patchText":"*** Begin Patch\n*** Add File: projects/x/plans/p.md\n+x\n*** End Patch"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: patch tool adding a protected path is denied"
+run "$(oc_ptool apply_patch '{"patchText":"*** Begin Patch\n*** Add File: notes/a.md\n+x\n*** End Patch"}')" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: patch tool on an ordinary path is allowed"
+run "$(oc_ptool apply_patch '{}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: patch tool with no patch text is denied"
+run "$(oc_ptool write '{"path":"projects/x/plans/p.md"}')" $OC
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: no role, no scope: protected write is not guarded (main session)"
+run "$(oc_event write)" $OC
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: no role, no scope: unguarded allow"
+
+run 'not json at all' $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: malformed input is denied (role set)"
+run 'not json at all' $OC
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: malformed input is denied (no role)"
+run '{"sessionID":"ses_x","input":{"command":"kubectl delete ns foo"}}' $OC
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: event without a tool name is denied"
+
+# --- fix round 1 ---
+# B1: shell input.workdir is the cwd for relative targets (event directory is elsewhere)
+oc_wd() { # <workdir> <command> [directory]
+    jq -nc --arg w "$1" --arg c "$2" --arg d "${3:-/tmp}" \
+        '{tool:"shell", sessionID:"ses_x", agent:"build", directory:$d, input:{command:$c, workdir:$w}}'
+}
+run "$(oc_wd "$REPO/scripts" 'printf x > deny-list.txt')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: shell workdir=<repo>/scripts, relative redirect into deny-list.txt is denied"
+run "$(oc_wd scripts 'printf x > deny-list.txt' "$REPO")" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: relative workdir resolves against the event directory"
+run "$(oc_wd /tmp 'printf x > deny-list.txt')" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: same command with an unrelated workdir is allowed"
+
+# B2: enforcement/injection files are protected from task writes
+for rel in harnesses/opencode/hooks/context.sh harnesses/opencode/plugin/ai-memory.ts harnesses/opencode/scripts/opencode-mem.sh; do
+    run "$(oc_ptool write "{\"path\":\"$rel\",\"content\":\"exit 0\"}")" $OC AI_MEMORY_ROLE=task
+    assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to $rel is denied"
+done
+OCHOME="$TMP/home"; mkdir -p "$OCHOME"
+run "$(oc_ptool write "{\"path\":\"$OCHOME/.config/opencode/plugins/x.ts\",\"content\":\"x\"}" /elsewhere)" $OC AI_MEMORY_ROLE=task HOME="$OCHOME"
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to ~/.config/opencode/plugins/x.ts is denied"
+run "$(oc_ptool write "{\"path\":\"$OCHOME/.config/opencode/agents/x.md\",\"content\":\"x\"}" /elsewhere)" $OC AI_MEMORY_ROLE=task HOME="$OCHOME"
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: task write to ~/.config/opencode/agents/x.md is denied"
+
+# B4c: Code Mode / state-mutating / child-session tools are denied under any guarded role
+for role in task explore validate; do
+    for t in execute opencode_worktree_create worktree_remove opencode_artifact_publish artifact_write opencode_schedule_create schedule_run subagent opencode_subagent my_subagent_run; do
+        run "$(oc_ptool "$t" '{}')" $OC AI_MEMORY_ROLE=$role
+        assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: $role + $t is denied"
+    done
+done
+run "$(oc_ptool execute '{"code":"1"}')" $OC AI_MEMORY_ROLE=task
+assert_contains "$(jq -r .reason "$OUT")" "Code Mode" "guard opencode: execute denial reason names Code Mode"
+run "$(oc_ptool execute '{"code":"1"}')" $OC
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: no role: execute is not guarded (main session)"
+run "$(oc_ptool some_mcp_server_lookup '{"q":"x"}')" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: task role + unknown MCP-style tool stays allowed"
+run "$(oc_ptool some_mcp_server_lookup '{"q":"x"}')" $OC AI_MEMORY_ROLE=explore
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: explore role + MCP-style tool stays denied (allowlist)"
+
+# fix round 4: session move/rename would leave the directory holding a project-local plugin
+for role in task explore validate; do
+    for t in opencode_session_move session_rename opencode_session_fork OPENCODE_SESSION_MOVE Session_Delete; do
+        run "$(oc_ptool "$t" '{"directory":"/elsewhere"}')" $OC AI_MEMORY_ROLE=$role
+        assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: $role + $t is denied"
+    done
+done
+run "$(oc_ptool opencode_session_move '{"directory":"/elsewhere"}')" $OC AI_MEMORY_ROLE=task
+assert_contains "$(jq -r .reason "$OUT")" "session" "guard opencode: session denial reason names the session tool"
+run "$(oc_ptool opencode_session_move '{"directory":"/elsewhere"}')" $OC
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: no role: session move is not guarded (main session)"
+
+# fix round 4: experimental_image_generate writes input.path (protected-path check applies)
+run "$(oc_ptool experimental_image_generate '{"prompt":"x","path":"projects/x/plans/p.png"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: image_generate to a protected plan path is denied"
+run "$(oc_ptool experimental_image_generate '{"prompt":"x","filePath":"projects/x/plans/p.png"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: image_generate filePath to a protected plan path is denied"
+run "$(oc_ptool experimental_image_generate '{"prompt":"x","path":"notes/p.png"}')" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: image_generate to an ordinary path is allowed"
+run "$(oc_ptool experimental_image_generate '{"prompt":"x"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: image_generate with no path is denied (fail closed)"
+
+# fix round 4: tool-name matching is case-insensitive everywhere
+run "$(oc_event Shell 'terraform destroy')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: Shell + terraform destroy is denied"
+run "$(oc_event BASH 'terraform destroy')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: BASH + terraform destroy is denied"
+
+# B4d: patch tool (spike: `patch` with `patchText`) is guarded under both names
+run "$(oc_ptool patch '{"patchText":"*** Begin Patch\n*** Add File: projects/x/plans/p.md\n+x\n*** End Patch"}')" $OC AI_MEMORY_ROLE=task
+assert_eq deny "$(jq -r .decision "$OUT")" "guard opencode: patch tool (patchText) adding a protected path is denied"
+run "$(oc_ptool patch '{"patchText":"*** Begin Patch\n*** Add File: notes/a.md\n+x\n*** End Patch"}')" $OC AI_MEMORY_ROLE=task
+assert_eq allow "$(jq -r .decision "$OUT")" "guard opencode: patch tool (patchText) on an ordinary path is allowed"
+
 finish

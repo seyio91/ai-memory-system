@@ -3,6 +3,10 @@
 # `~/` entries are anchored at $HOME.
 scripts/deny-list*.txt
 scripts/hooks/**
+harnesses/*/hooks/**
+harnesses/*/plugin/**
+harnesses/*/scripts/**
+harnesses/*/agents/**
 scripts/deny-match.sh
 scripts/jsonutil.sh
 scripts/path-match.sh
@@ -11,3 +15,5 @@ config.local.sh
 projects/*/plans/**
 ~/.claude/settings.json
 ~/.codex/hooks.json
+~/.config/opencode/plugins/**
+~/.config/opencode/agents/**

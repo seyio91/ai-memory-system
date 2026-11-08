@@ -26,7 +26,7 @@
 # A registered harness resolves through its manifest: exec=subagent -> subagent
 # plane; else exec_cmd (task) / exec_readonly (explore) / exec_validate falling
 # back to exec_readonly (validate), gated on
-# exec_probe being on PATH. A harness with no read-only mode is skipped for
+# exec_probe being on PATH (or, when set, exec_probe_cmd exiting 0). A harness with no read-only mode is skipped for
 # `explore`/`validate` (degrades to the subagent plane), never run write-capable.
 # An unregistered name falls back to a legacy AI_MEMORY_EXECUTOR_CMD_<key> template.
 #
@@ -84,7 +84,7 @@ cmd_template() {
 #   0 resolved | 1 CLI unavailable | 2 unknown / no execute face
 R_PLANE="" R_NAME="" R_MODEL="" R_CMD="" R_LASTMSG=""
 resolve_value() {
-    local value="$1" harness model mf cmd mflag probe keys
+    local value="$1" harness model mf cmd mflag probe probecmd probearr keys
     harness="${value%%:*}"; model=""
     case "$value" in *:*) model="${value#*:}" ;; esac
     R_PLANE="" R_NAME="$harness" R_MODEL="$model" R_CMD="" R_LASTMSG=""
@@ -123,11 +123,22 @@ resolve_value() {
         fi
         cmd="$(expand_memdir "$cmd")"
         # availability probe: exec_probe, else the first word of exec_cmd
-        probe="$(manifest_get "$mf" exec_probe)"
-        [ -n "$probe" ] || probe="$(first_word "$(expand_memdir "$(manifest_get "$mf" exec_cmd)")")"
-        if ! command -v "$probe" >/dev/null 2>&1 && [ ! -x "$probe" ]; then
-            printf 'executor: %s unavailable (%s not found)\n' "$harness" "$probe" >&2
-            return 1
+        # exec_probe_cmd (optional, wins): a command run word-split, no shell; exit 0 = available.
+        # Chosen over special-casing exec_probe so existing manifests keep their exact semantics.
+        probecmd="$(expand_memdir "$(manifest_get "$mf" exec_probe_cmd)")"
+        if [ -n "$probecmd" ]; then
+            read -ra probearr <<<"$probecmd"
+            if ! "${probearr[@]}" >/dev/null 2>&1; then
+                printf 'executor: %s unavailable (probe failed: %s)\n' "$harness" "$probecmd" >&2
+                return 1
+            fi
+        else
+            probe="$(expand_memdir "$(manifest_get "$mf" exec_probe)")"
+            [ -n "$probe" ] || probe="$(first_word "$(expand_memdir "$(manifest_get "$mf" exec_cmd)")")"
+            if ! command -v "$probe" >/dev/null 2>&1 && [ ! -x "$probe" ]; then
+                printf 'executor: %s unavailable (%s not found)\n' "$harness" "$probe" >&2
+                return 1
+            fi
         fi
         # optional clean-output flag template (e.g. codex `-o {file}`); "" if absent.
         R_LASTMSG="$(expand_memdir "$(manifest_get "$mf" exec_last_message)")"

@@ -34,6 +34,8 @@ driver_install() {
         _hook_register_json "$hooks_json"
     elif [ -n "$copilot_hooks_json" ]; then
         _hook_register_copilot_json "$copilot_hooks_json"
+    elif [ -n "$(manifest_get "$MANIFEST" plugins_dir)" ]; then
+        _hook_register_plugin
     else
         info "hook archetype but no supported hook target in manifest — nothing wired"
     fi
@@ -45,6 +47,44 @@ driver_install() {
     if [ -n "$sl_settings" ]; then
         _hook_register_statusline "$sl_settings"
     fi
+}
+
+# _hook_register_plugin — plugin style (opencode): symlink plugin_file into
+# plugins_dir (the harness auto-loads that dir; no config edit) and symlink every
+# harnesses/<h>/agents/*.md into agents_dir. Idempotent via link(). The plugin, not
+# this driver, invokes hook_script/arm_script/guard_script, so nothing is written
+# to a hooks.json. Never edits a shell rc: the skills-switch export is only printed.
+# Also called directly by install.sh for file-archetype harnesses (like Codex's
+# native-hooks branch).
+_hook_register_plugin() {
+    local plugins_dir plugin_file agents_dir f
+    plugins_dir="$(manifest_get "$MANIFEST" plugins_dir)"
+    plugin_file="$(manifest_get "$MANIFEST" plugin_file)"
+    agents_dir="$(manifest_get "$MANIFEST" agents_dir)"
+    plugin_file="${plugin_file//\$MEMORY_DIR/$MEMORY_DIR}"
+
+    if [ -n "$plugins_dir" ] && [ -n "$plugin_file" ]; then
+        step "Plugin -> $plugins_dir"
+        if [ -f "$plugin_file" ]; then
+            mkdir -p "$plugins_dir"
+            link "$plugin_file" "$plugins_dir/$(basename "$plugin_file")"
+        else
+            info "WARN: plugin_file $plugin_file does not exist — plugin not linked"
+        fi
+    fi
+
+    if [ -n "$agents_dir" ] && [ -d "$HARNESS_DIR/agents" ]; then
+        step "Harness agents -> $agents_dir"
+        mkdir -p "$agents_dir"
+        for f in "$HARNESS_DIR"/agents/*.md; do
+            [ -e "$f" ] || continue
+            link "$f" "$agents_dir/$(basename "$f")"
+        done
+    fi
+
+    step "Skills double-listing switch (printed, not applied)"
+    info "export OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1"
+    info "  (add to your shell rc: otherwise skills listed in both ~/.claude/skills and ~/.agents/skills show twice)"
 }
 
 # _hook_ts — timestamp for .bak-<ts> names. install.sh exports TS; fall back so the

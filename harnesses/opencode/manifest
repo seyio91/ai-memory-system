@@ -1,0 +1,41 @@
+# opencode (v2) — delivery + execute manifest.
+# file archetype: ~/.config/opencode/AGENTS.md is a hand-owned STATIC base (workflow
+# rules), never written by the memory system; the dynamic memory tree injects live
+# through the ai-memory plugin (refresh=hook), mirroring Codex. xml format.
+name           = opencode
+archetype      = file
+format         = xml
+context_target = ~/.config/opencode/AGENTS.md
+refresh        = hook
+
+# plugin registration: the installer symlinks plugin_file into plugins_dir (v2
+# auto-loads that dir, no config edit). The PLUGIN invokes the scripts below over
+# stdin; hook.sh never registers them in a hooks.json. No session_script: v2 does
+# not deliver session.created to plugins, so the first `context` call per session
+# bootstraps. $MEMORY_DIR is expanded by consumers.
+plugins_dir    = ~/.config/opencode/plugins
+plugin_file    = $MEMORY_DIR/harnesses/opencode/plugin/ai-memory.ts
+hook_script    = $MEMORY_DIR/harnesses/opencode/hooks/context.sh
+guard_script   = $MEMORY_DIR/scripts/hooks/guard.sh
+
+# harness-owned agents (harnesses/opencode/agents/*.md) are symlinked here; the
+# claude-shaped repo agents/ store is NOT fanned into this dir.
+agents_dir     = ~/.config/opencode/agents
+
+# skills fan into the shared ~/.agents/skills; commands arrive as skills.
+skills_dir     = ~/.agents/skills
+commands       = skill
+
+# execute face: headless opencode via the memory wrapper (skills-switch export,
+# --last-message extraction). {prompt}/{model} substituted by executor.sh;
+# $MEMORY_DIR expanded. exec_probe_cmd gates availability: the wrapper resolves
+# opencode off PATH too (~/.opencode/bin), which a bare `command -v` cannot.
+exec_cmd        = $MEMORY_DIR/harnesses/opencode/scripts/opencode-mem.sh run --auto {prompt}
+# read-only role: the ai-memory-explore agent denies edit and bash natively.
+exec_readonly   = $MEMORY_DIR/harnesses/opencode/scripts/opencode-mem.sh run --agent ai-memory-explore {prompt}
+# model threading: executor.sh appends this when AI_MEMORY_EXECUTOR_<ROLE>=opencode:<model>.
+exec_model_flag = -m {model}
+# clean output: wrapper runs --format json and writes only the last assistant text.
+exec_last_message = --last-message {file}
+exec_probe_cmd  = $MEMORY_DIR/harnesses/opencode/scripts/opencode-mem.sh --probe
+# no exec_validate: the validate role falls back to exec_readonly.

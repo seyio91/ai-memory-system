@@ -56,7 +56,7 @@ codex_hooks_version() {
 # present. Claude first, preserving the historical no-arg behavior.
 detect_harness() {
     local h
-    for h in claude codex antigravity copilot gemini cursor; do
+    for h in claude codex antigravity copilot opencode gemini cursor; do
         [ -f "$REPO_ROOT/harnesses/$h/manifest" ] || continue
         case "$h" in
             claude)      [ -d "$HOME/.claude" ] && { printf claude; return 0; } ;;
@@ -64,6 +64,8 @@ detect_harness() {
             antigravity) { command -v agy >/dev/null 2>&1 || [ -d "$HOME/.gemini/antigravity-cli" ]; } \
                              && { printf antigravity; return 0; } ;;
             copilot)     command -v copilot >/dev/null 2>&1 && { printf copilot; return 0; } ;;
+            opencode)    { command -v opencode >/dev/null 2>&1 || [ -x "$HOME/.opencode/bin/opencode" ]; } \
+                             && { printf opencode; return 0; } ;;
             gemini)      [ -d "$HOME/.gemini" ] && { printf gemini; return 0; } ;;
             cursor)      [ -d "$HOME/.cursor" ] && { printf cursor; return 0; } ;;
         esac
@@ -170,6 +172,15 @@ if [ "$ARCHETYPE" = file ] && [ -n "$HOOKS_JSON" ]; then
     fi
 fi
 
+# Plugin harnesses (opencode): file archetype plus a JS plugin the harness
+# auto-loads from plugins_dir. hook.sh symlinks it and the harness-owned agents.
+if [ "$ARCHETYPE" = file ] && [ -n "$(manifest_get "$MANIFEST" plugins_dir)" ]; then
+    (
+        . "$REPO_ROOT/scripts/drivers/hook.sh"
+        _hook_register_plugin
+    )
+fi
+
 # ---- skills + agents fan-out (any harness that declares a target) ---------
 # Phase 4 lifts the Phase-3 archetype gate: skills fan out into whatever
 # skills_dir the manifest names (Claude ~/.claude/skills, Codex ~/.agents/skills).
@@ -186,7 +197,9 @@ if [ -n "$SKILLS_DIR" ] && [ -d "$REPO_ROOT/skills" ]; then
 else
     info "no skills_dir in manifest (or no skills/ store) — skills fan-out skipped"
 fi
-if [ -n "$AGENTS_DIR" ] && [ -d "$REPO_ROOT/agents" ]; then
+# A plugin harness owns its agents (installed above); the shared claude-shaped
+# agents/ store must not land in its agents_dir.
+if [ -n "$AGENTS_DIR" ] && [ -d "$REPO_ROOT/agents" ] && [ -z "$(manifest_get "$MANIFEST" plugins_dir)" ]; then
     step "Agents -> $AGENTS_DIR"
     bash "$REPO_ROOT/scripts/link-agents.sh" "$AGENTS_DIR" || info "link-agents.sh skipped/failed"
 fi

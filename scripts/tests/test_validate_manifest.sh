@@ -95,6 +95,28 @@ run_vm "$mf"; assert_contains "$OUT" "does not match dir" "name mismatch: messag
 mf="$(write_manifest claude 'name = claude' 'archetype = hook' 'format = xml' 'hooks_dir = ~/.claude/hooks' 'exec = codex')"
 run_vm "$mf"; assert_contains "$OUT" "only be the sentinel 'subagent'" "bad exec sentinel: message"
 
+# --- plugin registration: plugins_dir requires plugin_file ---
+mf="$(write_manifest opencode \
+    'name = opencode' 'archetype = file' 'format = xml' \
+    'context_target = ~/.config/opencode/AGENTS.md' 'refresh = hook' \
+    'plugins_dir = ~/.config/opencode/plugins')"
+run_vm "$mf"
+assert_exit 1 "$RC" "plugins_dir without plugin_file: exit 1"
+assert_contains "$OUT" "plugins_dir requires 'plugin_file'" "plugins_dir without plugin_file: message"
+mf="$(write_manifest opencode \
+    'name = opencode' 'archetype = file' 'format = xml' \
+    'context_target = ~/.config/opencode/AGENTS.md' 'refresh = hook' \
+    'plugins_dir = ~/.config/opencode/plugins' 'plugin_file = $MEMORY_DIR/harnesses/opencode/plugin/ai-memory.ts' \
+    'agents_dir = ~/.config/opencode/agents')"
+run_vm "$mf"
+assert_exit 0 "$RC" "plugins_dir + plugin_file: exit 0"
+assert_not_contains "$OUT" "unknown key" "plugins_dir/plugin_file/agents_dir are known keys"
+
+# --- the shipped opencode manifest is clean on its own ---
+OUT="$(bash "$VM" "$REPO/harnesses/opencode/manifest" 2>&1)"; RC=$?
+assert_exit 0 "$RC" "shipped opencode manifest: exit 0"
+assert_eq "" "$OUT" "shipped opencode manifest: no WARN/ERROR output"
+
 # --- unknown key -> WARN, still exit 0 ---
 mf="$(write_manifest claude 'name = claude' 'archetype = hook' 'format = xml' 'hooks_dir = ~/.claude/hooks' 'flavour = spicy')"
 run_vm "$mf"
