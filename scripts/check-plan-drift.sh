@@ -10,8 +10,9 @@
 #
 # --repo and --range are required: the caller names the checkout it actually
 # reviewed, so a primary checkout sitting on main is never diffed by accident.
-# When --repo shares the memory root's object store, projects/<plan-project>/**
-# is ignored (plan/todo/baseline bookkeeping rides the branch).
+# When --repo shares the memory root's object store, or its top level is itself
+# a memory tree (doctrine/orchestrator.md), projects/<plan-project>/** is
+# ignored (plan/todo/baseline bookkeeping rides the branch).
 set -uo pipefail
 . "$(dirname "$0")/_lib.sh"
 
@@ -54,14 +55,16 @@ case "$created" in
 esac
 [[ "$created" < "$PLAN_CONTRACT_SINCE" ]] && exit 3
 
-git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || die "not a git checkout: $REPO"
-
 plan_dir="$(cd "$(dirname "$PLAN")" && pwd)" || die "plan not readable: $PLAN"
-project="$(basename "$(dirname "$plan_dir")")"
+project_dir="$(dirname "$plan_dir")"
+[ "$(basename "$project_dir")" = archive ] && project_dir="$(dirname "$project_dir")"
+project="$(basename "$project_dir")"
 
 patterns="$(awk -v want="$PHASE" '
+    /^(```|~~~)/ { fence = !fence; next }
+    fence { next }
     /^### Phase [0-9]+ — / { split($0, a, " "); phase = a[3]; next }
-    /^##+ / { phase = ""; next }
+    /^(## |### )/ { phase = ""; next }
     phase != "" && (want == "" || phase == want) && /^\*\*Files touched:\*\*/ {
         line = $0
         while (match(line, /`[^`]+`/)) {
@@ -84,29 +87,36 @@ exclude_project=0
 repo_common="$(common_dir "$REPO")" || die "not a git checkout: $REPO"
 mem_common="$(common_dir "$MEMORY_DIR" 2>/dev/null)" || mem_common=""
 [ -n "$mem_common" ] && [ "$repo_common" = "$mem_common" ] && exclude_project=1
+repo_top="$(git -C "$REPO" rev-parse --show-toplevel 2>/dev/null)" || repo_top=""
+[ -n "$repo_top" ] && [ -f "$repo_top/doctrine/orchestrator.md" ] && exclude_project=1
 
-changed="$(git -C "$REPO" -c core.quotepath=off diff --no-renames --name-only "$RANGE" -- 2>/dev/null)" \
+pats=()
+while IFS= read -r pat; do
+    case "$pat" in */) pat="$pat*" ;; esac
+    pats[${#pats[@]}]="$pat"
+done <<EOP
+$patterns
+EOP
+
+changed_file="$(mktemp)" || die "mktemp failed"
+trap 'rm -f "$changed_file"' EXIT
+git -C "$REPO" diff -z --no-renames --name-only "$RANGE" -- >"$changed_file" 2>/dev/null \
     || die "git diff failed for range '$RANGE' in $REPO"
 
 drift=0
-while IFS= read -r f; do
-    [ -n "$f" ] || continue
+while IFS= read -r -d '' f; do
     if [ "$exclude_project" -eq 1 ]; then
         case "$f" in "projects/$project/"*) continue ;; esac
     fi
     matched=0
-    while IFS= read -r pat; do
+    for pat in "${pats[@]}"; do
         # shellcheck disable=SC2254
         case "$f" in $pat) matched=1; break ;; esac
-    done <<EOP
-$patterns
-EOP
+    done
     if [ "$matched" -eq 0 ]; then
         printf 'drift: %s\n' "$f"
         drift=1
     fi
-done <<EOC
-$changed
-EOC
+done <"$changed_file"
 
 exit "$drift"

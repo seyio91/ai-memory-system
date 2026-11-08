@@ -88,9 +88,53 @@ assert_exit 0 "$RC" "no --phase: union of all phases"
 run "$PLAN" --repo "$REPO" --range "$R2~1...$R2" --phase 9
 assert_exit 2 "$RC" "--phase naming no phase exits 2 (empty set)"
 
-echo c > "$REPO/never.txt"; mkdir -p "$REPO/never"; echo c > "$REPO/never/x"; g add -A; g commit -q -m cp
+mkdir -p "$REPO/never"; echo c > "$REPO/never/x"; g add -A; g commit -q -m cp
 run "$PLAN" --repo "$REPO" --range "HEAD~1...HEAD"
-assert_exit 1 "$RC" "a non-phase ### section's Files touched is not in the set"
+assert_exit 1 "$RC" "a file listed only under a non-phase ### section is not in the set"
+assert_contains "$OUT" "drift: never/x" "…and is named"
+
+# --- path patterns, fences, headings, archive, NUL names -------------------
+mkdir -p "$REPO/scripts/drivers" "$REPO/dir/sub" "$REPO/deep/sub"
+echo d > "$REPO/scripts/drivers/x.sh"; echo d > "$REPO/dir/sub/f"; echo d > "$REPO/fenced.txt"
+echo d > "$REPO/sub.txt"; echo d > "$REPO/deep/sub/z"
+g add -A; g commit -q -m pat
+PAT="$SB/mem/projects/demo/plans/pat.md"
+cat > "$PAT" <<'PLAN'
+---
+created: 2026-11-08
+---
+
+### Phase 1 — Pat
+**Files touched:** `scripts/*`, `dir/`, `deep/sub/z`
+
+```
+**Files touched:** `fenced.txt`
+```
+
+~~~
+**Files touched:** `fenced.txt`
+~~~
+
+#### Sub-heading
+**Files touched:** `sub.txt`
+
+### Checkpoint
+PLAN
+run "$PAT" --repo "$REPO" --range "HEAD~1...HEAD"
+assert_exit 1 "$RC" "pattern fixture: fenced.txt is the only drift"
+assert_eq "drift: fenced.txt" "$OUT" "Files touched inside backtick and tilde fences is ignored; the rest match"
+assert_not_contains "$OUT" "scripts/drivers/x.sh" "* matches across / (scripts/* covers scripts/drivers/x.sh)"
+assert_not_contains "$OUT" "dir/sub/f" "a path ending in / means the whole directory"
+assert_not_contains "$OUT" "sub.txt" "a #### sub-heading stays inside the phase"
+
+ODD1="$(printf 'we\tird"na\\me')"
+ODD2="$(printf 'new\nline')"
+echo q > "$REPO/$ODD1"; echo q > "$REPO/$ODD2"
+g add -A; g commit -q -m odd
+ODDP="$SB/mem/projects/demo/plans/odd.md"
+printf -- '---\ncreated: 2026-11-08\n---\n\n### Phase 1 — O\n**Files touched:** `we*`, `new*`\n' > "$ODDP"
+run "$ODDP" --repo "$REPO" --range "HEAD~1...HEAD"
+assert_exit 0 "$RC" "names with tab/quote/backslash/newline are matched whole (NUL-separated)"
 
 # --- delete counts (rename detection off) ---------------------------------
 git -C "$REPO" rm -q scripts/a.sh; g commit -q -m del
@@ -167,6 +211,25 @@ assert_exit 1 "$RC" "worktree with an out-of-plan change, primary on main, exits
 assert_contains "$OUT" "drift: stray.txt" "…and names it"
 run "$PLAN" --repo "$MR" --range "$MBASE...HEAD"
 assert_exit 0 "$RC" "the primary checkout on main (empty diff) is clean — only --repo's HEAD is read"
+
+# --- archived plan resolves to its project -------------------------------
+ARC="$SB/mem/projects/demo/archive/plans/arc.md"
+mkdir -p "$(dirname "$ARC")"; cp "$PLAN" "$ARC"
+run "$ARC" --repo "$MR" --range "$MBASE...feat~1"
+assert_exit 0 "$RC" "plan under archive/plans/ excludes projects/<its project>/**, not projects/archive/**"
+
+# --- scratch clone of a memory tree (no shared object store) ---------------
+mkdir -p "$MR/doctrine"; echo o > "$MR/doctrine/orchestrator.md"
+git -C "$MR" checkout -q feat
+g add -A; g commit -q -m marker
+SC="$SB/scratch"
+git clone -q --no-hardlinks "$MR" "$SC" >/dev/null 2>&1
+git -C "$SC" config user.name t; git -C "$SC" config user.email t@t
+SBASE="$(git -C "$SC" rev-parse HEAD)"
+mkdir -p "$SC/projects/demo"; echo t > "$SC/projects/demo/note.md"
+git -C "$SC" add -A; git -C "$SC" commit -q -m scratch
+run "$PLAN" --repo "$SC" --range "$SBASE...HEAD"
+assert_exit 0 "$RC" "a separate clone of a memory tree (doctrine/orchestrator.md) still excludes projects/<plan-project>/**"
 
 # --- an unrelated repo is not subject to the exclusion --------------------
 UR="$SB/unrelated"
