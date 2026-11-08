@@ -49,6 +49,8 @@ Three layers: **schema** (`identity.md`, doctrine — outranks everything), **wi
 - **Initiatives are root-level `initiatives/<slug>.md`, and the decision stream is the record (stream-first).** Plans, runbooks and memory cite stream ids. Staleness alerts persist until a stream append or `--ack` — a self-silencing warning recreates the omission it exists to catch.
 - **The staleness alert covers `software_adw` Targets only — accepted.** `interactive`/`runbook` Targets have no derivable stage, and the one observed miss came from non-Target work after closure, which no stage alert can see; that gap is covered by `/checkpoint` Step 3a and accurate initiative `status:`.
 - **Instance config never lives in tracked memory** — channel, provider and executor choices go in gitignored `config.local.sh`, and tracked memory ships to every consumer.
+- **Executor config is keyed on role, never on harness — a `case` on `AI_MEMORY_ORCHESTRATOR` in `config.local.sh` is the per-harness override.** `subagent` is orchestrator-relative, so the harness axis is a preference, not a capability; availability is already the fallback chain.
+- **An `AI_MEMORY_EXECUTOR_<ROLE>_<HARNESS>` matrix is rejected** — it buys nothing a `case` can't, and costs doc-gated rows, `--show` provenance, a test per precedence level, plus a silent fail-open: an override that never fires because a marker is missing is worse than none. Promote only if ≥3 real harness branches accumulate; task `412f6850-c619-81b6-b283-eef1797c415c`.
 - **Open-sourcing removed content going forward, never by scrubbing history.**
 
 ## Known Constraints / Gotchas
