@@ -7,7 +7,7 @@
 
 ## Active
 
-### Verification contract: plan template, criterion modes, evidence discipline → [plan](plans/verification-contract.md)
+### Verification contract: plan template, criterion modes, evidence discipline → [plan](archive/plans/verification-contract.md)
 - [x] P1 — Template and scaffold partial
 - [x] P2 — Lint rule 20 (needs: P1, P3)
 - [x] P3 — Drift script
