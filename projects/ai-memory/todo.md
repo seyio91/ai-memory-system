@@ -18,9 +18,9 @@
 
 ### Onboard opencode as a harness → [plan](plans/onboard-opencode-harness.md)
 - [x] P1 — Spike: verify opencode v2 hook surface
-- [ ] P2 — Engine: manifest, registration style, detection, install (needs: P1)
-- [ ] P3 — Plugin and hook scripts (needs: P1)
-- [ ] P4 — Executor wrapper (needs: P1)
+- [x] P2 — Engine: manifest, registration style, detection, install (needs: P1)
+- [x] P3 — Plugin and hook scripts (needs: P1)
+- [x] P4 — Executor wrapper (needs: P1)
 - [ ] P5 — Docs, changelog, live end-to-end (needs: P2, P3, P4)
 
 ## Done

@@ -91,6 +91,12 @@ Rejected:
       - The guard parses `patch.patchText` and accepts `filePath` as well as `path`.
       - The explore/validate allowlist already denies the rest.
   - **Accepted risk (user, 2026-11-08, validator r2 finding 1):** shell interpreter writes (e.g. `python3 -c … write_text`) to protected paths pass the guard. This is pre-existing in the shared `path-match.sh` for Claude/Codex on main too (string matching, not a sandbox). Real enforcement is tracked in task `412f6850-c619-8141-a311-d1f155a19913`; validators treat it as known, not bug-grade.
+  - **Validator plane (user, 2026-11-08):** after round 3, validation moves from Codex to Claude because of Codex usage limits. It uses the `validator` subagent on Opus, against the Sonnet executors. This is the same model family, labelled `decorrelated: no`, and is a user-approved override of the high-risk cross-model rule.
+  - **Validation P2–P4 (2026-11-08):** 5 rounds; bugs per round 3, 2, 2, 1, 1. The recurring class was guard bypass over opencode's broad tool surface (workdir, unprotected enforcement files, escape hatch, `session_move` out of a project-local plugin, symlinked agents dir). The round-5 bug (`harnesses/*/agents/**` unprotected) was fixed by the orchestrator after the cap (user option A) and verified by direct probe plus the full gate. P5's final validator pass re-checks it.
+  - **Accepted risks (user, 2026-11-08, r5):**
+    - A non-default `OPENCODE_CONFIG_DIR`/`XDG_CONFIG_HOME` dir is unprotected, so a task run can plant a plugin there.
+    - The TUI `write_terminal` tool would get past the deny-list; executor runs can't reach it (`--standalone`, no TUI).
+    - The guard falls back to its own cwd when an event lacks `directory`; the plugin always supplies it.
   - Unverified: whether the background service (non-`--standalone` `run`, TUI) loads plugins from the global `~/.config/opencode/plugins/`. P3/P5 must confirm live.
 
 ## Phases
