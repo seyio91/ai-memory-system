@@ -98,7 +98,7 @@ Rejected:
 - Tests: one sandbox holding one plan per check plus a clean plan, a pre-cutover plan, a `draft` dirty plan (scope includes draft) and a `created:`-less plan (check j), a single lint run, per-check assertions; mutation per check (keeps the gate's lint-run count low — `test_lint_memory.sh` is the gate floor).
 - If a check's shape changes during implementation, update the rule-20 paragraph P1 wrote in `docs/file-formats.md` in the same commit — no gate catches that drift.
 
-**Files touched:** `scripts/lint-memory.sh`, `scripts/tests/test_lint_memory.sh`, `docs/file-formats.md`
+**Files touched:** `scripts/lint-memory.sh`, `scripts/tests/test_lint_memory.sh`, `docs/file-formats.md`, `scripts/plan-fence.awk`
 **Risk:** medium
 **Depends:** Phase 1, Phase 3
 **Verify:** R2, R7 — `bash scripts/tests/test_lint_memory.sh` green; R7 set-diff (origin/main's `lint-memory.sh` from a scratch worktree vs the branch's, same `MEMORY_DIR`, `grep -v plan-contract:`, `sort`) empty.
@@ -107,7 +107,7 @@ Rejected:
 - `scripts/check-plan-drift.sh` per S4.
 - Hermetic tests in `scripts/tests/test_check_plan_drift.sh`: clean, out-of-set file, glob prefix trap (`scripts/` must not match `scripts-old/`), `(new)` marker stripped, `--phase`, memory-root exclusion (incl. from a linked worktree); a worktree with an out-of-plan change while the primary checkout is on `main` ⇒ exit 1; exit 3 on a pre-cutover plan; exit 2 on a post-cutover plan with no `Files touched`, missing `--repo`/`--range`, usage error, unknown ref and a non-git `--repo` (never 0). `docs/scripts.md` row.
 
-**Files touched:** `scripts/check-plan-drift.sh` (new), `scripts/tests/test_check_plan_drift.sh` (new), `scripts/_lib.sh`, `docs/scripts.md`
+**Files touched:** `scripts/check-plan-drift.sh` (new), `scripts/tests/test_check_plan_drift.sh` (new), `scripts/plan-fence.awk` (new), `scripts/_lib.sh`, `docs/scripts.md`
 **Risk:** medium
 **Depends:** none
 **Verify:** R3 — `bash scripts/tests/test_check_plan_drift.sh` green; `--repo . --range origin/main...HEAD` on this plan's branch exits 0; `bash scripts/check-docs.sh` passes.
@@ -157,3 +157,4 @@ Rejected:
 - R4 evidence (2026-11-08, brief followed via general-purpose agent — `plan-feasibility` agent type not linked in-session): missing-path copy ⇒ REVISE naming `does/not/exist.sh`; pre-existing `(new)` copy ⇒ REVISE naming `scripts/_lib.sh`; unfenced placeholder scaffold ⇒ `REVISE: not drafted`; this plan ⇒ CAUTION. The this-plan run was at worktree HEAD `d62b69a` (P4 commit), i.e. after P1/P4 created the `(new)` files — the re-run condition is met.
 - R6 live evidence (2026-11-08, worktree `agents/validator.md` followed via general-purpose agents; fixture `scratchpad/r6`, hello.sh prints `hello`, After = `hello world`): (i) last phase final + `goal_check: yes` ⇒ `BLOCKED (goal)`, drift exit 0; (ii) Phase 1 final, no goal_check ⇒ PR-READY, no goal/drift; (ii-b) fix-round ⇒ PR-READY, no goal block; (iii) staging-deploy criterion backed only by executor claim ⇒ FAIL, BLOCKED; (iv) `--range nosuchref...HEAD` ⇒ drift exit 2 reported FAIL (could not run), blocks (goal also blocked — fixture confound); (v) pre-cutover copy ⇒ drift exit 3 N/A, Goal N/A, PR-READY.
 - Final pass round 1 (codex, decorrelated, 2026-11-08): BLOCKED — drift indented-fence bypass, rule-20 (g) bypass when a baseline line also names `vs`, R4 note read as missing evidence. Fixed in `fix(scripts): drift honours indented fences…`; R4 note corrected. Later validation Claude-only (user: codex limits) ⇒ final pass `decorrelated: no`.
+- Final pass round 2 (Claude, 2026-11-08): BLOCKED — third fence-parsing divergence between drift and rule 20 (info string containing a backtick). Recurring class ⇒ design change: one shared fence/section parser `scripts/plan-fence.awk` used by both (`awk -f`); also rule 20 flags duplicate `Files touched` and `### Phase <non-digit>` near-miss headings, (d) counts only phase Verify lines. Accepted risk: `Files touched` inside an HTML comment still counts (author-controlled).
