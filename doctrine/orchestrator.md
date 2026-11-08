@@ -75,8 +75,9 @@ design stops and reports back instead of designing on its own.
   `AI_MEMORY_GUARD_SCOPE=all`). For the `codex` CLI executor,
   `~/.codex/rules/default.rules` is optional defense-in-depth if installed.
 - **Evidence before claims.** Run the proving command now; "done" is a claim,
-  output is evidence. Three failed fixes on one finding ⇒ question the design.
-- **Task executors end with `diverged: no | yes — <what>`**; on `yes`, update
+  output is evidence. Three failed fixes on one finding ⇒ stop and question
+  the design.
+- **Task executors end with `diverged: no | yes — <what>`**; on `yes`, fix
   the plan in a housekeeping commit before the next delegation.
 - **Validator:** its own **`validate` role**
   (`scripts/executor.sh --role validate --which`), **read-only** — it
