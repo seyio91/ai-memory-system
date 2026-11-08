@@ -17,7 +17,7 @@
 - [ ] Checkpoint — pre-ship (needs: P2, P4, P5, P6)
 
 ### Onboard opencode as a harness → [plan](plans/onboard-opencode-harness.md)
-- [ ] P1 — Spike: verify opencode v2 hook surface
+- [x] P1 — Spike: verify opencode v2 hook surface
 - [ ] P2 — Engine: manifest, registration style, detection, install (needs: P1)
 - [ ] P3 — Plugin and hook scripts (needs: P1)
 - [ ] P4 — Executor wrapper (needs: P1)

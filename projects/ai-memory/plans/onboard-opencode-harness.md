@@ -65,6 +65,17 @@ Rejected:
 - Commit route: `git-cli ship` for code/docs; plan/todo bookkeeping `git-cli commit --all` to `main`.
 - Conventional-commit types: `feat(harness):`, `feat(install):`, `test(harness):`, `docs(harnesses):`.
 - P2, P3, P4 independent after P1 (disjoint `Files touched`); P2 owns the manifest, including execute-face keys.
+- **P1 findings (opencode v2.2.6, 2026-11-08; fixtures in `scripts/tests/fixtures/opencode/`):**
+  - Plugin shape: `export default { id, async setup(ctx) { … } }`, no package import needed; hooks registered with `await ctx.session.hook("context"|"compaction", fn)` and `await ctx.tool.hook("execute.before", fn)`. Async hooks are awaited.
+  - `context`: inject via `event.system.push({type:"text", text})`; fresh `system` array per call. Fires **per model call** (one tool call → 2 calls), so the per-`sessionID` counter is required. `compaction` payload has the same keys as `context`.
+  - `execute.before`: `{tool:"shell", sessionID, agent, input:{command}}`. A thrown error fails only that call, and the model sees the message verbatim.
+  - Subprocess: `node:child_process` `spawnSync(cmd, {input, encoding:"utf8"})` works.
+  - Session-created: `session.created` not delivered to plugins in `run --standalone`, so bootstrap is the first `context` call per `sessionID` (no `session_script`).
+  - Agent file: `agents/<name>.md`, frontmatter `permission: {edit: deny, bash: deny}` (**singular `permission`**; object-form `permissions` silently drops the agent).
+  - `run --format json`: JSONL with `type` ∈ `step_start|tool_use|step_finish|text|error`; last assistant text = last `type=="text"` line `.part.text`. Exit 0 ok, 1 on provider/model error.
+  - Skills: no config switch; `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1` only (disables the whole `.claude` config source, not just skills).
+  - Compaction is triggered by `ctx.session.compact({sessionID})`; there is no CLI trigger.
+  - Unverified: whether the background service (non-`--standalone` `run`, TUI) loads plugins from the global `~/.config/opencode/plugins/`. P3/P5 must confirm live.
 
 ## Phases
 
