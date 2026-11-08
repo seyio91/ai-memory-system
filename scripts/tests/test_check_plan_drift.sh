@@ -115,6 +115,12 @@ created: 2026-11-08
 **Files touched:** `fenced.txt`
 ~~~
 
+````
+```
+**Files touched:** `fenced.txt`
+~~~
+````
+
 #### Sub-heading
 **Files touched:** `sub.txt`
 
