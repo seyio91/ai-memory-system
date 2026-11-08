@@ -72,6 +72,8 @@ Rejected:
 - Cutover literal `2026-11-08` as `PLAN_CONTRACT_SINCE` in `scripts/_lib.sh` — one definition read by rule 20 and the drift script (only this plan qualifies today).
 - P1, P3, P5 are independent and run in parallel (disjoint `Files touched`); P2 needs P1 (`docs/file-formats.md` rule-20 paragraph) and P3 (`PLAN_CONTRACT_SINCE` in `_lib.sh`); P4 needs P1; P6 needs P3.
 - Before Phase 1 starts, record here: `feasibility base: <main SHA>` — every feasibility run on this plan passes it as `base:`.
+- feasibility base: `2f2cc3ffbf7486db7223b5f4333fc4c659055e86`
+- Execution in worktree `~/Projects/claude/memory-verification` (branch `feat/verification-contract`) — parallel with `onboard-opencode-harness` in `memory-opencode`; only shared file is `docs/scripts.md` (append-only row, rebase on second merge). Primary checkout stays on `main` for bookkeeping.
 - `docs/file-formats.md` is owned by P1 (template + rule-20 description); `docs/workflow.md` by P6; `docs/scripts.md` by P3; the changelog fragment by P6.
 - Commit route: `git-cli ship` for the code/doc/doctrine changes; plan/todo bookkeeping `git-cli commit --all` to `main` (ignored by the drift script via the memory-root rule).
 - Conventional-commit types: `feat(lint):`, `feat(scripts):`, `feat(validator):`, `docs(workflow):`.
