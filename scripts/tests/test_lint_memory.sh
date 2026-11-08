@@ -1568,4 +1568,133 @@ run_lint
 assert_contains "$OUT" "$MDB/initiatives/"'back\name.md decision-stream D1 status '"'bogus'" "backslash-n in a filename is reported literally"
 rm -rf "$MDB"
 
+# --- rule 20: plan contract (one sandbox, one lint run, per-plan check letters) ---
+# Every plan below is the clean base with exactly one defect; each plan's set of
+# (letter) tags in the plan-contract: lines must equal its expected set.
+MP="$(new_sandbox)"; export MEMORY_DIR="$MP"; build_clean "$MP"
+PD="$MP/projects/good/plans"
+pc_base() { # pc_base <status> <created-line>
+    cat <<EOF
+---
+plan: x
+status: $1
+$2
+task_ref: none
+---
+# x
+
+## Goal
+**Before:** old
+**After:** new
+
+## Non-goals
+- none
+
+## Success criteria
+- R1 [acceptance] a thing works
+- R2 [parity] same output vs \`origin/main\`
+
+## Design
+d
+
+## Decisions (locked)
+- d
+
+## Phases
+
+### Phase 1 — One
+**Files touched:** \`a.sh\`, \`b.sh\` (new)
+**Risk:** low
+**Depends:** none
+**Verify:** R1, R2 — it passes
+
+## Risks / open questions
+- none
+EOF
+}
+pc_mk() { # pc_mk <name> <sed-script> [status] [created-line]
+    pc_base "${3:-in_progress}" "${4-created: 2026-11-08}" | sed -E "$2" > "$PD/$1.md"
+}
+pc_mk clean 's/^$/&/'
+pc_mk a '/^- R[12] /d'
+pc_mk b 's/^- R1 \[acceptance\]/- R1/'
+pc_mk c 's/^## Risks/### Phase 2 — Two\n**Files touched:** `c.sh`\n**Risk:** low\n**Depends:** Phase 1\n**Verify:** R9 — x\n\n&/'
+pc_mk d 's/^\*\*Verify:\*\* R1, R2/**Verify:** R1/'
+pc_mk e '/^\*\*Risk:\*\* low/d'
+pc_mk f '/^## Non-goals/,/^- none/d'
+pc_mk g 's/ vs `origin\/main`//'
+pc_mk g2 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt`/'
+pc_mk g3 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt` vs `origin\/main`/'
+pc_mk h 's/^\*\*Risk:\*\* low/**Risk:** high/'
+pc_mk i '/^\*\*Before:\*\*/d'
+pc_mk j 's/^$/&/' in_progress ''
+pc_mk jbad 's/^$/&/' in_progress 'created: 11/08/2026'
+pc_mk draftf '/^## Non-goals/,/^- none/d' draft
+pc_mk pre '/^## Non-goals/,/^- none/d;/^\*\*Risk:\*\*/d;/^- R/d' in_progress 'created: 2026-11-07'
+pc_mk finished '/^## Non-goals/,/^- none/d' 'done'
+pc_mk baseok 's/ vs `origin\/main`/ baseline `plans\/x.baseline\/out.txt`/;s/^## Risks/### Phase 2 — Baseline\n**Files touched:** `plans\/x.baseline\/` (new)\n**Risk:** low\n**Depends:** Phase 1\n**Verify:** R1 — x\n\n&/'
+# fenced field lines, a #### sub-heading and a non-phase ### are not parsed as phase fields
+pc_mk fenced 's/^## Risks/```\n### Phase 7 — Fake\n**Files touched:** junk\n```\n#### Detail\n### Checkpoint\n**Risk:** nonsense\n\n&/'
+# (e) sub-checks: Verify count (none / two), Files touched shape, Depends shape
+pc_mk enov '/^\*\*Verify:\*\*/d'
+pc_mk etwo 's/^\*\*Verify:\*\*.*/&\n&/'
+pc_mk efile 's/^\*\*Files touched:\*\*.*/**Files touched:** junk/'
+pc_mk edep 's/^\*\*Depends:\*\*.*/**Depends:** soon/'
+# (e) near-miss phase headings (hyphen, colon, en dash) and phase fields outside any ### section
+pc_mk ehead 's/^## Risks/### Phase 2 - X\n### Phase 3: X\n### Phase 4 – X\n\n&/'
+pc_mk eout 's/^## Phases/**Verify:** R1 — x\n&/;s/^## Design/&\n**Risk:** low/'
+# (b) malformed criterion lines
+pc_mk bmal 's/^- R2 /- R3: x\n- **R4** [acceptance] x\n- R5[acceptance] x\n&/'
+# (e) a second Files touched line in one phase; a non-digit phase heading
+pc_mk eft2 's/^\*\*Files touched:\*\*.*/&\n**Files touched:** `z.sh`/'
+pc_mk ephase 's/^## Risks/### Phase Two — X\n\n&/'
+# (d) a Verify under ### Checkpoint does not satisfy (d): R2 is cited only there
+pc_mk dchk 's/^\*\*Verify:\*\* R1, R2/**Verify:** R1/;s/^## Risks/### Checkpoint\n**Verify:** R2 — x\n\n&/'
+# shared fence parser: bad phase fields inside every fence style stay inert
+# (test_check_plan_drift.sh holds the same styles and requires drift not to see them)
+PF_BAD='**Files touched:** junk
+**Risk:** nonsense
+**Depends:** soon
+**Verify:** R9 — x
+### Phase 9 - bad'
+{
+    printf '%s\n' '```' "$PF_BAD" '```' ''
+    printf '%s\n' '   ```' "$PF_BAD" '   ```' ''
+    printf '%s\n' '```bash title="x"' "$PF_BAD" '```' ''
+    printf '%s\n' '```inline`span```' 'text' ''
+    printf '%s\n' '```' "$PF_BAD" '```' ''
+    printf '%s\n' '````' '~~~' "$PF_BAD" '~~~' "$PF_BAD" '````' ''
+    printf '%s\n' '~~~' '```' "$PF_BAD" '```' "$PF_BAD" '~~~' ''
+    printf '%s\n' '```' "$PF_BAD" '`````' ''
+} > "$MP/fx.lf"
+sed 's/$/\r/' "$MP/fx.lf" > "$MP/fx.crlf"
+pc_base in_progress 'created: 2026-11-08' | sed "/^\*\*Verify:\*\*/r $MP/fx.lf" > "$PD/fencelf.md"
+pc_base in_progress 'created: 2026-11-08' | sed "/^\*\*Verify:\*\*/r $MP/fx.crlf" > "$PD/fencecrlf.md"
+printf '# plain\n' > "$PD/legacy.md"
+run_lint
+pc_letters() { # pc_letters <name> -> sorted unique letters, no separators
+    printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/$1.md (" \
+        | sed -E 's/^plan-contract: [^ ]+ \(([a-j])\).*/\1/' | sort -u | tr -d '\n'
+}
+assert_eq "1" "$CODE" "rule 20 dirty sandbox exits 1"
+for pair in a:ac b:b c:c d:d e:e f:f g:g g2:g g3:g h:h i:i j:j jbad:j draftf:f enov:de etwo:e efile:e edep:e ehead:e eout:e bmal:b eft2:e ephase:e dchk:d; do
+    assert_eq "${pair#*:}" "$(pc_letters "${pair%%:*}")" "rule 20: plan ${pair%%:*} warns exactly ${pair#*:}"
+done
+assert_eq "3" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/ehead.md (e)" | grep -cF 'not a phase heading per the Grammar')" "rule 20: three near-miss phase headings each named"
+assert_eq "2" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/eout.md (e)" | grep -cF 'outside any ### Phase section')" "rule 20: two phase fields outside any phase named"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/eft2.md (e)" | grep -cF '2 **Files touched:** lines')" "rule 20: duplicate Files touched named"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/ephase.md (e)" | grep -cF '### Phase Two')" "rule 20: non-digit phase heading named"
+assert_eq "1" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/dchk.md (d)" | grep -cF 'R2 is cited by no')" "rule 20: a Verify under ### Checkpoint does not cite R2"
+assert_eq "3" "$(printf '%s\n' "$OUT" | grep -F "plan-contract: $PD/bmal.md (b)" | grep -cF 'malformed criterion line')" "rule 20: three malformed criterion lines named"
+for n in clean pre finished baseok fenced fencelf fencecrlf legacy; do
+    assert_eq "" "$(pc_letters "$n")" "rule 20: plan $n is silent"
+done
+assert_eq "0" "$(printf '%s\n' "$OUT" | grep -F 'plan-contract:' | grep -vc '^plan-contract: ')" "every plan-contract finding line starts with the prefix"
+rm -rf "$MP"
+
+if [ -x /bin/bash ]; then
+    set +e; /bin/bash -n "$SCRIPTS_DIR/lint-memory.sh" 2>/dev/null; rc=$?; set -e
+    assert_exit 0 "$rc" "lint-memory.sh parses under /bin/bash (macOS 3.2)"
+fi
+
 finish

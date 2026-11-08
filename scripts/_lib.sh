@@ -376,3 +376,8 @@ extract_fm_field() {
         }
     ' "$file"
 }
+
+# PLAN_CONTRACT_SINCE — plans created on or after this date carry the plan
+# contract (lint rule 20 scope; check-plan-drift.sh exits 3 for earlier plans).
+# One definition; never derive it.
+PLAN_CONTRACT_SINCE="2026-11-08"

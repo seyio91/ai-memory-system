@@ -9,7 +9,7 @@
 | `drivers/{hook,file}.sh` | Archetype install drivers (sourced by install.sh) | `driver_install`, `driver_notes` |
 | `link-command-skills.sh` | Deliver command bodies AS skills (`commands=skill`) | `link-command-skills.sh <commands-src> [skills-dir]` |
 | `gen-commands-doc.sh` | Render a "Memory Commands" reference (`commands=doc`) | `gen-commands-doc.sh <commands-src> <out-file>` |
-| `apply-partial.sh` | Inject or re-sync a managed partial block in a skill or markdown carrier | `apply-partial.sh --skill <name> [--partial self-rating] [--force]`; `apply-partial.sh --file <path> [--partial self-rating] [--force]`; `apply-partial.sh --all [--partial self-rating]` |
+| `apply-partial.sh` | Inject or re-sync a managed partial block in a skill or markdown carrier | `apply-partial.sh --skill <name> [--partial <name>] [--force]`; `apply-partial.sh --file <path> [--partial <name>] [--force]`; `apply-partial.sh --all [--partial <name>]` |
 | `codex-mem.sh` | Run codex (executor sandbox/network flags; memory injects via the SessionStart hook, no file build) | `codex-mem.sh`, `codex-mem.sh exec --sandbox read-only "..."` |
 | `codex-mem-checkpoint.sh` | Emit checkpoint scaffold | TTY → opens `$EDITOR`; `--for-codex` → stdout for Codex to consume |
 | `agy.sh` | Antigravity launch wrapper (build context + `exec agy`) | `agy.sh [agy args...]` (alias `agy` to it) |
@@ -31,6 +31,7 @@
 | `taskctl` | Bash wrapper for the task-provider CLI (used by `/task`, `/start`) | `taskctl <capture\|list\|get\|update\|set-status\|ping> ...` |
 | `taskprovider/` | Python (stdlib-only) task-provider CLI — see [Task-provider layer](task-provider.md) | `PYTHONPATH=$MEMORY_DIR/scripts python3 -m taskprovider <verb>`; tests: `cd scripts && python3 -m unittest discover -s taskprovider/tests -t .` |
 | `check-memory-size.sh` | Byte/line budget on a `memory.md` (`--file`), and session-payload chunk-cap overflow (`--payload`, shells out to `hooks/render-session-payload.sh` + `payload-slices.py --count`) | `check-memory-size.sh --file <memory.md> [<file>...]`; `check-memory-size.sh --payload <project> [<project>...] [--working <path>]` (`--working` needs exactly one project) (exit 0 clean, 1 findings, 2 usage) |
+| `check-plan-drift.sh` | Plan scope-drift gate: changed files in a range vs the union of the plan's `Files touched` globs (`--phase N` narrows; `projects/<plan-project>/**` ignored when `--repo` shares the memory root or is a memory tree; `dir/` = whole dir, `*` crosses `/`, fenced blocks skipped; cutover `PLAN_CONTRACT_SINCE` in `_lib.sh`) | `check-plan-drift.sh <plan> --repo <path> --range <a...b> [--phase N]` (exit 0 clean, 1 drift, 3 pre-cutover plan, 2 anything else) |
 | `check-docs.sh` | Assert the env-var table below matches the code (forward + strict-consumer axes) | `check-docs.sh [root]` (exit 0 clean, 1 findings, 2 setup error) |
 | `run-tests.sh` | Suite runner: shell tests → python tests → lint → skills → doc-vs-code → shellcheck. Gates on all six. Shell test files run in parallel (`AI_MEMORY_TEST_JOBS`); results still print in file order | `run-tests.sh [--no-lint] [--tests-only] [--only PAT] [--changed [REF]] [-v]` (exit 0 clean, 1 otherwise) |
 | `tests/*` | Dependency-free shell tests (bash 3.2) | `for t in scripts/tests/test_*.sh; do bash "$t"; done` |

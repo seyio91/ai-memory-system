@@ -103,4 +103,115 @@ done <<EOF
 $task_carriers
 EOF
 
+
+TWO="$MEM/commands/two.md"
+printf '# Two\n' > "$TWO"
+run "$AP" --file "$TWO" --partial task-link --force
+assert_exit 0 "$code" "two-partial carrier: task-link injects"
+run "$AP" --file "$TWO" --partial plan-scaffold --force
+assert_exit 0 "$code" "two-partial carrier: plan-scaffold injects"
+cp "$TWO" "$MEM/two-before"
+for order in "task-link plan-scaffold" "plan-scaffold task-link"; do
+    for part in $order; do
+        run "$AP" --file "$TWO" --partial "$part"
+        assert_exit 0 "$code" "two-partial carrier: re-sync $part"
+    done
+    set +e; cmp -s "$MEM/two-before" "$TWO"; identical=$?; set -e
+    assert_exit 0 "$identical" "two-partial carrier byte-identical after re-sync ($order)"
+done
+first_marker="$(grep -o -E 'partial:(task-link|plan-scaffold) START' "$TWO" | head -1)"
+assert_eq "partial:task-link START" "$first_marker" "re-sync keeps task-link block ahead of plan-scaffold"
+
+BROKEN="$MEM/commands/broken.md"
+grep -F 'partial:task-link START' "$TWO" | head -1 > "$MEM/start-line"
+{ printf '# Broken\n'; cat "$MEM/start-line"; printf 'stale\n\n## Keep\n'; } > "$BROKEN"
+cp "$BROKEN" "$MEM/broken-before"
+run "$AP" --file "$BROKEN" --partial task-link
+assert_exit 1 "$code" "START without END refuses re-sync"
+set +e; cmp -s "$MEM/broken-before" "$BROKEN"; unchanged=$?; set -e
+assert_exit 0 "$unchanged" "START without END leaves carrier untouched"
+
+{ printf '# Dup\n'; cat "$MEM/start-line"; printf 'PRECIOUS\n'; cat "$MEM/start-line"; printf 'old\n'; grep -F 'partial:task-link END' "$TWO" | head -1; printf '## tail\n'; } > "$BROKEN"
+cp "$BROKEN" "$MEM/broken-before"
+run "$AP" --file "$BROKEN" --partial task-link
+assert_exit 1 "$code" "duplicate START refuses re-sync"
+set +e; cmp -s "$MEM/broken-before" "$BROKEN"; unchanged=$?; set -e
+assert_exit 0 "$unchanged" "duplicate START leaves carrier untouched"
+
+PLAN_SCAFFOLD="$SCRIPTS_DIR/partials/plan-scaffold.md"
+PLAN_START="<!-- partial:plan-scaffold START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-scaffold.md) -->"
+PLAN_END="<!-- partial:plan-scaffold END -->"
+PLAN_BLOCK="$(mktemp 2>/dev/null || mktemp -t plan-scaffold-block)"
+trap 'rm -rf "$MEM" "$OUTSIDE" "$TASK_BLOCK" "$PLAN_BLOCK"' EXIT
+
+set +e
+plan_carriers="$(grep -l -F "$PLAN_START" "$ROOT"/commands/*.md)"
+code=$?
+set -e
+assert_exit 0 "$code" "plan-scaffold carriers discovered by START marker"
+
+plan_carrier_count="$(printf '%s\n' "$plan_carriers" | awk 'NF { count++ } END { print count + 0 }')"
+# Literal 2, same reasoning as the task-link count above: never make it dynamic.
+assert_eq "2" "$plan_carrier_count" "both plan-scaffold command carriers remain present"
+
+while IFS= read -r carrier; do
+    [ -n "$carrier" ] || continue
+    set +e
+    awk -v start="$PLAN_START" -v end="$PLAN_END" '
+        $0 == start { if (found || in_block) exit 1; found = 1; in_block = 1; next }
+        in_block && $0 == end { in_block = 0; closed = 1; next }
+        in_block { print; next }
+        END { if (!found || !closed || in_block) exit 1 }
+    ' "$carrier" > "$PLAN_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-scaffold block extracts"
+
+    set +e
+    cmp -s "$PLAN_SCAFFOLD" "$PLAN_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-scaffold block matches source bytes"
+done <<EOF
+$plan_carriers
+EOF
+
+PF_SRC="$SCRIPTS_DIR/partials/plan-feasibility.md"
+PF_START="<!-- partial:plan-feasibility START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-feasibility.md) -->"
+PF_END="<!-- partial:plan-feasibility END -->"
+PF_BLOCK="$(mktemp 2>/dev/null || mktemp -t plan-feasibility-block)"
+trap 'rm -rf "$MEM" "$OUTSIDE" "$TASK_BLOCK" "$PLAN_BLOCK" "$PF_BLOCK"' EXIT
+
+set +e
+pf_carriers="$(grep -l -F "$PF_START" "$ROOT"/commands/*.md)"
+code=$?
+set -e
+assert_exit 0 "$code" "plan-feasibility carriers discovered by START marker"
+
+pf_carrier_count="$(printf '%s\n' "$pf_carriers" | awk 'NF { count++ } END { print count + 0 }')"
+# Literal 2, same reasoning as the task-link count above: never make it dynamic.
+assert_eq "2" "$pf_carrier_count" "both plan-feasibility command carriers remain present"
+
+while IFS= read -r carrier; do
+    [ -n "$carrier" ] || continue
+    set +e
+    awk -v start="$PF_START" -v end="$PF_END" '
+        $0 == start { if (found || in_block) exit 1; found = 1; in_block = 1; next }
+        in_block && $0 == end { in_block = 0; closed = 1; next }
+        in_block { print; next }
+        END { if (!found || !closed || in_block) exit 1 }
+    ' "$carrier" > "$PF_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-feasibility block extracts"
+
+    set +e
+    cmp -s "$PF_SRC" "$PF_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-feasibility block matches source bytes"
+done <<EOF2
+$pf_carriers
+EOF2
+
 finish

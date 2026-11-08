@@ -22,6 +22,8 @@ commit range or branch, plus:
 - `scope: fix-round | final` — `fix-round` reviews the round's fix diff;
   `final` reviews the cumulative `origin/<default>...HEAD` (or the brief's
   range), cold, once per phase before PR-READY. Default: `fix-round`.
+- `goal_check: yes` (optional) — set by the orchestrator only on the last
+  phase's `scope: final` pass, never inferred. Absent ⇒ no Goal check.
 - `risk: low | medium | high` — `low` runs Part A only, skip Part B.
   `medium`/`high` run both. At `high`, running the deliverable is mandatory,
   not best-effort. Default: `medium`.
@@ -34,10 +36,20 @@ commit range or branch, plus:
 ## Part A — contract
 
 Verify the phase's `**Verify:**` line and the applicable plan `## Success
-criteria`. Report PASS or FAIL for each with evidence: command plus output
-excerpt, or `file:line`. Do not verify anything beyond those criteria. If the
-plan has no criteria, stop and report a process failure; do not invent a
-passing bar.
+criteria`, every pass. Report PASS or FAIL for each with evidence: command plus
+output excerpt, or `file:line` for static content; a PASS with neither is FAIL.
+Parity proof = the re-run against the named ref, or the diff against the
+baseline dir, with output. If the plan has no criteria, stop and report a
+process failure; do not invent a passing bar.
+
+Only when the brief carries `goal_check: yes` AND `scope: final` (a
+`goal_check` on any other scope is a misset brief: ignore it):
+- **Goal check.** All criteria PASS but the evidence does not show the plan's
+  `**After:**` state ⇒ `VERDICT: BLOCKED (goal)`; escalate.
+- **Drift.** Run `scripts/check-plan-drift.sh <plan> --repo <the checkout
+  under review> --range <the brief's range>`. Exit 1 ⇒ FAIL (drift); exit 3 ⇒
+  N/A (pre-cutover plan; the Goal check is N/A too, never BLOCKED); any other
+  nonzero ⇒ FAIL (check could not run). Exits 1 and 2 block PR-READY.
 
 ## Part B — review (code phases only)
 

@@ -326,6 +326,129 @@ for k in "${!live_plans[@]}"; do
     esac
 done
 
+# 20. Plan contract — a live (`draft`/`in_progress`) plan created on or after
+#     PLAN_CONTRACT_SINCE (_lib.sh) carries the verification contract: criteria
+#     with tags, phases with Files/Risk/Depends/Verify, Non-goals, Before/After.
+#     WARN only, every line prefixed `plan-contract:` and tagged with its check
+#     letter (a)-(j); shape only, never truth. Grammar and check table:
+#     docs/file-formats.md "Plan body (verification contract)". Reuses the rule 8
+#     plan walk. Fence/frontmatter handling is scripts/plan-fence.awk (shared with check-plan-drift.sh); `####` stays in a phase.
+# Heredoc kept outside $(...): bash 3.2 mis-parses quotes/parens in a heredoc inside command substitution.
+read -r -d '' PC_AWK <<'PCAWK' || true
+        function w(letter, msg) { print "plan-contract: " ENVIRON["PC_FILE"] " (" letter ") " msg }
+        function endphase() {
+            if (!cur) return
+            if (!pf)  w("e", "Phase " cur " has no valid **Files touched:** (comma-separated backticked paths)")
+            if (!pr)  w("e", "Phase " cur " has no valid **Risk:** low|medium|high")
+            if (!pd)  w("e", "Phase " cur " has no valid **Depends:** none | Phase N[, Phase N...]")
+            if (pft > 1) w("e", "Phase " cur " has " pft " **Files touched:** lines (need exactly one)")
+            if (pv != 1) w("e", "Phase " cur " has " pv " **Verify:** lines (need exactly one)")
+            cur = 0
+        }
+        {
+            if (pf_skip($0)) next
+            raw = PF_RAW
+            if (raw ~ /^## /) {
+                endphase()
+                insec = 0
+                sec = raw; sub(/[ \t]+$/, "", sec)
+                if (sec == "## Non-goals") nongoals = 1
+                if (sec == "## Security") security = 1
+                next
+            }
+            if (raw ~ /^### /) {
+                endphase()
+                insec = 1
+                if (raw ~ /^### Phase [0-9]+ — /) {
+                    cur = raw; sub(/^### Phase /, "", cur); sub(/[^0-9].*$/, "", cur)
+                    pf = pr = pd = pv = pft = 0
+                    if (raw ~ /^### Phase [0-9]+ — Baseline/) baseline = 1
+                } else if (raw ~ /^### Phase /)
+                    w("e", "line \"" raw "\" is not a phase heading per the Grammar (### Phase <n> — <title>)")
+                next
+            }
+            if (sec == "## Goal") {
+                if (raw ~ /^\*\*Before:\*\*/) before = 1
+                if (raw ~ /^\*\*After:\*\*/) after = 1
+            }
+            if (sec == "## Success criteria" && raw ~ /^- R[0-9]+ /) {
+                id = raw; sub(/^- /, "", id); sub(/ .*$/, "", id)
+                nr++; known[id] = 1
+                if (raw !~ /^- R[0-9]+ \[(acceptance|parity)\] /) w("b", id " has no [acceptance] or [parity] tag")
+                else if (raw ~ /^- R[0-9]+ \[parity\] /) {
+                    if (raw !~ /vs `[^`]+`/ && raw !~ /baseline `plans\/[^`]*\.baseline\/[^`]+`/)
+                        w("g", id " [parity] names neither vs `<git-ref>` nor baseline `plans/<slug>.baseline/<path>`")
+                    if (raw ~ /baseline `plans\/[^`]*\.baseline\/[^`]+`/) needbase = 1
+                }
+                next
+            }
+            if (sec == "## Success criteria" && raw ~ /^- (\*\*)?R[0-9]+/ && raw !~ /^- R[0-9]+ /)
+                w("b", "malformed criterion line \"" raw "\" (need - R<n> [acceptance|parity] ...)")
+            if (!cur && !insec && raw ~ /^\*\*(Verify|Files touched|Risk|Depends):\*\*/)
+                w("e", "a phase field line \"" raw "\" sits outside any ### Phase section")
+            if (raw ~ /^\*\*Files touched:\*\*/) {
+                if (cur) pft++
+                v = raw; sub(/^\*\*Files touched:\*\*[ \t]*/, "", v)
+                if (cur && v ~ /^`[^`]+`( \(new\))?([ \t]*,[ \t]*`[^`]+`( \(new\))?)*[ \t]*$/) pf = 1
+            } else if (raw ~ /^\*\*Risk:\*\*/) {
+                v = raw; sub(/^\*\*Risk:\*\*[ \t]*/, "", v)
+                if (cur && v ~ /^(low|medium|high)[ \t]*$/) pr = 1
+                if (cur && v ~ /^high[ \t]*$/) high = 1
+            } else if (raw ~ /^\*\*Depends:\*\*/) {
+                v = raw; sub(/^\*\*Depends:\*\*[ \t]*/, "", v)
+                if (cur && v ~ /^(none|Phase [0-9]+([ \t]*,[ \t]*Phase [0-9]+)*)[ \t]*$/) pd = 1
+            } else if (raw ~ /^\*\*Verify:\*\*/) {
+                if (cur) pv++
+                where = cur ? "Phase " cur : "a **Verify:** outside any phase"
+                v = raw; sub(/^\*\*Verify:\*\*[ \t]*/, "", v)
+                p = index(v, " — ")
+                head = (p > 0) ? substr(v, 1, p - 1) : ""
+                ok = 0
+                if (head ~ /^R[0-9]+([ \t]*,[ \t]*R[0-9]+)*[ \t]*$/) {
+                    n = split(head, parts, /[ \t]*,[ \t]*/)
+                    for (i = 1; i <= n; i++) { gsub(/[ \t]/, "", parts[i]); if (cur) cited[parts[i]] = 1 }
+                    ok = 1
+                } else if (cur) w("e", where " **Verify:** does not start with R<n>[, R<n>...] before an em dash")
+                if (ok) { ok = 0; for (i = 1; i <= n; i++) if (parts[i] in known) ok = 1 }
+                if (!ok) w("c", where " **Verify:** cites no existing R-id")
+            }
+        }
+        END {
+            endphase()
+            if (!nr) w("a", "no R<n> criterion line under ## Success criteria")
+            for (id in known) if (!(id in cited)) w("d", id " is cited by no **Verify:** line")
+            if (!nongoals) w("f", "## Non-goals is missing")
+            if (needbase && !baseline) w("g", "a baseline parity reference needs a ### Phase N — Baseline")
+            if (high && !security) w("h", "a Risk: high phase requires ## Security")
+            if (!before) w("i", "**Before:** missing under ## Goal")
+            if (!after) w("i", "**After:** missing under ## Goal")
+        }
+PCAWK
+for k in "${!live_plans[@]}"; do
+    f="${live_plans[$k]}"
+    case "${FM_VALUES[$k]}" in draft|in_progress) ;; *) continue;; esac
+    created="$(extract_fm_field "$f" created)"
+    case "$created" in
+        [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+        *)
+            emit "plan-contract: $f (j) created: '${created}' is missing or not YYYY-MM-DD — contract scope cannot be decided"
+            continue
+            ;;
+    esac
+    [[ "$created" < "$PLAN_CONTRACT_SINCE" ]] && continue
+    pc_out="$(PC_FILE="$f" LC_ALL=C awk -f "$SCRIPT_DIR/plan-fence.awk" -f /dev/stdin "$f" 2>/dev/null <<< "$PC_AWK")"
+    pc_rc=$?
+    if [ "$pc_rc" -ne 0 ]; then
+        emit "ERROR: $f lint rule 20 could not scan the plan (awk exit $pc_rc)"
+    elif [ -n "$pc_out" ]; then
+        while IFS= read -r finding; do
+            emit "$finding"
+        done <<PCEOF
+$pc_out
+PCEOF
+    fi
+done
+
 # 9. Investigations must be tied to a task lifecycle — a live investigation
 #    carries a frontmatter `task_ref` (the task it seeds or serves); `none` is
 #    plans-only vocabulary: a plan may be plan-only, an investigation never is.
