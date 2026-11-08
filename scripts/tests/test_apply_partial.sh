@@ -176,4 +176,42 @@ done <<EOF
 $plan_carriers
 EOF
 
+PF_SRC="$SCRIPTS_DIR/partials/plan-feasibility.md"
+PF_START="<!-- partial:plan-feasibility START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-feasibility.md) -->"
+PF_END="<!-- partial:plan-feasibility END -->"
+PF_BLOCK="$(mktemp 2>/dev/null || mktemp -t plan-feasibility-block)"
+trap 'rm -rf "$MEM" "$OUTSIDE" "$TASK_BLOCK" "$PLAN_BLOCK" "$PF_BLOCK"' EXIT
+
+set +e
+pf_carriers="$(grep -l -F "$PF_START" "$ROOT"/commands/*.md)"
+code=$?
+set -e
+assert_exit 0 "$code" "plan-feasibility carriers discovered by START marker"
+
+pf_carrier_count="$(printf '%s\n' "$pf_carriers" | awk 'NF { count++ } END { print count + 0 }')"
+# Literal 2, same reasoning as the task-link count above: never make it dynamic.
+assert_eq "2" "$pf_carrier_count" "both plan-feasibility command carriers remain present"
+
+while IFS= read -r carrier; do
+    [ -n "$carrier" ] || continue
+    set +e
+    awk -v start="$PF_START" -v end="$PF_END" '
+        $0 == start { if (found || in_block) exit 1; found = 1; in_block = 1; next }
+        in_block && $0 == end { in_block = 0; closed = 1; next }
+        in_block { print; next }
+        END { if (!found || !closed || in_block) exit 1 }
+    ' "$carrier" > "$PF_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-feasibility block extracts"
+
+    set +e
+    cmp -s "$PF_SRC" "$PF_BLOCK"
+    code=$?
+    set -e
+    assert_exit 0 "$code" "$(basename "$carrier") plan-feasibility block matches source bytes"
+done <<EOF2
+$pf_carriers
+EOF2
+
 finish

@@ -45,7 +45,7 @@ Applies **only when Step 2 classified the task as a Tier-3 feature** (brainstorm
 - **Why last:** Steps 0-4 wrote the plan/todo into the memory tree (`~/.claude-memory`, an absolute path unaffected by the code-repo cwd) and did the backend bookkeeping from the main checkout. Entering now means only the *execution* runs in the worktree. The per-session scratchpad then auto-resolves to `working.<slug>.md` (the overlay resolver keys off the worktree — no extra wiring; see `docs/file-formats.md` → Per-worktree overlays). `worktree.baseRef` defaults to `fresh` (branches from `origin/<default>`), so the worktree does **not** carry uncommitted local work — mention this when you report.
 
 ### Step 5 — report
-State: the plan path, that the task is linked (`task_ref`) and now `started`, and whether brainstorming ran. **If Step 4.5 entered a worktree,** name it and note the scratchpad is now `working.<slug>.md` (and that the branch was cut fresh from the default). If the design produced phases, offer to begin executing Phase 1 (the normal orchestrator/executor flow).
+State: the plan path, that the task is linked (`task_ref`) and now `started`, and whether brainstorming ran. **If Step 4.5 entered a worktree,** name it and note the scratchpad is now `working.<slug>.md` (and that the branch was cut fresh from the default). If the design produced phases, run the **Plan feasibility** section below first, then offer to begin executing Phase 1 (the normal orchestrator/executor flow).
 
 **Notes**
 - `/start` owns plan placement (into the task's project) rather than calling `/new-plan`, because `/new-plan` targets the *active* project and a task can belong to a different one. A same-project `/start` and a direct `/new-plan` still yield the same plan shape.
@@ -146,3 +146,16 @@ owner: claude (orchestrator)
 
 Field rules, one field per line: `Files touched` is comma-separated backticked paths or globs, repo-relative, with a file the phase creates suffixed ` (new)` after its closing backtick. `Depends` takes phase numbers only, never names — mirror it onto the `todo.md` checkbox as `(needs: Pn)`. `Verify` is a single line whose R-ids come before the em dash. Only `### Phase N — ` headings are phases; a `### Checkpoint` is not.
 <!-- partial:plan-scaffold END -->
+
+<!-- partial:plan-feasibility START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-feasibility.md) -->
+## Plan feasibility
+
+A pre-delegation gate: run it once the plan's Phases are drafted, before offering or delegating Phase 1. It checks the plan against the repo **at a base commit**, never the working tree. Not for plans still carrying scaffold placeholders — the brief answers `REVISE: not drafted` for those.
+
+1. Take `base`: the main SHA recorded in the plan's `## Decisions` (record it there before Phase 1 if absent), else `git merge-base origin/<default> HEAD` in the plan's repo. Pass the same `base:` on every later run.
+2. Run the brief, in the plan's repo, with the plan path, repo path and `base:` in the prompt: `bash scripts/executor.sh --role validate --run --brief plan-feasibility "<plan path, repo path, base: <sha>>"`, or the Agent tool with subagent type `plan-feasibility`. Exit 3 with `EXECUTOR_USE_SUBAGENT` means use the Agent tool.
+3. Act on the verdict (first line of the report):
+   - `READY` — proceed.
+   - `CAUTION` — proceed, and copy each finding into the plan's `## Risks / open questions`.
+   - `REVISE` — fix the plan for each finding and re-run **once**. A second `REVISE` goes to the user; do not delegate Phase 1.
+<!-- partial:plan-feasibility END -->

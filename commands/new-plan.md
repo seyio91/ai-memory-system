@@ -39,7 +39,7 @@ A checkpoint is a checklist, not a delegation — full test run, lint, a live ex
 
 **YAGNI pushback.** When the user's ask, or your own draft, grows a phase no `R<n>` needs, say so and offer the cut instead of silently accepting it. Bad example: Goal "stop the nightly sync from double-posting", then a Phase 3 "add a pluggable retry-strategy interface" with no criterion behind it. The pushback: "R1 is the only criterion and Phase 1 already satisfies it; Phase 3 proves nothing. Move it to `## Non-goals`, or tell me which `R<n>` it serves."
 
-Step 4 — ask the user one line: "Plan scaffolded at `<path>`. Want me to draft the Goal, Success criteria, and Phases from session context, or will you fill it in yourself?" Then act on the answer. If the user opts to fill it in, do not invent content — except **Success criteria**, where if the user proceeds to execution without stating them, draft best-effort criteria from context and surface them for confirmation (per doctrine/orchestrator.md → Task Contract).
+Step 4 — ask the user one line: "Plan scaffolded at `<path>`. Want me to draft the Goal, Success criteria, and Phases from session context, or will you fill it in yourself?" Then act on the answer. Once the Phases are drafted, run the **Plan feasibility** section below before Step 5. If the user opts to fill it in, do not invent content — except **Success criteria**, where if the user proceeds to execution without stating them, draft best-effort criteria from context and surface them for confirmation (per doctrine/orchestrator.md → Task Contract).
 
 Step 5 — run the **Task linking** section below, in full. It resolves the task (from `--task`/`--no-task`, or by asking), stamps the frontmatter, pushes the Goal back to the backend, flips the task to `started`, and writes the `todo.md` entry. It runs *after* Step 4 and not before: the summary pushed to the backend must be the drafted Goal, not the scaffold placeholder.
 
@@ -140,3 +140,16 @@ owner: claude (orchestrator)
 
 Field rules, one field per line: `Files touched` is comma-separated backticked paths or globs, repo-relative, with a file the phase creates suffixed ` (new)` after its closing backtick. `Depends` takes phase numbers only, never names — mirror it onto the `todo.md` checkbox as `(needs: Pn)`. `Verify` is a single line whose R-ids come before the em dash. Only `### Phase N — ` headings are phases; a `### Checkpoint` is not.
 <!-- partial:plan-scaffold END -->
+
+<!-- partial:plan-feasibility START (managed by scripts/apply-partial.sh — edit scripts/partials/plan-feasibility.md) -->
+## Plan feasibility
+
+A pre-delegation gate: run it once the plan's Phases are drafted, before offering or delegating Phase 1. It checks the plan against the repo **at a base commit**, never the working tree. Not for plans still carrying scaffold placeholders — the brief answers `REVISE: not drafted` for those.
+
+1. Take `base`: the main SHA recorded in the plan's `## Decisions` (record it there before Phase 1 if absent), else `git merge-base origin/<default> HEAD` in the plan's repo. Pass the same `base:` on every later run.
+2. Run the brief, in the plan's repo, with the plan path, repo path and `base:` in the prompt: `bash scripts/executor.sh --role validate --run --brief plan-feasibility "<plan path, repo path, base: <sha>>"`, or the Agent tool with subagent type `plan-feasibility`. Exit 3 with `EXECUTOR_USE_SUBAGENT` means use the Agent tool.
+3. Act on the verdict (first line of the report):
+   - `READY` — proceed.
+   - `CAUTION` — proceed, and copy each finding into the plan's `## Risks / open questions`.
+   - `REVISE` — fix the plan for each finding and re-run **once**. A second `REVISE` goes to the user; do not delegate Phase 1.
+<!-- partial:plan-feasibility END -->
