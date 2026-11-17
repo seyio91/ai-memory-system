@@ -22,13 +22,13 @@ emit() {
 # Paths reach awk through ENVIRON: -v would interpret backslash escapes in them.
 DS_LIB="$(cat "$SCRIPT_DIR/lib/decision-stream.awk" 2>/dev/null)"
 read -r -d '' DS_LINT_PROG <<'AWK' || true
-BEGIN { file = ENVIRON["DS_FILE"]; lt = ENVIRON["DS_LT"] + 0 }
+BEGIN { file = ENVIRON["DS_FILE"]; lt = ENVIRON["DS_LT"] + 0; ds_reset(); nt = split(ENVIRON["DS_TOPICS"], tl, "\n") }
 function flush(   legacy) {
     if (!have) return
     have = 0
     if (!(id in cnt)) ord[++nid] = id
     cnt[id]++
-    if (!unmig && status == "superseded") sup[id]++
+    if (!unmig && ds_streq(status, "superseded")) sup[id]++
     if (unmig) {
         printf "WARN:  %s decision-stream %s is an unmigrated old-shape entry (expected `- D<n> <status> <YYYY-MM-DD> — ...`)\n", file, id
         return
@@ -38,10 +38,53 @@ function flush(   legacy) {
     if (ds_legacy(id, lt)) return
     if (!ds_dateshape(date))
         printf "WARN:  %s decision-stream %s has no bare YYYY-MM-DD date after the status\n", file, id
-    if (status == "confirmed" && !hasev)
+    if (ds_streq(status, "confirmed") && !hasev)
         printf "WARN:  %s decision-stream %s is confirmed with no evidence: continuation line\n", file, id
-    if (status == "proposed" && !hasunc)
+    if (ds_streq(status, "proposed") && !hasunc)
         printf "WARN:  %s decision-stream %s is proposed with no unconfirmed: continuation line\n", file, id
+}
+function topics_txt(   k, o) {
+    for (k = 1; k <= nt; k++) if (tl[k] != "") o = o (o == "" ? "" : ", ") tl[k]
+    return o
+}
+function lines_of(out, arr) { return split(out, arr, "\n") }
+# Topic enum, forward pointers and AMENDS/SUPERSEDES targets (collector API in
+# lib/decision-stream.awk). Every finding carries `decision-stream ` so the
+# memory-write guard relays it.
+function meta_checks(   i, k, n, t, found, declared, a, f, m, w) {
+    declared = (topics_txt() != "")
+    n = ds_count()
+    for (i = 1; i <= n && declared; i++) {
+        t = ds_topic(i)
+        if (t != "") {
+            found = 0
+            for (k = 1; k <= nt; k++) if (tl[k] != "" && ds_streq(tl[k], t)) found = 1
+            if (!found) printf "WARN:  %s decision-stream %s topic '%s' is not in frontmatter topics: [%s]\n", file, ds_id(i), t, topics_txt()
+        } else if (ds_live(i)) {
+            printf "WARN:  %s decision-stream %s is %s but has no topic: continuation line (frontmatter declares topics:)\n", file, ds_id(i), ds_status(i)
+        }
+    }
+    m = lines_of(ds_missing_pointers(), a)
+    for (k = 1; k <= m; k++) if (a[k] != "") {
+        split(a[k], f, " ")
+        printf "WARN:  %s decision-stream %s is named by %s (%s) but has no `%s %s` forward pointer on its head\n", file, f[1], f[2], f[3], ds_arrow(), f[2]
+    }
+    m = lines_of(ds_dangling_pointers(), a)
+    for (k = 1; k <= m; k++) if (a[k] != "") {
+        split(a[k], f, " ")
+        printf "WARN:  %s decision-stream %s forward pointer `%s %s` names no decision in the stream\n", file, f[1], ds_arrow(), f[2]
+    }
+    m = lines_of(ds_unknown_targets(), a)
+    for (k = 1; k <= m; k++) if (a[k] != "") {
+        split(a[k], f, " ")
+        printf "WARN:  %s decision-stream %s %s %s names a decision that is not in the stream\n", file, f[1], f[3], f[2]
+    }
+    m = lines_of(ds_bad_keywords(), a)
+    for (k = 1; k <= m; k++) if (a[k] != "") {
+        w = a[k]; sub(/^[^ ]+ /, "", w)
+        split(a[k], f, " ")
+        printf "WARN:  %s decision-stream %s has an AMENDS/SUPERSEDES line naming no decision id: `%s`\n", file, f[1], substr(w, 1, 60)
+    }
 }
 function malformed() {
     printf "WARN:  %s decision-stream malformed head `%s` (expected `- D<n>[a-z]? <status> <YYYY-MM-DD> — ...`, single spaces)\n", file, substr($0, 1, 50)
@@ -51,6 +94,7 @@ function malformed() {
 DS_FOPEN { if (ds_in && $0 ~ /^[^ \t]/) flush(); next }
 DS_END { flush(); exit }
 !inst { next }
+{ ds_feed($0) }
 /^[ \t]*$/ { flush(); next }
 { k = ds_head($0) }
 k != "" {
@@ -69,7 +113,114 @@ END {
     for (i = 1; i <= nid; i++)
         if (cnt[ord[i]] - sup[ord[i]] > 1)
             printf "WARN:  %s decision-stream %s appears on more than one entry head (all but one must be superseded)\n", file, ord[i]
+    meta_checks()
     if (ds_fence_open()) printf "WARN:  %s decision-stream unclosed code fence — the rest of the file is skipped\n", file
+}
+AWK
+
+# Target checks (initiatives only), on the shared lib/initiative-targets.awk
+# parser: concatenated AFTER the decision-stream lib (it needs ds_fence and
+# ds_streq). Prints finished findings; `TASK<sep>id<sep>task` lines feed the
+# cross-file task-ref check and `META<sep>targets<sep>n` the fence check. The
+# frontmatter `envs:` list arrives newline-separated in IL_ENVS.
+IT_LIB="$(cat "$SCRIPT_DIR/lib/initiative-targets.awk" 2>/dev/null)"
+LINT_SEP=$(printf '\034')
+read -r -d '' INIT_LINT_PROG <<'AWK' || true
+function lt_trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+# `<project>/<name>[@<env>]`: no whitespace, one project segment, one optional @env.
+function lt_valid_id(id) { return (id ~ "^[^/ \t@]+/[^ \t@]+(@[^ \t@]+)?$") }
+# The Target id of a depends_on item: a trailing `(stage: ...)` is dropped.
+function lt_dep_id(d,   inner, pos, p, last) {
+    d = lt_trim(d)
+    if (substr(d, length(d), 1) == ")") {
+        inner = substr(d, 1, length(d) - 1)
+        last = 0; pos = 1
+        while ((p = index(substr(inner, pos), "(stage: ")) > 0) { last = pos + p - 1; pos = last + 1 }
+        if (last > 0 && index(substr(inner, last), ")") == 0) return lt_trim(substr(d, 1, last - 1))
+    }
+    return d
+}
+BEGIN {
+    file = ENVIRON["IL_FILE"]; sep = "\034"
+    nenv = split(ENVIRON["IL_ENVS"], envl, "\n")
+    envs_txt = ""
+    for (k = 1; k <= nenv; k++) if (envl[k] != "") envs_txt = envs_txt (envs_txt == "" ? "" : ", ") envl[k]
+}
+{ sub(/\r$/, "") }
+{ it_line($0) }
+END {
+    it_finish()
+    for (i = 1; i <= IT_NE; i++) printf "ERROR: %s %s\n", file, IT_E[i]
+    for (i = 1; i <= IT_N; i++) known[IT_ID[i]] = 1
+    for (i = 1; i <= IT_N; i++) {
+        id = IT_ID[i]; closed = IT_CLOSED[i]
+        if (!closed && !lt_valid_id(id))
+            printf "ERROR: %s Targets heading '### %s' is neither '### Closed' nor '### <project>/<name>[@<env>]'\n", file, id
+        if (id in seen) printf "ERROR: %s duplicate Target id '%s'\n", file, id
+        seen[id] = 1
+        if (!closed && !lt_valid_id(id)) continue
+        p = index(id, "@")
+        if (p > 0) {
+            env = substr(id, p + 1); found = 0
+            for (k = 1; k <= nenv; k++) if (envl[k] != "" && ds_streq(envl[k], env)) found = 1
+            if (!found) {
+                if (envs_txt == "") printf "WARN:  %s Target '%s' is an @env Target but frontmatter has no envs: list\n", file, id
+                else printf "WARN:  %s Target '%s' env '%s' is not in frontmatter envs: [%s]\n", file, id, env, envs_txt
+            }
+        }
+        if (closed) continue
+        sw = ds_streq(IT_MODE[i], "software_adw")
+        if (sw && IT_STAGES[i] == "") printf "WARN:  %s Target '%s' execution_mode 'software_adw' has no stages\n", file, id
+        if (!sw && IT_STAGES[i] != "") printf "WARN:  %s Target '%s' has stages but execution_mode is '%s'\n", file, id, IT_MODE[i]
+        if (length(IT_STATUS[i]) > 300)
+            printf "WARN:  %s Target '%s' status is %d chars (over 300): keep it one line and move prose to `scope:` or the progress log\n", file, id, length(IT_STATUS[i])
+        live = (IT_STATE[i] == "open" || IT_STATE[i] == "blocked")
+        if (live && index(IT_NEXT[i], " " ds_dash() " ") == 0)
+            printf "WARN:  %s Target '%s' next: has no ' %s ' action part (expected `<session %s action>`)\n", file, id, ds_dash(), ds_dash()
+        if (live && IT_TASK[i] == "") printf "WARN:  %s Target '%s' is open/blocked but has no task\n", file, id
+        if (IT_TASK[i] != "") printf "TASK%s%s%s%s\n", sep, id, sep, IT_TASK[i]
+        nd = split(IT_DEPS[i], parts, ",")
+        for (k = 1; k <= nd; k++) {
+            d = lt_trim(parts[k])
+            if (d == "" || d == "none") continue
+            did = lt_dep_id(d)
+            if (!(did in known)) printf "WARN:  %s Target '%s' depends_on unresolved Target id '%s'\n", file, id, did
+        }
+    }
+    printf "META%stargets%s%d\n", sep, sep, IT_N
+}
+AWK
+
+# Frontmatter list fields (inline `[a, b]` or YAML block) as `e:<item>` /
+# `t:<item>` lines for `envs:` / `topics:`; same reading as initiative-render.sh.
+read -r -d '' FM_LISTS_PROG <<'AWK' || true
+function unq(x,   c) {
+    sub(/^[ \t]+/, "", x); sub(/[ \t]+$/, "", x)
+    if (length(x) >= 2) {
+        c = substr(x, 1, 1)
+        if ((c == "\"" || c == "\047") && substr(x, length(x), 1) == c) x = substr(x, 2, length(x) - 2)
+    }
+    return x
+}
+{ sub(/\r$/, "") }
+NR == 1 { if ($0 ~ /^---[ \t]*$/) { infm = 1; next } else exit }
+infm && /^---[ \t]*$/ { exit }
+!infm { exit }
+blk != "" {
+    if ($0 ~ /^[ \t]*-([ \t]|$)/) { v = $0; sub(/^[ \t]*-[ \t]*/, "", v); v = unq(v); if (v != "") print blk ":" v; next }
+    if ($0 ~ /^[ \t]*$/) next
+    blk = ""
+}
+{
+    key = ""
+    if (index($0, "envs:") == 1) key = "e"
+    else if (index($0, "topics:") == 1) key = "t"
+    if (key == "") next
+    v = substr($0, index($0, ":") + 1); sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+    if (v == "") { blk = key; next }
+    sub(/^\[/, "", v); sub(/\]$/, "", v)
+    m = split(v, p, ",")
+    for (i = 1; i <= m; i++) { x = unq(p[i]); if (x != "") print key ":" x }
 }
 AWK
 
@@ -539,6 +690,10 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
     #      entries may omit the date and skip the date/evidence/unconfirmed
     #      checks, never the status, unmigrated or malformed-head checks. An id on
 #      more than one head is one WARN unless all copies but one are superseded.
+    fm_lists="$(awk "$FM_LISTS_PROG" "$f")"
+    fm_envs="$(printf '%s\n' "$fm_lists" | sed -n 's/^e://p')"
+    fm_topics="$(printf '%s\n' "$fm_lists" | sed -n 's/^t://p')"
+
     if [ "$kind" = "initiative" ]; then
         legacy_mark=$(extract_fm_field "$f" legacy_through | tr -d '\r')
         legacy_num=$(printf '%s\n' "$legacy_mark" | sed -n 's/^D\([0-9][0-9]*\)$/\1/p')
@@ -554,189 +709,62 @@ for f in "$MEMORY_DIR"/initiatives/*.md; do
                 [ -n "$stream_finding" ] || continue
                 emit "$stream_finding"
             done < <(
-                DS_FILE="$f" DS_LT="$legacy_num" awk "$DS_LIB
+                DS_FILE="$f" DS_LT="$legacy_num" DS_TOPICS="$fm_topics" awk "$DS_LIB
 $DS_LINT_PROG" "$f"
             )
         fi
     fi
 
-    target_ids=()
-    target_modes=()
-    target_stages=()
-    target_depends=()
-    while IFS='|' read -r target_id target_mode target_stages_present target_depends_on; do
-        [ -n "$target_id" ] || continue
-        target_ids[${#target_ids[@]}]="$target_id"
-        target_modes[${#target_modes[@]}]="$target_mode"
-        target_stages[${#target_stages[@]}]="$target_stages_present"
-        target_depends[${#target_depends[@]}]="$target_depends_on"
-    done < <(
-        awk '
-            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
-            in_targets && /^## / { exit }
-            in_targets && /^### / {
-                if (have_target) {
-                    print target "|" mode "|" stages "|" depends
-                }
-                target = substr($0, 5)
-                mode = ""
-                stages = ""
-                depends = ""
-                have_target = 1
-                next
-            }
-            in_targets && have_target && /^- execution_mode: / {
-                mode = $0
-                sub(/^- execution_mode: /, "", mode)
-                next
-            }
-            in_targets && have_target && /^- stages: / {
-                stages = "present"
-                next
-            }
-            in_targets && have_target && /^- depends_on: / {
-                depends = $0
-                sub(/^- depends_on: /, "", depends)
-            }
-            END {
-                if (in_targets && have_target) {
-                    print target "|" mode "|" stages "|" depends
-                }
-            }
-        ' "$f"
-    )
-
-    if [ ${#target_ids[@]} -gt 0 ]; then
-        for i in "${!target_ids[@]}"; do
-            for j in "${!target_ids[@]}"; do
-                [ "$i" -ge "$j" ] && continue
-                if [ "${target_ids[$i]}" = "${target_ids[$j]}" ]; then
-                    emit "WARN:  $f duplicate Target id '${target_ids[$i]}'"
-                fi
-            done
-
-            if [ "${target_modes[$i]}" = "software_adw" ] && [ -z "${target_stages[$i]}" ]; then
-                emit "WARN:  $f Target '${target_ids[$i]}' execution_mode 'software_adw' has no stages"
-            fi
-            if [ "${target_modes[$i]}" != "software_adw" ] && [ -n "${target_stages[$i]}" ]; then
-                emit "WARN:  $f Target '${target_ids[$i]}' has stages but execution_mode is '${target_modes[$i]}'"
-            fi
-
-            remaining_depends="${target_depends[$i]}"
-            while [ -n "$remaining_depends" ]; do
-                case "$remaining_depends" in
-                    *,*) dependency=${remaining_depends%%,*}; remaining_depends=${remaining_depends#*,} ;;
-                    *) dependency=$remaining_depends; remaining_depends="" ;;
-                esac
-                dependency="${dependency#"${dependency%%[![:space:]]*}"}"
-                dependency="${dependency%"${dependency##*[![:space:]]}"}"
-                [ "$dependency" = "none" ] && continue
-                # Drop a trailing `(stage: ...)`: the text after the last
-                # inner `)` holds the only `(stage: ` that can reach the end.
-                dependency_id="$dependency"
-                case "$dependency" in
-                    *"(stage: "*")")
-                        stage_tail="${dependency%)}"
-                        stage_tail="${stage_tail##*)}"
-                        case "$stage_tail" in
-                            *"(stage: "*)
-                                dependency_id="${dependency%"$stage_tail)"}${stage_tail%%"(stage: "*}"
-                                dependency_id="${dependency_id%"${dependency_id##*[![:space:]]}"}"
-                                ;;
-                        esac
-                        ;;
-                esac
-                resolved=0
-                for known_target in "${target_ids[@]}"; do
-                    if [ "$known_target" = "$dependency_id" ]; then
-                        resolved=1
-                        break
-                    fi
-                done
-                if [ "$resolved" -eq 0 ]; then
-                    emit "WARN:  $f Target '${target_ids[$i]}' depends_on unresolved Target id '$dependency_id'"
-                fi
-            done
-        done
+    # 11b. Targets, parsed by the shared lib/initiative-targets.awk (same
+    #      grammar initiative-status.sh reads, so the two cannot drift). The
+    #      awk program prints finished findings, plus `TASK<sep>id<sep>task` and
+    #      `META<sep>targets<sep>n` lines this loop consumes. ERROR: `next_actor:`,
+    #      a status off the new grammar (old `<state> — prose`, missing next:/
+    #      blocked_by:, state outside open|blocked|done|closed), an interactive
+    #      Target with no status, a `### ` heading under `## Targets` that is
+    #      not `### Closed` or `<project>/<name>[@<env>]`, a repeated Target id
+    #      (heading or Closed row). WARN: status over 300 chars, open/blocked
+    #      `next:` with no ` — ` action, an @env not in frontmatter `envs:`,
+    #      stages/mode mismatch, unresolved depends_on (Closed rows and @env ids
+    #      resolve), an open/blocked Target with no task. Stale fences: below.
+    it_format_errors=0
+    it_target_count=0
+    if [ -z "$IT_LIB" ]; then
+        emit "ERROR: $SCRIPT_DIR/lib/initiative-targets.awk is missing — Target checks skipped"
+    else
+        while IFS= read -r target_line; do
+            [ -n "$target_line" ] || continue
+            case "$target_line" in
+                "TASK$LINT_SEP"*)
+                    IFS="$LINT_SEP" read -r _ target_id target_task <<<"$target_line"
+                    ALL_TASK_REFS[${#ALL_TASK_REFS[@]}]="$target_task"
+                    ALL_TASK_TARGET_IDS[${#ALL_TASK_TARGET_IDS[@]}]="$target_id"
+                    ALL_TASK_TARGET_FILES[${#ALL_TASK_TARGET_FILES[@]}]="$f"
+                    ;;
+                "META$LINT_SEP"*) it_target_count="${target_line##*"$LINT_SEP"}" ;;
+                "ERROR: "*) it_format_errors=1; emit "$target_line" ;;
+                *) emit "$target_line" ;;
+            esac
+        done < <(
+            IL_FILE="$f" IL_ENVS="$fm_envs" awk "$DS_LIB
+$IT_LIB
+$INIT_LINT_PROG" "$f"
+        )
     fi
 
-    # 13. A Target status is an optional assertion. When present, its first
-    #     machine-readable token must use the shared status vocabulary.
-    while IFS='|' read -r target_id target_status; do
-        case "$target_status" in
-            open|"open "*|blocked|"blocked "*|done|"done "*|closed|"closed "*) ;;
-            *) emit "WARN:  $f Target '$target_id' status must begin with open, blocked, done, or closed" ;;
-        esac
-    done < <(
-        awk '
-            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
-            in_targets && /^## / { exit }
-            in_targets && /^### / {
-                target = substr($0, 5)
-                next
-            }
-            in_targets && target != "" && /^- status: / {
-                status = $0
-                sub(/^- status: /, "", status)
-                print target "|" status
-            }
-        ' "$f"
-    )
-
-    # 14. A live Target must be decomposed into a task. Non-terminal (open or
-    #     blocked) status is a live assertion and needs a `- task:` pointer;
-    #     done/closed are terminal and exempt; a Target with NO `- status:`
-    #     line at all is undeclared, not live — lint checks what is asserted,
-    #     it does not derive. `status (historical):` is not a status line
-    #     (matched by rule 13's `^- status: ` above, same exclusion here).
-    #
-    #     Also feeds rule 15a: every Target|task pair with a non-empty task is
-    #     appended to the cross-file accumulator declared before this loop.
-    while IFS='|' read -r target_id target_status target_task; do
-        [ -n "$target_id" ] || continue
-        case "$target_status" in
-            open|"open "*|blocked|"blocked "*)
-                if [ -z "$target_task" ]; then
-                    emit "WARN:  $f Target '$target_id' is open/blocked but has no task"
-                fi
-                ;;
-        esac
-        if [ -n "$target_task" ]; then
-            ALL_TASK_REFS[${#ALL_TASK_REFS[@]}]="$target_task"
-            ALL_TASK_TARGET_IDS[${#ALL_TASK_TARGET_IDS[@]}]="$target_id"
-            ALL_TASK_TARGET_FILES[${#ALL_TASK_TARGET_FILES[@]}]="$f"
+    # 11c. Fences: `initiative-render.sh <slug> --check` is the single source of
+    #      truth for stale, missing or orphan Now / matrix / Current-rules fences.
+    #      Active initiatives with parseable Targets only (a format ERROR above
+    #      already says the file cannot be rendered).
+    if [ "$it_format_errors" -eq 0 ] && [ "$it_target_count" -gt 0 ] && [ "$initiative_status" = "active" ] \
+       && [ -f "$SCRIPT_DIR/initiative-render.sh" ]; then
+        render_err="$(MEMORY_DIR="$MEMORY_DIR" bash "$SCRIPT_DIR/initiative-render.sh" "$filename_slug" --check 2>&1 >/dev/null)"
+        render_rc=$?
+        if [ "$render_rc" -ne 0 ]; then
+            render_err="$(printf '%s\n' "$render_err" | sed -e 's/^initiative-render: //' | paste -sd ';' - | sed 's/;/; /g')"
+            emit "WARN:  $f initiative-render fences are stale or missing (${render_err}) — run \`initiative-render.sh $filename_slug --write\`"
         fi
-    done < <(
-        awk '
-            /^## Targets[[:space:]]*$/ { in_targets = 1; next }
-            in_targets && /^## / { exit }
-            in_targets && /^### / {
-                if (have_target) {
-                    print target "|" status "|" task
-                }
-                target = substr($0, 5)
-                status = ""
-                task = ""
-                have_target = 1
-                next
-            }
-            in_targets && have_target && /^- status: / {
-                status = $0
-                sub(/^- status: /, "", status)
-                next
-            }
-            in_targets && have_target && /^- task: / {
-                task = $0
-                sub(/^- task: /, "", task)
-                next
-            }
-            END {
-                if (in_targets && have_target) {
-                    print target "|" status "|" task
-                }
-            }
-        ' "$f"
-    )
+    fi
 done
 
 # 15. Task/plan uniqueness, joined on the task ref.

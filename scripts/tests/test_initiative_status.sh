@@ -549,11 +549,23 @@ mk_old old-partial '- status: open · next: s — go'
 bash "$SCRIPT" old-partial >/dev/null 2>&1; rc=$?
 assert_exit 1 "$rc" "status missing blocked_by is refused"
 mk_old old-done '- status: done (asserted by test)'
-bash "$SCRIPT" old-done >/dev/null 2>&1; rc=$?
+old_out="$(bash "$SCRIPT" old-done 2>&1)"; rc=$?
 assert_exit 1 "$rc" "old 'done (prose)' status is refused"
+assert_not_contains "$old_out" "3.0.0 migration" "'done (prose)' is a plain grammar error (no migration pointer)"
 mk_old old-none
 bash "$SCRIPT" old-none >/dev/null 2>&1; rc=$?
 assert_exit 1 "$rc" "interactive Target with no status is refused"
+# A new-format line with a typo (two spaces before the middle dot) is a grammar
+# error naming the line and grammar, not an old-format file.
+mk_old typo '- status: open  · next: s — go · blocked_by: none'
+old_out="$(bash "$SCRIPT" typo 2>&1)"; rc=$?
+assert_exit 1 "$rc" "typo'd new-format status is refused"
+assert_not_contains "$old_out" "3.0.0" "typo'd status does not name the migration"
+assert_not_contains "$old_out" "old-format" "typo'd status is not called old-format"
+assert_contains "$old_out" "Target 'beta/x'" "typo'd status names the Target"
+assert_contains "$old_out" "line " "typo'd status names the line"
+assert_contains "$old_out" "blocked_by: <...|none>" "typo'd status names the expected grammar"
+assert_contains "$old_out" "fix the lines above by hand" "typo'd status says to fix by hand"
 mk_old new-done '- status: done'
 bash "$SCRIPT" new-done >/dev/null 2>&1; rc=$?
 assert_exit 0 "$rc" "terminal status needs no next/blocked_by"
@@ -655,5 +667,42 @@ a_out="$(bash "$SCRIPT" auth 2>&1)"
 assert_contains "$a_out" "alpha/built (stage: implement) — satisfied" "authored status on software_adw: reached stage is satisfied"
 assert_contains "$a_out" "alpha/built (stage: validate) — unsatisfied (at implement, needs validate)" "authored status on software_adw: later stage is unsatisfied"
 
+# Headings and status lines inside fenced code blocks are not Targets.
+cat > "$MEM/initiatives/fenced.md" <<'EOF'
+---
+kind: initiative
+slug: fenced
+status: active
+created: 2026-11-17
+---
+# F
+Example of the grammar:
+
+```
+## Targets
+### beta/ghost
+- execution_mode: interactive
+- status: this is not valid
+```
+
+## Targets
+### beta/real
+- execution_mode: interactive
+- status: open · next: exec — go · blocked_by: none
+```
+### beta/inner-ghost
+- status: not valid either
+```
+~~~
+- next_actor: human
+~~~
+## Closure
+Open.
+EOF
+f_out="$(bash "$SCRIPT" --tsv fenced 2>&1)"; rc=$?
+assert_exit 0 "$rc" "fenced example headings and status lines do not fail parsing"
+assert_eq "1" "$(printf '%s\n' "$f_out" | grep -c '^beta/')" "fenced headings are not Targets"
+assert_contains "$f_out" "beta/real" "the real Target is parsed"
+assert_not_contains "$f_out" "ghost" "no fenced Target leaks into the table"
 
 finish

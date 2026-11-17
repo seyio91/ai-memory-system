@@ -38,7 +38,14 @@ x
 
 EOF
     write_clean_initiative "$m/initiatives/clean-initiative.md"
+    rerender "$m"
     MEMORY_DIR="$m" bash "$SCRIPTS_DIR/regenerate-index.sh" >/dev/null
+}
+
+# Regenerate an initiative's Now / matrix / Current-rules fences (a fixture edit
+# leaves them stale, and a stale fence is its own WARN).
+rerender() { # rerender <memdir> [slug]
+    MEMORY_DIR="$1" bash "$SCRIPTS_DIR/initiative-render.sh" "${2:-clean-initiative}" --write >/dev/null 2>&1 || true
 }
 
 write_clean_initiative() { # write_clean_initiative <file>
@@ -58,13 +65,24 @@ created: 2026-08-14
 
 ### good/prepare
 - execution_mode: software_adw
-- stages: plan, implement
+- stages: plan -> implement
 - depends_on: none
 
 ### good/review
 - execution_mode: interactive
+- task: 10000000-0000-4000-8000-0000000000aa
 - depends_on: good/prepare (stage: implement)
+- status: open · next: exec — review the change · blocked_by: none
+
+## Decision stream
 EOF
+}
+
+# Insert Target sections before ## Decision stream (the clean fixture ends with it).
+ins_targets() { # ins_targets <file> : text on stdin
+    local f="$1" body
+    body="$(cat)"
+    INS_BODY="$body" awk '/^## (Current rules|Decision stream)[[:space:]]*$/ && !d { print ENVIRON["INS_BODY"]; print ""; d = 1 } { print }' "$f" > "$f.t" && mv "$f.t" "$f"
 }
 
 # --- clean tree ---
@@ -550,16 +568,18 @@ run_lint
 assert_contains "$OUT" "status 'draft' is not an initiative status" "invalid initiative status warns"
 rm -rf "$MI5"
 
-# --- Target ids must be unique within an initiative ---
+# --- Target ids must be unique within an initiative (ERROR) ---
 MI6="$(new_sandbox)"; export MEMORY_DIR="$MI6"; build_clean "$MI6"
-cat >> "$MI6/initiatives/clean-initiative.md" <<'EOF'
+ins_targets "$MI6/initiatives/clean-initiative.md" <<'EOF'
 
 ### good/prepare
 - execution_mode: interactive
 - depends_on: none
+- status: done
 EOF
 run_lint
-assert_contains "$OUT" "duplicate Target id 'good/prepare'" "duplicate Target id warns"
+assert_exit 1 "$CODE" "duplicate Target id exits 1"
+assert_contains "$OUT" "ERROR: $MI6/initiatives/clean-initiative.md duplicate Target id 'good/prepare'" "duplicate Target id is an ERROR"
 rm -rf "$MI6"
 
 # --- depends_on edges resolve to a Target in the same initiative ---
@@ -631,44 +651,58 @@ assert_exit 0 "$CODE" "freshly scaffolded initiative keeps lint clean"
 assert_not_contains "$OUT" "scaffold-check.md" "scaffolded initiative produces no findings"
 rm -rf "$MI11"
 
-# --- Target status tokens are optional, but valid when asserted ---
-# Carries a task so rule 14 (open Target needs a task) does not also fire —
-# this fixture is exercising rule 13's token grammar only.
+# --- a terminal status stands alone; open/blocked need next: and blocked_by: ---
 MI12="$(new_sandbox)"; export MEMORY_DIR="$MI12"; build_clean "$MI12"
-cat >> "$MI12/initiatives/clean-initiative.md" <<'EOF'
-- task: 10000000-0000-4000-8000-000000000001
-- status: open — awaiting review
-EOF
+sed 's/^- status: open · .*/- status: done/' "$MI12/initiatives/clean-initiative.md" > "$MI12/initiatives/clean-initiative.md.t"
+mv "$MI12/initiatives/clean-initiative.md.t" "$MI12/initiatives/clean-initiative.md"
+rerender "$MI12"
 run_lint
-assert_exit 0 "$CODE" "valid Target status token passes"
-assert_not_contains "$OUT" "status must begin" "valid Target status token does not warn"
+assert_exit 0 "$CODE" "terminal Target status alone passes"
+assert_not_contains "$OUT" "clean-initiative.md" "terminal Target status alone produces no findings"
 rm -rf "$MI12"
 
-# --- a status assertion needs a machine-readable first token ---
-MI13="$(new_sandbox)"; export MEMORY_DIR="$MI13"; build_clean "$MI13"
-cat >> "$MI13/initiatives/clean-initiative.md" <<'EOF'
-- status: awaiting review
-EOF
-run_lint
-assert_exit 1 "$CODE" "tokenless Target status exits 1"
-assert_contains "$OUT" "clean-initiative.md Target 'good/review' status must begin" "tokenless Target status warns with Target id"
-rm -rf "$MI13"
+# --- a status off the grammar is an ERROR (tokenless, emphasised, state outside the set) ---
+for bad in 'awaiting review' '**DONE — historical result**' 'waiting · next: exec — go · blocked_by: none' 'open · next: exec — go'; do
+    MI13="$(new_sandbox)"; export MEMORY_DIR="$MI13"; build_clean "$MI13"
+    sed "s/^- status: open · .*/- status: $bad/" "$MI13/initiatives/clean-initiative.md" > "$MI13/initiatives/clean-initiative.md.t"
+    mv "$MI13/initiatives/clean-initiative.md.t" "$MI13/initiatives/clean-initiative.md"
+    run_lint
+    assert_exit 1 "$CODE" "status '$bad' exits 1"
+    assert_contains "$OUT" "ERROR: $MI13/initiatives/clean-initiative.md Target 'good/review' line " "status '$bad' is an ERROR naming the Target"
+    assert_contains "$OUT" "has a status not matching" "status '$bad' names the grammar"
+    rm -rf "$MI13"
+done
 
-# --- markdown emphasis is not a machine-readable status token ---
+# --- old shapes: next_actor and `<state> — prose` are ERRORs naming the old format ---
 MI14="$(new_sandbox)"; export MEMORY_DIR="$MI14"; build_clean "$MI14"
-cat >> "$MI14/initiatives/clean-initiative.md" <<'EOF'
-- status: **DONE — historical result**
-EOF
+sed 's/^- status: open · .*/- status: open — waiting on review/' "$MI14/initiatives/clean-initiative.md" > "$MI14/initiatives/clean-initiative.md.t"
+mv "$MI14/initiatives/clean-initiative.md.t" "$MI14/initiatives/clean-initiative.md"
 run_lint
-assert_exit 1 "$CODE" "emphasised Target status exits 1"
-assert_contains "$OUT" "clean-initiative.md Target 'good/review' status must begin" "emphasised Target status warns"
+assert_exit 1 "$CODE" "old '<state> — prose' status exits 1"
+assert_contains "$OUT" "ERROR: $MI14/initiatives/clean-initiative.md Target 'good/review' line " "old-shape status is an ERROR"
+assert_contains "$OUT" "has an old-format status" "old-shape status is named as old format"
+rm -rf "$MI14"
+MI14="$(new_sandbox)"; export MEMORY_DIR="$MI14"; build_clean "$MI14"
+sed '/^- depends_on: good\/prepare/a\
+- next_actor: human
+' "$MI14/initiatives/clean-initiative.md" > "$MI14/initiatives/clean-initiative.md.t"
+mv "$MI14/initiatives/clean-initiative.md.t" "$MI14/initiatives/clean-initiative.md"
+run_lint
+assert_exit 1 "$CODE" "next_actor: line exits 1"
+assert_contains "$OUT" "ERROR: $MI14/initiatives/clean-initiative.md Target 'good/review' line " "next_actor: is an ERROR"
+assert_contains "$OUT" "has a next_actor: line" "next_actor: is named"
 rm -rf "$MI14"
 
-# --- software_adw Targets may omit an asserted status entirely ---
+# --- software_adw Targets may omit an asserted status entirely; interactive ones may not ---
 MI15="$(new_sandbox)"; export MEMORY_DIR="$MI15"; build_clean "$MI15"
 run_lint
-assert_exit 0 "$CODE" "Target with no status line passes"
-assert_not_contains "$OUT" "status must begin" "Target with no status line does not warn"
+assert_exit 0 "$CODE" "software_adw Target with no status line passes"
+assert_not_contains "$OUT" "status" "software_adw Target with no status does not warn"
+grep -v '^- status:' "$MI15/initiatives/clean-initiative.md" > "$MI15/initiatives/clean-initiative.md.t"
+mv "$MI15/initiatives/clean-initiative.md.t" "$MI15/initiatives/clean-initiative.md"
+run_lint
+assert_exit 1 "$CODE" "interactive Target with no status exits 1"
+assert_contains "$OUT" "ERROR: $MI15/initiatives/clean-initiative.md Target 'good/review' is interactive and has no status" "interactive Target with no status is an ERROR"
 rm -rf "$MI15"
 
 # --- historical status prose is outside the machine-readable grammar ---
@@ -676,20 +710,22 @@ MI16="$(new_sandbox)"; export MEMORY_DIR="$MI16"; build_clean "$MI16"
 cat >> "$MI16/initiatives/clean-initiative.md" <<'EOF'
 - status (historical): **DONE — historical result**
 EOF
+rerender "$MI16"
 run_lint
 assert_exit 0 "$CODE" "historical Target status passes"
-assert_not_contains "$OUT" "status must begin" "historical Target status does not warn"
+assert_not_contains "$OUT" "clean-initiative.md" "historical Target status produces no findings"
 rm -rf "$MI16"
 
 # --- rule 14: a live (open/blocked) Target must carry a task ---
 MI17="$(new_sandbox)"; export MEMORY_DIR="$MI17"; build_clean "$MI17"
-cat >> "$MI17/initiatives/clean-initiative.md" <<'EOF'
+ins_targets "$MI17/initiatives/clean-initiative.md" <<'EOF'
 
 ### good/no-task
 - execution_mode: interactive
 - depends_on: none
-- status: open — needs decomposition
+- status: open · next: exec — decompose it · blocked_by: none
 EOF
+rerender "$MI17"
 run_lint
 assert_exit 1 "$CODE" "open Target without a task exits 1"
 assert_contains "$OUT" "Target 'good/no-task' is open/blocked but has no task" "warning names the undecomposed Target"
@@ -697,14 +733,15 @@ rm -rf "$MI17"
 
 # --- rule 14: an open Target with a task passes ---
 MI18="$(new_sandbox)"; export MEMORY_DIR="$MI18"; build_clean "$MI18"
-cat >> "$MI18/initiatives/clean-initiative.md" <<'EOF'
+ins_targets "$MI18/initiatives/clean-initiative.md" <<'EOF'
 
 ### good/has-task
 - execution_mode: interactive
 - task: 20000000-0000-4000-8000-000000000002
 - depends_on: none
-- status: open — decomposed
+- status: open · next: exec — decomposed · blocked_by: none
 EOF
+rerender "$MI18"
 run_lint
 assert_exit 0 "$CODE" "open Target with a task keeps lint clean"
 assert_not_contains "$OUT" "has no task" "task-bearing open Target does not warn"
@@ -712,20 +749,21 @@ rm -rf "$MI18"
 
 # --- rule 14: a terminal (done/closed) Target is exempt even without a task ---
 MI19="$(new_sandbox)"; export MEMORY_DIR="$MI19"; build_clean "$MI19"
-cat >> "$MI19/initiatives/clean-initiative.md" <<'EOF'
+ins_targets "$MI19/initiatives/clean-initiative.md" <<'EOF'
 
 ### good/finished
 - execution_mode: interactive
 - depends_on: none
-- status: done — shipped
+- status: done
 EOF
+rerender "$MI19"
 run_lint
 assert_exit 0 "$CODE" "terminal Target without a task keeps lint clean"
 assert_not_contains "$OUT" "has no task" "terminal Target does not warn"
 rm -rf "$MI19"
 
 # --- rule 14: a Target asserting no status line at all is undeclared, not
-#     live — exempt. This is the shape of six real dispatch Targets today. ---
+#     live — exempt. This is the shape of software_adw dispatch Targets. ---
 MI20="$(new_sandbox)"; export MEMORY_DIR="$MI20"; build_clean "$MI20"
 run_lint
 assert_exit 0 "$CODE" "Target with no status line and no task keeps lint clean"
@@ -739,12 +777,13 @@ sed '/^### good\/prepare$/a\
 - task: 30000000-0000-4000-8000-000000000003
 ' "$MI21/initiatives/clean-initiative.md" > "$MI21/initiatives/clean-initiative.md.t"
 mv "$MI21/initiatives/clean-initiative.md.t" "$MI21/initiatives/clean-initiative.md"
-cat >> "$MI21/initiatives/clean-initiative.md" <<'EOF'
+ins_targets "$MI21/initiatives/clean-initiative.md" <<'EOF'
 
 ### good/duplicate-task
 - execution_mode: interactive
 - task: 30000000-0000-4000-8000-000000000003
 - depends_on: none
+- status: done
 EOF
 run_lint
 assert_exit 1 "$CODE" "one task on two Targets exits 1"
@@ -793,6 +832,7 @@ sed '/^### good\/prepare$/a\
 - task: none
 ' "$MI23/initiatives/clean-initiative.md" > "$MI23/initiatives/clean-initiative.md.t"
 mv "$MI23/initiatives/clean-initiative.md.t" "$MI23/initiatives/clean-initiative.md"
+rerender "$MI23"
 cat > "$MI23/projects/good/plans/plan-c.md" <<'EOF'
 ---
 plan: plan-c
@@ -817,6 +857,191 @@ run_lint
 assert_exit 0 "$CODE" "task_ref none on two live plans does not warn"
 assert_not_contains "$OUT" "claimed by multiple live plans" "task_ref none is exempt from plan uniqueness"
 rm -rf "$MI23"
+
+# === Initiative format rules (shared Target parser, fences, decision metadata) ===
+# A rich new-format initiative: @env Targets with frontmatter envs:, a Closed row,
+# topics:/topic:, AMENDS with its forward pointer, and fences written by
+# initiative-render.sh --write. It must lint with zero findings; each rule below
+# edits one line of it.
+mk_rich() { # mk_rich <memdir>
+    local f="$1/initiatives/rich.md"
+    cat > "$f" <<'EOF'
+---
+kind: initiative
+slug: rich
+status: active
+created: 2026-11-17
+envs: [staging, prod]
+topics: [auth, storage]
+---
+
+# Rich
+
+## Targets
+
+### good/build@staging
+- execution_mode: interactive
+- task: 50000000-0000-4000-8000-000000000001
+- depends_on: good/old
+- scope: build it in staging
+- status: open · next: exec — build staging · blocked_by: none
+
+### good/build@prod
+- execution_mode: interactive
+- task: 50000000-0000-4000-8000-000000000002
+- depends_on: good/build@staging
+- status: blocked · next: exec — build prod · blocked_by: decision D3
+
+### Closed
+
+| id | closed | jira | outcome |
+|---|---|---|---|
+| good/old | 2026-10-01 | ABC-1 | shipped |
+
+## Decision stream
+
+- D1 confirmed 2026-11-01 → D2 — token format
+  topic: auth
+  evidence: projects/x/plans/p.md
+- D2 confirmed 2026-11-02 — token format v2
+  topic: auth
+  AMENDS D1
+  evidence: projects/x/plans/p.md
+- D3 proposed 2026-11-03 — store layout
+  topic: storage
+  unconfirmed: awaiting y
+EOF
+    rerender "$1" rich
+}
+
+# rich_lint <rerender 0|1> <sed -e args...> : edit the rich fixture in a fresh sandbox, lint it.
+# Sets OUT, CODE, RICH (the sandbox path, for exact-line asserts).
+rich_lint() {
+    local rr="$1"; shift
+    RICH="$(new_sandbox)"; export MEMORY_DIR="$RICH"; build_clean "$RICH"; mk_rich "$RICH"
+    if [ "$#" -gt 0 ]; then
+        sed "$@" "$RICH/initiatives/rich.md" > "$RICH/initiatives/rich.md.t"
+        mv "$RICH/initiatives/rich.md.t" "$RICH/initiatives/rich.md"
+    fi
+    [ "$rr" -eq 0 ] || rerender "$RICH" rich
+    run_lint
+    rm -rf "$RICH"
+}
+
+# --- clean up-to-date new-format fixture: zero findings ---
+rich_lint 1
+assert_exit 0 "$CODE" "rich new-format fixture exits 0"
+assert_not_contains "$OUT" "rich.md" "rich new-format fixture produces no initiative findings"
+
+# --- ERROR: a `### ` heading that is neither Closed nor <project>/<name>[@<env>] ---
+rich_lint 1 -e 's|^### Closed$|### Ready|'
+assert_exit 1 "$CODE" "non-Target heading exits 1"
+assert_contains "$OUT" "ERROR: $RICH/initiatives/rich.md Targets heading '### Ready' is neither '### Closed' nor" "non-Target heading is an ERROR"
+rich_lint 1 -e 's|^### good/build@prod$|### good build prod|'
+assert_contains "$OUT" "Targets heading '### good build prod' is neither" "heading with spaces is an ERROR"
+rich_lint 1 -e 's|^### good/build@prod$|### nobase@prod|'
+assert_contains "$OUT" "Targets heading '### nobase@prod' is neither" "heading without <project>/ is an ERROR"
+
+# --- ERROR: a Target id repeated, heading + Closed row included ---
+rich_lint 1 -e 's#^| good/old |#| good/build@prod |#'
+assert_contains "$OUT" "ERROR: $RICH/initiatives/rich.md duplicate Target id 'good/build@prod'" "heading + Closed row with one id is a duplicate ERROR"
+
+# --- D: depends_on resolves to @env ids and Closed rows; an absent id still reports ---
+rich_lint 1
+assert_not_contains "$OUT" "unresolved" "depends_on to an @env id and a Closed row resolves"
+rich_lint 1 -e 's#^- depends_on: good/old$#- depends_on: good/absent#'
+assert_contains "$OUT" "Target 'good/build@staging' depends_on unresolved Target id 'good/absent'" "depends_on to an absent id is reported"
+rich_lint 1 -e 's#^- depends_on: good/build@staging$#- depends_on: good/build@qa (stage: implement)#'
+assert_contains "$OUT" "depends_on unresolved Target id 'good/build@qa'" "depends_on to an absent @env id is reported (stage suffix dropped)"
+
+# --- WARN: status over 300 chars ---
+LONG="$(printf 'x%.0s' $(seq 1 320))"
+rich_lint 0 -e "s#^- status: open · next: exec — build staging · blocked_by: none#- status: open · next: exec — build staging · blocked_by: $LONG#"
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md Target 'good/build@staging' status is " "overlong status warns"
+assert_contains "$OUT" "chars (over 300)" "overlong status names the limit"
+rich_lint 1
+assert_not_contains "$OUT" "chars (over 300)" "a short status does not warn"
+
+# --- WARN: open/blocked next: without a ` — ` action part ---
+rich_lint 1 -e 's#next: exec — build staging#next: exec#'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md Target 'good/build@staging' next: has no ' — ' action part" "next without an action warns"
+rich_lint 1 -e 's#^- status: open · .*#- status: done#'
+assert_not_contains "$OUT" "action part" "a terminal status needs no next action"
+
+# --- WARN: stale / missing fence (initiative-render.sh --check) ---
+rich_lint 0 -e 's#next: exec — build staging#next: exec — build staging now#'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md initiative-render fences are stale or missing (" "stale fence warns"
+assert_contains "$OUT" "stale fence: now" "stale fence names the fence"
+assert_contains "$OUT" "initiative-render.sh rich --write" "stale fence names the fix"
+rich_lint 0 -e '/initiative-render:now/d'
+assert_contains "$OUT" "initiative-render fences are stale or missing" "a fence with a marker removed warns"
+rich_lint 1
+assert_not_contains "$OUT" "fences are stale" "an up-to-date fence does not warn"
+
+# --- WARN: an @env Target whose env is not in frontmatter envs: ---
+rich_lint 1 -e 's#@prod#@qa#g'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md Target 'good/build@qa' env 'qa' is not in frontmatter envs: [staging, prod]" "@env outside envs: warns"
+rich_lint 1 -e '/^envs:/d'
+assert_contains "$OUT" "Target 'good/build@staging' is an @env Target but frontmatter has no envs: list" "@env with no envs: list warns"
+
+# --- WARN: a decision topic: outside the frontmatter topics: enum (byte-exact) ---
+rich_lint 1 -e 's#topic: storage#topic: other#'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md decision-stream D3 topic 'other' is not in frontmatter topics: [auth, storage]" "off-enum topic warns"
+rich_lint 1 -e 's#^topics: .*#topics: [auth, "a→b"]#' -e 's#topic: storage#topic: a—b#'
+assert_contains "$OUT" "decision-stream D3 topic 'a—b' is not in frontmatter topics" "topic differing from the enum only by arrow vs dash is off-enum"
+rich_lint 1 -e 's#^topics: .*#topics: [auth, "a→b"]#' -e 's#topic: storage#topic: a→b#'
+assert_not_contains "$OUT" "decision-stream D3 topic" "an exact non-ASCII topic matches the enum"
+
+# --- WARN: a live decision with no topic: when topics: is declared ---
+rich_lint 1 -e '/topic: storage/d'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md decision-stream D3 is proposed but has no topic: continuation line" "live decision without topic: warns when topics: is declared"
+rich_lint 1 -e '/topic: storage/d' -e '/^topics:/d'
+assert_not_contains "$OUT" "has no topic:" "no topics: enum declared, no topic: required"
+rich_lint 1 -e '/topic: storage/d' -e 's#^- D3 proposed#- D3 rejected#' -e '/unconfirmed: awaiting y/d'
+assert_not_contains "$OUT" "has no topic:" "a rejected decision needs no topic:"
+
+# --- WARN: missing forward pointer ---
+rich_lint 1 -e 's# → D2 — # — #'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md decision-stream D1 is named by D2 (AMENDS) but has no \`→ D2\` forward pointer on its head" "missing forward pointer warns"
+assert_contains "$OUT" "decision-stream " "forward-pointer finding carries the decision-stream prefix"
+
+# --- WARN: dangling forward pointer ---
+rich_lint 1 -e 's# → D2 — # → D9 — #'
+assert_contains "$OUT" "decision-stream D1 forward pointer \`→ D9\` names no decision in the stream" "dangling forward pointer warns"
+
+# --- WARN: AMENDS/SUPERSEDES naming an absent id ---
+rich_lint 1 -e 's#AMENDS D1#AMENDS D9#'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md decision-stream D2 AMENDS D9 names a decision that is not in the stream" "AMENDS naming an absent id warns"
+rich_lint 1 -e 's#AMENDS D1#SUPERSEDES D9#'
+assert_contains "$OUT" "decision-stream D2 SUPERSEDES D9 names a decision that is not in the stream" "SUPERSEDES naming an absent id warns"
+
+# --- WARN: an unparseable AMENDS line ---
+rich_lint 1 -e 's#AMENDS D1#AMENDS the token format#'
+assert_contains "$OUT" "WARN:  $RICH/initiatives/rich.md decision-stream D2 has an AMENDS/SUPERSEDES line naming no decision id: \`AMENDS the token format\`" "unparseable AMENDS line warns"
+
+# --- every decision-stream finding of the new rules is relayed by the write guard ---
+rich_lint 1 -e 's# → D2 — # → D9 — #' -e 's#AMENDS D1#AMENDS D8#' -e 's#topic: storage#topic: other#'
+nds="$(printf '%s\n' "$OUT" | grep -c "initiatives/rich.md")"
+nds_pfx="$(printf '%s\n' "$OUT" | grep "initiatives/rich.md" | grep -c "decision-stream ")"
+assert_eq "$nds" "$nds_pfx" "every decision-metadata finding contains 'decision-stream '"
+
+# --- files under initiatives/logs/ (and archive/, .state/) are never scanned ---
+ML="$(new_sandbox)"; export MEMORY_DIR="$ML"; build_clean "$ML"
+mkdir -p "$ML/initiatives/logs" "$ML/initiatives/.state"
+cat > "$ML/initiatives/logs/clean-initiative.md" <<'EOF'
+# Progress log
+
+- 2026-11-17 good/prepare: wrote the plan. No frontmatter, no Targets.
+### good/prepare
+- status: open — free prose
+- next_actor: human
+EOF
+cp "$ML/initiatives/logs/clean-initiative.md" "$ML/initiatives/.state/clean-initiative.pre-3.0.0.md"
+run_lint
+assert_exit 0 "$CODE" "an initiatives/logs file without frontmatter does not fail lint"
+assert_not_contains "$OUT" "initiatives/logs" "initiatives/logs files are never scanned"
+assert_not_contains "$OUT" "initiatives/.state" "initiatives/.state files are never scanned"
+rm -rf "$ML"
 
 # --- rule 16: an oversized memory.md is a budget WARN -----------------------
 M24="$(new_sandbox)"; export MEMORY_DIR="$M24"; build_clean "$M24"
@@ -1129,9 +1354,10 @@ ds_fixture() { # ds_fixture <memdir> <legacy_through|""> : stream body on stdin
     body="$(cat)"
     {
         awk -v lt="$2" 'NR > 1 && /^---$/ && !d { if (lt != "") print "legacy_through: " lt; d = 1 } { print }' "$f"
-        printf '\n## Decision stream\n\n%s\n' "$body"
+        printf '\n%s\n' "$body"
     } > "$f.t"
     mv "$f.t" "$f"
+    rerender "$1"
 }
 
 # template scaffold, as /new-initiative produces it, stays lint-clean

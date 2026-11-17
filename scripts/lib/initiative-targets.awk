@@ -1,13 +1,21 @@
-# Initiative Target grammar shared by initiative-status.sh. Functions only: no
-# BEGIN/END or pattern rules, so it can be concatenated ahead of any caller
-# program (BSD awk, gawk, mawk). Callers must not define names starting `it_`
-# or `IT_`.
+# Initiative Target grammar shared by initiative-status.sh and lint-memory.sh.
+# Functions only: no BEGIN/END or pattern rules, so it can be concatenated
+# ahead of any caller program (BSD awk, gawk, mawk). Callers must not define
+# names starting `it_` or `IT_`. REQUIRES lib/decision-stream.awk concatenated
+# first: fences are tracked with ds_fence and strings compared with ds_streq,
+# so a `## Targets` / `### ` heading or `- status:` line inside a fenced code
+# block is ignored. Feed every line through it_line from ONE program only:
+# the fence state is shared with ds_track, so a caller that also runs ds_track
+# on the same lines must be a separate awk invocation.
 #
 # Per line (CR already stripped): `it_line($0)`. At end: `it_emit(sep)` prints
 # one record per Target, fields joined by `sep`:
 #   T id mode stages depends_on task scope jira status state next blocked_by closed
-# then one `E sep <message>` line per format error. Only the `## Targets`
-# section is read. Under it:
+# then one `E sep <kind> sep <message>` line per format error (kind `old` for a
+# `next_actor:` line or an old `<state> — prose` status, which the 3.0.0
+# migration converts; kind `grammar` for any other format error). A program
+# that reads the IT_* arrays itself calls it_finish() instead of it_emit().
+# Only the `## Targets` section is read. Under it:
 #   ### <project>/<name>[@<env>]   a Target; the id is the heading text, so an
 #                                  @env id is just a longer plain string.
 #   ### Closed                     rows `| <id> | <closed date> | <jira> | <outcome> |`
@@ -29,7 +37,7 @@ function it_trim(s) {
     return s
 }
 
-function it_err(msg) { IT_E[++IT_NE] = msg }
+function it_err(kind, msg) { IT_E[++IT_NE] = msg; IT_EK[IT_NE] = kind }
 
 function it_start(id, closed) {
     IT_N++
@@ -46,8 +54,8 @@ function it_status(n, s,   mid, w, rest, j, nx, bl) {
     IT_STATUS[n] = s
     w = s; sub(/[ \t].*$/, "", w)
     rest = substr(s, length(w) + 1)
-    if (w == "open" || w == "blocked" || w == "done" || w == "closed") {
-        if (rest == "" && (w == "done" || w == "closed")) { IT_STATE[n] = w; return }
+    if (ds_streq(w, "open") || ds_streq(w, "blocked") || ds_streq(w, "done") || ds_streq(w, "closed")) {
+        if (rest == "" && (ds_streq(w, "done") || ds_streq(w, "closed"))) { IT_STATE[n] = w; return }
         j = index(rest, mid "blocked_by: ")
         if (index(rest, mid "next: ") == 1 && j > 1) {
             nx = it_trim(substr(rest, length(mid "next: ") + 1, j - length(mid "next: ") - 1))
@@ -58,7 +66,13 @@ function it_status(n, s,   mid, w, rest, j, nx, bl) {
             }
         }
     }
-    it_err("Target '" IT_ID[n] "' line " IT_LN " has a status not matching '<open|blocked|done|closed>" mid "next: <session -- action>" mid "blocked_by: <...|none>' (done/closed may stand alone): " s)
+    if (ds_streq(w, "open") || ds_streq(w, "blocked") || ds_streq(w, "done") || ds_streq(w, "closed")) {
+        if (index(rest, " " ds_dash() " ") == 1) {
+            it_err("old", "Target '" IT_ID[n] "' line " IT_LN " has an old-format status '<state> " ds_dash() " prose': " s)
+            return
+        }
+    }
+    it_err("grammar", "Target '" IT_ID[n] "' line " IT_LN " has a status not matching '<open|blocked|done|closed>" mid "next: <session " ds_dash() " action>" mid "blocked_by: <...|none>' (done/closed may stand alone; single spaces around the middle dot): " s)
 }
 
 # Split a table row body into cells on unescaped `|`; `\|` yields a literal `|`.
@@ -104,20 +118,21 @@ function it_closed_row(L,   t, c, n, k) {
 function it_line(L,   v) {
     IT_LN++
     if (IT_DONE) return
+    if (ds_fence(L)) return
     if (L ~ /^## Targets[ \t]*$/) { IT_IN = 1; return }
     if (!IT_IN) return
     if (L ~ /^## /) { it_flush_row(); IT_DONE = 1; return }
     if (L ~ /^### /) {
         it_flush_row()
         v = it_trim(substr(L, 5))
-        IT_CLOSED_SEC = (v == "Closed")
+        IT_CLOSED_SEC = ds_streq(v, "Closed")
         if (IT_CLOSED_SEC) IT_CUR = 0
         else { it_start(v, 0); IT_CUR = IT_N }
         return
     }
     if (IT_CLOSED_SEC) { it_closed_row(L); return }
     if (!IT_CUR) return
-    if (L ~ /^- next_actor:/) { it_err("Target '" IT_ID[IT_CUR] "' has a next_actor: line"); return }
+    if (L ~ /^- next_actor:/) { it_err("old", "Target '" IT_ID[IT_CUR] "' line " IT_LN " has a next_actor: line"); return }
     if (L ~ /^- execution_mode: /) { v = L; sub(/^- execution_mode: /, "", v); IT_MODE[IT_CUR] = v; return }
     if (L ~ /^- stages: /) { v = L; sub(/^- stages: /, "", v); IT_STAGES[IT_CUR] = v; return }
     if (L ~ /^- depends_on: /) { v = L; sub(/^- depends_on: /, "", v); IT_DEPS[IT_CUR] = v; return }
@@ -129,12 +144,19 @@ function it_line(L,   v) {
 
 # Print every Target record, then every format error. Interactive Targets
 # without a status are a format error, found once the whole section is read.
-function it_emit(sep,   i) {
+function it_finish(   i) {
+    if (IT_FIN) return
+    IT_FIN = 1
     it_flush_row()
+    for (i = 1; i <= IT_N; i++)
+        if (!IT_CLOSED[i] && ds_streq(IT_MODE[i], "interactive") && IT_STATUS[i] == "")
+            it_err("grammar", "Target '" IT_ID[i] "' is interactive and has no status")
+}
+
+function it_emit(sep,   i) {
+    it_finish()
     for (i = 1; i <= IT_N; i++) {
-        if (!IT_CLOSED[i] && IT_MODE[i] == "interactive" && IT_STATUS[i] == "")
-            it_err("Target '" IT_ID[i] "' is interactive and has no status")
         print "T" sep IT_ID[i] sep IT_MODE[i] sep IT_STAGES[i] sep IT_DEPS[i] sep IT_TASK[i] sep IT_SCOPE[i] sep IT_JIRA[i] sep IT_STATUS[i] sep IT_STATE[i] sep IT_NEXT[i] sep IT_BLOCK[i] sep IT_CLOSED[i]
     }
-    for (i = 1; i <= IT_NE; i++) print "E" sep IT_E[i]
+    for (i = 1; i <= IT_NE; i++) print "E" sep IT_EK[i] sep IT_E[i]
 }

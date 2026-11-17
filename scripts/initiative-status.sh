@@ -124,7 +124,7 @@ list_proposed() {
             h = ds_head($0)
             if (h != "") {
                 flush()
-                if (h == "ok" && DS_STATUS == "proposed") { cur = 1; buf = $0 "\n" }
+                if (h == "ok" && ds_streq(DS_STATUS, "proposed")) { cur = 1; buf = $0 "\n" }
                 next
             }
             if (cur) buf = buf $0 "\n"
@@ -151,12 +151,15 @@ target_nexts=()
 target_blocked=()
 target_closed=()
 format_errors=()
+format_old=0
 sep=$(printf '\034')
 
-# Keep the Targets boundaries and headings aligned with lint-memory.sh rule 11.
+# Targets parsing is lib/initiative-targets.awk, shared with lint-memory.sh rule 11.
 while IFS="$sep" read -r rec_kind target_id target_mode target_stages_value target_depends_on target_task _scope _jira _status target_state target_next target_block target_closed_row; do
     if [ "$rec_kind" = "E" ]; then
-        format_errors[${#format_errors[@]}]="$target_id"
+        # E <kind> <message>: kind `old` (next_actor / `<state> — prose`) names the migration.
+        [ "$target_id" = "old" ] && format_old=1
+        format_errors[${#format_errors[@]}]="$target_mode"
         continue
     fi
     [ -n "$target_id" ] || continue
@@ -170,7 +173,8 @@ while IFS="$sep" read -r rec_kind target_id target_mode target_stages_value targ
     target_blocked[${#target_blocked[@]}]="$target_block"
     target_closed[${#target_closed[@]}]="$target_closed_row"
 done < <(
-    awk -v sep="$sep" "$IT_LIB"'
+    awk -v sep="$sep" "$DS_LIB
+$IT_LIB"'
         { sub(/\r$/, "") }
         { it_line($0) }
         END { it_emit(sep) }
@@ -178,11 +182,19 @@ done < <(
 )
 
 if [ "${#format_errors[@]}" -gt 0 ]; then
-    echo "initiative-status: old-format initiative (3.0.0 status grammar required): $INITIATIVE" >&2
+    if [ "$format_old" -eq 1 ]; then
+        echo "initiative-status: old-format initiative (3.0.0 status grammar required): $INITIATIVE" >&2
+    else
+        echo "initiative-status: invalid Target format: $INITIATIVE" >&2
+    fi
     for err in "${format_errors[@]}"; do
         echo "initiative-status:   $err" >&2
     done
-    echo "initiative-status: run the 3.0.0 migration (migrations/3.0.0-initiative-format.sh, applied by /sync-system) or fix the lines above by hand" >&2
+    if [ "$format_old" -eq 1 ]; then
+        echo "initiative-status: run the 3.0.0 migration (migrations/3.0.0-initiative-format.sh, applied by /sync-system) or fix the lines above by hand" >&2
+    else
+        echo "initiative-status: fix the lines above by hand" >&2
+    fi
     exit 1
 fi
 
@@ -515,7 +527,7 @@ decision_summary() {
         { inst = ds_track($0) }
         DS_END { exit }
         !inst { next }
-        ds_head($0) == "ok" && DS_STATUS == "proposed" {
+        ds_head($0) == "ok" && ds_streq(DS_STATUS, "proposed") {
             n++
             if (ds_legacy(DS_ID, lt)) { k++; next }
             if (ds_isdate(DS_DATE) && (oldest == "" || DS_DATE < oldest)) oldest = DS_DATE
