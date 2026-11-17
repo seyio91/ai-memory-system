@@ -486,15 +486,39 @@ assert_not_contains "$env_out" "| --- |" "Closed table separator row is not a Ta
 tsv="$(bash "$SCRIPT" --tsv envs 2>&1)"; rc=$?
 assert_exit 0 "$rc" "--tsv exits 0"
 tab="$(printf '\t')"
-assert_eq "beta/thing@non-prod${tab}open${tab}yes${tab}exec — roll out${tab}none" "$(printf '%s\n' "$tsv" | sed -n 1p)" "--tsv: id, stage, deps-satisfied, next, blocked_by"
-assert_eq "beta/x${tab}open${tab}yes${tab}exec — consume staging${tab}none" "$(printf '%s\n' "$tsv" | grep '^beta/x	')" "--tsv: satisfied edge gives yes"
-assert_eq "beta/y${tab}open${tab}no${tab}exec — consume non-prod${tab}decision D3" "$(printf '%s\n' "$tsv" | grep '^beta/y	')" "--tsv: unsatisfied edge gives no, blocked_by kept"
-assert_eq "beta/old${tab}done${tab}yes${tab}-${tab}-" "$(printf '%s\n' "$tsv" | grep '^beta/old	')" "--tsv: Closed row is done with no next"
-assert_eq "beta/after-closed${tab}open${tab}yes${tab}exec — continue${tab}none" "$(printf '%s\n' "$tsv" | grep '^beta/after-closed	')" "--tsv: edges to Closed rows count as satisfied"
+assert_eq "beta/thing@non-prod${tab}open${tab}yes${tab}exec — roll out${tab}none${tab}-${tab}open" "$(printf '%s\n' "$tsv" | sed -n 1p)" "--tsv: id, stage, deps-satisfied, next, blocked_by"
+assert_eq "beta/x${tab}open${tab}yes${tab}exec — consume staging${tab}none${tab}-${tab}open" "$(printf '%s\n' "$tsv" | grep '^beta/x	')" "--tsv: satisfied edge gives yes"
+assert_eq "beta/y${tab}open${tab}no${tab}exec — consume non-prod${tab}decision D3${tab}beta/thing@non-prod (at open)${tab}open" "$(printf '%s\n' "$tsv" | grep '^beta/y	')" "--tsv: unsatisfied edge gives no, blocked_by kept"
+assert_eq "beta/old${tab}done${tab}yes${tab}-${tab}-${tab}-${tab}done" "$(printf '%s\n' "$tsv" | grep '^beta/old	')" "--tsv: Closed row is done with no next"
+assert_eq "beta/after-closed${tab}open${tab}yes${tab}exec — continue${tab}none${tab}-${tab}open" "$(printf '%s\n' "$tsv" | grep '^beta/after-closed	')" "--tsv: edges to Closed rows count as satisfied"
 assert_eq "8" "$(printf '%s\n' "$tsv" | wc -l | tr -d '[:space:]')" "--tsv: one line per Target, nothing else"
-assert_eq "5" "$(printf '%s\n' "$tsv" | awk -F'\t' '{ print NF }' | sort -u | tr -d '[:space:]')" "--tsv: five tab-separated fields on every line"
+assert_eq "7" "$(printf '%s\n' "$tsv" | awk -F'\t' '{ print NF }' | sort -u | tr -d '[:space:]')" "--tsv: seven tab-separated fields on every line"
+assert_eq "beta/thing@prod (not found)" "$(printf '%s\n' "$tsv" | grep '^beta/z	' | cut -f6)" "--tsv: an unopened @env edge is reported not found"
+assert_eq "blocked" "$(printf '%s\n' "$tsv" | grep '^beta/z	' | cut -f7)" "--tsv: state column carries the asserted state"
 sw_tsv="$(bash "$SCRIPT" --tsv ready 2>/dev/null | grep '^alpha/progress	')"
-assert_eq "alpha/progress${tab}complete${tab}yes${tab}-${tab}-" "$sw_tsv" "--tsv: software_adw Target reports its derived stage"
+assert_eq "alpha/progress${tab}complete${tab}yes${tab}-${tab}-${tab}-${tab}-" "$sw_tsv" "--tsv: software_adw Target reports its derived stage"
+cat > "$MEM/initiatives/qual.md" <<'EOF'
+---
+kind: initiative
+slug: qual
+status: active
+created: 2026-11-17
+---
+# Qual
+## Targets
+### beta/up
+- execution_mode: interactive
+- stages: plan -> implement -> validate
+- depends_on: none
+- status: open · next: exec — build · blocked_by: none
+### beta/down
+- execution_mode: interactive
+- depends_on: beta/up (stage: validate), beta/gone
+- status: open · next: exec — follow · blocked_by: none
+## Closure
+Open.
+EOF
+assert_eq "beta/up (stage: validate) (at open), beta/gone (not found)" "$(bash "$SCRIPT" --tsv qual 2>/dev/null | grep '^beta/down	' | cut -f6)" "--tsv: stage-qualified and missing edges list in order with reasons"
 rm -rf "$MEM/initiatives/.state"
 bash "$SCRIPT" --tsv envs >/dev/null 2>&1
 assert_not_file "$MEM/initiatives/.state" "--tsv writes no snapshot"
@@ -572,6 +596,7 @@ assert_not_contains "$hout" "warning" "stage-qualified edge to a Closed row rais
 assert_not_contains "$hout" "WARNING" "no undeclared-stage WARNING for a Closed row"
 assert_contains "$hout" "beta/old (stage: implement) — satisfied" "stage-qualified edge to a Closed row is satisfied"
 assert_eq "yes" "$(bash "$SCRIPT" --tsv hdrs 2>&1 | grep '^beta/open	' | cut -f3)" "--tsv: stage-qualified edge to a Closed row is yes"
+assert_eq "-" "$(bash "$SCRIPT" --tsv hdrs 2>&1 | grep '^beta/open	' | cut -f6)" "--tsv: satisfied edge to a Closed row leaves unsatisfied empty"
 
 # Closed outcome: cells past the 4th rejoin, and \| is a literal pipe.
 assert_contains "$hout" "| beta/two |" "escaped pipe in outcome keeps the row a single Target"

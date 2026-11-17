@@ -39,7 +39,13 @@
 #
 # --tsv: print one line per Target, tab-separated, and nothing else:
 # id, stage (derived stage or asserted state), deps-satisfied (yes/no), next,
-# blocked_by. An absent next prints `-`; tabs in values become spaces. Read-only
+# blocked_by, unsatisfied, state. `state` is the authored status state token
+# (open/blocked/done/closed; a Closed-table row is done), `-` when none is
+# authored. `unsatisfied` is the unsatisfied depends_on edges as
+# this script computes them, ", "-separated, each `<edge as written> (<reason>)`
+# where the reason is `at <stage>` / `at <stage>, needs <stage>` / `not found`;
+# `-` when none. An absent next or blocked_by prints `-`; tabs in values become
+# spaces. Read-only
 # like --list-proposed: no snapshot is read or written and no staleness or
 # decision summary is printed. Undeclared-stage warnings go to stderr.
 #
@@ -371,15 +377,18 @@ done
 
 dependency_cells=()
 deps_ok=()
+deps_unsat=()
 warnings=()
 for i in "${!target_ids[@]}"; do
     remaining="${target_depends[$i]}"
     if [ -z "$remaining" ] || [ "$remaining" = "none" ]; then
         dependency_cells[${#dependency_cells[@]}]="none — n/a"
         deps_ok[${#deps_ok[@]}]="yes"
+        deps_unsat[${#deps_unsat[@]}]=""
         continue
     fi
     cell=""
+    unsat_list=""
     all_ok="yes"
     while [ -n "$remaining" ]; do
         case "$remaining" in
@@ -397,6 +406,7 @@ for i in "${!target_ids[@]}"; do
         esac
         dep_index="$(target_index "$dependency_id")" || dep_index=""
         result="unsatisfied (unknown)"
+        edge_short=""
         if [ -n "$dep_index" ]; then
             if [ -n "$wanted_stage" ] && [ "${target_closed[$dep_index]}" != "1" ]; then
                 wanted_position="$(stage_position "${target_stages[$dep_index]}" "$wanted_stage")" || wanted_position=""
@@ -425,16 +435,26 @@ for i in "${!target_ids[@]}"; do
                         result="satisfied"
                     else
                         result="unsatisfied (at ${derived[$dep_index]}, needs $wanted_stage)"
+                        edge_short="$wanted_stage"
                     fi
                 fi
             fi
         fi
-        [ "$result" = "satisfied" ] || all_ok="no"
+        if [ "$result" != "satisfied" ]; then
+            all_ok="no"
+            # --tsv reason, from the derivation values (not the table text).
+            if [ -z "$dep_index" ]; then edge_why="not found"
+            elif [ -n "$edge_short" ]; then edge_why="at ${derived[$dep_index]}, needs $edge_short"
+            else edge_why="at ${derived[$dep_index]}"; fi
+            [ -n "$unsat_list" ] && unsat_list="$unsat_list, "
+            unsat_list="$unsat_list$dependency ($edge_why)"
+        fi
         [ -n "$cell" ] && cell="$cell; "
         cell="$cell$dependency — $result"
     done
     dependency_cells[${#dependency_cells[@]}]="$cell"
     deps_ok[${#deps_ok[@]}]="$all_ok"
+    deps_unsat[${#deps_unsat[@]}]="$unsat_list"
 done
 
 
@@ -446,12 +466,16 @@ if [ "$TSV" -eq 1 ]; then
     for i in "${!target_ids[@]}"; do
         tsv_next="${target_nexts[$i]:--}"
         tsv_blocked="${target_blocked[$i]:--}"
-        printf '%s\t%s\t%s\t%s\t%s\n' \
+        tsv_unsat="${deps_unsat[$i]:--}"
+        tsv_state="${target_states[$i]:--}"
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
             "${target_ids[$i]//$tab/ }" \
             "${derived[$i]//$tab/ }" \
             "${deps_ok[$i]}" \
             "${tsv_next//$tab/ }" \
-            "${tsv_blocked//$tab/ }"
+            "${tsv_blocked//$tab/ }" \
+            "${tsv_unsat//$tab/ }" \
+            "${tsv_state//$tab/ }"
     done
     exit 0
 fi
