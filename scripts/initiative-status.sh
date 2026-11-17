@@ -2,8 +2,19 @@
 #
 # initiative-status.sh — derive an initiative readiness table from local files.
 #
-# Terminal short-circuit (any execution_mode): a `- status:` line whose first
-# token is `done` or `closed` is echoed as-is with no filesystem lookup.
+# Target grammar is parsed by lib/initiative-targets.awk: `### <project>/<name>[@<env>]`
+# headings (an @env id is a plain string, so `depends_on: y/thing@staging` resolves
+# to the Target with exactly that id), `### Closed` table rows (terminal done
+# Targets), `- scope:`, and the one-line status
+# `- status: <state> · next: <session — action> · blocked_by: <…|none>` (terminal
+# done/closed need no next:/blocked_by:). `- status:` is optional for software_adw
+# Targets (stage derived) and required for interactive ones. An old-format file
+# (`- next_actor:` or a status not in that grammar) exits 1 and names
+# migrations/3.0.0-initiative-format.sh.
+#
+# Terminal short-circuit (any execution_mode): a Target whose status state is
+# `done` or `closed`, and every Closed-table row, is reported as that state with
+# no filesystem lookup.
 #
 # software_adw mapping (non-terminal): a `- task: <ref>` is joined against
 # `projects/<project>/plans/*.md` frontmatter `task_ref` (full-string match);
@@ -26,7 +37,13 @@
 # lines, entries separated by one blank line, then exit with awk's status.
 # Read-only: no snapshot is read or written.
 #
-# Usage: initiative-status.sh [--ack | --list-proposed] <slug>
+# --tsv: print one line per Target, tab-separated, and nothing else:
+# id, stage (derived stage or asserted state), deps-satisfied (yes/no), next,
+# blocked_by. An absent next prints `-`; tabs in values become spaces. Read-only
+# like --list-proposed: no snapshot is read or written and no staleness or
+# decision summary is printed. Undeclared-stage warnings go to stderr.
+#
+# Usage: initiative-status.sh [--ack | --list-proposed | --tsv] <slug>
 
 set -uo pipefail
 
@@ -34,23 +51,26 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/_lib.sh"
 
 usage() {
-    echo "usage: initiative-status.sh [--ack | --list-proposed] <slug>" >&2
+    echo "usage: initiative-status.sh [--ack | --list-proposed | --tsv] <slug>" >&2
     exit 2
 }
 
 ACK=0
 LIST=0
+TSV=0
 SLUG=""
 for arg in "$@"; do
     case "$arg" in
         --ack) ACK=1 ;;
         --list-proposed) LIST=1 ;;
+        --tsv) TSV=1 ;;
         -*) usage ;;
         *) [ -z "$SLUG" ] || usage; SLUG="$arg" ;;
     esac
 done
 [ -n "$SLUG" ] || usage
 [ "$ACK" -eq 0 ] || [ "$LIST" -eq 0 ] || usage
+[ "$TSV" -eq 0 ] || { [ "$ACK" -eq 0 ] && [ "$LIST" -eq 0 ]; } || usage
 INITIATIVE="$MEMORY_DIR/initiatives/$SLUG.md"
 
 [ -f "$INITIATIVE" ] || { echo "initiative-status: initiative not found: $INITIATIVE" >&2; exit 1; }
@@ -112,42 +132,53 @@ if [ "$LIST" -eq 1 ]; then
     exit $?
 fi
 
+IT_LIB="$(cat "$HERE/lib/initiative-targets.awk" 2>/dev/null)"
+[ -n "$IT_LIB" ] || { echo "initiative-status: missing $HERE/lib/initiative-targets.awk" >&2; exit 1; }
+
 target_ids=()
 target_modes=()
 target_stages=()
 target_depends=()
 target_tasks=()
-target_actors=()
-target_statuses=()
+target_states=()
+target_nexts=()
+target_blocked=()
+target_closed=()
+format_errors=()
 sep=$(printf '\034')
 
 # Keep the Targets boundaries and headings aligned with lint-memory.sh rule 11.
-while IFS="$sep" read -r target_id target_mode target_stages_value target_depends_on target_task target_actor target_status; do
+while IFS="$sep" read -r rec_kind target_id target_mode target_stages_value target_depends_on target_task _scope _jira _status target_state target_next target_block target_closed_row; do
+    if [ "$rec_kind" = "E" ]; then
+        format_errors[${#format_errors[@]}]="$target_id"
+        continue
+    fi
     [ -n "$target_id" ] || continue
     target_ids[${#target_ids[@]}]="$target_id"
     target_modes[${#target_modes[@]}]="$target_mode"
     target_stages[${#target_stages[@]}]="$target_stages_value"
     target_depends[${#target_depends[@]}]="$target_depends_on"
     target_tasks[${#target_tasks[@]}]="$target_task"
-    target_actors[${#target_actors[@]}]="$target_actor"
-    target_statuses[${#target_statuses[@]}]="$target_status"
+    target_states[${#target_states[@]}]="$target_state"
+    target_nexts[${#target_nexts[@]}]="$target_next"
+    target_blocked[${#target_blocked[@]}]="$target_block"
+    target_closed[${#target_closed[@]}]="$target_closed_row"
 done < <(
-    awk -v sep="$sep" '
-        /^## Targets[[:space:]]*$/ { in_targets = 1; next }
-        in_targets && /^## / { exit }
-        in_targets && /^### / {
-            if (have_target) print target sep mode sep stages sep depends sep task sep actor sep status
-            target = substr($0, 5); mode = ""; stages = ""; depends = ""; task = ""; actor = ""; status = ""; have_target = 1; next
-        }
-        in_targets && have_target && /^- execution_mode: / { mode = $0; sub(/^- execution_mode: /, "", mode); next }
-        in_targets && have_target && /^- stages: / { stages = $0; sub(/^- stages: /, "", stages); next }
-        in_targets && have_target && /^- depends_on: / { depends = $0; sub(/^- depends_on: /, "", depends); next }
-        in_targets && have_target && /^- task: / { task = $0; sub(/^- task: /, "", task); next }
-        in_targets && have_target && /^- next_actor: / { actor = $0; sub(/^- next_actor: /, "", actor); next }
-        in_targets && have_target && /^- status: / { status = $0; sub(/^- status: /, "", status) }
-        END { if (in_targets && have_target) print target sep mode sep stages sep depends sep task sep actor sep status }
+    awk -v sep="$sep" "$IT_LIB"'
+        { sub(/\r$/, "") }
+        { it_line($0) }
+        END { it_emit(sep) }
     ' "$INITIATIVE"
 )
+
+if [ "${#format_errors[@]}" -gt 0 ]; then
+    echo "initiative-status: old-format initiative (3.0.0 status grammar required): $INITIATIVE" >&2
+    for err in "${format_errors[@]}"; do
+        echo "initiative-status:   $err" >&2
+    done
+    echo "initiative-status: run the 3.0.0 migration (migrations/3.0.0-initiative-format.sh, applied by /sync-system) or fix the lines above by hand" >&2
+    exit 1
+fi
 
 [ "${#target_ids[@]}" -gt 0 ] || { echo "initiative-status: invalid initiative file (no Targets): $INITIATIVE" >&2; exit 1; }
 
@@ -204,13 +235,6 @@ resolve_checkout() {
     return 0
 }
 
-# first_token — print the first whitespace-delimited token of $1.
-first_token() {
-    # shellcheck disable=SC2086
-    set -- $1
-    printf '%s\n' "${1:-}"
-}
-
 # find_task_plans <dir> <task_ref> — print, one per line, every "$dir"/*.md
 # whose frontmatter task_ref equals <task_ref> exactly (never a prefix match).
 find_task_plans() {
@@ -253,19 +277,22 @@ evidence=()
 for i in "${!target_ids[@]}"; do
     # Terminal short-circuit, any execution_mode: a first-word done/closed
     # assertion is load-bearing and stops the lookup before the mode switch.
-    status_token="$(first_token "${target_statuses[$i]}")"
-    case "$status_token" in
+    case "${target_states[$i]}" in
         done|closed)
-            derived[${#derived[@]}]="${target_statuses[$i]}"
-            evidence[${#evidence[@]}]="asserted in initiative"
+            derived[${#derived[@]}]="${target_states[$i]}"
+            if [ "${target_closed[$i]}" = "1" ]; then
+                evidence[${#evidence[@]}]="closed row in initiative"
+            else
+                evidence[${#evidence[@]}]="asserted in initiative"
+            fi
             continue
             ;;
     esac
 
     mode="${target_modes[$i]}"
     if [ "$mode" != "software_adw" ]; then
-        if [ -n "${target_statuses[$i]}" ]; then
-            derived[${#derived[@]}]="${target_statuses[$i]}"
+        if [ -n "${target_states[$i]}" ]; then
+            derived[${#derived[@]}]="${target_states[$i]}"
             evidence[${#evidence[@]}]="asserted in initiative"
         else
             derived[${#derived[@]}]="no status asserted"
@@ -341,6 +368,93 @@ for i in "${!target_ids[@]}"; do
     derived[${#derived[@]}]="not-started"
     evidence[${#evidence[@]}]="no task pointer"
 done
+
+dependency_cells=()
+deps_ok=()
+warnings=()
+for i in "${!target_ids[@]}"; do
+    remaining="${target_depends[$i]}"
+    if [ -z "$remaining" ] || [ "$remaining" = "none" ]; then
+        dependency_cells[${#dependency_cells[@]}]="none — n/a"
+        deps_ok[${#deps_ok[@]}]="yes"
+        continue
+    fi
+    cell=""
+    all_ok="yes"
+    while [ -n "$remaining" ]; do
+        case "$remaining" in
+            *,*) dependency=${remaining%%,*}; remaining=${remaining#*,} ;;
+            *) dependency="$remaining"; remaining="" ;;
+        esac
+        trim "$dependency"; dependency="$TRIMMED"
+        case "$dependency" in
+            *'(stage: '*) dependency_id="$(printf '%s\n' "$dependency" | sed 's/[[:space:]]*(stage: [^)]*)[[:space:]]*$//')" ;;
+            *) dependency_id="$dependency" ;;
+        esac
+        wanted_stage=""
+        case "$dependency" in
+            *'(stage: '*) wanted_stage=${dependency#*'(stage: '}; wanted_stage=${wanted_stage%')'} ;;
+        esac
+        dep_index="$(target_index "$dependency_id")" || dep_index=""
+        result="unsatisfied (unknown)"
+        if [ -n "$dep_index" ]; then
+            if [ -n "$wanted_stage" ] && [ "${target_closed[$dep_index]}" != "1" ]; then
+                wanted_position="$(stage_position "${target_stages[$dep_index]}" "$wanted_stage")" || wanted_position=""
+                if [ -z "$wanted_position" ]; then
+                    warnings[${#warnings[@]}]="Target '${target_ids[$i]}' depends on undeclared stage '$wanted_stage' of '$dependency_id'"
+                fi
+            fi
+            if [ "${derived[$dep_index]}" = "complete" ]; then
+                result="satisfied"
+            elif [ "${target_states[$dep_index]}" = "done" ]; then
+                # A terminal assertion (or a Closed row) satisfies a dependency
+                # in ANY mode, and satisfies a stage-qualified one too — a
+                # frozen Target has no derivable stage. `closed` (abandoned or
+                # retracted) deliberately does not satisfy: an abandoned
+                # prerequisite must not unblock.
+                result="satisfied"
+            elif [ -n "${target_states[$dep_index]}" ] && [ "${target_modes[$dep_index]}" != "software_adw" ]; then
+                :
+            elif [ -n "$wanted_stage" ]; then
+                derived_position="$(stage_position "${target_stages[$dep_index]}" "${derived[$dep_index]}")" || derived_position=""
+                if [ -n "$wanted_position" ] && [ -n "$derived_position" ]; then
+                    # Both positions known: this is a determinate verdict, not
+                    # a fail-closed one — label it so unknown keeps meaning
+                    # "underivable".
+                    if [ "$derived_position" -ge "$wanted_position" ]; then
+                        result="satisfied"
+                    else
+                        result="unsatisfied (at ${derived[$dep_index]}, needs $wanted_stage)"
+                    fi
+                fi
+            fi
+        fi
+        [ "$result" = "satisfied" ] || all_ok="no"
+        [ -n "$cell" ] && cell="$cell; "
+        cell="$cell$dependency — $result"
+    done
+    dependency_cells[${#dependency_cells[@]}]="$cell"
+    deps_ok[${#deps_ok[@]}]="$all_ok"
+done
+
+
+if [ "$TSV" -eq 1 ]; then
+    for warning in "${warnings[@]+"${warnings[@]}"}"; do
+        [ -n "$warning" ] && printf 'WARNING: %s\n' "$warning" >&2
+    done
+    tab=$(printf '\t')
+    for i in "${!target_ids[@]}"; do
+        tsv_next="${target_nexts[$i]:--}"
+        tsv_blocked="${target_blocked[$i]:--}"
+        printf '%s\t%s\t%s\t%s\t%s\n' \
+            "${target_ids[$i]//$tab/ }" \
+            "${derived[$i]//$tab/ }" \
+            "${deps_ok[$i]}" \
+            "${tsv_next//$tab/ }" \
+            "${tsv_blocked//$tab/ }"
+    done
+    exit 0
+fi
 
 # Snapshot-based staleness is deliberately separate from derivation above so a
 # caller can reuse this exact comparison and snapshot format without forking it.
@@ -477,68 +591,6 @@ if [ "$snapshot_exists" -eq 0 ] || [ "$stream_entries" != "$snapshot_stream_coun
     write_snapshot
 fi
 
-dependency_cells=()
-warnings=()
-for i in "${!target_ids[@]}"; do
-    remaining="${target_depends[$i]}"
-    if [ -z "$remaining" ] || [ "$remaining" = "none" ]; then
-        dependency_cells[${#dependency_cells[@]}]="none — n/a"
-        continue
-    fi
-    cell=""
-    while [ -n "$remaining" ]; do
-        case "$remaining" in
-            *,*) dependency=${remaining%%,*}; remaining=${remaining#*,} ;;
-            *) dependency="$remaining"; remaining="" ;;
-        esac
-        trim "$dependency"; dependency="$TRIMMED"
-        case "$dependency" in
-            *'(stage: '*) dependency_id="$(printf '%s\n' "$dependency" | sed 's/[[:space:]]*(stage: [^)]*)[[:space:]]*$//')" ;;
-            *) dependency_id="$dependency" ;;
-        esac
-        wanted_stage=""
-        case "$dependency" in
-            *'(stage: '*) wanted_stage=${dependency#*'(stage: '}; wanted_stage=${wanted_stage%')'} ;;
-        esac
-        dep_index="$(target_index "$dependency_id")" || dep_index=""
-        result="unsatisfied (unknown)"
-        if [ -n "$dep_index" ]; then
-            if [ -n "$wanted_stage" ]; then
-                wanted_position="$(stage_position "${target_stages[$dep_index]}" "$wanted_stage")" || wanted_position=""
-                if [ -z "$wanted_position" ]; then
-                    warnings[${#warnings[@]}]="Target '${target_ids[$i]}' depends on undeclared stage '$wanted_stage' of '$dependency_id'"
-                fi
-            fi
-            if [ "${derived[$dep_index]}" = "complete" ]; then
-                result="satisfied"
-            elif [ -n "${target_statuses[$dep_index]}" ]; then
-                # A terminal assertion satisfies a dependency in ANY mode, and
-                # satisfies a stage-qualified one too — a frozen Target has no
-                # derivable stage. `closed` (abandoned/retracted) deliberately
-                # does not satisfy: an abandoned prerequisite must not unblock.
-                case "${target_statuses[$dep_index]}" in
-                    done*) result="satisfied" ;;
-                esac
-            elif [ -n "$wanted_stage" ]; then
-                derived_position="$(stage_position "${target_stages[$dep_index]}" "${derived[$dep_index]}")" || derived_position=""
-                if [ -n "$wanted_position" ] && [ -n "$derived_position" ]; then
-                    # Both positions known: this is a determinate verdict, not
-                    # a fail-closed one — label it so unknown keeps meaning
-                    # "underivable".
-                    if [ "$derived_position" -ge "$wanted_position" ]; then
-                        result="satisfied"
-                    else
-                        result="unsatisfied (at ${derived[$dep_index]}, needs $wanted_stage)"
-                    fi
-                fi
-            fi
-        fi
-        [ -n "$cell" ] && cell="$cell; "
-        cell="$cell$dependency — $result"
-    done
-    dependency_cells[${#dependency_cells[@]}]="$cell"
-done
-
 printf '# Initiative readiness — %s\n\n' "$SLUG"
 read -r dec_n dec_k dec_age <<DECISIONS
 $(decision_summary)
@@ -548,17 +600,19 @@ if [ -n "$dec_age" ]; then
 else
     printf 'Decisions: %s proposed (%s legacy)\n\n' "$dec_n" "$dec_k"
 fi
-printf '| id | execution_mode | derived stage/status | evidence | depends_on + satisfied? | next_actor |\n'
-printf '|---|---|---|---|---|---|\n'
+printf '| id | execution_mode | derived stage/status | evidence | depends_on + satisfied? | next | blocked_by |\n'
+printf '|---|---|---|---|---|---|---|\n'
 for i in "${!target_ids[@]}"; do
-    actor="${target_actors[$i]:-none}"
-    printf '| %s | %s | %s | %s | %s | %s |\n' \
+    next_cell="${target_nexts[$i]:-none}"
+    blocked_cell="${target_blocked[$i]:-none}"
+    printf '| %s | %s | %s | %s | %s | %s | %s |\n' \
         "${target_ids[$i]//|/\\|}" \
         "${target_modes[$i]//|/\\|}" \
         "${derived[$i]//|/\\|}" \
         "${evidence[$i]//|/\\|}" \
         "${dependency_cells[$i]//|/\\|}" \
-        "${actor//|/\\|}"
+        "${next_cell//|/\\|}" \
+        "${blocked_cell//|/\\|}"
 done
 if [ "${#warnings[@]}" -gt 0 ]; then
     printf '\n'
