@@ -190,7 +190,8 @@ becomes `\|` (an already escaped `\|` stays).
   `Waiting on you`, `Sessions to start`, `Blocked`, `Open proposals`.
   - Build the Blocked cell from up to three parts joined with `; `, in this
     order: `stage unknown` when the stage is `unknown`; the unsatisfied
-    `depends_on` edges joined with `, `, each `<id> (<wording>)` (below); the
+    `depends_on` edges joined with `, `, each `<edge as written> (<wording>)` (below; a
+    `(stage: <s>)` qualifier and its spacing are kept); the
     authored `blocked_by` unless it is `none` or absent.
   - Edge wording, from the `--tsv` `unsatisfied` column (`--tsv` itself is
     unchanged): `(blocked)` when the dependency's state is `blocked`;
@@ -211,7 +212,7 @@ becomes `\|` (an already escaped `\|` stays).
     then a blank line. With no rows write `**<name>:** none` and a blank line.
   - Blocked is the same with `| Target | Blocked by |`. Rows are sorted by how
     many non-terminal Targets each holds up, directly or transitively through
-    `depends_on`, most first; ties stay in Target order. Hold-up does not pass
+    unsatisfied `depends_on` edges, most first; ties stay in Target order. Hold-up does not pass
     through a `done`/`closed`/`complete` Target, and a `(not found)` edge holds nothing
     up.
   - Decisions needed is the same with `| Decision | Blocks |`. It lists each
