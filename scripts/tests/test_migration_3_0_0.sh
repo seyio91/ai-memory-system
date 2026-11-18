@@ -420,7 +420,10 @@ assert_eq "no" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "eta/after" { print $
 assert_eq "eta/retired (at closed)" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "eta/after" { print $6 }')" "--tsv: the done edge is satisfied, the closed one is not"
 rnd="$(MEMORY_DIR="$M" bash "$REPO_ROOT/scripts/initiative-render.sh" aband 2>/dev/null)"
 assert_contains "$(printf '%s\n' "$rnd" | sed -n '/^\*\*Blocked\*\*/,$p')" "| eta/build |" "initiative-render.sh lists the dependent of the abandoned Target under Blocked"
-assert_not_contains "$(printf '%s\n' "$rnd" | sed -n '/^\*\*Ready\*\*/,/^\*\*Blocked/p')" "eta/build" "the dependent is not Ready"
+rdy="$(printf '%s\n' "$rnd" | sed -n '/^\*\*Waiting on you/,/^\*\*Blocked\*\*/p')"
+assert_contains "$rdy" "**Waiting on you:** none" "the range covers Waiting on you"
+assert_contains "$rdy" "**Sessions to start:** none" "the range covers Sessions to start"
+assert_not_contains "$rdy" "eta/build" "the dependent is not Waiting on you or Sessions to start"
 assert_contains "$out" "aband.md: fences written" "abandoned fixture gets its fences"
 
 # Skipped files

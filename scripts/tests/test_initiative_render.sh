@@ -434,6 +434,47 @@ assert_contains "$OUT" "| alpha/solo | exec — go |" "solo row in Sessions to s
 assert_contains "$OUT" "**Blocked:** none" "empty Blocked"
 assert_contains "$OUT" "**Open proposals:** none" "empty Open proposals"
 
+cat > "$MEM/initiatives/sp.md" <<'DOC'
+---
+kind: initiative
+slug: sp
+status: active
+created: 2026-08-14
+---
+# Sp
+## Targets
+### alpha/nosp
+- execution_mode: interactive
+- depends_on: alpha/gx(stage: plan)
+- status: open · next: exec — x · blocked_by: none
+### alpha/twosp
+- execution_mode: interactive
+- depends_on: alpha/gx  (stage: plan)
+- status: open · next: exec — x · blocked_by: none
+### alpha/gx
+- stages: plan -> implement
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: waiting on D84
+### alpha/dead
+- execution_mode: interactive
+- depends_on: none
+- status: closed
+### alpha/afterdead
+- execution_mode: interactive
+- depends_on: alpha/dead
+- status: open · next: exec — x · blocked_by: none
+## Decision stream
+- D84 proposed 2026-08-05 — Gate.
+DOC
+OUT="$("$SCRIPT" sp)"
+assert_contains "$OUT" "| D84 | alpha/nosp, alpha/twosp, alpha/gx |" "unspaced and double-spaced stage edges hold up their dependents"
+assert_contains "$OUT" "| alpha/nosp | alpha/gx(stage: plan) (blocked) |" "unspaced stage edge keeps its text and is reworded"
+assert_contains "$OUT" "| alpha/twosp | alpha/gx  (stage: plan) (blocked) |" "double-spaced stage edge is reworded"
+assert_eq "alpha/gx,alpha/nosp,alpha/twosp,alpha/afterdead," "$(printf '%s\n' "$OUT" | sed -n '/^\*\*Blocked\*\*/,/^\*\*Open/p' | grep '^| alpha/' | cut -d' ' -f2 | tr '\n' ,)" "stage-qualified edges count in the Blocked sort"
+assert_contains "$OUT" "| alpha/afterdead | alpha/dead (closed) |" "wording: at closed -> closed"
+assert_not_contains "$OUT" "(at " "no (at ) wording with unspaced edges"
+
 # Pipes already escaped in the source are not escaped twice.
 cat > "$MEM/initiatives/pipe.md" <<'DOC'
 ---

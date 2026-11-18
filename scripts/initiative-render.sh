@@ -30,7 +30,8 @@
 # depends_on edges with the authored blocked_by, and rows are sorted by how many
 # non-terminal Targets each holds up (directly or transitively), most first,
 # ties in file order. Edge wording is rewritten here: `(at blocked)` ->
-# `(blocked)`, `(at X, needs Y)` -> `(needs Y)`, other `(at X)` -> `(not done)`.
+# `(blocked)`, `(at closed)` -> `(closed)`, `(at X, needs Y)` -> `(needs Y)`,
+# other `(at X)` -> `(not done)`.
 # Decisions needed = each proposed D-id cited as a whole `D<n>` token in the
 # authored blocked_by of a non-terminal Target, with the citing Targets and
 # every non-terminal Target they hold up transitively. Open proposals lists
@@ -262,6 +263,7 @@ reword_unsat() {
         r="${e##* (}"; r="${r%)}"; pre="${e%" ("*}"
         case "$r" in
             "at blocked") e="$pre (blocked)" ;;
+            "at closed") e="$pre (closed)" ;;
             "at "*", needs "*) e="$pre (needs ${r#*, needs })" ;;
             "at "*) e="$pre (not done)" ;;
         esac
@@ -309,7 +311,8 @@ render_now() {
         unsat_entries "${t_unsat[$i]}"
         for e1 in "${UE[@]+"${UE[@]}"}"; do
             [ "$e1" != "-" ] || continue
-            if idx_of "${e1%% (*}"; then dep_of[$i]="${dep_of[$i]} $IDX"; fi
+            w="${e1%%(*}"; w="${w%"${w##*[! ]}"}"
+            if idx_of "$w"; then dep_of[$i]="${dep_of[$i]} $IDX"; fi
         done
         btok[$i]=""
         auth="${t_block[$i]}"
