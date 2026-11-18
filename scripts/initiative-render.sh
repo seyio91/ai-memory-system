@@ -30,15 +30,17 @@
 # depends_on edges with the authored blocked_by, and rows are sorted by how many
 # non-terminal Targets each holds up (directly or transitively), most first,
 # ties in file order. Edge wording is rewritten here: `(at blocked)` ->
-# `(blocked)`, `(at closed)` -> `(closed)`, `(at X, needs Y)` -> `(needs Y)`,
-# other `(at X)` -> `(not done)`.
-# Decisions needed = each proposed D-id cited as a whole `D<n>` token in the
+# `(blocked)`, `(at closed)` -> `(closed)`, `(at unknown)` -> `(stage unknown)`,
+# `(at X, needs Y)` -> `(needs Y)`, other `(at X)` -> `(not done)`.
+# Decisions needed = each proposed D-id cited as a whole `D<n>[a-z]` token in the
 # authored blocked_by of a non-terminal Target, with the citing Targets and
-# every non-terminal Target they hold up transitively. Open proposals lists
+# every non-terminal Target they hold up transitively (never through a
+# done/closed/complete Target). Open proposals lists
 # those ids first, suffixed `(blocking)`, then the rest in stream order. Every
 # empty section renders `**<name>:** none`. done/closed/complete Targets are
-# omitted. The hold-up graph is `--tsv`'s `unsatisfied` column; nothing is
-# derived from raw depends_on, and ids/state come only from --tsv (its `state`
+# omitted. The hold-up graph is `--tsv`'s `unsatisfied` column, with each edge id
+# extracted as initiative-status.sh does and `not found` edges ignored; nothing
+# is derived from raw depends_on, and ids/state come only from --tsv (its `state`
 # column is the asserted state, which --tsv's stage column hides for
 # software_adw Targets).
 # Matrix: frontmatter `envs: [a, b]` gives the columns; rows are the base names
@@ -255,6 +257,23 @@ unsat_entries() {
     return 0
 }
 
+edge_id() {
+    local e="$1" pre last
+    [ "${e##* (}" != "not found)" ] || return 1
+    pre="${e%" ("*}"
+    case "$pre" in
+        *"(stage: "*")")
+            last="${pre##*(stage: }"
+            case "${last%)}" in
+                *")"*) ;;
+                *) pre="${pre%"(stage: $last"}"; pre="${pre%"${pre##*[! ]}"}" ;;
+            esac
+            ;;
+    esac
+    EID="$pre"
+    return 0
+}
+
 reword_unsat() {
     local e r pre
     REW=""
@@ -264,6 +283,7 @@ reword_unsat() {
         case "$r" in
             "at blocked") e="$pre (blocked)" ;;
             "at closed") e="$pre (closed)" ;;
+            "at unknown") e="$pre (stage unknown)" ;;
             "at "*", needs "*) e="$pre (needs ${r#*, needs })" ;;
             "at "*) e="$pre (not done)" ;;
         esac
@@ -280,7 +300,7 @@ hold_closure() {
     while [ "$changed" -eq 1 ]; do
         changed=0
         for ((j = 0; j < n; j++)); do
-            [ "${CL[$j]}" -eq 0 ] || continue
+            [ "${CL[$j]}" -eq 0 ] && [ "${live[$j]}" -eq 1 ] || continue
             for x in ${dep_of[$j]}; do
                 if [ "${CL[$x]}" -eq 1 ]; then CL[$j]=1; changed=1; break; fi
             done
@@ -311,16 +331,16 @@ render_now() {
         unsat_entries "${t_unsat[$i]}"
         for e1 in "${UE[@]+"${UE[@]}"}"; do
             [ "$e1" != "-" ] || continue
-            w="${e1%%(*}"; w="${w%"${w##*[! ]}"}"
-            if idx_of "$w"; then dep_of[$i]="${dep_of[$i]} $IDX"; fi
+            if edge_id "$e1" && idx_of "$EID"; then dep_of[$i]="${dep_of[$i]} $IDX"; fi
         done
         btok[$i]=""
         auth="${t_block[$i]}"
         auth="${auth//[^A-Za-z0-9]/ }"
         for w in $auth; do
             d="${w#D}"
-            { [ "$d" != "$w" ] && [ -n "$d" ]; } || continue
-            case "$d" in *[!0-9]*) ;; *) btok[$i]="${btok[$i]} $w" ;; esac
+            [ "$d" != "$w" ] || continue
+            d="${d%[a-z]}"
+            case "$d" in ""|*[!0-9]*) ;; *) btok[$i]="${btok[$i]} $w" ;; esac
         done
     done
     for ((i = 0; i < n; i++)); do

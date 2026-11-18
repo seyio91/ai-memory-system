@@ -475,6 +475,94 @@ assert_eq "alpha/gx,alpha/nosp,alpha/twosp,alpha/afterdead," "$(printf '%s\n' "$
 assert_contains "$OUT" "| alpha/afterdead | alpha/dead (closed) |" "wording: at closed -> closed"
 assert_not_contains "$OUT" "(at " "no (at ) wording with unspaced edges"
 
+cat > "$MEM/initiatives/h2.md" <<'DOC'
+---
+kind: initiative
+slug: h2
+status: active
+created: 2026-08-14
+---
+# H2
+## Targets
+### a/gate
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D5a
+### a/g2
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D5
+### a/g3
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D5ab
+### a/direct
+- execution_mode: interactive
+- depends_on: a/gate
+- status: open · next: exec — x · blocked_by: none
+### a/mid
+- execution_mode: interactive
+- depends_on: a/gate
+- status: closed
+### a/leaf
+- execution_mode: interactive
+- depends_on: a/mid
+- status: open · next: exec — x · blocked_by: none
+### a/note
+- execution_mode: interactive
+- depends_on: a/gate (see note)
+- status: open · next: exec — x · blocked_by: none
+### a/dbl
+- execution_mode: interactive
+- depends_on: a/gate (stage: plan) (stage: implement)
+- status: open · next: exec — x · blocked_by: none
+### a/x(v2)
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D6
+### a/dep
+- execution_mode: interactive
+- depends_on: a/x(v2)
+- status: open · next: exec — x · blocked_by: none
+## Decision stream
+- D5 proposed 2026-08-03 — Five.
+- D5a proposed 2026-08-04 — Five a.
+- D6 proposed 2026-08-05 — Six.
+DOC
+OUT="$("$SCRIPT" h2 2>/dev/null)"
+assert_contains "$OUT" "| D5a | a/gate, a/direct |" "letter-suffixed id is cited; blocks only live holders, not through a closed Target"
+assert_contains "$OUT" "| D5 | a/g2 |" "D5 is not matched by D5a or D5ab"
+assert_contains "$OUT" "| D6 | a/x(v2), a/dep |" "Target id containing parentheses resolves"
+assert_contains "$OUT" "**Open proposals:** D5 (blocking), D5a (blocking), D6 (blocking)" "letter-suffixed blocking ids marked"
+assert_contains "$OUT" "| a/leaf | a/mid (closed) |" "closed dependency worded closed"
+assert_contains "$OUT" "| a/note | a/gate (see note) (not found) |" "note-suffixed edge is not found"
+assert_contains "$OUT" "| a/dbl | a/gate (stage: plan) (stage: implement) (not found) |" "double stage edge is not found"
+assert_eq "a/gate,a/x(v2),a/g2,a/g3,a/direct,a/leaf,a/note,a/dbl,a/dep," "$(printf '%s\n' "$OUT" | sed -n '/^\*\*Blocked\*\*/,/^\*\*Open/p' | grep '^| a/' | cut -d' ' -f2 | tr '\n' ,)" "hold-up counts skip closed and not-found edges"
+
+cat > "$MEM/initiatives/unk2.md" <<'DOC'
+---
+kind: initiative
+slug: unk2
+status: active
+created: 2026-08-14
+topics: [a]
+---
+# Unk2
+## Targets
+### ghost/x
+- execution_mode: software_adw
+- task: t-1
+- stages: plan -> implement
+- depends_on: none
+### ghost/y
+- execution_mode: interactive
+- depends_on: ghost/x
+- status: open · next: exec — x · blocked_by: none
+## Decision stream
+DOC
+OUT="$("$SCRIPT" unk2)"
+assert_contains "$OUT" "| ghost/y | ghost/x (stage unknown) |" "wording: at unknown -> stage unknown"
+
 # Pipes already escaped in the source are not escaped twice.
 cat > "$MEM/initiatives/pipe.md" <<'DOC'
 ---
