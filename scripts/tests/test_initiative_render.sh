@@ -563,6 +563,52 @@ DOC
 OUT="$("$SCRIPT" unk2)"
 assert_contains "$OUT" "| ghost/y | ghost/x (stage unknown) |" "wording: at unknown -> stage unknown"
 
+cat > "$MEM/initiatives/w3.md" <<'DOC'
+---
+kind: initiative
+slug: w3
+status: active
+created: 2026-08-14
+---
+# W3
+## Targets
+### a/g
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D84
+### a/w
+- execution_mode: interactive
+- depends_on: a/g, needs pilot sign-off
+- status: open · next: exec — x · blocked_by: none
+### a/both
+- execution_mode: interactive
+- depends_on: a/w
+- status: open · next: exec — x · blocked_by: none
+### a/sg
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D85
+### a/odd
+- execution_mode: interactive
+- depends_on: a/sg (stage: b (stage: c)
+- status: open · next: exec — x · blocked_by: none
+### a/up
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D86A
+## Decision stream
+- D84 proposed 2026-08-05 — Gate.
+- D85 proposed 2026-08-05 — Gate two.
+- D86 proposed 2026-08-05 — Gate three.
+DOC
+OUT="$("$SCRIPT" w3 2>/dev/null)"
+assert_contains "$OUT" "| a/w | a/g (blocked), needs pilot sign-off (not found) |" "free-text needs piece is its own entry"
+assert_contains "$OUT" "| D84 | a/g, a/w, a/both |" "free-text needs edge does not break the hold-up graph"
+assert_eq "a/g,a/w,a/sg,a/both,a/odd,a/up," "$(printf '%s\n' "$OUT" | sed -n '/^\*\*Blocked\*\*/,/^\*\*Open/p' | grep '^| a/' | cut -d' ' -f2 | tr '\n' ,)" "sort counts a/g as holding up two"
+assert_contains "$OUT" "| D85 | a/sg, a/odd |" "nested (stage: id resolves like the status script"
+assert_not_contains "$OUT" "D86 |" "uppercase letter suffix is not a decision token"
+assert_not_contains "$OUT" "(at " "no (at ) wording with free-text needs edge"
+
 # Pipes already escaped in the source are not escaped twice.
 cat > "$MEM/initiatives/pipe.md" <<'DOC'
 ---

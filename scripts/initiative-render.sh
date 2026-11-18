@@ -32,7 +32,7 @@
 # ties in file order. Edge wording is rewritten here: `(at blocked)` ->
 # `(blocked)`, `(at closed)` -> `(closed)`, `(at unknown)` -> `(stage unknown)`,
 # `(at X, needs Y)` -> `(needs Y)`, other `(at X)` -> `(not done)`.
-# Decisions needed = each proposed D-id cited as a whole `D<n>[a-z]` token in the
+# Decisions needed = each proposed D-id cited as a whole `D<n>` token with an optional lowercase letter in the
 # authored blocked_by of a non-terminal Target, with the citing Targets and
 # every non-terminal Target they hold up transitively (never through a
 # done/closed/complete Target). Open proposals lists
@@ -249,7 +249,12 @@ unsat_entries() {
         case "$piece" in
             "needs "*)
                 last=$((${#UE[@]} - 1))
-                [ "$last" -ge 0 ] && { UE[$last]="${UE[$last]}, $piece"; continue; }
+                if [ "$last" -ge 0 ]; then
+                    case "${UE[$last]}" in
+                        *")") ;;
+                        *) UE[$last]="${UE[$last]}, $piece"; continue ;;
+                    esac
+                fi
                 ;;
         esac
         UE[${#UE[@]}]="$piece"
@@ -258,16 +263,25 @@ unsat_entries() {
 }
 
 edge_id() {
-    local e="$1" pre last
+    local e="$1" pre cand head before tail
     [ "${e##* (}" != "not found)" ] || return 1
     pre="${e%" ("*}"
     case "$pre" in
         *"(stage: "*")")
-            last="${pre##*(stage: }"
-            case "${last%)}" in
-                *")"*) ;;
-                *) pre="${pre%"(stage: $last"}"; pre="${pre%"${pre##*[! ]}"}" ;;
-            esac
+            cand="$pre"; head=""
+            while :; do
+                case "$cand" in *"(stage: "*) ;; *) break ;; esac
+                before="${cand%%"(stage: "*}"; tail="${cand#*"(stage: "}"
+                case "$tail" in
+                    *")")
+                        case "${tail%)}" in
+                            *")"*) ;;
+                            *) pre="$head$before"; pre="${pre%"${pre##*[! ]}"}"; break ;;
+                        esac
+                        ;;
+                esac
+                head="$head$before(stage: "; cand="$tail"
+            done
             ;;
     esac
     EID="$pre"
@@ -339,7 +353,7 @@ render_now() {
         for w in $auth; do
             d="${w#D}"
             [ "$d" != "$w" ] || continue
-            d="${d%[a-z]}"
+            case "$d" in *[abcdefghijklmnopqrstuvwxyz]) d="${d%?}" ;; esac
             case "$d" in ""|*[!0-9]*) ;; *) btok[$i]="${btok[$i]} $w" ;; esac
         done
     done
