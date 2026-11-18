@@ -54,6 +54,18 @@ The status line is
 `- status: <open|blocked|done|closed> · next: <session — action> · blocked_by: <…|none>`
 with single spaces around the middle dot. `next:` names the session that acts
 and the action, separated by ` — `. `blocked_by:` is free text or `none`.
+
+Three authoring rules keep the Now view and lint in agreement:
+
+- `next:` starts with `user —` whenever the user acts first, chained as
+  `user — …; then <session> — …`. The Now view groups on that first word.
+- `blocked_by:` holds only blockers that are not Targets. Cite a decision by
+  its D-id (`D12`); free text that names a decision without the id is not
+  picked up. Targets that block this one go in `depends_on:`.
+- A Target with unfinished `depends_on` is `status: blocked`. Plan-ahead work
+  that may proceed goes in the `next:` text. Lint warns on an `open` Target
+  whose dependencies are not satisfied.
+
 Terminal states may stand alone (`- status: done`, `- status: closed`) or carry a full valid tail (`- status: done · next: … · blocked_by: none`). `status:`
 is required for `interactive` Targets and optional for `software_adw` ones,
 whose stage is derived from the plan. Keep it short (lint warns past 300
@@ -138,7 +150,7 @@ Three sections are generated from the Targets and the decision stream by
 
 | Heading | Fence key | Contents |
 |---|---|---|
-| `## Now` | `now` | Ready Targets (with `next:`), Blocked Targets (unsatisfied `depends_on` plus authored `blocked_by`), open proposals |
+| `## Now` | `now` | decisions needed, Targets waiting on you, Targets to start, Blocked Targets (unsatisfied `depends_on` plus authored `blocked_by`), open proposals |
 | `## Environment matrix` | `matrix` | one row per base name of `@env` Targets, one column per `envs:` entry, each cell the derived stage of `<base>@<env>` (the `--tsv` stage: derived for `software_adw`, the asserted state otherwise) or `not opened` |
 | `## Current rules` | `rules` | one row per `topics:` entry listing its live (confirmed and proposed) decisions |
 
@@ -174,24 +186,44 @@ becomes `\|` (an already escaped `\|` stays).
 
 - `now`: take the Targets whose state is not `done`/`closed` and whose stage
   is not `done`/`closed`/`complete` (so Closed rows drop out). Each is Ready or
-  Blocked.
+  Blocked. The body has five sections, in this order: `Decisions needed`,
+  `Waiting on you`, `Sessions to start`, `Blocked`, `Open proposals`.
   - Build the Blocked cell from up to three parts joined with `; `, in this
     order: `stage unknown` when the stage is `unknown`; the unsatisfied
-    `depends_on` edges joined with `, `, each `<edge as written> (<reason>)`
-    where the reason is `at <stage>`, `at <stage>, needs <stage>` or
-    `not found` (the `--tsv` `unsatisfied` column); the authored `blocked_by`
-    unless it is `none` or absent.
+    `depends_on` edges joined with `, `, each `<edge as written> (<wording>)` (below; a
+    `(stage: <s>)` qualifier and its spacing are kept); the
+    authored `blocked_by` unless it is `none` or absent.
+  - Edge wording, from the `--tsv` `unsatisfied` column (`--tsv` itself is
+    unchanged): `(blocked)` when the dependency's state is `blocked`;
+    `(closed)` when it is `closed` (abandoned, so the edge can never be
+    satisfied and must be rewritten); `(needs <stage>)` for a stage-qualified
+    edge whose dependency has not reached that stage; `(not found)` when the
+    id resolves to no Target; `(stage unknown)` when the dependency's stage
+    cannot be derived; `(not done)` otherwise.
   - A Target is Blocked when that cell is non-empty, or its state is
     `blocked`, or its dependencies are not all satisfied; an otherwise empty
     cell reads `blocked (no reason given)`. Every other Target is Ready.
-  - Ready is `**Ready**`, a blank line, `| Target | Next |`, `|---|---|`, one
-    `| <id> | <next> |` row per Target, then a blank line. `<next>` is the
-    authored `next:`, or `(stage: <stage>)` when none is authored. With no
-    Ready Targets write `**Ready:** none` and a blank line.
-  - Blocked is the same with `**Blocked**` and `| Target | Blocked by |`,
-    `|---|---|`, or `**Blocked:** none` and a blank line.
+  - Ready splits on the first actor of `next:`, the text before the first
+    ` — `. Exactly `user` goes to Waiting on you; anything else, or no
+    `next:`, goes to Sessions to start. `<next>` is the authored `next:`, or
+    `(stage: <stage>)` when none is authored.
+  - Waiting on you and Sessions to start are each `**<name>**`, a blank line,
+    `| Target | Next |`, `|---|---|`, one `| <id> | <next> |` row per Target,
+    then a blank line. With no rows write `**<name>:** none` and a blank line.
+  - Blocked is the same with `| Target | Blocked by |`. Rows are sorted by how
+    many non-terminal Targets each holds up, directly or transitively through
+    unsatisfied `depends_on` edges, most first; ties stay in Target order. Hold-up does not pass
+    through a `done`/`closed`/`complete` Target, and a `(not found)` edge holds nothing
+    up.
+  - Decisions needed is the same with `| Decision | Blocks |`. It lists each
+    `proposed` decision, in decision-stream order, whose D-id (`D12`, or `D6b` with a lowercase letter)
+    appears in the `blocked_by` of a non-terminal Target. Each row is
+    `| <D-id> | <Targets> |`: the Targets that cite it plus every non-terminal
+    Target they hold up, in Target order, joined with `, `. A D-id that is not
+    `proposed` is not listed.
   - Last line: `**Open proposals:** <proposed ids, comma-space separated, once
-    each, in stream order>` or `none`.
+    each>` or `none`. Ids listed under Decisions needed come first, each
+    suffixed `(blocking)`; the rest follow in stream order.
 - `matrix` (only when `envs:` is set): with no `@env` Targets the body is
   `_No per-environment Targets._`. Otherwise `| Target | <env1> | <env2> |`,
   `|---|---|---|` (one `---` per column), then one row per base name (the id
@@ -274,7 +306,10 @@ uses, so the two cannot drift:
   `status:`.
 - WARN: `depends_on` naming no Target or Closed row; an `@env` not in `envs:`
   (or no `envs:` list); an open/blocked Target with no `task:`; a status over
-  300 characters; `next:` with no ` — ` action; stale or missing generated
+  300 characters; `next:` with no ` — ` action; a `status: open` Target whose
+  `depends_on` is unsatisfied (the status script decides: a `closed`
+  dependency never satisfies; set `status: blocked`; not raised when every
+  unsatisfied edge names no Target, which the `depends_on` check reports); stale or missing generated
   fences; decision-stream shape (malformed head, bad status, `proposed`
   without `unconfirmed:`, topic outside `topics:`, missing topic, missing
   forward pointer, dangling pointer, AMENDS/SUPERSEDES naming no id).

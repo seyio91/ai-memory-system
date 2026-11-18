@@ -22,13 +22,27 @@
 #   <!-- END AUTOGEN initiative-render:<key> -->
 # Bodies carry no date or timestamp, so a render is deterministic.
 #
-# Now: from `initiative-status.sh --tsv`. Ready = non-terminal Targets with all
-# depends_on edges satisfied, no authored blocked_by and state not `blocked`.
+# Now: from `initiative-status.sh --tsv`. Non-terminal Targets with all
+# depends_on edges satisfied, no authored blocked_by and state not `blocked` are
+# split on the first actor of `next:` (text before the first ` — `): exactly
+# `user` -> Waiting on you; anything else, or no `next:`, -> Sessions to start.
 # Blocked = the other non-terminal Targets; the cell merges the unsatisfied
-# depends_on edges with the authored blocked_by. done/closed/complete Targets
-# are omitted. The unsatisfied edges are `--tsv`'s `unsatisfied` column; nothing
-# is derived here, and ids/state come only from --tsv (its `state` column is the
-# asserted state, which --tsv's stage column hides for software_adw Targets).
+# depends_on edges with the authored blocked_by, and rows are sorted by how many
+# non-terminal Targets each holds up (directly or transitively), most first,
+# ties in file order. Edge wording is rewritten here: `(at blocked)` ->
+# `(blocked)`, `(at closed)` -> `(closed)`, `(at unknown)` -> `(stage unknown)`,
+# `(at X, needs Y)` -> `(needs Y)`, other `(at X)` -> `(not done)`.
+# Decisions needed = each proposed D-id cited as a whole `D<n>` token with an optional lowercase letter in the
+# authored blocked_by of a non-terminal Target, with the citing Targets and
+# every non-terminal Target they hold up transitively (never through a
+# done/closed/complete Target). Open proposals lists
+# those ids first, suffixed `(blocking)`, then the rest in stream order. Every
+# empty section renders `**<name>:** none`. done/closed/complete Targets are
+# omitted. The hold-up graph is `--tsv`'s `unsatisfied` column, with each edge id
+# extracted as initiative-status.sh does and `not found` edges ignored; nothing
+# is derived from raw depends_on, and ids/state come only from --tsv (its `state`
+# column is the asserted state, which --tsv's stage column hides for
+# software_adw Targets).
 # Matrix: frontmatter `envs: [a, b]` gives the columns; rows are the base names
 # of `@env` Targets; a cell is the derived stage of `<base>@<env>` or
 # `not opened`. No `envs:` -> no matrix section; a matrix fence left behind is an
@@ -224,13 +238,129 @@ rules_awk() {
     ' "$INITIATIVE"
 }
 
+unsat_entries() {
+    local rest="$1" piece last
+    UE=()
+    while [ -n "$rest" ]; do
+        case "$rest" in
+            *", "*) piece="${rest%%, *}"; rest="${rest#*, }" ;;
+            *) piece="$rest"; rest="" ;;
+        esac
+        case "$piece" in
+            "needs "*)
+                last=$((${#UE[@]} - 1))
+                if [ "$last" -ge 0 ]; then
+                    case "${UE[$last]}" in
+                        *")") ;;
+                        *) UE[$last]="${UE[$last]}, $piece"; continue ;;
+                    esac
+                fi
+                ;;
+        esac
+        UE[${#UE[@]}]="$piece"
+    done
+    return 0
+}
+
+edge_id() {
+    local e="$1" pre cand head before tail
+    [ "${e##* (}" != "not found)" ] || return 1
+    pre="${e%" ("*}"
+    case "$pre" in
+        *"(stage: "*")")
+            cand="$pre"; head=""
+            while :; do
+                case "$cand" in *"(stage: "*) ;; *) break ;; esac
+                before="${cand%%"(stage: "*}"; tail="${cand#*"(stage: "}"
+                case "$tail" in
+                    *")")
+                        case "${tail%)}" in
+                            *")"*) ;;
+                            *) pre="$head$before"; pre="${pre%"${pre##*[! ]}"}"; break ;;
+                        esac
+                        ;;
+                esac
+                head="$head$before(stage: "; cand="$tail"
+            done
+            ;;
+    esac
+    EID="$pre"
+    return 0
+}
+
+reword_unsat() {
+    local e r pre
+    REW=""
+    unsat_entries "$1"
+    for e in "${UE[@]+"${UE[@]}"}"; do
+        r="${e##* (}"; r="${r%)}"; pre="${e%" ("*}"
+        case "$r" in
+            "at blocked") e="$pre (blocked)" ;;
+            "at closed") e="$pre (closed)" ;;
+            "at unknown") e="$pre (stage unknown)" ;;
+            "at "*", needs "*) e="$pre (needs ${r#*, needs })" ;;
+            "at "*) e="$pre (not done)" ;;
+        esac
+        REW="$REW${REW:+, }$e"
+    done
+    return 0
+}
+
+hold_closure() {
+    local s x j changed=1
+    CL=()
+    for ((j = 0; j < n; j++)); do CL[$j]=0; done
+    for s in "$@"; do CL[$s]=1; done
+    while [ "$changed" -eq 1 ]; do
+        changed=0
+        for ((j = 0; j < n; j++)); do
+            [ "${CL[$j]}" -eq 0 ] && [ "${live[$j]}" -eq 1 ] || continue
+            for x in ${dep_of[$j]}; do
+                if [ "${CL[$x]}" -eq 1 ]; then CL[$j]=1; changed=1; break; fi
+            done
+        done
+    done
+    return 0
+}
+
+now_section() {
+    if [ -n "$3" ]; then
+        printf '**%s**\n\n%s\n|---|---|\n%s\n' "$1" "$2" "$3"
+    else
+        printf '**%s:** none\n\n' "$1"
+    fi
+    return 0
+}
+
 render_now() {
-    local i ready="" blocked="" cell auth nx e1
+    local i j w d e1 cell auth nx pid cnt c p props
+    local maxc=0 nb=0 plist="" blocking=" "
+    local waiting="" sessions="" blocked="" decisions=""
+    local live=() dep_of=() btok=() cite=() brow_id=() brow_cell=() brow_cnt=()
     for ((i = 0; i < n; i++)); do
-        case "${t_state[$i]}" in done|closed) continue ;; esac
-        case "${t_stage[$i]}" in done|closed|complete) continue ;; esac
-        cell="${t_unsat[$i]}"
-        [ "$cell" != "-" ] || cell=""
+        live[$i]=1
+        case "${t_state[$i]}" in done|closed) live[$i]=0 ;; esac
+        case "${t_stage[$i]}" in done|closed|complete) live[$i]=0 ;; esac
+        dep_of[$i]=""
+        unsat_entries "${t_unsat[$i]}"
+        for e1 in "${UE[@]+"${UE[@]}"}"; do
+            [ "$e1" != "-" ] || continue
+            if edge_id "$e1" && idx_of "$EID"; then dep_of[$i]="${dep_of[$i]} $IDX"; fi
+        done
+        btok[$i]=""
+        auth="${t_block[$i]}"
+        auth="${auth//[^A-Za-z0-9]/ }"
+        for w in $auth; do
+            d="${w#D}"
+            [ "$d" != "$w" ] || continue
+            case "$d" in *[abcdefghijklmnopqrstuvwxyz]) d="${d%?}" ;; esac
+            case "$d" in ""|*[!0-9]*) ;; *) btok[$i]="${btok[$i]} $w" ;; esac
+        done
+    done
+    for ((i = 0; i < n; i++)); do
+        [ "${live[$i]}" -eq 1 ] || continue
+        cell=""
+        if [ "${t_unsat[$i]}" != "-" ]; then reword_unsat "${t_unsat[$i]}"; cell="$REW"; fi
         if [ "${t_stage[$i]}" = "unknown" ]; then
             cell="stage unknown${cell:+; $cell}"
         fi
@@ -242,30 +372,66 @@ render_now() {
         fi
         if [ -n "$cell" ] || [ "${t_state[$i]}" = "blocked" ] || [ "${t_ok[$i]}" != "yes" ]; then
             [ -n "$cell" ] || cell="blocked (no reason given)"
-            esc "${t_id[$i]}"; e1="$ESC"; esc "$cell"
-            blocked="$blocked| $e1 | $ESC |
-"
+            hold_closure "$i"
+            cnt=0
+            for ((j = 0; j < n; j++)); do
+                if [ "$j" -ne "$i" ] && [ "${live[$j]}" -eq 1 ] && [ "${CL[$j]}" -eq 1 ]; then cnt=$((cnt + 1)); fi
+            done
+            brow_id[$nb]="${t_id[$i]}"; brow_cell[$nb]="$cell"; brow_cnt[$nb]="$cnt"
+            nb=$((nb + 1))
+            [ "$cnt" -le "$maxc" ] || maxc="$cnt"
         else
             nx="${t_next[$i]}"
             [ "$nx" != "-" ] || nx="(stage: ${t_stage[$i]})"
             esc "${t_id[$i]}"; e1="$ESC"; esc "$nx"
-            ready="$ready| $e1 | $ESC |
+            if [ "${nx%% — *}" = "user" ]; then
+                waiting="$waiting| $e1 | $ESC |
 "
+            else
+                sessions="$sessions| $e1 | $ESC |
+"
+            fi
         fi
     done
-    if [ -n "$ready" ]; then
-        printf '**Ready**\n\n| Target | Next |\n|---|---|\n%s\n' "$ready"
-    else
-        printf '**Ready:** none\n\n'
-    fi
-    if [ -n "$blocked" ]; then
-        printf '**Blocked**\n\n| Target | Blocked by |\n|---|---|\n%s\n' "$blocked"
-    else
-        printf '**Blocked:** none\n\n'
-    fi
-    local props
-    props="$(rules_awk prop | paste -sd, - | sed 's/,/, /g')"
-    printf '**Open proposals:** %s\n' "${props:-none}"
+    for ((c = maxc; c >= 0; c--)); do
+        for ((i = 0; i < nb; i++)); do
+            [ "${brow_cnt[$i]}" -eq "$c" ] || continue
+            esc "${brow_id[$i]}"; e1="$ESC"; esc "${brow_cell[$i]}"
+            blocked="$blocked| $e1 | $ESC |
+"
+        done
+    done
+    props="$(rules_awk prop)"
+    for pid in $props; do
+        cite=()
+        for ((i = 0; i < n; i++)); do
+            [ "${live[$i]}" -eq 1 ] || continue
+            case "${btok[$i]} " in *" $pid "*) cite[${#cite[@]}]="$i" ;; esac
+        done
+        [ "${#cite[@]}" -gt 0 ] || continue
+        hold_closure "${cite[@]}"
+        cell=""
+        for ((j = 0; j < n; j++)); do
+            if [ "${live[$j]}" -eq 1 ] && [ "${CL[$j]}" -eq 1 ]; then
+                esc "${t_id[$j]}"; cell="$cell${cell:+, }$ESC"
+            fi
+        done
+        decisions="$decisions| $pid | $cell |
+"
+        blocking="$blocking$pid "
+    done
+    now_section "Decisions needed" "| Decision | Blocks |" "$decisions"
+    now_section "Waiting on you" "| Target | Next |" "$waiting"
+    now_section "Sessions to start" "| Target | Next |" "$sessions"
+    now_section "Blocked" "| Target | Blocked by |" "$blocked"
+    for p in $props; do
+        case "$blocking" in *" $p "*) plist="$plist${plist:+, }$p (blocking)" ;; esac
+    done
+    for p in $props; do
+        case "$blocking" in *" $p "*) ;; *) plist="$plist${plist:+, }$p" ;; esac
+    done
+    printf '**Open proposals:** %s\n' "${plist:-none}"
+    return 0
 }
 
 render_matrix() {

@@ -726,7 +726,10 @@ $DS_LINT_PROG" "$f"
     #      (heading or Closed row). WARN: status over 300 chars, open/blocked
     #      `next:` with no ` — ` action, an @env not in frontmatter `envs:`,
     #      stages/mode mismatch, unresolved depends_on (Closed rows and @env ids
-    #      resolve), an open/blocked Target with no task. Stale fences: below.
+    #      resolve), an open/blocked Target with no task, a `status: open` Target
+    #      whose `initiative-status.sh --tsv` row says depends_on is unsatisfied
+    #      and not only by `not found` edges, which the unresolved check reports
+    #      (11c, below). Stale fences: below.
     it_format_errors=0
     it_target_count=0
     if [ -z "$IT_LIB" ]; then
@@ -755,7 +758,9 @@ $INIT_LINT_PROG" "$f"
     # 11c. Fences: `initiative-render.sh <slug> --check` is the single source of
     #      truth for stale, missing or orphan Now / matrix / Current-rules fences.
     #      Active initiatives with parseable Targets only (a format ERROR above
-    #      already says the file cannot be rendered).
+    #      already says the file cannot be rendered). It also reads `--tsv` for the
+    #      same Targets: state `open` with deps-satisfied `no` is a WARN (set
+    #      `status: blocked`) unless every unsatisfied edge is `not found`; the status script alone decides what satisfies.
     if [ "$it_format_errors" -eq 0 ] && [ "$it_target_count" -gt 0 ] && [ "$initiative_status" = "active" ] \
        && [ -f "$SCRIPT_DIR/initiative-render.sh" ]; then
         render_err="$(MEMORY_DIR="$MEMORY_DIR" bash "$SCRIPT_DIR/initiative-render.sh" "$filename_slug" --check 2>&1 >/dev/null)"
@@ -763,6 +768,14 @@ $INIT_LINT_PROG" "$f"
         if [ "$render_rc" -ne 0 ]; then
             render_err="$(printf '%s\n' "$render_err" | sed -e 's/^initiative-render: //' | paste -sd ';' - | sed 's/;/; /g')"
             emit "WARN:  $f initiative-render fences are stale or missing (${render_err}) — run \`initiative-render.sh $filename_slug --write\`"
+        fi
+        if tsv_out="$(MEMORY_DIR="$MEMORY_DIR" bash "$SCRIPT_DIR/initiative-status.sh" --tsv "$filename_slug" 2>/dev/null)"; then
+            while IFS=$'\t' read -r tsv_id _ tsv_sat _ _ tsv_unsat tsv_state; do
+                if [ "$tsv_state" = "open" ] && [ "$tsv_sat" = "no" ]; then
+                    case "$tsv_unsat" in *"(at "*) ;; *) continue ;; esac
+                    emit "WARN:  $f $tsv_id: status open but depends_on is unsatisfied ($tsv_unsat) — set status: blocked"
+                fi
+            done <<<"$tsv_out"
         fi
     fi
 done

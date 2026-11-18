@@ -90,7 +90,7 @@ assert_exit 0 "$rc" "default print exits 0"
 assert_contains "$OUT" "<!-- BEGIN AUTOGEN initiative-render:now -->" "now fence printed"
 assert_contains "$OUT" "| alpha/ready | exec — write the thing \\| now |" "ready row, pipe escaped"
 case "$OUT" in
-    *"| alpha/after-edge | alpha/ready (at open) |"*) _ok "blocked by unsatisfied edge only" ;;
+    *"| alpha/after-edge | alpha/ready (not done) |"*) _ok "blocked by unsatisfied edge only" ;;
     *) _bad "blocked by unsatisfied edge only"; printf '%s\n' "$OUT" ;;
 esac
 assert_contains "$OUT" "| alpha/authored | waiting on legal |" "blocked by authored blocked_by"
@@ -316,7 +316,298 @@ topics: [a]
 DOC
 OUT="$("$SCRIPT" unk)"
 assert_contains "$OUT" "| ghost/x | stage unknown |" "unknown stage is Blocked with reason"
-assert_contains "$OUT" "**Ready:** none" "unknown stage is not Ready"
+assert_contains "$OUT" "**Sessions to start:** none" "unknown stage is not in Sessions to start"
+assert_contains "$OUT" "**Waiting on you:** none" "unknown stage is not in Waiting on you"
+
+# Now: Decisions needed / Waiting on you / Sessions to start / Blocked.
+mkdir -p "$MEM/projects/alpha/plans" "$ROOT/alpha-co/.agents"
+printf 'alpha\n' > "$ROOT/alpha-co/.agents/memory-project"
+printf -- '---\ntopic: alpha\nscope: project\nsummary: a\nrepo_path: alpha-co\n---\n' > "$MEM/projects/alpha/memory.md"
+printf '%s\n' '---' 'plan: draft' 'status: draft' 'task_ref: t-draft-001' '---' > "$MEM/projects/alpha/plans/draft.md"
+cat > "$MEM/initiatives/nv.md" <<'DOC'
+---
+kind: initiative
+slug: nv
+status: active
+created: 2026-08-14
+---
+# Nv
+## Targets
+### alpha/user1
+- execution_mode: interactive
+- depends_on: none
+- status: open · next: user — confirm scope · blocked_by: none
+### alpha/user2
+- execution_mode: interactive
+- depends_on: none
+- status: open · next: user — review; then exec session — implement · blocked_by: none
+### alpha/sess
+- execution_mode: interactive
+- depends_on: none
+- status: open · next: exec — go · blocked_by: none
+### alpha/swa
+- execution_mode: software_adw
+- task: t-draft-001
+- stages: discover -> plan -> implement -> validate
+- depends_on: none
+### alpha/lost
+- execution_mode: interactive
+- depends_on: alpha/nowhere
+- status: open · next: exec — x · blocked_by: none
+### alpha/needs
+- execution_mode: interactive
+- depends_on: alpha/swa (stage: implement)
+- status: open · next: exec — x · blocked_by: none
+### alpha/gate2
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: pilot choice D79
+### alpha/mid
+- execution_mode: interactive
+- depends_on: alpha/gate1
+- status: open · next: exec — plan ahead · blocked_by: none
+### alpha/gate1
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: waiting on D84 and D2
+### alpha/leaf
+- execution_mode: interactive
+- depends_on: alpha/mid
+- status: open · next: exec — x · blocked_by: none
+### alpha/finished
+- execution_mode: interactive
+- depends_on: none
+- status: done
+## Decision stream
+- D2 confirmed 2026-08-02 — Settled.
+- D7 proposed 2026-08-03 — Unrelated.
+- D79 proposed 2026-08-04 — Pilot apps.
+- D84 proposed 2026-08-05 — Gate.
+DOC
+OUT="$("$SCRIPT" nv)"
+NOW="$(printf '%s\n' "$OUT" | sed -n '/initiative-render:now -->$/,/END AUTOGEN initiative-render:now/p')"
+assert_eq "**Decisions needed**|**Waiting on you**|**Sessions to start**|**Blocked**|**Open proposals:** D79 (blocking), D84 (blocking), D7|" "$(printf '%s\n' "$NOW" | grep '^\*\*' | tr '\n' '|')" "now: section order"
+assert_contains "$NOW" "| alpha/user1 | user — confirm scope |" "user row in Waiting on you"
+assert_contains "$NOW" "| alpha/user2 | user — review; then exec session — implement |" "chained user row in Waiting on you"
+WAIT="$(printf '%s\n' "$NOW" | sed -n '/^\*\*Waiting on you\*\*/,/^\*\*Sessions/p')"
+assert_not_contains "$WAIT" "alpha/sess" "session row not in Waiting on you"
+SESS="$(printf '%s\n' "$NOW" | sed -n '/^\*\*Sessions to start\*\*/,/^\*\*Blocked/p')"
+assert_contains "$SESS" "| alpha/sess | exec — go |" "exec row in Sessions to start"
+assert_contains "$SESS" "| alpha/swa | (stage: plan) |" "no-next Target in Sessions to start"
+assert_not_contains "$SESS" "alpha/user" "user rows not in Sessions to start"
+DEC="$(printf '%s\n' "$NOW" | sed -n '/^\*\*Decisions needed\*\*/,/^\*\*Waiting/p')"
+assert_contains "$DEC" "| Decision | Blocks |" "decisions table header"
+assert_contains "$DEC" "| D84 | alpha/mid, alpha/gate1, alpha/leaf |" "decision blocks citing + transitive Targets"
+assert_contains "$DEC" "| D79 | alpha/gate2 |" "D79 is not matched by D7"
+assert_not_contains "$DEC" "| D7 |" "uncited proposed id not listed"
+assert_not_contains "$DEC" "| D2 |" "confirmed cited id not listed"
+BLK="$(printf '%s\n' "$NOW" | sed -n '/^\*\*Blocked\*\*/,/^\*\*Open/p' | grep '^| alpha/' | cut -d' ' -f2 | tr '\n' ,)"
+assert_eq "alpha/gate1,alpha/mid,alpha/lost,alpha/needs,alpha/gate2,alpha/leaf," "$BLK" "blocked sorted by hold-up count, ties in file order"
+assert_contains "$NOW" "| alpha/mid | alpha/gate1 (blocked) |" "wording: at blocked -> blocked"
+assert_contains "$NOW" "| alpha/leaf | alpha/mid (not done) |" "wording: at X -> not done"
+assert_contains "$NOW" "| alpha/needs | alpha/swa (stage: implement) (needs implement) |" "wording: at X, needs Y -> needs Y"
+assert_contains "$NOW" "| alpha/lost | alpha/nowhere (not found) |" "wording: not found kept"
+assert_not_contains "$OUT" "(at " "no (at ) wording in render output"
+TSV="$(bash "$SCRIPTS_DIR/initiative-status.sh" --tsv nv 2>/dev/null)"
+assert_contains "$TSV" "alpha/gate1 (at blocked)" "status --tsv unsatisfied wording still uses (at ) that the renderer maps"
+assert_contains "$TSV" "(at plan, needs implement)" "status --tsv still reports (at X, needs Y)"
+
+cat > "$MEM/initiatives/emp.md" <<'DOC'
+---
+kind: initiative
+slug: emp
+status: active
+created: 2026-08-14
+---
+# Emp
+## Targets
+### alpha/solo
+- execution_mode: interactive
+- depends_on: none
+- status: open · next: exec — go · blocked_by: none
+## Decision stream
+DOC
+OUT="$("$SCRIPT" emp)"
+assert_contains "$OUT" "**Decisions needed:** none" "empty Decisions needed"
+assert_contains "$OUT" "**Waiting on you:** none" "empty Waiting on you"
+assert_contains "$OUT" "| alpha/solo | exec — go |" "solo row in Sessions to start"
+assert_contains "$OUT" "**Blocked:** none" "empty Blocked"
+assert_contains "$OUT" "**Open proposals:** none" "empty Open proposals"
+
+cat > "$MEM/initiatives/sp.md" <<'DOC'
+---
+kind: initiative
+slug: sp
+status: active
+created: 2026-08-14
+---
+# Sp
+## Targets
+### alpha/nosp
+- execution_mode: interactive
+- depends_on: alpha/gx(stage: plan)
+- status: open · next: exec — x · blocked_by: none
+### alpha/twosp
+- execution_mode: interactive
+- depends_on: alpha/gx  (stage: plan)
+- status: open · next: exec — x · blocked_by: none
+### alpha/gx
+- stages: plan -> implement
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: waiting on D84
+### alpha/dead
+- execution_mode: interactive
+- depends_on: none
+- status: closed
+### alpha/afterdead
+- execution_mode: interactive
+- depends_on: alpha/dead
+- status: open · next: exec — x · blocked_by: none
+## Decision stream
+- D84 proposed 2026-08-05 — Gate.
+DOC
+OUT="$("$SCRIPT" sp)"
+assert_contains "$OUT" "| D84 | alpha/nosp, alpha/twosp, alpha/gx |" "unspaced and double-spaced stage edges hold up their dependents"
+assert_contains "$OUT" "| alpha/nosp | alpha/gx(stage: plan) (blocked) |" "unspaced stage edge keeps its text and is reworded"
+assert_contains "$OUT" "| alpha/twosp | alpha/gx  (stage: plan) (blocked) |" "double-spaced stage edge is reworded"
+assert_eq "alpha/gx,alpha/nosp,alpha/twosp,alpha/afterdead," "$(printf '%s\n' "$OUT" | sed -n '/^\*\*Blocked\*\*/,/^\*\*Open/p' | grep '^| alpha/' | cut -d' ' -f2 | tr '\n' ,)" "stage-qualified edges count in the Blocked sort"
+assert_contains "$OUT" "| alpha/afterdead | alpha/dead (closed) |" "wording: at closed -> closed"
+assert_not_contains "$OUT" "(at " "no (at ) wording with unspaced edges"
+
+cat > "$MEM/initiatives/h2.md" <<'DOC'
+---
+kind: initiative
+slug: h2
+status: active
+created: 2026-08-14
+---
+# H2
+## Targets
+### a/gate
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D5a
+### a/g2
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D5
+### a/g3
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D5ab
+### a/direct
+- execution_mode: interactive
+- depends_on: a/gate
+- status: open · next: exec — x · blocked_by: none
+### a/mid
+- execution_mode: interactive
+- depends_on: a/gate
+- status: closed
+### a/leaf
+- execution_mode: interactive
+- depends_on: a/mid
+- status: open · next: exec — x · blocked_by: none
+### a/note
+- execution_mode: interactive
+- depends_on: a/gate (see note)
+- status: open · next: exec — x · blocked_by: none
+### a/dbl
+- execution_mode: interactive
+- depends_on: a/gate (stage: plan) (stage: implement)
+- status: open · next: exec — x · blocked_by: none
+### a/x(v2)
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D6
+### a/dep
+- execution_mode: interactive
+- depends_on: a/x(v2)
+- status: open · next: exec — x · blocked_by: none
+## Decision stream
+- D5 proposed 2026-08-03 — Five.
+- D5a proposed 2026-08-04 — Five a.
+- D6 proposed 2026-08-05 — Six.
+DOC
+OUT="$("$SCRIPT" h2 2>/dev/null)"
+assert_contains "$OUT" "| D5a | a/gate, a/direct |" "letter-suffixed id is cited; blocks only live holders, not through a closed Target"
+assert_contains "$OUT" "| D5 | a/g2 |" "D5 is not matched by D5a or D5ab"
+assert_contains "$OUT" "| D6 | a/x(v2), a/dep |" "Target id containing parentheses resolves"
+assert_contains "$OUT" "**Open proposals:** D5 (blocking), D5a (blocking), D6 (blocking)" "letter-suffixed blocking ids marked"
+assert_contains "$OUT" "| a/leaf | a/mid (closed) |" "closed dependency worded closed"
+assert_contains "$OUT" "| a/note | a/gate (see note) (not found) |" "note-suffixed edge is not found"
+assert_contains "$OUT" "| a/dbl | a/gate (stage: plan) (stage: implement) (not found) |" "double stage edge is not found"
+assert_eq "a/gate,a/x(v2),a/g2,a/g3,a/direct,a/leaf,a/note,a/dbl,a/dep," "$(printf '%s\n' "$OUT" | sed -n '/^\*\*Blocked\*\*/,/^\*\*Open/p' | grep '^| a/' | cut -d' ' -f2 | tr '\n' ,)" "hold-up counts skip closed and not-found edges"
+
+cat > "$MEM/initiatives/unk2.md" <<'DOC'
+---
+kind: initiative
+slug: unk2
+status: active
+created: 2026-08-14
+topics: [a]
+---
+# Unk2
+## Targets
+### ghost/x
+- execution_mode: software_adw
+- task: t-1
+- stages: plan -> implement
+- depends_on: none
+### ghost/y
+- execution_mode: interactive
+- depends_on: ghost/x
+- status: open · next: exec — x · blocked_by: none
+## Decision stream
+DOC
+OUT="$("$SCRIPT" unk2)"
+assert_contains "$OUT" "| ghost/y | ghost/x (stage unknown) |" "wording: at unknown -> stage unknown"
+
+cat > "$MEM/initiatives/w3.md" <<'DOC'
+---
+kind: initiative
+slug: w3
+status: active
+created: 2026-08-14
+---
+# W3
+## Targets
+### a/g
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D84
+### a/w
+- execution_mode: interactive
+- depends_on: a/g, needs pilot sign-off
+- status: open · next: exec — x · blocked_by: none
+### a/both
+- execution_mode: interactive
+- depends_on: a/w
+- status: open · next: exec — x · blocked_by: none
+### a/sg
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D85
+### a/odd
+- execution_mode: interactive
+- depends_on: a/sg (stage: b (stage: c)
+- status: open · next: exec — x · blocked_by: none
+### a/up
+- execution_mode: interactive
+- depends_on: none
+- status: blocked · next: exec — wait · blocked_by: needs D86A
+## Decision stream
+- D84 proposed 2026-08-05 — Gate.
+- D85 proposed 2026-08-05 — Gate two.
+- D86 proposed 2026-08-05 — Gate three.
+DOC
+OUT="$("$SCRIPT" w3 2>/dev/null)"
+assert_contains "$OUT" "| a/w | a/g (blocked), needs pilot sign-off (not found) |" "free-text needs piece is its own entry"
+assert_contains "$OUT" "| D84 | a/g, a/w, a/both |" "free-text needs edge does not break the hold-up graph"
+assert_eq "a/g,a/w,a/sg,a/both,a/odd,a/up," "$(printf '%s\n' "$OUT" | sed -n '/^\*\*Blocked\*\*/,/^\*\*Open/p' | grep '^| a/' | cut -d' ' -f2 | tr '\n' ,)" "sort counts a/g as holding up two"
+assert_contains "$OUT" "| D85 | a/sg, a/odd |" "nested (stage: id resolves like the status script"
+assert_not_contains "$OUT" "D86 |" "uppercase letter suffix is not a decision token"
+assert_not_contains "$OUT" "(at " "no (at ) wording with free-text needs edge"
 
 # Pipes already escaped in the source are not escaped twice.
 cat > "$MEM/initiatives/pipe.md" <<'DOC'
@@ -365,6 +656,27 @@ cp "$MEM/initiatives/nonl.md" "$MEM/nonl.w1"
 cp "$MEM/full.orig" "$MEM/initiatives/intr.md"; sed -i.bak 's/slug: full/slug: intr/' "$MEM/initiatives/intr.md"; rm -f "$MEM/initiatives/intr.md.bak"
 ( "$SCRIPT" intr --write & p=$!; kill -TERM "$p" 2>/dev/null; wait "$p" 2>/dev/null ) >/dev/null 2>&1
 assert_eq "0" "$(find "$MEM/initiatives" -name '*.tmp.*' | wc -l | tr -d '[:space:]')" "no leftover temp file after TERM"
+
+# The template's hand-written Now fence equals the renderer's all-empty output.
+cat > "$MEM/initiatives/alldone.md" <<'DOC'
+---
+kind: initiative
+slug: alldone
+status: active
+created: 2026-08-14
+---
+# All done
+
+## Targets
+### alpha/finished
+- execution_mode: interactive
+- status: done
+DOC
+fence_body() { sed -n '/^<!-- BEGIN AUTOGEN initiative-render:now -->$/,/^<!-- END AUTOGEN initiative-render:now -->$/p' "$1"; }
+"$SCRIPT" alldone > "$MEM/alldone.render"
+fence_body "$MEM/alldone.render" > "$MEM/alldone.now"
+fence_body "$SCRIPTS_DIR/../initiatives/_template.md" > "$MEM/template.now"
+cmp -s "$MEM/alldone.now" "$MEM/template.now"; assert_exit 0 $? "_template.md Now fence equals the renderer's all-empty Now output"
 
 # Usage / errors.
 "$SCRIPT" >/dev/null 2>&1; assert_exit 2 $? "no slug is usage error"
