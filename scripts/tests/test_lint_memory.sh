@@ -717,6 +717,14 @@ rm -rf "$MI14"
 
 # --- software_adw Targets may omit an asserted status entirely; interactive ones may not ---
 MI15="$(new_sandbox)"; export MEMORY_DIR="$MI15"; build_clean "$MI15"
+ins_targets "$MI15/initiatives/clean-initiative.md" <<'EOF'
+
+### good/dispatch
+- execution_mode: software_adw
+- stages: plan -> implement
+- depends_on: none
+EOF
+rerender "$MI15"
 run_lint
 assert_exit 0 "$CODE" "software_adw Target with no status line passes"
 assert_not_contains "$OUT" "status" "software_adw Target with no status does not warn"
@@ -787,6 +795,14 @@ rm -rf "$MI19"
 # --- rule 14: a Target asserting no status line at all is undeclared, not
 #     live — exempt. This is the shape of software_adw dispatch Targets. ---
 MI20="$(new_sandbox)"; export MEMORY_DIR="$MI20"; build_clean "$MI20"
+ins_targets "$MI20/initiatives/clean-initiative.md" <<'EOF'
+
+### good/dispatch
+- execution_mode: software_adw
+- stages: plan -> implement
+- depends_on: none
+EOF
+rerender "$MI20"
 run_lint
 assert_exit 0 "$CODE" "Target with no status line and no task keeps lint clean"
 assert_not_contains "$OUT" "has no task" "statusless Target does not warn"
@@ -1939,6 +1955,35 @@ for n in clean pre finished baseok fenced fencelf fencecrlf legacy; do
 done
 assert_eq "0" "$(printf '%s\n' "$OUT" | grep -F 'plan-contract:' | grep -vc '^plan-contract: ')" "every plan-contract finding line starts with the prefix"
 rm -rf "$MP"
+
+# --- R6: an open Target whose only unsatisfied edges are `not found` is not told to block ---
+MNF="$(new_sandbox)"; export MEMORY_DIR="$MNF"; build_clean "$MNF"
+ins_targets "$MNF/initiatives/clean-initiative.md" <<'EOF'
+
+### good/only-missing
+- execution_mode: interactive
+- task: 70000000-0000-4000-8000-000000000001
+- depends_on: good/nope
+- status: open · next: exec — build · blocked_by: none
+
+### good/missing-and-open
+- execution_mode: interactive
+- task: 70000000-0000-4000-8000-000000000002
+- depends_on: good/nope, good/open-dep
+- status: open · next: exec — build · blocked_by: none
+
+### good/open-dep
+- execution_mode: interactive
+- task: 70000000-0000-4000-8000-000000000003
+- depends_on: none
+- status: open · next: exec — build · blocked_by: none
+EOF
+rerender "$MNF"
+run_lint
+assert_contains "$OUT" "good/only-missing' depends_on unresolved Target id 'good/nope'" "only-not-found: the unresolved depends_on WARN is present"
+assert_not_contains "$OUT" "good/only-missing: status open but" "only-not-found: no set-status-blocked WARN"
+assert_contains "$OUT" "good/missing-and-open: status open but depends_on is unsatisfied" "mixed not-found and open edge is flagged"
+rm -rf "$MNF"
 
 # === R6: a `status: open` Target whose depends_on the status script reports unsatisfied ===
 MD="$(new_sandbox)"; MDR="$(new_sandbox)"; export MEMORY_DIR="$MD" AI_MEMORY_PROJECTS_ROOT="$MDR"

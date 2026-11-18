@@ -212,10 +212,10 @@ becomes `\|` (an already escaped `\|` stays).
   - Blocked is the same with `| Target | Blocked by |`. Rows are sorted by how
     many non-terminal Targets each holds up, directly or transitively through
     `depends_on`, most first; ties stay in Target order. Hold-up does not pass
-    through a `done`/`closed` Target, and a `(not found)` edge holds nothing
+    through a `done`/`closed`/`complete` Target, and a `(not found)` edge holds nothing
     up.
   - Decisions needed is the same with `| Decision | Blocks |`. It lists each
-    `proposed` decision whose D-id (`D12`, or `D6b` with a lowercase letter)
+    `proposed` decision, in decision-stream order, whose D-id (`D12`, or `D6b` with a lowercase letter)
     appears in the `blocked_by` of a non-terminal Target. Each row is
     `| <D-id> | <Targets> |`: the Targets that cite it plus every non-terminal
     Target they hold up, in Target order, joined with `, `. A D-id that is not
@@ -307,7 +307,8 @@ uses, so the two cannot drift:
   (or no `envs:` list); an open/blocked Target with no `task:`; a status over
   300 characters; `next:` with no ` — ` action; a `status: open` Target whose
   `depends_on` is unsatisfied (the status script decides: a `closed`
-  dependency never satisfies; set `status: blocked`); stale or missing generated
+  dependency never satisfies; set `status: blocked`; not raised when every
+  unsatisfied edge names no Target, which the `depends_on` check reports); stale or missing generated
   fences; decision-stream shape (malformed head, bad status, `proposed`
   without `unconfirmed:`, topic outside `topics:`, missing topic, missing
   forward pointer, dangling pointer, AMENDS/SUPERSEDES naming no id).
