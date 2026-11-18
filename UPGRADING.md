@@ -173,9 +173,11 @@ What changes in an initiative file:
   `- status: <open|blocked|done|closed> · next: <session — action> · blocked_by: <…|none>`
   (`done` / `closed` may stand alone). The Target's description moves to its own
   `- scope:` line. `- next_actor:` is gone.
-- Finished Targets are rows of a `### Closed` table at the end of `## Targets`:
-  `| <id> | <closed date> | <jira> | <outcome> |`. They count as done, and
-  `depends_on` edges to them still resolve.
+- Finished (`done`) Targets are rows of a `### Closed` table at the end of
+  `## Targets`: `| <id> | <closed date> | <jira> | <outcome> |`. A row counts as
+  `done`: `depends_on` edges to it resolve and are satisfied. An abandoned
+  Target is never a row: it keeps its heading with `- status: closed`, and a
+  dependency on it is never satisfied.
 - Progress history lives in `initiatives/logs/<slug>.md`, append-only, with
   dated entries tagged by Target id.
 - `initiative-render.sh <slug> --write` keeps three generated blocks in the file:
@@ -200,16 +202,24 @@ active and closed (not `_template.md`, symlinks, `archive/`, `logs/` or
   before the next `Progress:` / `Was:`, before a sentence that opens with a
   label, or at the end. A label is `. ` followed by a capitalised word, up to
   three more lower-case words (each optionally after a comma) and a colon,
-  `[A-Z][a-z]+(,? [a-z]+){0,3}:`: `Remaining:`, `Next, in eks:`, `Seed:`,
+  `[A-Z][a-z]+(,? [a-z]+){0,3}:`: `Remaining:`, `Next, in repo:`, `Seed:`,
   `Earlier:` end a segment; `P2 done 2026-11-16:` and a lower-case `next:` do
   not. Text after a label stays in `scope:` (the remaining pieces are joined
   with one space). Every `next_actor:` line is removed; the first one's value
   becomes `next:`, and when a Target has more than one, all of them go to the
   log. Every other Target line stays as written.
-- A `done` / `closed` Target collapses into a Closed row (the date from
-  `<state> <date>` when present, else `-`; the `jira:` value; outcome
-  `see log`). Its whole original block goes to the log verbatim. This includes
-  a new-format `done` / `closed` Target that still has a `next_actor:` line.
+- A `done` Target collapses into a Closed row (the date from `done <date>`
+  when present, else `-`; the `jira:` value; outcome `see log`), under the
+  header `| id | closed | jira | outcome |` when the migration creates the
+  table. Its whole original block goes to the log verbatim. This includes a
+  new-format `done` Target that still has a `next_actor:` line.
+- A `closed` (abandoned) Target is not collapsed, because a Closed row counts
+  as done and would unblock its dependents. An old `closed[ <date>] — <prose>`
+  status is converted like an open one but keeps its state: the prose (minus
+  `Progress:` / `Was:` segments) moves to `- scope:`, the status becomes
+  `- status: closed`, and every `next_actor:` line moves to the log. A
+  new-format `closed` Target only loses its `next_actor:` line(s) to the log.
+  Its dependents stay unsatisfied, as before the migration.
 - A Target without a status (allowed for `software_adw`) keeps none; its
   `next_actor:` line moves to the log.
 - Log entries read `## <date> — <target-id> (migrated by 3.0.0)` in
@@ -240,6 +250,12 @@ The staleness snapshot (`.state/<slug>.snapshot`) is left alone; a collapsed
   refuses the file until you fix it. Then run
   `bash scripts/initiative-render.sh <slug> --write`.
 - `fences skipped` when the rewritten file still does not parse.
+- `<file>:<line>: status does not match the 3.0.0 grammar; fix by hand (lint ERRORs it)`
+  for a file it does not rewrite (no `next_actor:` line, no old-shape status)
+  whose statuses break the new grammar, such as `- status: blocked on vendor
+  reply`. That file is left byte-identical, with no backup and no log; the line
+  number is the file's own. `lint-memory.sh` ERRORs the line and
+  `initiative-status.sh` refuses the file until you fix it.
 - `note: … SUPERSEDES D<n>, which names a malformed head (left unedited)` when
   the superseded entry's head does not parse, so no pointer was added.
 

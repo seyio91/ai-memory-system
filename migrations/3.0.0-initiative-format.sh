@@ -18,24 +18,33 @@
 #     `Was:`; a label opening a sentence, i.e. `. ` followed by a capitalised
 #     word, at most three more lower-case words (each optionally after a comma)
 #     and a colon, matching `[A-Z][a-z]+(,? [a-z]+){0,3}:` (`Remaining:`,
-#     `Next, in eks:`, `Seed:`, `Earlier:`; not `P2 done 2026-11-16:`); or the
+#     `Next, in repo:`, `Seed:`, `Earlier:`; not `P2 done 2026-11-16:`); or the
 #     end. Segments go to the log; the rest of the prose (the pieces before,
 #     between and after them, each trimmed, joined by one space) is scope.
 #     Every `- next_actor:` line is removed; with more than one, all of them
 #     also go to the log. Every other line stays as written.
-#   - a status whose first token is done/closed collapses into a row
-#       | <id> | <date from `<state> <date>`, else -> | <jira: or -> | see log |
-#     of the `### Closed` table at the end of `## Targets` (created when absent);
-#     the whole Target block (heading to its last non-blank line) goes to the
-#     log verbatim. This includes a new-format done/closed status with a stray
-#     `- next_actor:` line.
-#   - an open/blocked Target with a new-format status, or a Target with none,
+#   - old `closed[ <date>][ (…)] — <prose>` (abandoned) is converted the same
+#     way but keeps its heading and state: `- scope:` as above, then
+#     `- status: closed` (terminal, standalone); every `- next_actor:` line
+#     goes to the log. It is NOT collapsed: a Closed row reads as done and
+#     would satisfy its dependents, which must stay unsatisfied.
+#   - a status whose first token is done collapses into a row
+#       | <id> | <date from `done <date>`, else -> | <jira: or -> | see log |
+#     of the `### Closed` table at the end of `## Targets` (created when absent,
+#     header `| id | closed | jira | outcome |`); the Closed table holds done
+#     Targets only. The whole Target block (heading to its last non-blank line)
+#     goes to the log verbatim. This includes a new-format done status with a
+#     stray `- next_actor:` line.
+#   - a Target with a new-format status (open, blocked or closed), or with none,
 #     only loses its next_actor line(s), which go to the log.
 #   - any other status (state outside open|blocked|done|closed, an unparsed
 #     middle, more than one `- status:` line) leaves the whole Target
 #     byte-identical and is reported.
 #   In a migrated file a Target that is not old but whose status breaks the
 #   grammar (e.g. `done (no dash)`) is reported too, and left as written.
+#   A file with no old Target is not rewritten (no backup, no log), but each
+#   status in it that breaks the new grammar is still reported:
+#     <file>:<line>: status does not match the 3.0.0 grammar; fix by hand (lint ERRORs it)
 #   Reported line numbers are those of the rewritten file.
 # Then: `topics: []` is added to frontmatter when absent; for every
 # `SUPERSEDES <id>` continuation under entry X, a `→ X` forward pointer is added
@@ -227,7 +236,10 @@ END {
         }
         old = 1
         w = st ? BS_TXT[k] : ""; sub(/[ \t].*$/, "", w)
-        if (st && w ~ /^(done|closed)([^A-Za-z0-9_-]|$)/) {
+        # Only a finished (done) Target collapses into a Closed row: a Closed row
+        # reads as done and satisfies dependencies. An abandoned (closed) one
+        # keeps its heading, so its dependents stay unsatisfied.
+        if (st && w ~ /^done([^A-Za-z0-9_-]|$)/) {
             BK[k] = "collapse"
             r = BS_TXT[k]; sub(/^[a-z]+[ \t]*/, "", r)
             d = substr(r, 1, 10); if (substr(r, 1, 1) == "(") d = substr(r, 2, 10)
@@ -252,7 +264,15 @@ END {
             BK[k] = "unmatched"; BWHY[k] = "status is not `<open|blocked|done|closed> — prose` or the new grammar"
         }
     }
-    if (!old) { ctl("S\tnew-format"); exit }
+    if (!old) {
+        # Not rewritten, but a status that breaks the new grammar is reported
+        # (input line numbers: the file is left byte-identical).
+        for (k = 1; k <= nb; k++) if (BK[k] == "badnew") {
+            if (BNST[k] > 1) { for (t = 1; t <= BNST[k]; t++) ctl("B\t" STL[k, t]) }
+            else ctl("B\t" BST[k])
+        }
+        ctl("S\tnew-format"); exit
+    }
 
     # Plan the rewrite.
     nconv = 0; ncol = 0; nrows = 0
@@ -283,10 +303,13 @@ END {
             nx = ""
             if (BNA[k]) { nx = L[BNA[k]]; sub(/^- next_actor:/, "", nx); nx = trim(nx) }
             if (nx == "" || tolower(nx) == "none") nx = "none"
-            ns = "- status: " BW[k] mid "next: " nx mid "blocked_by: none" (CRL[BST[k]] ? "\r" : "")
+            # closed (abandoned) is terminal: it stands alone, and every
+            # next_actor line goes to the log.
+            if (BW[k] == "closed") ns = "- status: closed" (CRL[BST[k]] ? "\r" : "")
+            else ns = "- status: " BW[k] mid "next: " nx mid "blocked_by: none" (CRL[BST[k]] ? "\r" : "")
             sc = BSCOPE[k]; segs = BSEG[k]
             if (sc != "" && BSC[k]) { segs = "scope (Target already had a scope: line): " sc (segs == "" ? "" : "\n\n" segs); sc = "" }
-            if (NNA[k] > 1) segs = nalines (segs == "" ? "" : "\n\n" segs)
+            if (NNA[k] > 1 || (NNA[k] && BW[k] == "closed")) segs = nalines (segs == "" ? "" : "\n\n" segs)
             if (sc != "") ns = "- scope: " sc (CRL[BST[k]] ? "\r" : "") "\n" ns
             REPL[BST[k]] = ns
             if (segs != "") logent(BID[k], segs)
@@ -339,7 +362,7 @@ END {
         if (i in REPL) { cnt = split(REPL[i], rl, "\n"); for (t = 1; t <= cnt; t++) emit(rl[t]); continue }
         emit(L[i] (CRL[i] ? "\r" : "")); OUTLN[i] = OUTN
         if (i == closed_after) {
-            if (NEEDHDR) { emit("" crs()); emit("| Target | Closed | Jira | Outcome |" crs()); emit("|---|---|---|---|" crs()) }
+            if (NEEDHDR) { emit("" crs()); emit("| id | closed | jira | outcome |" crs()); emit("|---|---|---|---|" crs()) }
             for (t = 1; t <= nrows; t++) emit(ROW[t] crs())
         }
     }
@@ -356,7 +379,7 @@ END {
 function closed_block(   t) {
     if (OUTN && OUT[OUTN] !~ /^\r?$/) emit("" crs())
     emit("### Closed" crs()); emit("" crs())
-    emit("| Target | Closed | Jira | Outcome |" crs()); emit("|---|---|---|---|" crs())
+    emit("| id | closed | jira | outcome |" crs()); emit("|---|---|---|---|" crs())
     for (t = 1; t <= nrows; t++) emit(ROW[t] crs())
     if (t_end <= n) emit("" crs())
 }
@@ -397,6 +420,7 @@ $AWK_PROG" "$f" > "$tmp"; then
     fi
 
     if awk -F'\t' '$1 == "S" { f = 1 } END { exit !f }' "$ctl"; then
+        awk -F'\t' -v f="$f" '$1 == "B" { printf "3.0.0: %s:%s: status does not match the 3.0.0 grammar; fix by hand (lint ERRORs it)\n", f, $2 }' "$ctl"
         rm -f "$tmp" "$ctl" "$lg"; tmp="" ctl="" lg=""
         continue
     fi

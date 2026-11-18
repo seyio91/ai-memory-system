@@ -46,8 +46,9 @@ meaning of the Target. `stages:` only for `execution_mode: software_adw`.
 `status:` is required for interactive Targets and optional for software_adw
 (stage derived). Grammar:
 `status: <open|blocked|done|closed> · next: <session — action> · blocked_by: <…|none>`
-(`done`/`closed` stand alone). Finished Targets move to the `### Closed` table
-below, the only non-Target heading allowed. Regenerate the `## Now` /
+(`done`/`closed` stand alone). Finished (`done`) Targets move to the
+`### Closed` table below, the only non-Target heading allowed; an abandoned
+Target keeps its heading with `status: closed` and never satisfies a dependency. Regenerate the `## Now` /
 `## Environment matrix` / `## Current rules` fences with
 `initiative-render.sh <slug> --write`, or edit them by hand following the
 Two-Path rules in `docs/initiatives.md`. The example is indented so lint ignores
@@ -61,7 +62,7 @@ it; real Target sections start at column 0.>
     - depends_on: <target-id> (stage: <stage>) | <target-id> | none
     - status: open · next: <session> — <action> · blocked_by: none
 
-Closed Targets (terminal `done`) go in a `### Closed` table at the end of this
+Finished Targets (terminal `done`, never abandoned `closed` ones) go in a `### Closed` table at the end of this
 section. The example is fenced so lint ignores it; a real table is not fenced.
 
 ```markdown

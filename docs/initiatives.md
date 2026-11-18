@@ -61,8 +61,8 @@ characters); put prose in `scope:` or the progress log.
 
 A terminal status (`done` or `closed`, in any `execution_mode`) short-circuits
 derivation entirely: no plan lookup, no checkout resolution. Once a Target is
-finished, move it into the `### Closed` table, the only non-Target heading
-allowed under `## Targets`:
+finished (`done`), move it into the `### Closed` table, the only non-Target
+heading allowed under `## Targets`. The table holds `done` Targets only:
 
 ```markdown
 ### Closed
@@ -73,7 +73,9 @@ allowed under `## Targets`:
 ```
 
 A Closed row is a terminal `done` Target: `depends_on` can still name it and
-it satisfies the dependency. `lint-memory.sh` checks these structural rules and
+it satisfies the dependency. An abandoned Target is not a Closed row: it keeps
+its `### ` heading with `- status: closed`, and it never satisfies a
+dependency, so its dependents stay blocked until they are re-planned. `lint-memory.sh` checks these structural rules and
 that dependency ids resolve to a heading or a Closed row.
 
 ### Decision stream

@@ -7,5 +7,7 @@
   `## Current rules` are generated into fences by `initiative-render.sh --write`, and the
   progress log lives at `initiatives/logs/<slug>.md`, moving to `initiatives/archive/logs/`
   on close. The old format is no longer parsed: `lint-memory.sh` reports an ERROR and
-  `initiative-status.sh` refuses the file. The 3.0.0 migration rewrites existing
-  initiatives; see UPGRADING.md.
+  `initiative-status.sh` refuses the file. A duplicate Target id is now an ERROR (was a
+  WARN), and an interactive Target with no status is an ERROR that `initiative-status.sh`
+  also refuses. The 3.0.0 migration rewrites existing initiatives; an abandoned (`closed`)
+  Target keeps its heading and never satisfies a dependency; see UPGRADING.md.

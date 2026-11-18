@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Sandbox test for migrations/3.0.0-initiative-format.sh. Fixtures are modelled
-# on real vault-eks shapes. MIGRATION_3_0_0 points the test at a mutated copy
-# for mutation proofs.
+# Sandbox test for migrations/3.0.0-initiative-format.sh. Fixtures are
+# synthetic; they keep the shapes the migration handles (long prose,
+# Progress:/Was: segments, sentence labels, next_actor actions, #123 refs).
+# MIGRATION_3_0_0 points the test at a mutated copy for mutation proofs.
 . "$(dirname "$0")/_assert.sh"
 set -euo pipefail
 
@@ -87,8 +88,8 @@ Jira: epic ABC-1; every ticket maps to a Target jira: line.
 - execution_mode: interactive
 - task: beta-workspaces
 - depends_on: alpha/proof
-- next_actor: inception (project session) — P4 non-prod/prod/cde per the runbook, after each env's Vault is initialised
-- status: open — Okta OIDC app per environment with group gating (no CLI callback, D1)
+- next_actor: builder (project session) — P4 dev/test/live per the runbook, after each env's store is seeded
+- status: open — login app per environment with role gating (no CLI callback, D1)
 
 ### beta/config
 - execution_mode: interactive
@@ -180,7 +181,7 @@ topics: [infra]
 - execution_mode: interactive
 - depends_on: none
 - next_actor: none
-- status: closed 2026-09-30 — abandoned after the spike
+- status: done 2026-09-30 — shipped after the spike
 
 ### Closed
 
@@ -195,7 +196,7 @@ IN
 printf '# Progress log — shut\n\n## 2026-09-15 — eps/one\n\nhand entry\n' > "$I/logs/shut.md"
 cp "$I/logs/shut.md" "$ROOT/shutlog.orig"
 
-# --- two next_actor lines; labels that end a Progress segment (live shapes) ------
+# --- two next_actor lines; labels that end a Progress segment -----------------
 cat > "$I/multi.md" <<'IN'
 ---
 kind: initiative
@@ -212,16 +213,16 @@ created: 2026-10-07
 - execution_mode: interactive
 - task: zeta-two
 - depends_on: none
-- next_actor: inception (project session) — P4 per the runbook
+- next_actor: builder (project session) — P4 per the runbook
 - next_actor: orchestrator (project session)
-- status: open — Okta app per environment (D1). Progress: staging P1 done 2026-11-16 (inception#2259 merged). Next, in eks: write the root beside that `backend.tf`. Admin sets temporary `VAULT_TOKEN`. P2 done 2026-11-16: variable set moved. Remaining: P4 non-prod/prod/cde under each env's deploy ticket
+- status: open — login app per environment (D1). Progress: staging P1 done 2026-11-16 (toolbox#123 merged). Next, in repo: write the root beside that `backend.tf`. Admin sets temporary `API_TOKEN`. P2 done 2026-11-16: variable set moved. Remaining: P4 dev/test/live under each env's deploy ticket
 
 ### zeta/addon
 - execution_mode: interactive
 - task: zeta-addon
 - depends_on: none
 - next_actor: orchestrator (project session)
-- status: open — staging port. Progress: P1 merged; P2 merged. Staging port complete; next: non-prod/prod/cde. Seed: k8s-addons investigation `vault-addon-estate-port`.
+- status: open — staging port. Progress: P1 merged; P2 merged. Staging port complete; next: dev/test/live. Seed: tooling investigation `widget-port-notes`.
 
 ## Closure
 
@@ -229,11 +230,65 @@ Open.
 
 ## Decision stream
 
-- D1 confirmed 2026-10-01 — Okta app per environment.
+- D1 confirmed 2026-10-01 — Login app per environment.
   evidence: user 2026-10-01
 IN
 cp "$I/multi.md" "$ROOT/multi.orig"
 chmod 640 "$I/multi.md"
+
+# --- an abandoned (closed) Target with a dependent; a done Target beside it -----
+cat > "$I/aband.md" <<'IN'
+---
+kind: initiative
+slug: aband
+status: active
+created: 2026-10-07
+---
+
+# Aband
+
+## Targets
+
+### eta/spike
+- jira: ETA-1
+- execution_mode: interactive
+- depends_on: none
+- next_actor: builder (project session) — write up the spike
+- status: closed 2026-10-20 — abandoned; the approach did not scale. Progress: P1 prototype merged (toolbox#123). Remaining: nothing
+
+### eta/build
+- execution_mode: interactive
+- depends_on: eta/spike
+- next_actor: orchestrator (project session)
+- status: open — build on the spike result
+
+### eta/docs
+- jira: ETA-3
+- execution_mode: interactive
+- depends_on: none
+- next_actor: none
+- status: done 2026-10-21 — written
+
+### eta/retired
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: closed
+
+### eta/after
+- execution_mode: interactive
+- depends_on: eta/docs, eta/retired
+- status: open · next: human — check · blocked_by: none
+
+## Closure
+
+Open.
+
+## Decision stream
+
+- D1 confirmed 2026-10-01 — Spike first.
+  evidence: user 2026-10-01
+IN
 
 # --- things that must not be touched -------------------------------------------
 cp "$ROOT/old.orig" "$I/_template.md"
@@ -256,7 +311,7 @@ assert_contains "$out" "backup: $I/.state/old.pre-3.0.0.md" "backup is reported"
 
 # Open Targets: scope + one-line status, next_actor removed
 assert_contains "$body" $'- task: port-beta-addon\n- depends_on: alpha/proof, alpha/naming\n- scope: staging DONE 2026-11-17 (P1–P7 verified; ABC-20 closeable); non-prod ports next (ABC-21/22, notify per D2).\n- status: open · next: orchestrator (project session) · blocked_by: none\n' "open status: prose to scope minus Progress/Was, next from next_actor"
-assert_contains "$body" $'- scope: Okta OIDC app per environment with group gating (no CLI callback, D1)\n- status: open · next: inception (project session) — P4 non-prod/prod/cde per the runbook, after each env\'s Vault is initialised · blocked_by: none\n' "next_actor with an action carries into next:"
+assert_contains "$body" $'- scope: login app per environment with role gating (no CLI callback, D1)\n- status: open · next: builder (project session) — P4 dev/test/live per the runbook, after each env\'s store is seeded · blocked_by: none\n' "next_actor with an action carries into next:"
 assert_contains "$body" $'- task: beta-config-root\n- scope: (staging) — waiting on beta/addon; owner to confirm\n- status: blocked · next: none · blocked_by: none\n' "next_actor none -> next: none; (…) middle kept in scope"
 assert_not_contains "$(sed '/^```/,/^```/d' "$got")" "next_actor" "no next_actor line left outside fences"
 assert_contains "$body" $'### gamma/pipeline\n- execution_mode: software_adw\n- task: gamma-pipeline\n- depends_on: gamma/old-build\n\n' "software_adw Target with no status stays without status"
@@ -271,7 +326,7 @@ assert_eq "2" "$(grep -c -x -- '### x/y' "$got")" "fenced '### x/y' lines untouc
 assert_contains "$body" $'```text\n### x/y\n- status: open — x\n- next_actor: human\n```' "fenced block in Objective byte-identical"
 
 # Closed rows; collapsed blocks verbatim in the log
-assert_contains "$body" $'### Closed\n\n| Target | Closed | Jira | Outcome |\n|---|---|---|---|\n| alpha/proof | 2026-10-19 | ABC-10, ABC-11 (container ABC-1) | see log |\n| alpha/naming | - | ABC-12 | see log |\n| gamma/old-build | - | - | see log |\n\n## Closure' "Closed table at the end of Targets with date, jira and see log"
+assert_contains "$body" $'### Closed\n\n| id | closed | jira | outcome |\n|---|---|---|---|\n| alpha/proof | 2026-10-19 | ABC-10, ABC-11 (container ABC-1) | see log |\n| alpha/naming | - | ABC-12 | see log |\n| gamma/old-build | - | - | see log |\n\n## Closure' "Closed table at the end of Targets with date, jira and see log"
 assert_not_contains "$body" "### alpha/proof" "collapsed Target heading removed"
 blk="$(sed -n '/^### alpha\/proof$/,/^- status:/p' "$ROOT/old.orig")"
 assert_contains "$logbody" $'## 2026-11-17 — alpha/proof (migrated by 3.0.0)\n\n'"$blk"$'\n' "collapsed Target block goes to the log verbatim"
@@ -343,6 +398,31 @@ assert_eq "1" "$(grep -c '^topics:' "$I/shut.md")" "existing topics: kept, not d
 assert_eq "$(cat "$ROOT/shutlog.orig")" "$(head -n "$(wc -l < "$ROOT/shutlog.orig")" "$I/logs/shut.md")" "existing log bytes kept as prefix (append-only)"
 assert_contains "$(cat "$I/logs/shut.md")" "## 2026-11-17 — eps/one (migrated by 3.0.0)" "existing log gets the new entry"
 
+# Abandoned (closed) Target: keeps its heading with a standalone closed status,
+# is not a Closed row, and does not satisfy its dependent; done still collapses
+ab="$(cat "$I/aband.md")"; al="$(cat "$I/logs/aband.md")"
+assert_contains "$ab" $'### eta/spike\n- jira: ETA-1\n- execution_mode: interactive\n- depends_on: none\n- scope: 2026-10-20 — abandoned; the approach did not scale. Remaining: nothing\n- status: closed\n' "abandoned Target keeps its heading; scope gets the prose; status: closed stands alone"
+assert_not_contains "$ab" "| eta/spike |" "abandoned Target is not a Closed row"
+assert_contains "$ab" $'### Closed\n\n| id | closed | jira | outcome |\n|---|---|---|---|\n| eta/docs | 2026-10-21 | ETA-3 | see log |\n' "done Target still collapses into the Closed table"
+assert_not_contains "$ab" "### eta/docs" "done Target heading removed"
+assert_contains "$ab" $'### eta/retired\n- execution_mode: interactive\n- depends_on: none\n- status: closed\n' "new-format closed Target with a stray next_actor keeps its heading"
+assert_not_contains "$ab" "| eta/retired |" "new-format closed Target is not a Closed row"
+assert_not_contains "$(sed '/^```/,/^```/d' "$I/aband.md")" "next_actor" "abandoned fixture: no next_actor line left"
+assert_contains "$al" $'## 2026-11-17 — eta/spike (migrated by 3.0.0)\n\n- next_actor: builder (project session) — write up the spike\n\nProgress: P1 prototype merged (toolbox#123).\n' "abandoned Target: its single next_actor line and Progress segment go to the log"
+assert_contains "$al" $'## 2026-11-17 — eta/retired (migrated by 3.0.0)\n\n- next_actor: human' "new-format closed Target: next_actor goes to the log"
+assert_contains "$out" "aband.md: 3 Target(s) converted, 1 collapsed into Closed rows, 3 log entr(ies)" "abandoned fixture counts reported"
+tsv="$(MEMORY_DIR="$M" bash "$REPO_ROOT/scripts/initiative-status.sh" --tsv aband 2>/dev/null)"; rc=$?
+assert_exit 0 "$rc" "initiative-status.sh accepts the migrated abandoned fixture"
+assert_eq "closed" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "eta/spike" { print $7 }')" "--tsv: abandoned Target state is closed"
+assert_eq "no" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "eta/build" { print $3 }')" "--tsv: dependent of the abandoned Target is unsatisfied"
+assert_eq "eta/spike (at closed)" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "eta/build" { print $6 }')" "--tsv: the unsatisfied edge names the abandoned Target"
+assert_eq "no" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "eta/after" { print $3 }')" "--tsv: a dependent of a new-format closed Target stays unsatisfied"
+assert_eq "eta/retired (at closed)" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "eta/after" { print $6 }')" "--tsv: the done edge is satisfied, the closed one is not"
+rnd="$(MEMORY_DIR="$M" bash "$REPO_ROOT/scripts/initiative-render.sh" aband 2>/dev/null)"
+assert_contains "$(printf '%s\n' "$rnd" | sed -n '/^\*\*Blocked\*\*/,$p')" "| eta/build |" "initiative-render.sh lists the dependent of the abandoned Target under Blocked"
+assert_not_contains "$(printf '%s\n' "$rnd" | sed -n '/^\*\*Ready\*\*/,/^\*\*Blocked/p')" "eta/build" "the dependent is not Ready"
+assert_contains "$out" "aband.md: fences written" "abandoned fixture gets its fences"
+
 # Skipped files
 assert_same "$ROOT/old.orig" "$I/_template.md" "_template.md untouched"
 assert_same "$ROOT/old.orig" "$I/archive/arch.md" "archive/ untouched"
@@ -362,12 +442,12 @@ assert_contains "$(cat "$odd")" $'\n- D1 confirmed 2026-10-01 (weird) — malfor
 # Two next_actor lines: first becomes next:, all go to the log, one run converges
 mb="$(cat "$I/multi.md")"; ml="$(cat "$I/logs/multi.md")"
 assert_not_contains "$mb" "next_actor" "every next_actor line removed"
-assert_contains "$mb" "- status: open · next: inception (project session) — P4 per the runbook · blocked_by: none" "first next_actor value becomes next:"
-assert_contains "$ml" $'## 2026-11-17 — zeta/two (migrated by 3.0.0)\n\n- next_actor: inception (project session) — P4 per the runbook\n- next_actor: orchestrator (project session)\n\nProgress: staging P1 done 2026-11-16 (inception#2259 merged).\n' "all next_actor lines and the Progress segment go to the log"
+assert_contains "$mb" "- status: open · next: builder (project session) — P4 per the runbook · blocked_by: none" "first next_actor value becomes next:"
+assert_contains "$ml" $'## 2026-11-17 — zeta/two (migrated by 3.0.0)\n\n- next_actor: builder (project session) — P4 per the runbook\n- next_actor: orchestrator (project session)\n\nProgress: staging P1 done 2026-11-16 (toolbox#123 merged).\n' "all next_actor lines and the Progress segment go to the log"
 # Labels end a Progress segment; the rest stays in scope
-assert_contains "$mb" "- scope: Okta app per environment (D1). Next, in eks: write the root beside that \`backend.tf\`. Admin sets temporary \`VAULT_TOKEN\`. P2 done 2026-11-16: variable set moved. Remaining: P4 non-prod/prod/cde under each env's deploy ticket" "'Next, in eks:' label ends the Progress segment; trailing prose and 'Remaining:' stay in scope"
-assert_contains "$mb" "- scope: staging port. Seed: k8s-addons investigation \`vault-addon-estate-port\`." "'Seed:' label ends the Progress segment"
-assert_contains "$ml" $'Progress: P1 merged; P2 merged. Staging port complete; next: non-prod/prod/cde.' "a lower-case 'next:' inside a sentence does not end the segment"
+assert_contains "$mb" "- scope: login app per environment (D1). Next, in repo: write the root beside that \`backend.tf\`. Admin sets temporary \`API_TOKEN\`. P2 done 2026-11-16: variable set moved. Remaining: P4 dev/test/live under each env's deploy ticket" "'Next, in repo:' label ends the Progress segment; trailing prose and 'Remaining:' stay in scope"
+assert_contains "$mb" "- scope: staging port. Seed: tooling investigation \`widget-port-notes\`." "'Seed:' label ends the Progress segment"
+assert_contains "$ml" $'Progress: P1 merged; P2 merged. Staging port complete; next: dev/test/live.' "a lower-case 'next:' inside a sentence does not end the segment"
 lost=""
 while IFS= read -r line; do
     for w in $line; do
@@ -468,6 +548,46 @@ assert_not_contains "$gb" "- status: open 2026-11-16" "dated middle: old status 
 assert_contains "$gb" "- scope: 2026-11-16" "dated middle: date carried into scope"
 assert_not_contains "$gb" "- status: open (asserted) " "(...) middle: old status line converted"
 assert_contains "$gb" "- scope: (asserted) — prose" "(...) middle: kept in scope"
+
+# A file with only grammar errors (no next_actor, no old-shape status) is not
+# rewritten, but each offending status is reported with its line number
+Q="$ROOT/gramonly"; mkdir -p "$Q/initiatives"
+cat > "$Q/initiatives/gram.md" <<'IN'
+---
+kind: initiative
+slug: gram
+status: active
+created: 2026-10-07
+topics: []
+---
+
+# Gram
+
+## Targets
+
+### q/fine
+- execution_mode: interactive
+- depends_on: none
+- status: open · next: human — check · blocked_by: none
+
+### q/vendor
+- execution_mode: interactive
+- depends_on: none
+- status: blocked on vendor reply
+
+## Closure
+
+Open.
+IN
+cp "$Q/initiatives/gram.md" "$ROOT/gram.orig"
+rc=0; qout="$(MEMORY_DIR="$Q" REPO_ROOT="$REPO_ROOT" MIGRATION_3_0_0_TODAY="$TODAY" bash "$MIG")" || rc=$?
+assert_exit 0 "$rc" "grammar-only file: migration exits 0"
+assert_eq "- status: blocked on vendor reply" "$(sed -n 21p "$Q/initiatives/gram.md")" "grammar-only file: fixture line 21 is the bad status"
+assert_contains "$qout" "3.0.0: $Q/initiatives/gram.md:21: status does not match the 3.0.0 grammar; fix by hand (lint ERRORs it)" "grammar-only file: bad status reported with its line number"
+assert_eq "1" "$(printf '%s\n' "$qout" | grep -c 'gram.md:')" "grammar-only file: only the bad status is reported"
+assert_same "$ROOT/gram.orig" "$Q/initiatives/gram.md" "grammar-only file left byte-identical"
+assert_not_file "$Q/initiatives/.state/gram.pre-3.0.0.md" "grammar-only file: no backup"
+assert_not_file "$Q/initiatives/logs/gram.md" "grammar-only file: no log"
 
 # No MEMORY_DIR/initiatives: nothing to do
 mkdir -p "$ROOT/empty"
