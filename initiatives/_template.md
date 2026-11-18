@@ -22,7 +22,11 @@ the repository holds the *what*.>
 
 ## Now
 <!-- BEGIN AUTOGEN initiative-render:now -->
-**Ready:** none
+**Decisions needed:** none
+
+**Waiting on you:** none
+
+**Sessions to start:** none
 
 **Blocked:** none
 
@@ -46,7 +50,11 @@ meaning of the Target. `stages:` only for `execution_mode: software_adw`.
 `status:` is required for interactive Targets and optional for software_adw
 (stage derived). Grammar:
 `status: <open|blocked|done|closed> · next: <session — action> · blocked_by: <…|none>`
-(`done`/`closed` stand alone). Finished (`done`) Targets move to the
+(`done`/`closed` stand alone). `next:` starts with `user —` whenever the user
+acts first, chained as `user — …; then <session> — …`. `blocked_by:` holds only
+blockers that are not Targets, citing a decision by its D-id (`D12`); a Target
+with unfinished `depends_on` is `status: blocked` (plan-ahead work that may
+proceed goes in the `next:` text). Finished (`done`) Targets move to the
 `### Closed` table below, the only non-Target heading allowed; an abandoned
 Target keeps its heading with `status: closed` and never satisfies a dependency. Regenerate the `## Now` /
 `## Environment matrix` / `## Current rules` fences with

@@ -657,6 +657,27 @@ cp "$MEM/full.orig" "$MEM/initiatives/intr.md"; sed -i.bak 's/slug: full/slug: i
 ( "$SCRIPT" intr --write & p=$!; kill -TERM "$p" 2>/dev/null; wait "$p" 2>/dev/null ) >/dev/null 2>&1
 assert_eq "0" "$(find "$MEM/initiatives" -name '*.tmp.*' | wc -l | tr -d '[:space:]')" "no leftover temp file after TERM"
 
+# The template's hand-written Now fence equals the renderer's all-empty output.
+cat > "$MEM/initiatives/alldone.md" <<'DOC'
+---
+kind: initiative
+slug: alldone
+status: active
+created: 2026-08-14
+---
+# All done
+
+## Targets
+### alpha/finished
+- execution_mode: interactive
+- status: done
+DOC
+fence_body() { sed -n '/^<!-- BEGIN AUTOGEN initiative-render:now -->$/,/^<!-- END AUTOGEN initiative-render:now -->$/p' "$1"; }
+"$SCRIPT" alldone > "$MEM/alldone.render"
+fence_body "$MEM/alldone.render" > "$MEM/alldone.now"
+fence_body "$SCRIPTS_DIR/../initiatives/_template.md" > "$MEM/template.now"
+cmp -s "$MEM/alldone.now" "$MEM/template.now"; assert_exit 0 $? "_template.md Now fence equals the renderer's all-empty Now output"
+
 # Usage / errors.
 "$SCRIPT" >/dev/null 2>&1; assert_exit 2 $? "no slug is usage error"
 "$SCRIPT" nope >/dev/null 2>&1; assert_exit 1 $? "missing initiative exits 1"

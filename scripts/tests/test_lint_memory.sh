@@ -67,6 +67,7 @@ created: 2026-08-14
 - execution_mode: software_adw
 - stages: plan -> implement
 - depends_on: none
+- status: done
 
 ### good/review
 - execution_mode: interactive
@@ -1938,6 +1939,113 @@ for n in clean pre finished baseok fenced fencelf fencecrlf legacy; do
 done
 assert_eq "0" "$(printf '%s\n' "$OUT" | grep -F 'plan-contract:' | grep -vc '^plan-contract: ')" "every plan-contract finding line starts with the prefix"
 rm -rf "$MP"
+
+# === R6: a `status: open` Target whose depends_on the status script reports unsatisfied ===
+MD="$(new_sandbox)"; MDR="$(new_sandbox)"; export MEMORY_DIR="$MD" AI_MEMORY_PROJECTS_ROOT="$MDR"
+build_clean "$MD"
+mkdir -p "$MDR/good-co/.agents"; printf 'good\n' > "$MDR/good-co/.agents/memory-project"
+sed 's/^summary: A good project$/summary: A good project\nrepo_path: good-co/' "$MD/projects/good/memory.md" > "$MD/projects/good/memory.md.t"
+mv "$MD/projects/good/memory.md.t" "$MD/projects/good/memory.md"
+printf '%s\n' '---' 'plan: adw-done' 'status: done' 'task_ref: 60000000-0000-4000-8000-0000000000d1' '---' > "$MD/projects/good/plans/adw-done.md"
+printf '%s\n' '---' 'plan: adw-wip' 'status: in_progress' 'task_ref: 60000000-0000-4000-8000-0000000000d2' '---' > "$MD/projects/good/plans/adw-wip.md"
+cat > "$MD/initiatives/dep-warn.md" <<'EOF'
+---
+kind: initiative
+slug: dep-warn
+status: active
+created: 2026-11-17
+---
+
+# Dep warn
+
+## Targets
+
+### good/unfinished
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000001
+- status: open · next: exec — build · blocked_by: none
+
+### good/flag-open
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000002
+- depends_on: good/unfinished
+- status: open · next: exec — build · blocked_by: none
+
+### good/abandoned
+- execution_mode: interactive
+- status: closed
+
+### good/flag-closed
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000003
+- depends_on: good/abandoned
+- status: open · next: exec — build · blocked_by: none
+
+### good/finished
+- execution_mode: interactive
+- status: done
+
+### good/ok-done
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000004
+- depends_on: good/finished
+- status: open · next: exec — build · blocked_by: none
+
+### good/ok-closed-row
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000005
+- depends_on: good/old
+- status: open · next: exec — build · blocked_by: none
+
+### good/adw-done
+- execution_mode: software_adw
+- task: 60000000-0000-4000-8000-0000000000d1
+- stages: plan -> implement
+- depends_on: none
+
+### good/ok-adw-complete
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000006
+- depends_on: good/adw-done
+- status: open · next: exec — build · blocked_by: none
+
+### good/adw-wip
+- execution_mode: software_adw
+- task: 60000000-0000-4000-8000-0000000000d2
+- stages: plan -> implement
+- depends_on: none
+
+### good/ok-stage-met
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000007
+- depends_on: good/adw-wip (stage: plan)
+- status: open · next: exec — build · blocked_by: none
+
+### good/already-blocked
+- execution_mode: interactive
+- task: 60000000-0000-4000-8000-000000000008
+- depends_on: good/unfinished
+- status: blocked · next: exec — build · blocked_by: good/unfinished
+
+### Closed
+
+| id | closed | jira | outcome |
+|---|---|---|---|
+| good/old | 2026-10-01 | ABC-1 | shipped |
+
+## Decision stream
+EOF
+rerender "$MD" dep-warn
+MEMORY_DIR="$MD" bash "$SCRIPTS_DIR/regenerate-index.sh" >/dev/null
+run_lint
+DW="$MD/initiatives/dep-warn.md"
+assert_contains "$OUT" "WARN:  $DW good/flag-open: status open but depends_on is unsatisfied (good/unfinished (at open)) — set status: blocked" "open Target with an unfinished dependency is flagged"
+assert_contains "$OUT" "WARN:  $DW good/flag-closed: status open but depends_on is unsatisfied (good/abandoned (at closed)) — set status: blocked" "open Target depending on a closed Target is flagged"
+assert_eq "2" "$(printf '%s\n' "$OUT" | grep -c 'status open but')" "only the two unsatisfied open Targets are flagged"
+for ok in good/ok-done good/ok-closed-row good/ok-adw-complete good/ok-stage-met good/already-blocked good/unfinished; do
+    assert_not_contains "$OUT" "$DW $ok: status open but" "$ok is not flagged"
+done
+rm -rf "$MD" "$MDR"; unset AI_MEMORY_PROJECTS_ROOT
 
 if [ -x /bin/bash ]; then
     set +e; /bin/bash -n "$SCRIPTS_DIR/lint-memory.sh" 2>/dev/null; rc=$?; set -e
