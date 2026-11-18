@@ -17,5 +17,14 @@
 - [x] P2 — Manifest, frontmatter, tests, docs (needs: P1) — PR #154
 - [x] P3 — Live verification (needs: P2)
 
+### Initiative format: Now view, per-env Targets, one-line status, current-rules index, progress log → [plan](plans/initiative-now-view-per-env-targets.md)
+- [x] P1 — Shared Target parser, new status grammar, @env, Closed rows, --tsv — e367e3f
+- [x] P2 — Decision-stream metadata: topics enum, topic:, AMENDS, forward pointers — e284702
+- [x] P3 — initiative-render.sh (Now, matrix, Current rules) (needs: P1, P2) — b2c4afb
+- [x] P4 — Lint rules (needs: P1, P2, P3) — 8a4c7c4
+- [x] P5 — Docs, template, commands, changelog (needs: P3, P4) — b59f4ea
+- [x] P6 — Migration 3.0.0 (needs: P1, P2, P3, P4) — 0798c2e + fixes; PR #155 (Phases 1–6)
+- [ ] P7 — vault-eks hand pass (needs: P5, P6)
+
 ## Done
 _(checked items stay above until the file is rolled)_
