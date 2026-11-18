@@ -64,7 +64,7 @@ Record the ref **verbatim and in full** — the backend's complete id, never an 
 
 **Step L3 — push the Goal back.** `"$TASKCTL" update <ref> --summary "<the plan's Goal>"`. The summary is **capped at 500 characters** and an over-cap update hard-fails. Keep the Goal to one or two sentences; if the design needs more room it belongs in the plan, and long-form pre-plan material belongs in `projects/<project>/investigations/<slug>.md`, referenced **by name, never by path** — a path rots the moment the plan is archived, and the task already carries its `project`. If the drafted Goal exceeds the cap, push a condensed one-sentence version; never truncate mid-word.
 
-**Step L4 — flip the lifecycle.** `"$TASKCTL" set-status <ref> started`.
+**Step L4 — flip the lifecycle.** `"$TASKCTL" set-status <ref> started`. Then, if the ref is an active initiative's Target (`grep -l -- '- task: <ref>' ~/.claude-memory/initiatives/*.md` with the exact full ref, keeping only `kind: initiative` / `status: active` files; no match → skip silently), run `bash ~/.claude-memory/scripts/initiative-render.sh <slug> --write` (slug = the file's basename without `.md`). Report a non-zero exit verbatim; never treat a failure as success.
 
 **Step L5 — mirror into `todo.md`.** Append to `projects/<project>/todo.md` under `## Active`:
 

@@ -23,6 +23,8 @@ Step 5b — resolve the initiative's open decision proposals. Read the plan's `t
 - **Leave** → no change.
 Edit only the status and date on the entry line and its `evidence:`/`unconfirmed:` lines; never edit an entry's decision text. Never decide on the user's behalf.
 
+Step 5c — regenerate the initiative's generated views. Using the same match as Step 5b (the plan's `task_ref:` grepped with the exact full ref against active initiatives; skip silently when there is none), run `bash ~/.claude-memory/scripts/initiative-render.sh <slug> --write`. Non-zero exit → report its stderr to the user verbatim and stop; never treat a failure as success. Run it after Step 5b's edits so the fences reflect them.
+
 Step 6 — report back, three lines max (four if Step 5b resolved proposals):
 - File path edited.
 - Status transition (e.g. `in-progress → done`, `completed: 2026-05-19 stamped`).

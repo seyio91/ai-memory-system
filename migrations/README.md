@@ -21,6 +21,7 @@ Rules:
 - Touch data and harness config only: `$MEMORY_DIR` data, `~/.claude/settings.json`, `~/.gemini/...`.
 - Never touch engine code: git already moves the engine files.
 - N/N+1 compatibility: a migration must not break the previous release's code. Ship the compatibility fallback in release N, then flip the data/config in N+1. The `.agents/memory-project` migration used this pattern: new reader with legacy fallback first, bulk migration after.
+- Breaking-release exemption: a major release with a `breaking` changelog fragment may ship the new reader and its migration together and drop the old format in the same release (3.0.0 did, for the initiative format). Its `UPGRADING.md` section must say so, name the backup the migration takes before its first write, and explain how to go back.
 - `scripts/migrate-marker.sh` is the historical example and is deliberately not converted into this directory.
 
 Skeleton:
