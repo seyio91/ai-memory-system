@@ -355,7 +355,7 @@ assert_not_contains "$(sed -n '1,8p' "$got")" "envs:" "envs: not added"
 lost=""
 while IFS= read -r line; do
     for w in $line; do
-        printf '%s\n%s\n' "$body" "$logbody" | grep -qF -- "$w" || lost="$lost $w"
+        case "$body"$'\n'"$logbody" in *"$w"*) ;; *) lost="$lost $w" ;; esac
     done
 done < <(sed -n 's/^- status: //p; s/^- next_actor: //p' "$ROOT/old.orig")
 assert_eq "" "$lost" "no word of old status prose or next_actor is lost"
@@ -451,7 +451,7 @@ assert_contains "$ml" $'Progress: P1 merged; P2 merged. Staging port complete; n
 lost=""
 while IFS= read -r line; do
     for w in $line; do
-        printf '%s\n%s\n' "$mb" "$ml" | grep -qF -- "$w" || lost="$lost $w"
+        case "$mb"$'\n'"$ml" in *"$w"*) ;; *) lost="$lost $w" ;; esac
     done
 done < <(sed -n 's/^- status: //p; s/^- next_actor: //p' "$ROOT/multi.orig")
 assert_eq "" "$lost" "multi: no word lost"
@@ -698,7 +698,7 @@ assert_not_contains "$bout" "unmatched line left unchanged (fix by hand): $B/ini
 lost=""
 while IFS= read -r line; do
     for w in $line; do
-        printf '%s\n%s\n' "$bb" "$bl" | grep -qF -- "$w" || lost="$lost $w"
+        case "$bb"$'\n'"$bl" in *"$w"*) ;; *) lost="$lost $w" ;; esac
     done
 done < <(sed -n 's/^- status: //p; s/^- next_actor: //p' "$ROOT/bare.orig")
 assert_eq "" "$lost" "bare: no word lost"
