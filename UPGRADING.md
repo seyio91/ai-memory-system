@@ -113,7 +113,8 @@ the dev path recovers the tracking branch from a detached HEAD automatically.
 1. Migrations are **forward-only and idempotent**. There are no down-migrations.
 2. **N/N+1 compatibility**: a migration must not break the previous release's code.
    Old code plus new data must still work. Ship the compatibility fallback in
-   release N, then flip in N+1.
+   release N, then flip in N+1. A breaking (major) release may ship the new
+   reader and its migration together; its upgrade notes say so (3.0.0 does).
 
 Rule 2 exists because a downgrade with `--to` moves code back but leaves data
 migrated: `.applied-version` is a high-water mark, and the runner never re-runs an
@@ -160,6 +161,113 @@ Released versions that need manual steps or carry a migration get one section:
 `migrations/<version>-<slug>.sh` file has a matching `## <version>` section here.
 The reverse does not hold: a version may need a manual step without shipping a
 migration — as the next section does.
+
+## 3.0.0
+
+**Initiatives move to a one-line status, a `scope:` line, Closed rows and a
+progress log. Breaking: the old format no longer parses.**
+
+What changes in an initiative file:
+
+- A Target status is one line,
+  `- status: <open|blocked|done|closed> · next: <session — action> · blocked_by: <…|none>`
+  (`done` / `closed` may stand alone). The Target's description moves to its own
+  `- scope:` line. `- next_actor:` is gone.
+- Finished Targets are rows of a `### Closed` table at the end of `## Targets`:
+  `| <id> | <closed date> | <jira> | <outcome> |`. They count as done, and
+  `depends_on` edges to them still resolve.
+- Progress history lives in `initiatives/logs/<slug>.md`, append-only, with
+  dated entries tagged by Target id.
+- `initiative-render.sh <slug> --write` keeps three generated blocks in the file:
+  `## Now`, `## Environment matrix` (with `envs:`) and `## Current rules`
+  (grouped by the `topics:` enum).
+- `lint-memory.sh` reports the old shape (`next_actor:`, `<state> — prose`) as an
+  ERROR, and `initiative-status.sh` refuses such a file and names this migration.
+
+Migration `3.0.0-initiative-format.sh` runs automatically via `/sync-system`
+(`sync-system.sh`). It rewrites each `initiatives/*.md` of `kind: initiative`,
+active and closed (not `_template.md`, symlinks, `archive/`, `logs/` or
+`.state/`), that still has an old-format Target:
+
+- **Backup first.** Before its first write it saves a byte-identical copy to
+  `initiatives/.state/<slug>.pre-3.0.0.md`. An existing backup is never
+  overwritten.
+- An open or blocked `<state> — <prose>` status (also `<state> <date> — …` and
+  `<state> (…) — …`) becomes `- status: <state> · next: <old next_actor value,
+  or none> · blocked_by: none`. The prose moves verbatim to `- scope:`, except
+  `Progress: …` and `Was: …` segments, which go to the log. A segment starts at
+  `Progress:` or `Was:` (at the start of the prose or after a space) and ends
+  before the next `Progress:` / `Was:`, before a sentence that opens with a
+  label, or at the end. A label is `. ` followed by a capitalised word, up to
+  three more lower-case words (each optionally after a comma) and a colon,
+  `[A-Z][a-z]+(,? [a-z]+){0,3}:`: `Remaining:`, `Next, in eks:`, `Seed:`,
+  `Earlier:` end a segment; `P2 done 2026-11-16:` and a lower-case `next:` do
+  not. Text after a label stays in `scope:` (the remaining pieces are joined
+  with one space). Every `next_actor:` line is removed; the first one's value
+  becomes `next:`, and when a Target has more than one, all of them go to the
+  log. Every other Target line stays as written.
+- A `done` / `closed` Target collapses into a Closed row (the date from
+  `<state> <date>` when present, else `-`; the `jira:` value; outcome
+  `see log`). Its whole original block goes to the log verbatim. This includes
+  a new-format `done` / `closed` Target that still has a `next_actor:` line.
+- A Target without a status (allowed for `software_adw`) keeps none; its
+  `next_actor:` line moves to the log.
+- Log entries read `## <date> — <target-id> (migrated by 3.0.0)` in
+  `initiatives/logs/<slug>.md`, created with a short header when absent. The
+  log is written before the initiative; an entry already in the log (same text
+  after the date) is not appended again, so a rerun after an interrupted sync
+  does not duplicate it. New backup and log files take the initiative's mode.
+- A `SUPERSEDES D<n>` line under entry `D<m>` adds the forward pointer `→ D<m>`
+  to `D<n>`'s head. No other decision text is edited.
+- Frontmatter gains `topics: []` when absent. `envs:` is not added.
+- When the result parses, it runs `initiative-render.sh <slug> --write` to
+  insert the generated blocks.
+
+Text is moved, never deleted: compare the file plus its log against the backup.
+The staleness snapshot (`.state/<slug>.snapshot`) is left alone; a collapsed
+`software_adw` Target raises no stale alert. A second run changes nothing.
+
+**Read the report printed during the sync.** Per file it gives the counts
+(Targets converted, collapsed, log entries, pointers added) and:
+
+- `candidate: D<m> amends D<n> — add an AMENDS line by hand` for every prose
+  "amends D<n>" / "amended by D<n>" it found. It never writes `AMENDS` itself.
+- `unmatched line left unchanged (fix by hand): <file>:<line>: …` for a status
+  it could not convert, such as a state outside `open|blocked|done|closed` or a
+  second `- status:` line, and for a status elsewhere in a migrated file that
+  breaks the new grammar (`done (no dash)`). Line numbers are those of the
+  rewritten file. The whole Target is left as written, so lint ERRORs and `initiative-status.sh`
+  refuses the file until you fix it. Then run
+  `bash scripts/initiative-render.sh <slug> --write`.
+- `fences skipped` when the rewritten file still does not parse.
+- `note: … SUPERSEDES D<n>, which names a malformed head (left unedited)` when
+  the superseded entry's head does not parse, so no pointer was added.
+
+**Then do the hand pass.** A migrated initiative is valid but thin; lint WARNs
+mark each Target that still needs it:
+
+1. Add a `topics:` enum to frontmatter and a `topic:` continuation line on each
+   live decision.
+2. Add `AMENDS D<n>` lines for the reported candidates you agree with, plus the
+   `→ D<m>` pointer on each amended entry.
+3. Split a Target that spans environments into `@env` Targets
+   (`<project>/<name>@<env>`) and list the environments in frontmatter `envs:`.
+4. Replace each bare `next: <actor>` with a real `<session — action>`.
+5. Trim each `scope:` to what the Target delivers; history belongs in the log.
+6. Fill in the Closed rows' outcomes (and dates where the migration wrote `-`).
+7. Run `bash scripts/initiative-render.sh <slug> --write`, then
+   `bash scripts/lint-memory.sh`.
+
+To retry from scratch, copy the backup over the file and run the migration again
+(`MEMORY_DIR=… REPO_ROOT=… bash migrations/3.0.0-initiative-format.sh`); remove
+the `migrated by 3.0.0` entries from the log first.
+
+**N/N+1 exemption.** This is a breaking release: the new reader and the
+migration ship together in 3.0.0, and the old format is dropped in the same
+release. Rule 2 of [The two standing rules](#the-two-standing-rules) does not
+hold here. Downgrading to 2.x after the migration leaves initiatives the 2.x
+reader does not understand; restore from the `.pre-3.0.0.md` backups if you
+must go back.
 
 ## 1.7.0
 

@@ -548,10 +548,19 @@ assert_contains "$old_out" "waiting on review" "old status refusal names the off
 mk_old old-partial '- status: open · next: s — go'
 bash "$SCRIPT" old-partial >/dev/null 2>&1; rc=$?
 assert_exit 1 "$rc" "status missing blocked_by is refused"
-mk_old old-done '- status: done (asserted by test)'
+mk_old old-done '- status: done (asserted by test) — shipped'
 old_out="$(bash "$SCRIPT" old-done 2>&1)"; rc=$?
-assert_exit 1 "$rc" "old 'done (prose)' status is refused"
-assert_not_contains "$old_out" "3.0.0 migration" "'done (prose)' is a plain grammar error (no migration pointer)"
+assert_exit 1 "$rc" "old 'done (prose) — …' status is refused"
+assert_contains "$old_out" "3.0.0-initiative-format.sh" "'done (prose) — …' is old format and names the 3.0.0 migration"
+assert_contains "$old_out" "old-format status" "'done (prose) — …' is called old-format"
+mk_old old-dated '- status: done 2026-11-16 — shipped'
+old_out="$(bash "$SCRIPT" old-dated 2>&1)"; rc=$?
+assert_exit 1 "$rc" "old 'done <date> — …' status is refused"
+assert_contains "$old_out" "3.0.0-initiative-format.sh" "'done <date> — …' is old format and names the 3.0.0 migration"
+mk_old old-paren '- status: done (asserted by test)'
+old_out="$(bash "$SCRIPT" old-paren 2>&1)"; rc=$?
+assert_exit 1 "$rc" "'done (prose)' with no dash is refused"
+assert_not_contains "$old_out" "3.0.0 migration" "'done (prose)' with no dash is a plain grammar error (no migration pointer)"
 mk_old old-none
 bash "$SCRIPT" old-none >/dev/null 2>&1; rc=$?
 assert_exit 1 "$rc" "interactive Target with no status is refused"

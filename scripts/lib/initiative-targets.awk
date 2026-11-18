@@ -12,7 +12,8 @@
 # one record per Target, fields joined by `sep`:
 #   T id mode stages depends_on task scope jira status state next blocked_by closed
 # then one `E sep <kind> sep <message>` line per format error (kind `old` for a
-# `next_actor:` line or an old `<state> — prose` status, which the 3.0.0
+# `next_actor:` line or an old status: a known state, a ` — ` and no ` · `, as in
+# `<state> — prose`, `<state> <date> — prose`, `<state> (…) — prose`, which the 3.0.0
 # migration converts; kind `grammar` for any other format error). A program
 # that reads the IT_* arrays itself calls it_finish() instead of it_emit().
 # Only the `## Targets` section is read. Under it:
@@ -66,8 +67,10 @@ function it_status(n, s,   mid, w, rest, j, nx, bl) {
             }
         }
     }
+    # Old shape: a known state, then ` — ` somewhere and no middle dot at all
+    # (`<state> — …`, `<state> <date> — …`, `<state> (…) — …`).
     if (ds_streq(w, "open") || ds_streq(w, "blocked") || ds_streq(w, "done") || ds_streq(w, "closed")) {
-        if (index(rest, " " ds_dash() " ") == 1) {
+        if (index(rest, " " ds_dash() " ") > 0 && index(s, mid) == 0) {
             it_err("old", "Target '" IT_ID[n] "' line " IT_LN " has an old-format status '<state> " ds_dash() " prose': " s)
             return
         }

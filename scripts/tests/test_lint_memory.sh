@@ -673,6 +673,18 @@ for bad in 'awaiting review' '**DONE — historical result**' 'waiting · next: 
     rm -rf "$MI13"
 done
 
+# --- a state near a real one (complete vs done) is outside the vocabulary: ERROR, not old format ---
+MI13="$(new_sandbox)"; export MEMORY_DIR="$MI13"; build_clean "$MI13"
+sed "s/^- status: open · .*/- status: complete · next: exec — go · blocked_by: none/" "$MI13/initiatives/clean-initiative.md" > "$MI13/initiatives/clean-initiative.md.t"
+mv "$MI13/initiatives/clean-initiative.md.t" "$MI13/initiatives/clean-initiative.md"
+run_lint
+assert_exit 1 "$CODE" "out-of-vocabulary state 'complete' exits 1"
+assert_contains "$OUT" "ERROR: $MI13/initiatives/clean-initiative.md Target 'good/review' line " "out-of-vocabulary state 'complete' is an ERROR naming the Target"
+assert_contains "$OUT" "has a status not matching" "out-of-vocabulary state 'complete' names the grammar"
+assert_contains "$OUT" "complete · next: exec — go" "out-of-vocabulary state ERROR quotes the status"
+assert_not_contains "$OUT" "old-format status" "out-of-vocabulary state is not called old format"
+rm -rf "$MI13"
+
 # --- old shapes: next_actor and `<state> — prose` are ERRORs naming the old format ---
 MI14="$(new_sandbox)"; export MEMORY_DIR="$MI14"; build_clean "$MI14"
 sed 's/^- status: open · .*/- status: open — waiting on review/' "$MI14/initiatives/clean-initiative.md" > "$MI14/initiatives/clean-initiative.md.t"
@@ -682,6 +694,15 @@ assert_exit 1 "$CODE" "old '<state> — prose' status exits 1"
 assert_contains "$OUT" "ERROR: $MI14/initiatives/clean-initiative.md Target 'good/review' line " "old-shape status is an ERROR"
 assert_contains "$OUT" "has an old-format status" "old-shape status is named as old format"
 rm -rf "$MI14"
+for oldst in 'done 2026-11-16 — shipped it' 'open (staging) — waiting on review'; do
+    MI14="$(new_sandbox)"; export MEMORY_DIR="$MI14"; build_clean "$MI14"
+    sed "s/^- status: open · .*/- status: $oldst/" "$MI14/initiatives/clean-initiative.md" > "$MI14/initiatives/clean-initiative.md.t"
+    mv "$MI14/initiatives/clean-initiative.md.t" "$MI14/initiatives/clean-initiative.md"
+    run_lint
+    assert_exit 1 "$CODE" "old status '$oldst' exits 1"
+    assert_contains "$OUT" "has an old-format status" "old status '$oldst' is named as old format"
+    rm -rf "$MI14"
+done
 MI14="$(new_sandbox)"; export MEMORY_DIR="$MI14"; build_clean "$MI14"
 sed '/^- depends_on: good\/prepare/a\
 - next_actor: human
