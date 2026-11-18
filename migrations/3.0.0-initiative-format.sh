@@ -11,7 +11,7 @@
 # has a `- next_actor:` line or an old status (a known state, a ` — ` and no
 # ` · `). A Target already in the new format is never touched. Per old Target:
 #   - open/blocked `<state>[ <date>][ (…)] — <prose>` becomes
-#       - scope: [<date/(…)> — ]<prose minus Progress:/Was: segments>
+#       - scope: [<date/(…)> ]<prose minus Progress:/Was: segments>
 #       - status: <state> · next: <first next_actor value, or none> · blocked_by: none
 #     A segment starts at `Progress:` or `Was:` (at the start of the prose or
 #     after a space) and ends just before the next of: another `Progress:` /
@@ -28,8 +28,13 @@
 #     `- status: closed` (terminal, standalone); every `- next_actor:` line
 #     goes to the log. It is NOT collapsed: a Closed row reads as done and
 #     would satisfy its dependents, which must stay unsatisfied.
+#   - an old Target (with `- next_actor:`) whose status has no ` — ` and no
+#     ` · ` but starts with open, blocked or closed (`open`, `blocked waiting
+#     on vendor`, `closed retired early`) is converted the same way: the
+#     state is the first token and the remaining words, verbatim, are the
+#     scope (no words, no scope line). closed follows the abandoned rule above.
 #   - a status whose first token is done collapses into a row
-#       | <id> | <date from `done <date>`, else -> | <jira: or -> | see log |
+#       | <id> | <date when the next token is YYYY-MM-DD, else -> | <jira: or -> | see log |
 #     of the `### Closed` table at the end of `## Targets` (created when absent,
 #     header `| id | closed | jira | outcome |`); the Closed table holds done
 #     Targets only. The whole Target block (heading to its last non-blank line)
@@ -37,7 +42,7 @@
 #     stray `- next_actor:` line.
 #   - a Target with a new-format status (open, blocked or closed), or with none,
 #     only loses its next_actor line(s), which go to the log.
-#   - any other status (state outside open|blocked|done|closed, an unparsed
+#   - any other status (first token outside open|blocked|done|closed, an unparsed
 #     middle, more than one `- status:` line) leaves the whole Target
 #     byte-identical and is reported.
 #   In a migrated file a Target that is not old but whose status breaks the
@@ -241,8 +246,9 @@ END {
         # keeps its heading, so its dependents stay unsatisfied.
         if (st && w ~ /^done([^A-Za-z0-9_-]|$)/) {
             BK[k] = "collapse"
+            # The date is the next token when it is exactly YYYY-MM-DD (or opens `(…)`).
             r = BS_TXT[k]; sub(/^[a-z]+[ \t]*/, "", r)
-            d = substr(r, 1, 10); if (substr(r, 1, 1) == "(") d = substr(r, 2, 10)
+            d = r; sub(/[ \t].*$/, "", d); if (substr(r, 1, 1) == "(") d = substr(r, 2, 10)
             BD[k] = ds_isdate(d) ? d : "-"
         } else if (st && valid) {
             BK[k] = "dropna"
@@ -255,13 +261,19 @@ END {
             prose = trim(substr(rest, dp + length(dash())))
             segsplit(prose)
             sc = SC
-            if (m != "") sc = (sc == "" ? m : m dash() sc)
+            # The middle (date or (…)) leads the scope, joined by one space.
+            if (m != "") sc = (sc == "" ? m : m " " sc)
             BSCOPE[k] = sc; BSEG[k] = SG
         } else if (!st) {
             BK[k] = "dropna"
             if (ds_streq(mode, "interactive")) ctl("W\tTarget " BID[k] " (line " BS[k] ") is interactive and has no status: add one by hand")
+        } else if ((w == "open" || w == "blocked" || w == "closed") && index(BS_TXT[k], mid) == 0) {
+            # No ` — ` (that is the old shape above) and no ` · `: the state is
+            # the first token and any remaining words are the scope, verbatim.
+            BK[k] = "convert"; BW[k] = w
+            BSCOPE[k] = trim(substr(BS_TXT[k], length(w) + 1)); BSEG[k] = ""
         } else {
-            BK[k] = "unmatched"; BWHY[k] = "status is not `<open|blocked|done|closed> — prose` or the new grammar"
+            BK[k] = "unmatched"; BWHY[k] = "status is not `<open|blocked|done|closed>[ <words>]`, `<state> — prose` or the new grammar"
         }
     }
     if (!old) {
@@ -495,7 +507,7 @@ $AWK_PROG" "$f" > "$tmp"; then
     tmp=""
 
     if ! err="$(MEMORY_DIR="$MEMORY_DIR" bash "$REPO_ROOT/scripts/initiative-status.sh" --tsv "$slug" 2>&1 >/dev/null)"; then
-        echo "3.0.0: $f: fences skipped: initiative-status.sh refuses the result (fix the reported lines, then run initiative-render.sh $slug --write):"
+        echo "3.0.0: $f: fences skipped: initiative-status.sh refuses the result (fix the reported lines, e.g. the state word, and re-run this migration; it converts what now matches and writes the fences):"
         printf '%s\n' "$err" | sed 's/^/3.0.0:   /'
         continue
     fi

@@ -312,7 +312,7 @@ assert_contains "$out" "backup: $I/.state/old.pre-3.0.0.md" "backup is reported"
 # Open Targets: scope + one-line status, next_actor removed
 assert_contains "$body" $'- task: port-beta-addon\n- depends_on: alpha/proof, alpha/naming\n- scope: staging DONE 2026-11-17 (P1–P7 verified; ABC-20 closeable); non-prod ports next (ABC-21/22, notify per D2).\n- status: open · next: orchestrator (project session) · blocked_by: none\n' "open status: prose to scope minus Progress/Was, next from next_actor"
 assert_contains "$body" $'- scope: login app per environment with role gating (no CLI callback, D1)\n- status: open · next: builder (project session) — P4 dev/test/live per the runbook, after each env\'s store is seeded · blocked_by: none\n' "next_actor with an action carries into next:"
-assert_contains "$body" $'- task: beta-config-root\n- scope: (staging) — waiting on beta/addon; owner to confirm\n- status: blocked · next: none · blocked_by: none\n' "next_actor none -> next: none; (…) middle kept in scope"
+assert_contains "$body" $'- task: beta-config-root\n- scope: (staging) waiting on beta/addon; owner to confirm\n- status: blocked · next: none · blocked_by: none\n' "next_actor none -> next: none; (…) middle leads the scope, no dash"
 assert_not_contains "$(sed '/^```/,/^```/d' "$got")" "next_actor" "no next_actor line left outside fences"
 assert_contains "$body" $'### gamma/pipeline\n- execution_mode: software_adw\n- task: gamma-pipeline\n- depends_on: gamma/old-build\n\n' "software_adw Target with no status stays without status"
 assert_contains "$logbody" $'## 2026-11-17 — gamma/pipeline (migrated by 3.0.0)\n\n- next_actor: orchestrator (project session)' "statusless Target's next_actor goes to the log"
@@ -401,7 +401,7 @@ assert_contains "$(cat "$I/logs/shut.md")" "## 2026-11-17 — eps/one (migrated 
 # Abandoned (closed) Target: keeps its heading with a standalone closed status,
 # is not a Closed row, and does not satisfy its dependent; done still collapses
 ab="$(cat "$I/aband.md")"; al="$(cat "$I/logs/aband.md")"
-assert_contains "$ab" $'### eta/spike\n- jira: ETA-1\n- execution_mode: interactive\n- depends_on: none\n- scope: 2026-10-20 — abandoned; the approach did not scale. Remaining: nothing\n- status: closed\n' "abandoned Target keeps its heading; scope gets the prose; status: closed stands alone"
+assert_contains "$ab" $'### eta/spike\n- jira: ETA-1\n- execution_mode: interactive\n- depends_on: none\n- scope: 2026-10-20 abandoned; the approach did not scale. Remaining: nothing\n- status: closed\n' "abandoned Target keeps its heading; scope gets the prose; status: closed stands alone"
 assert_not_contains "$ab" "| eta/spike |" "abandoned Target is not a Closed row"
 assert_contains "$ab" $'### Closed\n\n| id | closed | jira | outcome |\n|---|---|---|---|\n| eta/docs | 2026-10-21 | ETA-3 | see log |\n' "done Target still collapses into the Closed table"
 assert_not_contains "$ab" "### eta/docs" "done Target heading removed"
@@ -545,9 +545,191 @@ assert_contains "$gout" "$gf:20: - status: open soon" "non-date middle: status r
 assert_contains "$gout" "$gf:19: - next_actor: human" "non-date middle: next_actor reported unmatched"
 assert_contains "$gout" "is not a date or" "non-date middle: reason given"
 assert_not_contains "$gb" "- status: open 2026-11-16" "dated middle: old status line converted"
-assert_contains "$gb" "- scope: 2026-11-16" "dated middle: date carried into scope"
+assert_contains "$gb" $'### g/dated\n- scope: 2026-11-16 prose\n- status: open · next: human · blocked_by: none\n' "dated middle: date leads the scope with no ' — ' separator"
 assert_not_contains "$gb" "- status: open (asserted) " "(...) middle: old status line converted"
-assert_contains "$gb" "- scope: (asserted) — prose" "(...) middle: kept in scope"
+assert_contains "$gb" "- scope: (asserted) prose" "(...) middle: leads the scope with no ' — ' separator"
+
+# Statuses with no ` — ` in an old Target (it has a next_actor: line): the
+# state is the first token, remaining words go to scope verbatim; done collapses
+# (date only when the next token is YYYY-MM-DD); closed keeps its heading.
+B="$ROOT/bare"; mkdir -p "$B/initiatives"
+cat > "$B/initiatives/bare.md" <<'IN'
+---
+kind: initiative
+slug: bare
+status: active
+created: 2026-10-07
+---
+
+# Bare
+
+## Targets
+
+### b/open
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: open
+
+### b/blocked
+- execution_mode: interactive
+- depends_on: none
+- next_actor: none
+- status: blocked
+
+### b/vendor
+- execution_mode: interactive
+- depends_on: none
+- next_actor: builder (project session) — chase the vendor
+- status: blocked waiting on vendor
+
+### b/dated
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: open 2026-11-16 pending review (see #123)
+
+### b/shipped
+- jira: BB-1
+- execution_mode: interactive
+- depends_on: none
+- next_actor: none
+- status: done
+
+### b/early
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: done shipped early
+
+### b/when
+- jira: BB-3
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: done 2026-11-01 shipped on time
+
+### b/glued
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: done 2026-11-01x
+
+### b/retired
+- execution_mode: interactive
+- depends_on: none
+- next_actor: builder (project session) — write the retirement note
+- status: closed retired early, superseded by b/vendor
+
+### b/after
+- execution_mode: interactive
+- task: b-after
+- depends_on: b/retired, b/shipped
+- next_actor: human
+- status: open
+
+## Closure
+
+Open.
+
+## Decision stream
+
+- D1 confirmed 2026-10-01 — Bare statuses convert.
+  evidence: user 2026-10-01
+IN
+cp "$B/initiatives/bare.md" "$ROOT/bare.orig"
+cat > "$B/initiatives/bareodd.md" <<'IN'
+---
+kind: initiative
+slug: bareodd
+status: active
+created: 2026-10-07
+---
+
+# Bare odd
+
+## Targets
+
+### c/fine
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: blocked
+
+### c/progress
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: in progress — half done
+
+### c/partial
+- execution_mode: interactive
+- depends_on: none
+- next_actor: human
+- status: open · next: human
+
+## Closure
+
+Open.
+
+## Decision stream
+
+- D1 confirmed 2026-10-01 — Odd statuses stay.
+  evidence: user 2026-10-01
+IN
+rc=0; bout="$(MEMORY_DIR="$B" REPO_ROOT="$REPO_ROOT" MIGRATION_3_0_0_TODAY="$TODAY" bash "$MIG")" || rc=$?
+assert_exit 0 "$rc" "bare statuses: migration exits 0"
+bb="$(cat "$B/initiatives/bare.md")"; bl="$(cat "$B/initiatives/logs/bare.md")"
+assert_contains "$bb" $'### b/open\n- execution_mode: interactive\n- depends_on: none\n- status: open · next: human · blocked_by: none\n\n' "bare open: converted, no scope line"
+assert_contains "$bb" $'### b/blocked\n- execution_mode: interactive\n- depends_on: none\n- status: blocked · next: none · blocked_by: none\n\n' "bare blocked: converted, next_actor none -> next: none, no scope line"
+assert_contains "$bb" $'### b/vendor\n- execution_mode: interactive\n- depends_on: none\n- scope: waiting on vendor\n- status: blocked · next: builder (project session) — chase the vendor · blocked_by: none\n' "'blocked <words>': state is the first token, words go to scope"
+assert_contains "$bb" $'- scope: 2026-11-16 pending review (see #123)\n- status: open · next: human · blocked_by: none\n' "'open <date> <words>': words kept verbatim in scope"
+assert_contains "$bb" $'### b/retired\n- execution_mode: interactive\n- depends_on: none\n- scope: retired early, superseded by b/vendor\n- status: closed\n' "'closed <words>': keeps its heading, words to scope, status: closed alone"
+assert_contains "$bl" $'## 2026-11-17 — b/retired (migrated by 3.0.0)\n\n- next_actor: builder (project session) — write the retirement note' "'closed <words>': its next_actor line goes to the log"
+assert_contains "$bb" $'| b/shipped | - | BB-1 | see log |\n| b/early | - | - | see log |\n| b/when | 2026-11-01 | BB-3 | see log |\n| b/glued | - | - | see log |\n' "bare done / done <words> collapse; date only when the next token is a date"
+for id in b/shipped b/early b/when b/glued; do
+    assert_not_contains "$bb" "### $id" "$id heading removed (collapsed)"
+done
+assert_contains "$bl" $'## 2026-11-17 — b/early (migrated by 3.0.0)\n\n### b/early\n- execution_mode: interactive\n- depends_on: none\n- next_actor: human\n- status: done shipped early\n' "collapsed 'done <words>' block goes to the log verbatim"
+assert_not_contains "$bb" "| b/retired |" "'closed <words>' is not a Closed row"
+assert_not_contains "$(sed '/^```/,/^```/d' "$B/initiatives/bare.md")" "next_actor" "bare: no next_actor line left"
+assert_contains "$bout" "bare.md: 6 Target(s) converted, 4 collapsed into Closed rows" "bare: counts reported"
+assert_not_contains "$bout" "unmatched line left unchanged (fix by hand): $B/initiatives/bare.md:" "bare: no unmatched line in the convertible file"
+lost=""
+while IFS= read -r line; do
+    for w in $line; do
+        printf '%s\n%s\n' "$bb" "$bl" | grep -qF -- "$w" || lost="$lost $w"
+    done
+done < <(sed -n 's/^- status: //p; s/^- next_actor: //p' "$ROOT/bare.orig")
+assert_eq "" "$lost" "bare: no word lost"
+tsv="$(MEMORY_DIR="$B" bash "$REPO_ROOT/scripts/initiative-status.sh" --tsv bare 2>/dev/null)"; rc=$?
+assert_exit 0 "$rc" "bare: initiative-status.sh accepts the result"
+assert_eq "closed" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "b/retired" { print $7 }')" "bare: 'closed <words>' Target state is closed"
+assert_eq "b/retired (at closed)" "$(printf '%s\n' "$tsv" | awk -F'\t' '$1 == "b/after" { print $6 }')" "bare: dependent of 'closed <words>' stays unsatisfied; the done edge is satisfied"
+assert_contains "$bout" "bare.md: fences written" "bare: fences written"
+# Statuses whose first token is outside the vocabulary, or a partial new-format
+# status, stay unmatched and byte-identical; the file is refused
+bo="$B/initiatives/bareodd.md"
+assert_contains "$(cat "$bo")" $'- status: blocked · next: human · blocked_by: none\n' "bareodd: the matchable bare status is converted"
+assert_contains "$bout" "unmatched line left unchanged (fix by hand): $bo:22: - status: in progress — half done" "'in progress — …' stays unmatched and reported"
+assert_eq "- status: in progress — half done" "$(sed -n 22p "$bo")" "'in progress — …' line number points at the line"
+assert_contains "$bout" "$bo:28: - status: open · next: human" "partial new-format status with next_actor stays unmatched"
+assert_contains "$(cat "$bo")" $'- next_actor: human\n- status: in progress — half done\n' "'in progress' Target left byte-identical"
+assert_contains "$(cat "$bo")" $'- next_actor: human\n- status: open · next: human\n' "partial Target left byte-identical"
+assert_contains "$bout" "bareodd.md: fences skipped" "bareodd: refused file skips fences"
+# Idempotent
+before="$(snap "$B/initiatives/bare.md" "$B/initiatives/logs/bare.md" "$bo" "$B/initiatives/.state/bareodd.pre-3.0.0.md")"
+lsbefore="$(ls -a "$B/initiatives" "$B/initiatives/logs" "$B/initiatives/.state")"
+bout2="$(MEMORY_DIR="$B" REPO_ROOT="$REPO_ROOT" MIGRATION_3_0_0_TODAY=2026-11-18 bash "$MIG")"
+assert_eq "$before" "$(snap "$B/initiatives/bare.md" "$B/initiatives/logs/bare.md" "$bo" "$B/initiatives/.state/bareodd.pre-3.0.0.md")" "bare: second run byte-identical"
+assert_eq "$lsbefore" "$(ls -a "$B/initiatives" "$B/initiatives/logs" "$B/initiatives/.state")" "bare: second run creates no files"
+assert_not_contains "$bout2" "bare.md:" "bare: second run does not report the migrated file"
+# Recovery route: fix the state word by hand, re-run, the Target converts
+sed -i.bak 's/^- status: in progress — half done$/- status: open — half done/; s/^- status: open · next: human$/- status: open/' "$bo"; rm -f "$bo.bak"
+rc=0; bout3="$(MEMORY_DIR="$B" REPO_ROOT="$REPO_ROOT" MIGRATION_3_0_0_TODAY=2026-11-18 bash "$MIG")" || rc=$?
+assert_exit 0 "$rc" "recovery: re-run exits 0"
+assert_contains "$(cat "$bo")" $'- scope: half done\n- status: open · next: human · blocked_by: none\n' "recovery: the fixed Target converts on re-run"
+assert_contains "$bout3" "bareodd.md: fences written" "recovery: the file now parses and gets its fences"
 
 # A file with only grammar errors (no next_actor, no old-shape status) is not
 # rewritten, but each offending status is reported with its line number

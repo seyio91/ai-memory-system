@@ -196,7 +196,9 @@ active and closed (not `_template.md`, symlinks, `archive/`, `logs/` or
   overwritten.
 - An open or blocked `<state> — <prose>` status (also `<state> <date> — …` and
   `<state> (…) — …`) becomes `- status: <state> · next: <old next_actor value,
-  or none> · blocked_by: none`. The prose moves verbatim to `- scope:`, except
+  or none> · blocked_by: none`. The prose moves verbatim to `- scope:` (a date
+  or `(…)` before the ` — ` leads it, joined by a space:
+  `- scope: 2026-11-16 <prose>`), except
   `Progress: …` and `Was: …` segments, which go to the log. A segment starts at
   `Progress:` or `Was:` (at the start of the prose or after a space) and ends
   before the next `Progress:` / `Was:`, before a sentence that opens with a
@@ -208,15 +210,23 @@ active and closed (not `_template.md`, symlinks, `archive/`, `logs/` or
   with one space). Every `next_actor:` line is removed; the first one's value
   becomes `next:`, and when a Target has more than one, all of them go to the
   log. Every other Target line stays as written.
-- A `done` Target collapses into a Closed row (the date from `done <date>`
-  when present, else `-`; the `jira:` value; outcome `see log`), under the
-  header `| id | closed | jira | outcome |` when the migration creates the
-  table. Its whole original block goes to the log verbatim. This includes a
+- In a Target with a `next_actor:` line, a status with no ` — ` and no ` · `
+  whose first word is `open`, `blocked` or `closed` (`- status: open`,
+  `- status: blocked waiting on vendor`) is converted too: the first word is the
+  state and the remaining words move verbatim to `- scope:` (no words, no scope
+  line). `closed` follows the abandoned rule below. A status whose first word is
+  outside `open|blocked|done|closed` (`in progress — …`) is reported, not
+  converted.
+- A `done` Target, including a bare `done` or `done <words>`, collapses into a
+  Closed row (the date when the word after `done` is a `YYYY-MM-DD` date, else
+  `-`; the `jira:` value; outcome `see log`), under the header
+  `| id | closed | jira | outcome |` when the migration creates the table. Its whole original block goes to the log verbatim. This includes a
   new-format `done` Target that still has a `next_actor:` line.
 - A `closed` (abandoned) Target is not collapsed, because a Closed row counts
   as done and would unblock its dependents. An old `closed[ <date>] — <prose>`
-  status is converted like an open one but keeps its state: the prose (minus
-  `Progress:` / `Was:` segments) moves to `- scope:`, the status becomes
+  status (or `closed <words>`) is converted like an open one but keeps its
+  state: the prose (minus `Progress:` / `Was:` segments) moves to `- scope:`
+  (`- scope: 2026-11-01 abandoned …` for a dated one), the status becomes
   `- status: closed`, and every `next_actor:` line moves to the log. A
   new-format `closed` Target only loses its `next_actor:` line(s) to the log.
   Its dependents stay unsatisfied, as before the migration.
@@ -247,8 +257,7 @@ The staleness snapshot (`.state/<slug>.snapshot`) is left alone; a collapsed
   second `- status:` line, and for a status elsewhere in a migrated file that
   breaks the new grammar (`done (no dash)`). Line numbers are those of the
   rewritten file. The whole Target is left as written, so lint ERRORs and `initiative-status.sh`
-  refuses the file until you fix it. Then run
-  `bash scripts/initiative-render.sh <slug> --write`.
+  refuses the file until you fix it. See *Recovering a refused file* below.
 - `fences skipped` when the rewritten file still does not parse.
 - `<file>:<line>: status does not match the 3.0.0 grammar; fix by hand (lint ERRORs it)`
   for a file it does not rewrite (no `next_actor:` line, no old-shape status)
@@ -258,6 +267,25 @@ The staleness snapshot (`.state/<slug>.snapshot`) is left alone; a collapsed
   `initiative-status.sh` refuses the file until you fix it.
 - `note: … SUPERSEDES D<n>, which names a malformed head (left unedited)` when
   the superseded entry's head does not parse, so no pointer was added.
+
+**Recovering a refused file.** `/sync-system` runs the migration once; it does
+not run it again after you fix a line. Fix each reported line by hand, usually
+by changing the state word to `open`, `blocked`, `done` or `closed`
+(`in progress — half done` becomes `open — half done`) and leaving the
+Target's `next_actor:` line in place, then re-run the script against your
+memory directory:
+
+```bash
+MEMORY_DIR=<memory dir> REPO_ROOT=<engine checkout> \
+  bash <engine checkout>/migrations/3.0.0-initiative-format.sh
+```
+
+It is idempotent: converted Targets, logs and backups are left alone, and the
+lines that now match are converted. Once the file parses, the migration runs
+`initiative-render.sh <slug> --write` itself. If you rewrote the Target fully
+into the new format instead, the re-run has nothing to convert; run
+`bash scripts/initiative-render.sh <slug> --write` yourself.
+`initiative-status.sh` gives the same advice when it refuses an old-format file.
 
 **Then do the hand pass.** A migrated initiative is valid but thin; lint WARNs
 mark each Target that still needs it:

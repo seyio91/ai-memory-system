@@ -540,6 +540,10 @@ old_out="$(bash "$SCRIPT" old-actor 2>&1)"; rc=$?
 assert_exit 1 "$rc" "next_actor: line is refused"
 assert_contains "$old_out" "3.0.0-initiative-format.sh" "next_actor refusal names the 3.0.0 migration"
 assert_contains "$old_out" "next_actor" "next_actor refusal names the offending line"
+assert_contains "$old_out" "if this instance has not synced to 3.0.0 yet, /sync-system runs the 3.0.0 migration" "refusal: /sync-system only when not yet synced to 3.0.0"
+assert_contains "$old_out" "Otherwise fix the lines above by hand (e.g. change the state word to open|blocked|done|closed)" "refusal: after the migration, fix the lines by hand"
+assert_contains "$old_out" "re-run MEMORY_DIR=<memory dir> REPO_ROOT=<engine checkout> bash <engine>/migrations/3.0.0-initiative-format.sh, which is idempotent" "refusal: re-run the migration script directly with its env vars"
+assert_not_contains "$old_out" "applied by /sync-system" "refusal no longer implies /sync-system re-applies a run migration"
 mk_old old-prose '- status: open — waiting on review'
 old_out="$(bash "$SCRIPT" old-prose 2>&1)"; rc=$?
 assert_exit 1 "$rc" "old '<state> — prose' status is refused"

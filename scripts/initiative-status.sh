@@ -191,7 +191,7 @@ if [ "${#format_errors[@]}" -gt 0 ]; then
         echo "initiative-status:   $err" >&2
     done
     if [ "$format_old" -eq 1 ]; then
-        echo "initiative-status: run the 3.0.0 migration (migrations/3.0.0-initiative-format.sh, applied by /sync-system) or fix the lines above by hand" >&2
+        echo "initiative-status: if this instance has not synced to 3.0.0 yet, /sync-system runs the 3.0.0 migration. Otherwise fix the lines above by hand (e.g. change the state word to open|blocked|done|closed) and re-run MEMORY_DIR=<memory dir> REPO_ROOT=<engine checkout> bash <engine>/migrations/3.0.0-initiative-format.sh, which is idempotent and converts what is now matchable" >&2
     else
         echo "initiative-status: fix the lines above by hand" >&2
     fi
