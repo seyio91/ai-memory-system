@@ -24,7 +24,12 @@
 - [x] P4 — Lint rules (needs: P1, P2, P3) — 8a4c7c4
 - [x] P5 — Docs, template, commands, changelog (needs: P3, P4) — b59f4ea
 - [x] P6 — Migration 3.0.0 (needs: P1, P2, P3, P4) — 0798c2e + fixes; PR #155 (Phases 1–6)
-- [ ] P7 — vault-eks hand pass (needs: P5, P6)
+- [x] P7 — vault-eks hand pass (needs: P5, P6) — applied 2026-11-18
+
+### Initiative Now view: surface user actions and blocking decisions → [plan](plans/initiative-now-view-surface-user-actions-and-blocking-decisions.md)
+- [x] P1 — Renderer: Now sections, decisions, sort, wording — f8b16eb..ff26657, validated round 4
+- [x] P2 — Lint WARN and docs (needs: P1) — 6f063f5, d18a07d, validated round 2; full gate green (70/71, the one failure is cwd-dependent and passes from /tmp)
+- [x] P3 — vault-eks hand pass (needs: P1, P2) — applied 2026-11-19 after PR #157 merged (d2b7b71)
 
 ## Done
 _(checked items stay above until the file is rolled)_
