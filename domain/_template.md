@@ -13,6 +13,11 @@ summary: <one-line description — shown in the index to decide relevance>
 > so others see the format. Run `scripts/regenerate-index.sh` after adding one.
 
 ## Knowledge
-<!-- Append entries as: **[YYYY-MM-DD]** what — why it matters -->
+<!-- Durable patterns and traps only. No version pins, no file:line refs (name the file), no counts, no dated status, no incident narratives — name the file or command that answers it. -->
 
-**[YYYY-MM-DD]** <the fact / pattern / gotcha> — <why it matters and when it bites>
+Domain files hold **durable patterns and traps**, never volatile specifics. If a
+detail will rot (a version, a line number, a count, "as of <date>", the story of
+one incident), leave it out and point at the file or command that answers it
+instead. Entries are undated.
+
+<the trap or pattern> — <why it matters and when it bites>; see `<file or command>`
