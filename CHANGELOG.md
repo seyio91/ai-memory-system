@@ -6,6 +6,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-19
+### Breaking
+
+- **Initiatives use a new one-line-status format with generated views.** A Target
+  status is now `<open|blocked|done|closed> · next: <session — action> · blocked_by: <…|none>`
+  (terminal states alone), with a `- scope:` line; `next_actor:` is gone. Per-env work is
+  split into `<project>/<name>@<env>` Targets driven by frontmatter `envs:`, finished Targets
+  move to a `### Closed` table, and decisions gain `topics:`/`topic:`, `AMENDS` and `→ Dn`
+  forward pointers (an amendment is now a new entry). `## Now`, `## Environment matrix` and
+  `## Current rules` are generated into fences by `initiative-render.sh --write`, and the
+  progress log lives at `initiatives/logs/<slug>.md`, moving to `initiatives/archive/logs/`
+  on close. The old format is no longer parsed: `lint-memory.sh` reports an ERROR and
+  `initiative-status.sh` refuses the file. A duplicate Target id is now an ERROR (was a
+  WARN), and an interactive Target with no status is an ERROR that `initiative-status.sh`
+  also refuses. The 3.0.0 migration rewrites existing initiatives; an abandoned (`closed`)
+  Target keeps its heading and never satisfies a dependency; see UPGRADING.md.
+
+### Added
+
+- **The initiative Now view leads with what needs you.** `## Now` now has five sections in
+  order: Decisions needed, Waiting on you, Sessions to start, Blocked, Open proposals. A
+  Target whose `next:` starts with `user —` is under Waiting on you; other ready Targets are
+  under Sessions to start. Decisions needed lists each `proposed` D-id cited in a Target's
+  `blocked_by:` with the Targets it holds up, and those ids are marked `(blocking)` in Open
+  proposals. Blocked rows are sorted by how much they hold up, and dependencies read
+  `(blocked)`, `(closed)`, `(needs <stage>)`, `(not found)`, `(stage unknown)` or
+  `(not done)`.
+- **New lint WARN.** `lint-memory.sh` warns when a Target is `status: open` but its
+  `depends_on` is unsatisfied; set `status: blocked`. It uses the same verdict as the Now
+  view, so a `closed` dependency never satisfies.
+- **Authoring rules** (in `docs/initiatives.md` and `initiatives/_template.md`): start
+  `next:` with `user —` when the user acts first, put only non-Target blockers in
+  `blocked_by:` and cite decisions by D-id, and set `status: blocked` on a Target with
+  unfinished `depends_on`.
+- **Existing initiatives report a stale Now fence** until you run
+  `bash scripts/initiative-render.sh <slug> --write` for each one.
+
+### Fixed
+
+- **Shipped domain files no longer carry volatile specifics.** `domain/agent-tooling.md` and `domain/codex.md` are rewritten as durable patterns and traps (stale skill-store, opencode and bare-mode details corrected, dangling links removed), and `domain/_template.md` now teaches that rule instead of dated entries.
+
+### Upgrade
+
+- **Migration `3.0.0-initiative-format.sh` converts existing initiatives.** It runs on
+  `/sync-system`. Before its first write it saves a byte-identical copy of each initiative to
+  `initiatives/.state/<slug>.pre-3.0.0.md`. Open statuses become
+  `<state> · next: <old next_actor> · blocked_by: none`, and their prose moves verbatim to a
+  `- scope:` line. A status with no ` — ` (`open`, `blocked waiting on vendor`) takes its first
+  word as the state and the rest as scope. `Progress:` / `Was:` segments go to
+  `initiatives/logs/<slug>.md`. Only `done` Targets collapse into `### Closed` rows, and their
+  full blocks go to the log. An abandoned (`closed`) Target keeps its heading with
+  `- status: closed` and never satisfies a dependency. `SUPERSEDES` lines gain `→ Dn`
+  pointers, frontmatter gains `topics: []`, and the generated fences are written. It reports
+  each prose "amends Dn" candidate and every line it could not convert, and leaves those lines
+  byte-identical. A second run changes nothing, and re-running it after fixing a reported line
+  converts that line. The hand pass that follows is in UPGRADING.md `## 3.0.0`.
+
 ## [2.0.0] - 2026-11-08
 ### Breaking
 

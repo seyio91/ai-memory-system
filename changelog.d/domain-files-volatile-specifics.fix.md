@@ -1,1 +1,0 @@
-- **Shipped domain files no longer carry volatile specifics.** `domain/agent-tooling.md` and `domain/codex.md` are rewritten as durable patterns and traps (stale skill-store, opencode and bare-mode details corrected, dangling links removed), and `domain/_template.md` now teaches that rule instead of dated entries.
