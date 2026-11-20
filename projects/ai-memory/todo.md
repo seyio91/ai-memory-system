@@ -7,10 +7,19 @@
 
 ## Active
 
+### Domain files: apply the 2026-11-19 audit → [plan](archive/plans/domain-files-apply-the-2026-11-19-audit.md)
+- [x] P1 — Wrong-today fixes
+- [x] P2 — Deprecate secrets and agent-sandboxing (needs: P1)
+- [x] P3 — Trim topology files (needs: P2)
+- [x] P4 — Trim Kubernetes-area files and relocate gotchas (needs: P2)
+- [x] P5 — Trim tool files (needs: P2)
+- [x] P6 — Tracked files PR
+- [x] P7 — Whole-tree checks (needs: P3, P4, P5)
+
 ### Split /checkpoint: model synthesizes, script does bookkeeping → [plan](plans/checkpoint-script-split.md)
 - [ ] P1 — Parser, prepare, identifier expansion
 - [ ] P2 — apply: validate, merge, write, report (needs: P1)
-- [ ] P3 — Wire command, Codex, docs, changelog (needs: P2)
+- [x] P3 — Wire command, Codex, docs, changelog (needs: P2)
 
 ### opencode: deliver commands as native slash commands → [plan](archive/plans/opencode-native-commands.md)
 - [x] P1 — Spike: opencode command loading
@@ -30,6 +39,11 @@
 - [x] P1 — Renderer: Now sections, decisions, sort, wording — f8b16eb..ff26657, validated round 4
 - [x] P2 — Lint WARN and docs (needs: P1) — 6f063f5, d18a07d, validated round 2; full gate green (70/71, the one failure is cwd-dependent and passes from /tmp)
 - [x] P3 — vault-eks hand pass (needs: P1, P2) — applied 2026-11-19 after PR #157 merged (d2b7b71)
+
+### Initiative orchestrator → [plan](plans/initiative-orchestrator.md)
+- [x] P1 — Spike: naming, registration, permission modes
+- [x] P2 — spawn.sh launcher (needs: P1)
+- [x] P3 — Orchestrator skill (needs: P1, P2)
 
 ## Done
 _(checked items stay above until the file is rolled)_
