@@ -40,7 +40,7 @@
 - [x] P2 — Lint WARN and docs (needs: P1) — 6f063f5, d18a07d, validated round 2; full gate green (70/71, the one failure is cwd-dependent and passes from /tmp)
 - [x] P3 — vault-eks hand pass (needs: P1, P2) — applied 2026-11-19 after PR #157 merged (d2b7b71)
 
-### Initiative orchestrator → [plan](plans/initiative-orchestrator.md)
+### Initiative orchestrator → [plan](archive/plans/initiative-orchestrator.md)
 - [x] P1 — Spike: naming, registration, permission modes
 - [x] P2 — spawn.sh launcher (needs: P1)
 - [x] P3 — Orchestrator skill (needs: P1, P2)
